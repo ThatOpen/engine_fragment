@@ -1,0 +1,31 @@
+{
+  "name": "bim-fragment-root",
+  "description": "BIM geometry API",
+  "version": "0.0.1",
+  "private": true,
+  "main": "fragment/src/fragment-api.ts",
+  "author": "agviegas",
+  "license": "MIT",
+  "repository": "git+https://github.com/ifcjs/fragment",
+  "scripts": {
+    "init-repo": "yarn && npm run build",
+    "start": "cd example && yarn start",
+    "build": "cd fragment && yarn build && cd ../example && yarn build",
+    "publish-repo": "cd viewer && yarn build && npm publish"
+  },
+  "bugs": {
+    "url": "https://github.com/agviegas/web-ifc-viewer/issues"
+  },
+  "keywords": [
+    "ifc",
+    "geometry",
+    "threejs",
+    "bim",
+    "3d"
+  ],
+  "workspaces": [
+    "fragment",
+    "example"
+  ],
+  "dependencies": {}
+}
