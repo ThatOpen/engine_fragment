@@ -1,1 +1,1 @@
-{"version":3,"file":"fragment-api.js","sourceRoot":"","sources":["../src/fragment-api.ts"],"names":[],"mappings":"AAAA,OAAO,EAAC,IAAI,EAAC,MAAM,OAAO,CAAC;AAE3B,MAAM,OAAO,WAAW;IACpB;QACI,OAAO,CAAC,GAAG,CAAC,uBAAuB,CAAC,CAAC;QACrC,OAAO,CAAC,GAAG,CAAC,IAAI,CAAC,CAAC;IACtB,CAAC;CACJ"}
+{"version":3,"file":"fragment-api.js","sourceRoot":"","sources":["../src/fragment-api.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,EAAE,MAAM,OAAO,CAAC;AAE7B,MAAM,OAAO,WAAW;IACtB;QACE,OAAO,CAAC,GAAG,CAAC,uBAAuB,CAAC,CAAC;QACrC,OAAO,CAAC,GAAG,CAAC,IAAI,CAAC,CAAC;IACpB,CAAC;CACF"}
