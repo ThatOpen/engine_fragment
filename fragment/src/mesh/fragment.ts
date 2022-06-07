@@ -1,80 +1,134 @@
-import { BufferGeometry, InstancedMesh, Matrix4 } from 'three';
-import { FragmentData, SubsetData } from './base-types';
+import { InstancedMesh, Matrix4 } from 'three';
+import { FragmentData, Instances, NestedFragmentData } from './base-types';
+import { FragmentList } from '../fragmentList';
 
 export class Fragment {
-  mesh: InstancedMesh;
-  instances: { [elementID: string]: { index: number; matrix: Matrix4 } } = {};
-  subsets: { [name: string]: InstancedMesh } = {};
+  id: string;
 
   // If the fragment contains multiple elements
-  multiple = false;
+  composed = false;
+
+  private mesh: InstancedMesh;
+
+  private instances: { [elementID: string]: { index: number; matrix: Matrix4 } } = {};
+  private instanceCapacity: number;
+
+  private nestedFragments = new FragmentList();
 
   private tempMatrix = new Matrix4();
 
-  get id() {
-    return this.mesh.uuid;
+  get capacity() {
+    return this.instanceCapacity;
+  }
+
+  set capacity(newCapacity: number) {
+    const newMesh = new InstancedMesh(this.mesh.geometry, this.mesh.material, newCapacity);
+
+    this.mesh.geometry = null as any;
+    this.mesh.material = null as any;
+    this.mesh.dispose();
+
+    this.mesh = newMesh;
+    this.instanceCapacity = newCapacity;
   }
 
   constructor(data: FragmentData) {
+    this.id = data.id;
     this.mesh = new InstancedMesh(data.geometry, data.material, data.count);
-    this.createInstances(data);
+    this.instanceCapacity = data.count;
+    this.addInstances(data.instances);
   }
 
   remove() {}
 
-  addInstance() {}
+  addInstances(instances: Instances) {
+    this.extendCapacityIfNeeded(instances);
+    let index = Object.keys(this.instances).length;
 
-  removeInstance() {}
+    Object.keys(instances).forEach((elementID) => {
+      const matrix = instances[elementID];
+      this.instances[elementID] = { index, matrix };
+      this.mesh.setMatrixAt(index, matrix);
+      index++;
+    });
+  }
+
+  removeInstances(elementIDs: number[]) {
+    const indices = new Set();
+
+    for (const id of elementIDs) {
+      if (this.instances[id]) {
+        indices.add(this.instances[id].index);
+        delete this.instances[id];
+      }
+    }
+
+    this.removeInstancesAndRearrangeTheRest(indices);
+    this.mesh.count -= indices.size;
+  }
+
+  clearInstances() {
+    this.mesh.clear();
+  }
 
   addGeometry() {}
 
   removeGeometry() {}
 
-  getSubset() {}
-
-  createSubset(data: SubsetData) {
-    const ids = data.elementIDs.map((id) => this.instances[id].index);
-    this.createSubsetifDoesntExist(data);
-    const subset = this.subsets[data.name];
-    const offset = this.getSubsetOffset(data, ids);
-
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      this.mesh.getMatrixAt(id, this.tempMatrix);
-      subset.setMatrixAt(id + offset, this.tempMatrix);
+  addFragment(data: NestedFragmentData) {
+    const instances = this.getInstances(data);
+    this.initializeFragment(data);
+    const fragment = this.nestedFragments.get(data.id);
+    if (data.removePrevious) {
+      fragment.clearInstances();
     }
+
+    fragment.addInstances(instances);
   }
 
-  removeFromSubset() {}
+  removeFragment(id: string) {
+    this.nestedFragments.remove(id);
+  }
 
-  clearSubsets() {}
+  private getInstances(data: NestedFragmentData) {
+    const instances: Instances = {};
+    for (const elementID of data.elementIDs) {
+      if (this.instances[elementID]) {
+        instances[elementID] = this.instances[elementID].matrix;
+      }
+    }
+    return instances;
+  }
 
-  private createInstances(data: FragmentData) {
-    if (data.instances) {
-      let i = 0;
-      Object.keys(data.instances).forEach((id) => {
-        this.instances[id].index = i++;
-        const matrix = data.instances![id];
-        this.mesh.setMatrixAt(i, matrix);
+  private initializeFragment(data: NestedFragmentData) {
+    if (!this.nestedFragments.get(data.id)) {
+      this.nestedFragments.create({
+        id: data.id,
+        geometry: this.mesh.geometry,
+        count: this.capacity,
+        instances: {},
+        material: data.material || this.mesh.material
       });
     }
   }
 
-  private createSubsetifDoesntExist(data: SubsetData) {
-    if (!this.subsets[data.name]) {
-      this.subsets[data.name] = new InstancedMesh(
-        new BufferGeometry(),
-        data.material,
-        this.mesh.count
-      );
+  private extendCapacityIfNeeded(instances: Instances) {
+    const count = Object.keys(instances).length;
+    const isCapacityExceded = this.mesh.count + count > this.instanceCapacity;
+    if (isCapacityExceded) {
+      this.capacity += count;
     }
   }
 
-  private getSubsetOffset(data: SubsetData, ids: number[]) {
-    const subset = this.subsets[data.name];
-    const previousSize = subset.count;
-    const baseSize = data.removePrevious ? 0 : subset.count;
-    subset.count = baseSize + ids.length;
-    return data.removePrevious ? 0 : previousSize;
+  private removeInstancesAndRearrangeTheRest(indices: Set<any>) {
+    let accumulator = 0;
+    for (let i = 0; i < this.mesh.count; i++) {
+      if (indices.has(i)) {
+        accumulator++;
+      } else if (accumulator > 0) {
+        this.mesh.getMatrixAt(i, this.tempMatrix);
+        this.mesh.setMatrixAt(i - accumulator, this.tempMatrix);
+      }
+    }
   }
 }

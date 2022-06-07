@@ -18,16 +18,20 @@ export interface TagsMap {
   [propertyName: string]: FragmentsByTag;
 }
 
-export interface FragmentData {
-  geometry: BufferGeometry;
-  material: Material | Material[];
-  count: number;
-  tags: FragmentTags;
-  instances?: { [elementID: string]: Matrix4 };
+export interface Instances {
+  [elementID: string]: Matrix4;
 }
 
-export interface SubsetData {
-  name: string;
+export interface FragmentData {
+  id: string;
+  material: Material | Material[];
+  geometry: BufferGeometry;
+  count: number;
+  instances: Instances;
+}
+
+export interface NestedFragmentData {
+  id: string;
   elementIDs: number[];
   material?: Material;
   removePrevious: boolean;
