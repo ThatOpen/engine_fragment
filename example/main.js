@@ -108,14 +108,14 @@ async function loadModels() {
     const tempMatrix = new Matrix4();
 
     window.onmousemove = (event) => {
-        mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-        mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         caster.setFromCamera(mouse, camera);
         const result = caster.intersectObject(fragment.mesh)[0];
 
-        if(result) {
-            fragment.mesh.getMatrixAt(result.instanceId, tempMatrix);
-            selection.mesh.setMatrixAt(0, tempMatrix);
+        if (result) {
+            fragment.getInstance(result.instanceId, tempMatrix);
+            selection.setInstance(0, tempMatrix);
             selection.mesh.instanceMatrix.needsUpdate = true;
             selection.mesh.count = 1;
         } else {
@@ -129,7 +129,37 @@ async function loadModels() {
     // scene.add(table);
 }
 
+
 function createFragment(meshes, count = 1, offset = 0.5) {
+    const {materials, merged} = mergeGeometries(meshes);
+
+    // Testing adding many instances __________________________________________________________________
+
+    const fragment = new Fragment(merged, materials, 1000);
+    fragment.instances = generateInstances(count, offset);
+
+
+    // Testing adding and removing instances dynamically _______________________________________________
+
+    // const fragment = new Fragment(merged, materials, 1);
+    // fragment.instances = {"start": new Matrix4()};
+    // let counter = 1;
+    // window.addEventListener('keydown', (event) => {
+    //     if (event.code === "KeyP") {
+    //         fragment.addInstances({[counter.toString()]: new Matrix4().setPosition(counter * offset, 0, 0)});
+    //         counter++
+    //     } else if (event.code === "KeyO") {
+    //         fragment.removeInstances([counter.toString()]);
+    //         counter--
+    //     }
+    // })
+
+    // _______________________________________________________________________________________________________
+
+    return fragment;
+}
+
+function mergeGeometries(meshes) {
     const geometries = meshes.map(mesh => mesh.geometry);
     const sizes = meshes.map(mesh => mesh.geometry.index.count);
 
@@ -149,14 +179,15 @@ function createFragment(meshes, count = 1, offset = 0.5) {
 
     let vertexCounter = 0;
     let counter = 0;
-    for(let size of sizes) {
+    for (let size of sizes) {
         const group = {start: vertexCounter, count: size, materialIndex: counter++};
         merged.groups.push(group);
         vertexCounter += size;
     }
+    return {materials, merged};
+}
 
-    const fragment = new Fragment(merged, materials, 1000);
-
+function generateInstances(count, offset) {
     const rootCount = Math.cbrt(count);
     const matrices = {};
     for (let i = 0; i < rootCount; i++) {
@@ -168,10 +199,7 @@ function createFragment(meshes, count = 1, offset = 0.5) {
             }
         }
     }
-
-    fragment.instances = matrices;
-
-    return fragment;
+    return matrices;
 }
 
 loadModels();
