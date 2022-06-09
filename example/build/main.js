@@ -40872,6 +40872,112 @@
 
 	InstancedInterleavedBuffer.prototype.isInstancedInterleavedBuffer = true;
 
+	class Raycaster {
+
+		constructor( origin, direction, near = 0, far = Infinity ) {
+
+			this.ray = new Ray( origin, direction );
+			// direction is assumed to be normalized (for accurate distance calculations)
+
+			this.near = near;
+			this.far = far;
+			this.camera = null;
+			this.layers = new Layers();
+
+			this.params = {
+				Mesh: {},
+				Line: { threshold: 1 },
+				LOD: {},
+				Points: { threshold: 1 },
+				Sprite: {}
+			};
+
+		}
+
+		set( origin, direction ) {
+
+			// direction is assumed to be normalized (for accurate distance calculations)
+
+			this.ray.set( origin, direction );
+
+		}
+
+		setFromCamera( coords, camera ) {
+
+			if ( camera && camera.isPerspectiveCamera ) {
+
+				this.ray.origin.setFromMatrixPosition( camera.matrixWorld );
+				this.ray.direction.set( coords.x, coords.y, 0.5 ).unproject( camera ).sub( this.ray.origin ).normalize();
+				this.camera = camera;
+
+			} else if ( camera && camera.isOrthographicCamera ) {
+
+				this.ray.origin.set( coords.x, coords.y, ( camera.near + camera.far ) / ( camera.near - camera.far ) ).unproject( camera ); // set origin in plane of camera
+				this.ray.direction.set( 0, 0, - 1 ).transformDirection( camera.matrixWorld );
+				this.camera = camera;
+
+			} else {
+
+				console.error( 'THREE.Raycaster: Unsupported camera type: ' + camera.type );
+
+			}
+
+		}
+
+		intersectObject( object, recursive = true, intersects = [] ) {
+
+			intersectObject( object, this, intersects, recursive );
+
+			intersects.sort( ascSort );
+
+			return intersects;
+
+		}
+
+		intersectObjects( objects, recursive = true, intersects = [] ) {
+
+			for ( let i = 0, l = objects.length; i < l; i ++ ) {
+
+				intersectObject( objects[ i ], this, intersects, recursive );
+
+			}
+
+			intersects.sort( ascSort );
+
+			return intersects;
+
+		}
+
+	}
+
+	function ascSort( a, b ) {
+
+		return a.distance - b.distance;
+
+	}
+
+	function intersectObject( object, raycaster, intersects, recursive ) {
+
+		if ( object.layers.test( raycaster.layers ) ) {
+
+			object.raycast( raycaster, intersects );
+
+		}
+
+		if ( recursive === true ) {
+
+			const children = object.children;
+
+			for ( let i = 0, l = children.length; i < l; i ++ ) {
+
+				intersectObject( children[ i ], raycaster, intersects, true );
+
+			}
+
+		}
+
+	}
+
 	/**
 	 * Ref: https://en.wikipedia.org/wiki/Spherical_coordinate_system
 	 *
@@ -48673,159 +48779,24 @@
 	};
 
 	class Fragment {
-	    constructor(data) {
-	        // If the fragment contains multiple elements
-	        this.composed = false;
-	        this.instances = {};
-	        this.nestedFragments = new FragmentList();
-	        this.tempMatrix = new Matrix4();
-	        this.id = data.id;
-	        this.mesh = new InstancedMesh(data.geometry, data.material, data.count);
-	        this.instanceCapacity = data.count;
-	        this.addInstances(data.instances);
+	    constructor(geometry, materials, count) {
+	        this.elements = {};
+	        this.fragments = {};
+	        this.mesh = new InstancedMesh(geometry, materials, count);
+	        this.capacity = count;
 	    }
-	    get capacity() {
-	        return this.instanceCapacity;
-	    }
-	    set capacity(newCapacity) {
-	        const newMesh = new InstancedMesh(this.mesh.geometry, this.mesh.material, newCapacity);
-	        this.mesh.geometry = null;
-	        this.mesh.material = null;
-	        this.mesh.dispose();
-	        this.mesh = newMesh;
-	        this.instanceCapacity = newCapacity;
-	    }
-	    dispose() {
-	        this.nestedFragments.dispose();
-	        this.nestedFragments = null;
-	        this.mesh.clear();
-	        this.mesh.geometry.dispose();
-	        this.mesh.geometry = null;
-	        this.disposeMaterials();
-	        this.mesh.material = null;
-	        this.mesh = null;
-	        this.instances = {};
-	        this.instanceCapacity = 0;
-	    }
-	    setInstance(elementID, transformation) {
-	        const instance = this.instances[elementID];
-	        if (instance !== undefined) {
-	            this.mesh.setMatrixAt(instance, transformation);
-	            this.mesh.instanceMatrix.needsUpdate = true;
+	    set instances(instances) {
+	        const elementIDs = Object.keys(instances);
+	        const length = elementIDs.length;
+	        for (let i = 0; i < length; i++) {
+	            const id = elementIDs[i];
+	            this.elements[id] = i;
+	            this.mesh.setMatrixAt(i, instances[id]);
 	        }
 	    }
-	    addInstances(instances) {
-	        this.extendCapacityIfNeeded(instances);
-	        let index = Object.keys(this.instances).length;
-	        Object.keys(instances).forEach((elementID) => {
-	            const matrix = instances[elementID];
-	            this.instances[elementID] = index;
-	            this.mesh.setMatrixAt(index, matrix);
-	            index++;
-	        });
-	    }
-	    removeInstances(elementIDs) {
-	        const indices = new Set();
-	        for (const id of elementIDs) {
-	            if (this.instances[id]) {
-	                indices.add(this.instances[id]);
-	                delete this.instances[id];
-	            }
-	        }
-	        this.removeInstancesAndRearrangeTheRest(indices);
-	        this.mesh.count -= indices.size;
-	    }
-	    clearInstances() {
-	        this.mesh.clear();
-	    }
-	    // addGeometry() {}
-	    // removeGeometry() {}
-	    addFragment(data) {
-	        const instances = this.getInstances(data);
-	        this.initializeFragment(data);
-	        const fragment = this.nestedFragments.get(data.id);
-	        if (data.removePrevious) {
-	            fragment.clearInstances();
-	        }
-	        fragment.addInstances(instances);
-	        return fragment;
-	    }
-	    removeFragment(id) {
-	        this.nestedFragments.remove(id);
-	    }
-	    getInstances(data) {
-	        const instances = {};
-	        for (const elementID of data.elementIDs) {
-	            if (this.instances[elementID]) {
-	                const index = this.instances[elementID];
-	                this.mesh.getMatrixAt(index, this.tempMatrix);
-	                instances[elementID] = this.tempMatrix.clone();
-	            }
-	        }
-	        return instances;
-	    }
-	    initializeFragment(data) {
-	        if (!this.nestedFragments.get(data.id)) {
-	            this.nestedFragments.create({
-	                id: data.id,
-	                geometry: this.mesh.geometry,
-	                count: this.capacity,
-	                instances: {},
-	                material: data.material || this.mesh.material
-	            });
-	        }
-	    }
-	    extendCapacityIfNeeded(instances) {
-	        const count = Object.keys(instances).length;
-	        const necessaryCapacity = this.mesh.count + count;
-	        const isCapacityExceded = necessaryCapacity > this.instanceCapacity;
-	        if (isCapacityExceded) {
-	            this.capacity += count;
-	        }
-	    }
-	    removeInstancesAndRearrangeTheRest(indices) {
-	        let accumulator = 0;
-	        for (let i = 0; i < this.mesh.count; i++) {
-	            if (indices.has(i)) {
-	                accumulator++;
-	            }
-	            else if (accumulator > 0) {
-	                this.mesh.getMatrixAt(i, this.tempMatrix);
-	                this.mesh.setMatrixAt(i - accumulator, this.tempMatrix);
-	            }
-	        }
-	    }
-	    disposeMaterials() {
-	        const mats = this.mesh.material;
-	        if (Array.isArray(mats)) {
-	            mats.forEach((mat) => mat.dispose());
-	        }
-	        else {
-	            mats.dispose();
-	        }
-	    }
-	}
-
-	class FragmentList {
-	    constructor() {
-	        this.list = {};
-	    }
-	    get(id) {
-	        return this.list[id];
-	    }
-	    create(data) {
-	        this.list[data.id] = new Fragment(data);
-	        return this.list[data.id];
-	    }
-	    remove(id) {
-	        if (!this.list[id])
-	            return;
-	        this.list[id].dispose();
-	        delete this.list[id];
-	    }
-	    dispose() {
-	        Object.values(this.list).forEach((fragment) => fragment.dispose());
-	        this.list = {};
+	    addFragment(id, material = this.mesh.material) {
+	        this.fragments[id] = new Fragment(this.mesh.geometry, material, this.capacity);
+	        return this.fragments[id];
 	    }
 	}
 
@@ -48905,96 +48876,46 @@
 	// Load model
 	const loader = new GLTFLoader();
 
+	new Color(255, 0, 0);
+
 	async function loadModels() {
 	    const chairScene = await loader.loadAsync('gltfs/chair.glb');
 	    const chairMeshes = chairScene.scene.children[0].children;
-	    const mesh = mergeGltfGeometries(chairMeshes);
-	    // scene.add(mesh);
+	    const fragment = createFragment(chairMeshes, 1000);
+	    scene.add(fragment.mesh);
 
-	    const chairs = createInstances(mesh, 1000);
-	    scene.add(chairs.mesh);
+	    const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false});
+	    const selection = fragment.addFragment('selection', selectionMaterial);
 
+	    scene.add(selection.mesh);
 
-	    // const caster = new Raycaster();
-	    // const mouse = new Vector2();
-	    // const tempMatrix = new Matrix4();
-	    // const identity = tempMatrix.identity();
-	    //
-	    // window.onmousemove = (event) => {
-	    //     mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-	    //     mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-	    //     caster.setFromCamera(mouse, camera);
-	    //     const result = caster.intersectObject(mesh)[0];
-	    //
-	    //     if(result) {
-	    //         mesh.getMatrixAt(result.instanceId, tempMatrix);
-	    //         highlightedMesh.setMatrixAt(0, tempMatrix);
-	    //         highlightedMesh.instanceMatrix.needsUpdate = true;
-	    //         highlightedMesh.count = 1;
-	    //     } else {
-	    //         highlightedMesh.count = 0;
-	    //     }
-	    // }
-	}
+	    const caster = new Raycaster();
+	    const mouse = new Vector2();
+	    const tempMatrix = new Matrix4();
 
-	function createInstances(mesh, count = 1, offset = 0.5) {
-	    const instances = {};
-	    const rootCount = Math.cbrt(count);
-	    let counter = 0;
-	    for(let i = 0; i < rootCount; i++) {
-	        for(let j = 0; j < rootCount; j++) {
-	            for(let k = 0; k < rootCount; k++) {
-	                instances[counter++] = new Matrix4().setPosition(i * offset, j * offset, k * offset);
-	            }
+	    window.onmousemove = (event) => {
+	        mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+	        mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+	        caster.setFromCamera(mouse, camera);
+	        const result = caster.intersectObject(fragment.mesh)[0];
+
+	        if(result) {
+	            fragment.mesh.getMatrixAt(result.instanceId, tempMatrix);
+	            selection.mesh.setMatrixAt(0, tempMatrix);
+	            selection.mesh.instanceMatrix.needsUpdate = true;
+	            selection.mesh.count = 1;
+	        } else {
+	            selection.mesh.count = 0;
 	        }
-	    }
+	    };
 
-	    const fragments = new FragmentList();
-
-	    const chairs = fragments.create({
-	        geometry: mesh.geometry,
-	        material: mesh.material,
-	        id: "chairs",
-	        count,
-	        instances
-	    });
-
-	    // const selectionID = "selection";
-
-	    // const selection = chairs.addFragment({
-	    //     id: selectionID,
-	    //     material: new MeshBasicMaterial({color: 0xff0000, depthTest: false}),
-	    //     removePrevious: true,
-	    //     elementIDs: []
-	    // });
-	    //
-	    // selection.addInstances({[selectionID]: new Matrix4()});
-	    //
-	    // const caster = new Raycaster();
-	    // const mouse = new Vector2();
-	    // const tempMatrix = new Matrix4();
-	    // window.onmousemove = (event) => {
-	    //     mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-	    //     mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
-	    //     caster.setFromCamera(mouse, camera);
-	    //     const result = caster.intersectObject(chairs.mesh)[0];
-	    //
-	    //     if(result) {
-	    //         chairs.mesh.getMatrixAt(result.instanceId, tempMatrix);
-	    //         selection.mesh.setMatrixAt(0, tempMatrix);
-	    //         selection.mesh.instanceMatrix.needsUpdate = true;
-	    //         selection.mesh.count = 1;
-	    //
-	    //     } else {
-	    //         selection.mesh.count = 0;
-	    //     }
-	    // }
-
-	    return chairs;
-
+	    // const tableScene = await loader.loadAsync('gltfs/table.glb');
+	    // const tableMeshes = tableScene.scene.children[0].children;
+	    // const table = mergeGltfGeometries(tableMeshes);
+	    // scene.add(table);
 	}
 
-	function mergeGltfGeometries(meshes) {
+	function createFragment(meshes, count = 1, offset = 0.5) {
 	    const geometries = meshes.map(mesh => mesh.geometry);
 	    const sizes = meshes.map(mesh => mesh.geometry.index.count);
 
@@ -49020,33 +48941,23 @@
 	        vertexCounter += size;
 	    }
 
-	    return new Mesh(merged, materials);
+	    const fragment = new Fragment(merged, materials, 1000);
 
+	    const rootCount = Math.cbrt(count);
+	    const matrices = {};
+	    for (let i = 0; i < rootCount; i++) {
+	        for (let j = 0; j < rootCount; j++) {
+	            for (let k = 0; k < rootCount; k++) {
+	                const matrix = new Matrix4();
+	                matrix.setPosition(i * offset, j * offset, k * offset);
+	                matrices[`${i}${j}${k}`] = matrix;
+	            }
+	        }
+	    }
 
+	    fragment.instances = matrices;
 
-	    // const handle = new Object3D();
-	    // const mesh = new InstancedMesh(merged, materials, count);
-	    //
-	    // const highlightedMesh = new InstancedMesh(merged, new MeshBasicMaterial({color: red, depthTest: false}), count);
-	    // highlightedMesh.count = 0;
-	    //
-	    // const rootCount = Math.cbrt(count);
-	    // let itemCounter = 0;
-	    //
-	    // for(let i = 0; i < rootCount; i++) {
-	    //     for(let j = 0; j < rootCount; j++) {
-	    //         for(let k = 0; k < rootCount; k++) {
-	    //             handle.position.x = offset * i;
-	    //             handle.position.y = offset * j;
-	    //             handle.position.z = offset * k;
-	    //             handle.updateMatrix();
-	    //             mesh.setMatrixAt(itemCounter++, handle.matrix );
-	    //         }
-	    //     }
-	    // }
-	    //
-	    // return {mesh, highlightedMesh};
-
+	    return fragment;
 	}
 
 	loadModels();
