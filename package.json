@@ -3,7 +3,7 @@
   "description": "BIM geometry API",
   "version": "0.0.1",
   "private": true,
-  "main": "fragment/src/fragmentList.ts",
+  "main": "fragment/src/fragment.ts",
   "author": "agviegas",
   "license": "MIT",
   "repository": "git+https://github.com/ifcjs/fragment",

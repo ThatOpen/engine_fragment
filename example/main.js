@@ -11,6 +11,7 @@ import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import {mergeBufferGeometries} from "three/examples/jsm/utils/BufferGeometryUtils";
 import Stats from 'stats.js/src/Stats';
+import {Fragment} from "bim-fragment/dist/fragment";
 
 
 //Creates the Three.js scene
@@ -94,28 +95,31 @@ const red = new Color(255, 0, 0);
 async function loadModels() {
     const chairScene = await loader.loadAsync('gltfs/chair.glb');
     const chairMeshes = chairScene.scene.children[0].children;
-    const {mesh, highlightedMesh} = mergeGltfGeometries(chairMeshes, 1000);
-    scene.add(mesh);
-    scene.add(highlightedMesh);
+    const fragment = createFragment(chairMeshes, 1000);
+    scene.add(fragment.mesh);
+
+    const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false});
+    const selection = fragment.addFragment('selection', selectionMaterial);
+
+    scene.add(selection.mesh);
 
     const caster = new Raycaster();
     const mouse = new Vector2();
     const tempMatrix = new Matrix4();
-    const identity = tempMatrix.identity();
 
     window.onmousemove = (event) => {
-        mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
-        mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         caster.setFromCamera(mouse, camera);
-        const result = caster.intersectObject(mesh)[0];
+        const result = caster.intersectObject(fragment.mesh)[0];
 
-        if(result) {
-            mesh.getMatrixAt(result.instanceId, tempMatrix);
-            highlightedMesh.setMatrixAt(0, tempMatrix);
-            highlightedMesh.instanceMatrix.needsUpdate = true;
-            highlightedMesh.count = 1;
+        if (result) {
+            fragment.getInstance(result.instanceId, tempMatrix);
+            selection.setInstance(0, tempMatrix);
+            selection.mesh.instanceMatrix.needsUpdate = true;
+            selection.mesh.count = 1;
         } else {
-            highlightedMesh.count = 0;
+            selection.mesh.count = 0;
         }
     }
 
@@ -125,7 +129,37 @@ async function loadModels() {
     // scene.add(table);
 }
 
-function mergeGltfGeometries(meshes, count = 1, offset = 0.5) {
+
+function createFragment(meshes, count = 1, offset = 0.5) {
+    const {materials, merged} = mergeGeometries(meshes);
+
+    // Testing adding many instances __________________________________________________________________
+
+    const fragment = new Fragment(merged, materials, 1000);
+    fragment.instances = generateInstances(count, offset);
+
+
+    // Testing adding and removing instances dynamically _______________________________________________
+
+    // const fragment = new Fragment(merged, materials, 1);
+    // fragment.instances = {"start": new Matrix4()};
+    // let counter = 1;
+    // window.addEventListener('keydown', (event) => {
+    //     if (event.code === "KeyP") {
+    //         fragment.addInstances({[counter.toString()]: new Matrix4().setPosition(counter * offset, 0, 0)});
+    //         counter++
+    //     } else if (event.code === "KeyO") {
+    //         fragment.removeInstances([counter.toString()]);
+    //         counter--
+    //     }
+    // })
+
+    // _______________________________________________________________________________________________________
+
+    return fragment;
+}
+
+function mergeGeometries(meshes) {
     const geometries = meshes.map(mesh => mesh.geometry);
     const sizes = meshes.map(mesh => mesh.geometry.index.count);
 
@@ -145,35 +179,27 @@ function mergeGltfGeometries(meshes, count = 1, offset = 0.5) {
 
     let vertexCounter = 0;
     let counter = 0;
-    for(let size of sizes) {
+    for (let size of sizes) {
         const group = {start: vertexCounter, count: size, materialIndex: counter++};
         merged.groups.push(group);
         vertexCounter += size;
     }
+    return {materials, merged};
+}
 
-    const handle = new Object3D();
-    const mesh = new InstancedMesh(merged, materials, count);
-
-    const highlightedMesh = new InstancedMesh(merged, new MeshBasicMaterial({color: red, depthTest: false}), count);
-    highlightedMesh.count = 0;
-
+function generateInstances(count, offset) {
     const rootCount = Math.cbrt(count);
-    let itemCounter = 0;
-
-    for(let i = 0; i < rootCount; i++) {
-        for(let j = 0; j < rootCount; j++) {
-            for(let k = 0; k < rootCount; k++) {
-                handle.position.x = offset * i;
-                handle.position.y = offset * j;
-                handle.position.z = offset * k;
-                handle.updateMatrix();
-                mesh.setMatrixAt(itemCounter++, handle.matrix );
+    const matrices = {};
+    for (let i = 0; i < rootCount; i++) {
+        for (let j = 0; j < rootCount; j++) {
+            for (let k = 0; k < rootCount; k++) {
+                const matrix = new Matrix4();
+                matrix.setPosition(i * offset, j * offset, k * offset);
+                matrices[`${i}${j}${k}`] = matrix;
             }
         }
     }
-
-    return {mesh, highlightedMesh};
-
+    return matrices;
 }
 
 loadModels();
