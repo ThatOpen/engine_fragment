@@ -10,5 +10,6 @@
 <img src="banner.png">
 <h1>fragment <img src="https://ifcjs.github.io/info/img/logo.svg" width="32"></h1>
 
+[Demo](https://ifcjs.github.io/fragment/example)
 
 This library contains a lightweight and powerful geometric API to work with large 3D BIM datasets in real time. 
