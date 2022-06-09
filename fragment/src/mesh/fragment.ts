@@ -1,6 +1,6 @@
 import { InstancedMesh, Matrix4 } from 'three';
-import { FragmentData, Instances, NestedFragmentData } from './base-types';
-import { FragmentList } from '../fragmentList';
+import { FragmentData, Instances } from './base-types';
+// import { FragmentList } from '../fragmentList';
 
 export class Fragment {
   id: string;
@@ -10,10 +10,10 @@ export class Fragment {
 
   private mesh: InstancedMesh;
 
-  private instances: { [elementID: string]: { index: number; matrix: Matrix4 } } = {};
+  private instances: { [elementID: string]: number } = {};
   private instanceCapacity: number;
 
-  private nestedFragments = new FragmentList();
+  // private nestedFragments = new FragmentList();
 
   private tempMatrix = new Matrix4();
 
@@ -39,7 +39,26 @@ export class Fragment {
     this.addInstances(data.instances);
   }
 
-  remove() {}
+  dispose() {
+    // this.nestedFragments.dispose();
+    // (this.nestedFragments as any) = null;
+    this.mesh.clear();
+    this.mesh.geometry.dispose();
+    (this.mesh.geometry as any) = null;
+    this.disposeMaterials();
+    (this.mesh.material as any) = null;
+    (this.mesh as any) = null;
+    this.instances = {};
+    this.instanceCapacity = 0;
+  }
+
+  setInstance(elementID: string, transformation: Matrix4) {
+    const instance = this.instances[elementID];
+    if (instance !== undefined) {
+      this.mesh.setMatrixAt(instance, transformation);
+      this.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
 
   addInstances(instances: Instances) {
     this.extendCapacityIfNeeded(instances);
@@ -47,7 +66,7 @@ export class Fragment {
 
     Object.keys(instances).forEach((elementID) => {
       const matrix = instances[elementID];
-      this.instances[elementID] = { index, matrix };
+      this.instances[elementID] = index;
       this.mesh.setMatrixAt(index, matrix);
       index++;
     });
@@ -58,7 +77,7 @@ export class Fragment {
 
     for (const id of elementIDs) {
       if (this.instances[id]) {
-        indices.add(this.instances[id].index);
+        indices.add(this.instances[id]);
         delete this.instances[id];
       }
     }
@@ -71,50 +90,54 @@ export class Fragment {
     this.mesh.clear();
   }
 
-  addGeometry() {}
+  // addGeometry() {}
 
-  removeGeometry() {}
+  // removeGeometry() {}
 
-  addFragment(data: NestedFragmentData) {
-    const instances = this.getInstances(data);
-    this.initializeFragment(data);
-    const fragment = this.nestedFragments.get(data.id);
-    if (data.removePrevious) {
-      fragment.clearInstances();
-    }
+  // addFragment(data: NestedFragmentData) {
+  //   const instances = this.getInstances(data);
+  //   this.initializeFragment(data);
+  //   const fragment = this.nestedFragments.get(data.id);
+  //   if (data.removePrevious) {
+  //     fragment.clearInstances();
+  //   }
+  //
+  //   fragment.addInstances(instances);
+  //   return fragment;
+  // }
 
-    fragment.addInstances(instances);
-  }
+  // removeFragment(id: string) {
+  //   this.nestedFragments.remove(id);
+  // }
 
-  removeFragment(id: string) {
-    this.nestedFragments.remove(id);
-  }
-
-  private getInstances(data: NestedFragmentData) {
-    const instances: Instances = {};
-    for (const elementID of data.elementIDs) {
-      if (this.instances[elementID]) {
-        instances[elementID] = this.instances[elementID].matrix;
-      }
-    }
-    return instances;
-  }
-
-  private initializeFragment(data: NestedFragmentData) {
-    if (!this.nestedFragments.get(data.id)) {
-      this.nestedFragments.create({
-        id: data.id,
-        geometry: this.mesh.geometry,
-        count: this.capacity,
-        instances: {},
-        material: data.material || this.mesh.material
-      });
-    }
-  }
+  // private getInstances(data: NestedFragmentData) {
+  //   const instances: Instances = {};
+  //   for (const elementID of data.elementIDs) {
+  //     if (this.instances[elementID]) {
+  //       const index = this.instances[elementID];
+  //       this.mesh.getMatrixAt(index, this.tempMatrix);
+  //       instances[elementID] = this.tempMatrix.clone();
+  //     }
+  //   }
+  //   return instances;
+  // }
+  //
+  // private initializeFragment(data: NestedFragmentData) {
+  //   if (!this.nestedFragments.get(data.id)) {
+  //     this.nestedFragments.create({
+  //       id: data.id,
+  //       geometry: this.mesh.geometry,
+  //       count: this.capacity,
+  //       instances: {},
+  //       material: data.material || this.mesh.material
+  //     });
+  //   }
+  // }
 
   private extendCapacityIfNeeded(instances: Instances) {
     const count = Object.keys(instances).length;
-    const isCapacityExceded = this.mesh.count + count > this.instanceCapacity;
+    const necessaryCapacity = this.mesh.count + count;
+    const isCapacityExceded = necessaryCapacity > this.instanceCapacity;
     if (isCapacityExceded) {
       this.capacity += count;
     }
@@ -129,6 +152,15 @@ export class Fragment {
         this.mesh.getMatrixAt(i, this.tempMatrix);
         this.mesh.setMatrixAt(i - accumulator, this.tempMatrix);
       }
+    }
+  }
+
+  private disposeMaterials() {
+    const mats = this.mesh.material;
+    if (Array.isArray(mats)) {
+      mats.forEach((mat) => mat.dispose());
+    } else {
+      mats.dispose();
     }
   }
 }
