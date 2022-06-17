@@ -1,62 +1,88 @@
-import { BufferGeometry, InstancedMesh, Material, Matrix4 } from 'three';
+import { BufferGeometry, Material, Matrix4 } from 'three';
+import { Items } from './base-types';
+import { FragmentMesh } from './fragment-mesh';
 
-export interface Elements {
-  [elementID: string]: Matrix4;
-}
-
-export interface ElementInstanceMap {
-  [elementID: string]: number;
-}
+/*
+ * Fragments can contain one or multiple Instances of one or multiple Blocks
+ * Each Instance is identified by an instanceId (property of THREE.InstancedMesh)
+ * Each Block identified by a blockId (custom bufferAttribute per vertex)
+ * Both instanceId and blockId are unsigned integers starting at 0 and going up sequentially
+ * A specific Block of a specific Instance is an Item, identified by an itemId
+ *
+ * For example:
+ * Imagine a fragment mesh with 8 instances and 2 elements (16 items, identified from A to P)
+ * It will have instanceIds from 0 to 8, and blockIds from 0 to 2
+ * If we raycast it, we will get an instanceId and the index of the found triangle
+ * We can use the index to get the blockId for that triangle
+ * Combining instanceId and blockId using the elementMap will give us the itemId
+ * The itemsMap will look like this:
+ *
+ *    [ A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P ]
+ *
+ *  Where the criteria to sort the items is the following (Y-axis is instance, X-axis is block):
+ *
+ *        A  C  E  G  I  K  M  O
+ *        B  D  F  H  J  L  N  P
+ * */
 
 export class Fragment {
-  mesh: InstancedMesh;
+  mesh: FragmentMesh;
   capacity: number;
   fragments: { [id: string]: Fragment } = {};
+  blockCount = 1;
 
-  private elements: ElementInstanceMap = {};
+  private itemsMap: number[] = [];
 
-  set instances(instances: Elements) {
-    const elementIDs = Object.keys(instances);
-    const length = elementIDs.length;
-    for (let i = 0; i < length; i++) {
-      const id = elementIDs[i];
-      this.elements[id] = i;
-      this.mesh.setMatrixAt(i, instances[id]);
-    }
-  }
-
-  constructor(geometry: BufferGeometry, materials: Material | Material[], count: number) {
-    this.mesh = new InstancedMesh(geometry, materials, count);
+  constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
+    this.mesh = new FragmentMesh(geometry, material, count);
     this.capacity = count;
   }
 
-  dispose() {
-    this.elements = {};
-    this.disposeFragment();
+  dispose(disposeResources = true) {
+    (this.itemsMap as any) = null;
+
+    if (disposeResources) {
+      this.mesh.material.forEach((mat) => mat.dispose());
+      this.mesh.geometry.dispose();
+    }
+
+    this.mesh.dispose();
+    (this.mesh as any) = null;
+
     this.disposeNestedFragments();
   }
 
-  getInstance(index: number, transformation: Matrix4) {
-    this.mesh.getMatrixAt(index, transformation);
+  getItem(instanceId: number, blockId: number) {
+    const index = this.getItemIndex(instanceId, blockId);
+    return this.itemsMap[index];
   }
 
-  setInstance(index: number, transformation: Matrix4) {
-    this.checkIfIndexExist(index);
-    this.mesh.setMatrixAt(index, transformation);
+  getInstance(instanceId: number, matrix: Matrix4) {
+    return this.mesh.getMatrixAt(instanceId, matrix);
   }
 
-  addInstances(elements: Elements) {
-    const ids = Object.keys(elements);
-    this.resizeCapacityIfNeeded(ids);
-    this.createNewInstances(ids, elements);
+  setInstance(instanceId: number, items: Items) {
+    this.checkIfInstanceExist(instanceId);
+    this.mesh.setMatrixAt(instanceId, items.transform);
     this.mesh.instanceMatrix.needsUpdate = true;
+
+    if (items.ids) {
+      this.saveItemsInMap(items.ids, instanceId);
+    }
   }
 
-  removeInstances(ids: string[]) {
-    if (this.mesh.count === 0) return;
-    if (this.mesh.count === 1) {
-      this.mesh.clear();
-      this.mesh.count = 0;
+  addInstances(items: Items[]) {
+    this.resizeCapacityIfNeeded(items.length);
+    const start = this.mesh.count;
+    this.mesh.count += items.length;
+    for (let i = 0; i < items.length; i++) {
+      this.setInstance(start + i, items[i]);
+    }
+  }
+
+  removeInstances(ids: number[]) {
+    if (this.mesh.count <= 1) {
+      this.clear();
       return;
     }
 
@@ -65,70 +91,59 @@ export class Fragment {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
+  clear() {
+    this.mesh.clear();
+    this.mesh.count = 0;
+    this.itemsMap = [];
+  }
+
   addFragment(id: string, material = this.mesh.material) {
-    this.fragments[id] = new Fragment(this.mesh.geometry, material, this.capacity);
+    const newGeometry = new BufferGeometry();
+    newGeometry.attributes = this.mesh.geometry.attributes;
+    newGeometry.setIndex(this.mesh.geometry.index);
+    this.fragments[id] = new Fragment(newGeometry, material, this.capacity);
     return this.fragments[id];
   }
 
   removeFragment(id: string) {
     const fragment = this.fragments[id];
     if (fragment) {
-      fragment.dispose();
+      fragment.dispose(false);
       delete this.fragments[id];
     }
   }
 
   resize(size: number) {
-    const newMesh = this.createNewMesh(size);
+    const newMesh = this.createFragmentMeshWithNewSize(size);
     this.capacity = size;
     const oldMesh = this.mesh;
     oldMesh.parent?.add(newMesh);
     oldMesh.removeFromParent();
     this.mesh = newMesh;
-    this.disposeMesh(oldMesh);
+    oldMesh.dispose();
   }
 
-  private resizeCapacityIfNeeded(ids: string[]) {
-    const necessaryCapacity = ids.length + this.mesh.count;
+  private saveItemsInMap(ids: number[], instanceId: number) {
+    this.checkBlockNumberValid(ids);
+    let counter = 0;
+    for (const id of ids) {
+      const index = this.getItemIndex(instanceId, counter);
+      this.itemsMap[index] = id;
+      counter++;
+    }
+  }
+
+  private resizeCapacityIfNeeded(newSize: number) {
+    const necessaryCapacity = newSize + this.mesh.count;
     if (necessaryCapacity > this.capacity) {
       this.resize(necessaryCapacity);
     }
   }
 
-  private createNewInstances(ids: string[], elements: Elements) {
-    const start = this.mesh.count;
-    this.mesh.count += ids.length;
-
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      const transformation = elements[id];
-      this.setInstance(start + i, transformation);
-    }
-  }
-
-  private createNewMesh(necessaryCapacity: number) {
-    const newMesh = new InstancedMesh(this.mesh.geometry, this.mesh.material, necessaryCapacity);
+  private createFragmentMeshWithNewSize(capacity: number) {
+    const newMesh = new FragmentMesh(this.mesh.geometry, this.mesh.material, capacity);
     newMesh.count = this.mesh.count;
-    const transform = new Matrix4();
-    for (let i = 0; i < this.mesh.count; i++) {
-      this.getInstance(i, transform);
-      newMesh.setMatrixAt(i, transform);
-    }
-
     return newMesh;
-  }
-
-  private disposeFragment() {
-    this.mesh.geometry.dispose();
-    this.disposeMaterials();
-    this.disposeMesh(this.mesh);
-    (this.mesh as any) = null;
-  }
-
-  private disposeMesh(mesh: InstancedMesh) {
-    (mesh.geometry as any) = null;
-    (mesh.material as any) = null;
-    (mesh.instanceMatrix as any) = null;
   }
 
   private disposeNestedFragments() {
@@ -139,16 +154,15 @@ export class Fragment {
     this.fragments = {};
   }
 
-  private disposeMaterials() {
-    const mats = this.mesh.material;
-    if (Array.isArray(mats)) {
-      mats.forEach((mat) => mat.dispose());
-    } else {
-      mats.dispose();
+  private checkBlockNumberValid(ids: number[]) {
+    if (ids.length > this.blockCount) {
+      throw new Error(
+        `You passed more items (${ids.length}) than blocks in this instance (${this.blockCount})`
+      );
     }
   }
 
-  private checkIfIndexExist(index: number) {
+  private checkIfInstanceExist(index: number) {
     if (index > this.mesh.count) {
       throw new Error(
         `The given index (${index}) exceeds the instances in this fragment (${this.mesh.count})`
@@ -157,19 +171,35 @@ export class Fragment {
   }
 
   // Assigns the index of the removed instance to the last instance
-  // F.e. let there be 6 instances: (1) (2) (3) (4) (5) (6)
-  // If instance (3) is removed: -> (1) (2) (4) (5) (3)
-  private deleteAndRearrangeInstances(ids: string[]) {
-    let inverseIndex = this.mesh.count;
-    const tempMatrix = new Matrix4();
-    for (let i = 0; i < ids.length; i++) {
-      const id = ids[i];
-      const index = this.elements[id];
-      if (index !== undefined) {
-        this.mesh.getMatrixAt(i - inverseIndex, tempMatrix);
-        this.mesh.setMatrixAt(index, tempMatrix);
-        inverseIndex--;
-      }
+  // F.e. let there be 6 instances: (A) (B) (C) (D) (E) (F)
+  // If instance (C) is removed: -> (A) (B) (F) (D) (E)
+  private deleteAndRearrangeInstances(ids: number[]) {
+    for (const id of ids) {
+      this.deleteAndRearrange(id);
     }
+  }
+
+  private deleteAndRearrange(id: number) {
+    const index = this.itemsMap.indexOf(id);
+    if (index === -1) return;
+
+    this.mesh.count--;
+    const lastElement = this.mesh.count;
+
+    this.itemsMap[index] = this.itemsMap[lastElement];
+    this.itemsMap.pop();
+
+    const instanceId = this.getInstanceId(id);
+    const tempMatrix = new Matrix4();
+    this.mesh.getMatrixAt(lastElement, tempMatrix);
+    this.mesh.setMatrixAt(instanceId, tempMatrix);
+  }
+
+  private getItemIndex(instanceId: number, blockId: number) {
+    return instanceId * this.blockCount + blockId;
+  }
+
+  private getInstanceId(itemIndex: number) {
+    return Math.trunc(itemIndex / this.blockCount);
   }
 }

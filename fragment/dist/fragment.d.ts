@@ -1,34 +1,33 @@
-import { BufferGeometry, InstancedMesh, Material, Matrix4 } from 'three';
-export interface Elements {
-    [elementID: string]: Matrix4;
-}
-export interface ElementInstanceMap {
-    [elementID: string]: number;
-}
+import { BufferGeometry, Material, Matrix4 } from 'three';
+import { Items } from './base-types';
+import { FragmentMesh } from './fragment-mesh';
 export declare class Fragment {
-    mesh: InstancedMesh;
+    mesh: FragmentMesh;
     capacity: number;
     fragments: {
         [id: string]: Fragment;
     };
-    private elements;
-    set instances(instances: Elements);
-    constructor(geometry: BufferGeometry, materials: Material | Material[], count: number);
-    dispose(): void;
-    getInstance(index: number, transformation: Matrix4): void;
-    setInstance(index: number, transformation: Matrix4): void;
-    addInstances(elements: Elements): void;
-    removeInstances(ids: string[]): void;
-    addFragment(id: string, material?: Material | Material[]): Fragment;
+    blockCount: number;
+    private itemsMap;
+    constructor(geometry: BufferGeometry, material: Material | Material[], count: number);
+    dispose(disposeResources?: boolean): void;
+    getItem(instanceId: number, blockId: number): number;
+    getInstance(instanceId: number, matrix: Matrix4): void;
+    setInstance(instanceId: number, items: Items): void;
+    addInstances(items: Items[]): void;
+    removeInstances(ids: number[]): void;
+    clear(): void;
+    addFragment(id: string, material?: Material[]): Fragment;
     removeFragment(id: string): void;
     resize(size: number): void;
+    private saveItemsInMap;
     private resizeCapacityIfNeeded;
-    private createNewInstances;
-    private createNewMesh;
-    private disposeFragment;
-    private disposeMesh;
+    private createFragmentMeshWithNewSize;
     private disposeNestedFragments;
-    private disposeMaterials;
-    private checkIfIndexExist;
+    private checkBlockNumberValid;
+    private checkIfInstanceExist;
     private deleteAndRearrangeInstances;
+    private deleteAndRearrange;
+    private getItemIndex;
+    private getInstanceId;
 }

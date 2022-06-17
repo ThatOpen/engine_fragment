@@ -98,10 +98,14 @@ async function loadModels() {
     const fragment = createFragment(chairMeshes, 1000);
     scene.add(fragment.mesh);
 
-    const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false});
+    const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false, size: 2});
     const selection = fragment.addFragment('selection', selectionMaterial);
 
     scene.add(selection.mesh);
+
+    window.addEventListener('keydown', () => {
+        console.log(fragment);
+    })
 
     const caster = new Raycaster();
     const mouse = new Vector2();
@@ -115,7 +119,7 @@ async function loadModels() {
 
         if (result) {
             fragment.getInstance(result.instanceId, tempMatrix);
-            selection.setInstance(0, tempMatrix);
+            selection.setInstance(0, {transform: tempMatrix});
             selection.mesh.instanceMatrix.needsUpdate = true;
             selection.mesh.count = 1;
         } else {
@@ -136,7 +140,7 @@ function createFragment(meshes, count = 1, offset = 0.5) {
     // Testing adding many instances __________________________________________________________________
 
     const fragment = new Fragment(merged, materials, 1000);
-    fragment.instances = generateInstances(count, offset);
+    generateInstances(fragment, count, offset);
 
 
     // Testing adding and removing instances dynamically _______________________________________________
@@ -187,19 +191,19 @@ function mergeGeometries(meshes) {
     return {materials, merged};
 }
 
-function generateInstances(count, offset) {
+function generateInstances(fragment, count, offset) {
     const rootCount = Math.cbrt(count);
-    const matrices = {};
+    let counter = 0;
     for (let i = 0; i < rootCount; i++) {
         for (let j = 0; j < rootCount; j++) {
             for (let k = 0; k < rootCount; k++) {
                 const matrix = new Matrix4();
                 matrix.setPosition(i * offset, j * offset, k * offset);
-                matrices[`${i}${j}${k}`] = matrix;
+                const id = parseInt(`${i}${j}${k}`);
+                fragment.setInstance(counter++, {ids: [id], transform: matrix})
             }
         }
     }
-    return matrices;
 }
 
 loadModels();
