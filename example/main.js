@@ -125,7 +125,7 @@ async function loadModels() {
 
             const blockID = selection.getBlockID(result);
             if(blockID !== null) {
-                selection.setVisibleBlocks([blockID]);
+                selection.blocks.add([blockID], true);
             }
         } else {
             selection.mesh.count = 0;
@@ -133,7 +133,7 @@ async function loadModels() {
     }
 
     window.ondblclick = () => {
-        selection.setVisibleBlocks([1]);
+        selection.blocks.reset();
     }
 
     // const tableScene = await loader.loadAsync('gltfs/table.glb');

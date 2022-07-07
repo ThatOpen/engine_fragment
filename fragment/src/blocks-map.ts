@@ -2,10 +2,10 @@ import { Material } from 'three';
 import { FragmentGeometry, IFragment, IndicesMap, VertexGroup } from './base-types';
 
 export class BlocksMap {
-  blocks: IndicesMap;
+  indices: IndicesMap;
 
   constructor(fragment: IFragment) {
-    this.blocks = BlocksMap.initializeBlocks(fragment);
+    this.indices = BlocksMap.initializeBlocks(fragment);
     this.generateGeometryIndexMap(fragment);
   }
 
@@ -24,12 +24,7 @@ export class BlocksMap {
 
   // Use this only for destroying the current IFCLoader instance
   dispose() {
-    Object.values(this.blocks).forEach((model) => {
-      (model.indexCache as any) = null;
-      (model.map as any) = null;
-    });
-
-    (this.blocks as any) = null;
+    (this.indices as any) = null;
   }
 
   private static initializeBlocks(fragment: IFragment) {
@@ -87,10 +82,10 @@ export class BlocksMap {
 
   private getMaterialStore(id: number, matIndex: number) {
     // If this object wasn't store before, add it to the map
-    if (this.blocks.map.get(id) === undefined) {
-      this.blocks.map.set(id, {});
+    if (this.indices.map.get(id) === undefined) {
+      this.indices.map.set(id, {});
     }
-    const storedIfcItem = this.blocks.map.get(id);
+    const storedIfcItem = this.indices.map.get(id);
     if (storedIfcItem === undefined) throw new Error('Geometry map generation error');
 
     // If this material wasn't stored for this object before, add it to the object

@@ -1,54 +1,59 @@
 import { BufferGeometry } from 'three';
 import { BlocksMap } from './blocks-map';
-import { IFragment, SubsetConfig } from './base-types';
+import { IFragment } from './base-types';
 
 /**
  * Contains the logic to get, create and delete geometric subsets of an IFC model. For example,
  * this can extract all the items in a specific IfcBuildingStorey and create a new Mesh.
  */
 export class Blocks {
-  private items: BlocksMap;
-  private tempIndex: number[] = [];
-  private ids = new Set<number>();
+  readonly ids: Set<number>;
+  readonly visibleIds: Set<number>;
 
   get count() {
     return this.ids.size;
   }
 
+  private blocksMap: BlocksMap;
+  private tempIndex: number[] = [];
+
   constructor(private fragment: IFragment) {
-    this.items = new BlocksMap(fragment);
+    this.blocksMap = new BlocksMap(fragment);
     this.initializeSubsetGroups(fragment);
 
     const rawIds = fragment.mesh.geometry.attributes.blockID.array as number[];
-    const ids = Array.from(new Set<number>(rawIds));
-    this.createSubset({ fragment, ids, removePrevious: true });
+    this.visibleIds = new Set<number>(rawIds);
+    this.ids = new Set<number>(rawIds);
+    this.add(Array.from(this.ids), true);
   }
 
-  createSubset(config: SubsetConfig) {
-    this.filterIndices(config);
-    this.constructSubsetByMaterial(config);
-    config.ids.forEach((id) => this.ids.add(id));
+  reset() {
+    this.add(Array.from(this.ids), true);
+  }
+
+  add(ids: number[], removePrevious = true) {
+    this.filterIndices(removePrevious);
+    const filtered = ids.filter((id) => !this.visibleIds.has(id));
+
+    this.constructSubsetByMaterial(ids);
+    filtered.forEach((id) => this.visibleIds.add(id));
     this.fragment.mesh.geometry.setIndex(this.tempIndex);
     this.tempIndex.length = 0;
   }
 
-  removeFromSubset(fragment: IFragment, ids: number[]) {
-    ids.forEach((id) => {
-      if (this.ids.has(id)) this.ids.delete(id);
-    });
-
-    this.createSubset({
-      fragment,
-      removePrevious: true,
-      applyBVH: true,
-      ids: Array.from(this.ids)
-    });
+  remove(ids: number[]) {
+    ids.forEach((id) => this.visibleIds.has(id) && this.visibleIds.delete(id));
+    const remainingIDs = Array.from(this.visibleIds);
+    this.add(remainingIDs, true);
   }
 
   // Use this only for destroying the current Fragment instance
   dispose() {
-    this.items.dispose();
+    this.blocksMap.dispose();
     this.tempIndex = [];
+    this.visibleIds.clear();
+    (this.visibleIds as any) = null;
+    this.ids.clear();
     (this.ids as any) = null;
   }
 
@@ -59,37 +64,28 @@ export class Blocks {
   }
 
   // Remove previous indices or filter the given ones to avoid repeating items
-  private filterIndices(config: SubsetConfig) {
+  private filterIndices(removePrevious: boolean) {
     const geometry = this.fragment.mesh.geometry;
-
-    if (config.removePrevious) {
-      geometry.setIndex([]);
-      this.resetGroups(geometry);
+    if (!removePrevious) {
+      this.tempIndex = Array.from(geometry.index.array);
       return;
     }
 
-    const previousIndices = geometry.index.array;
-    config.ids = config.ids.filter((id) => !this.ids.has(id));
-    this.tempIndex = Array.from(previousIndices);
+    geometry.setIndex([]);
+    this.resetGroups(geometry);
   }
 
-  private constructSubsetByMaterial(config: SubsetConfig) {
-    const model = config.fragment.mesh;
+  private constructSubsetByMaterial(ids: number[]) {
+    const length = this.fragment.mesh.geometry.groups.length;
     const newIndices = { count: 0 };
-    for (let i = 0; i < model.geometry.groups.length; i++) {
-      this.insertNewIndices(config, i, newIndices);
+    for (let i = 0; i < length; i++) {
+      this.insertNewIndices(ids, i, newIndices);
     }
   }
 
   // Inserts indices in correct position and update groups
-  private insertNewIndices(config: SubsetConfig, materialIndex: number, newIndices: any) {
-    const items = this.items.blocks;
-    const indicesOfOneMaterial = Blocks.getAllIndicesOfGroup(
-      config.ids,
-      materialIndex,
-      items
-    ) as number[];
-
+  private insertNewIndices(ids: number[], materialIndex: number, newIndices: any) {
+    const indicesOfOneMaterial = this.getAllIndicesOfGroup(ids, materialIndex) as number[];
     this.insertIndicesAtGroup(indicesOfOneMaterial, materialIndex, newIndices);
   }
 
@@ -119,28 +115,22 @@ export class Blocks {
   }
 
   // If flatten, all indices are in the same array; otherwise, indices are split in subarrays by material
-  private static getAllIndicesOfGroup(
-    ids: number[],
-    materialIndex: number,
-    items: any,
-    flatten = true
-  ) {
+  private getAllIndicesOfGroup(ids: number[], materialIndex: number, flatten = true) {
     const indicesByGroup: any = [];
     for (const id of ids) {
-      const entry = items.map.get(id);
+      const entry = this.blocksMap.indices.map.get(id);
       if (!entry) continue;
       const value = entry[materialIndex];
       if (!value) continue;
-      Blocks.getIndexChunk(value, indicesByGroup, materialIndex, items, flatten);
+      this.getIndexChunk(value, indicesByGroup, materialIndex, flatten);
     }
     return indicesByGroup;
   }
 
-  private static getIndexChunk(
+  private getIndexChunk(
     value: number[],
     indicesByGroup: any,
     materialIndex: number,
-    items: any,
     flatten: boolean
   ) {
     const pairs = value.length / 2;
@@ -149,10 +139,10 @@ export class Blocks {
       const start = value[pairIndex];
       const end = value[pairIndex + 1];
       for (let j = start; j <= end; j++) {
-        if (flatten) indicesByGroup.push(items.indexCache[j]);
+        if (flatten) indicesByGroup.push(this.blocksMap.indices.indexCache[j]);
         else {
           if (!indicesByGroup[materialIndex]) indicesByGroup[materialIndex] = [];
-          indicesByGroup[materialIndex].push(items.indexCache[j]);
+          indicesByGroup[materialIndex].push(this.blocksMap.indices.indexCache[j]);
         }
       }
     }

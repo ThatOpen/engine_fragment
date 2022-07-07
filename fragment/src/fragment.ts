@@ -107,14 +107,6 @@ export class Fragment implements IFragment {
     return mesh.geometry.attributes.blockID.array[intersection.face.a];
   }
 
-  setVisibleBlocks(blockIDs: number[]) {
-    this.blocks.createSubset({
-      fragment: this,
-      ids: blockIDs,
-      removePrevious: true
-    });
-  }
-
   clear() {
     this.mesh.clear();
     this.mesh.count = 0;
@@ -122,11 +114,11 @@ export class Fragment implements IFragment {
   }
 
   addFragment(id: string, material = this.mesh.material) {
-    const newGeometry = new BufferGeometry();
-    newGeometry.setAttribute('position', this.mesh.geometry.attributes.position);
-    newGeometry.setAttribute('normal', this.mesh.geometry.attributes.normal);
-    newGeometry.setAttribute('blockID', this.mesh.geometry.attributes.blockID);
-    newGeometry.setIndex(Array.from(this.mesh.geometry.index.array));
+    const newGeometry = this.initializeGeometry();
+    if (material === this.mesh.material) {
+      this.copyGroups(newGeometry);
+    }
+
     this.fragments[id] = new Fragment(newGeometry, material, this.capacity);
     return this.fragments[id];
   }
@@ -147,6 +139,22 @@ export class Fragment implements IFragment {
     oldMesh.removeFromParent();
     this.mesh = newMesh;
     oldMesh.dispose();
+  }
+
+  private copyGroups(newGeometry: BufferGeometry) {
+    newGeometry.groups = [];
+    for (const group of this.mesh.geometry.groups) {
+      newGeometry.groups.push({ ...group });
+    }
+  }
+
+  private initializeGeometry() {
+    const newGeometry = new BufferGeometry();
+    newGeometry.setAttribute('position', this.mesh.geometry.attributes.position);
+    newGeometry.setAttribute('normal', this.mesh.geometry.attributes.normal);
+    newGeometry.setAttribute('blockID', this.mesh.geometry.attributes.blockID);
+    newGeometry.setIndex(Array.from(this.mesh.geometry.index.array));
+    return newGeometry;
   }
 
   private saveItemsInMap(ids: number[], instanceId: number) {
