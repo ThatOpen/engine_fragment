@@ -6,9 +6,9 @@
   "description": "A basic html example for BIM fragment.",
   "main": "main.js",
   "scripts": {
-    "build": "rollup -c",
-    "watch": "rollup -c -w",
-    "start": "serve"
+    "build": "node_modules/.bin/rollup -c",
+    "watch": "node_modules/.bin/rollup -c -w",
+    "start": "node_modules/.bin/serve"
   },
   "author": "agviegas",
   "license": "MIT",

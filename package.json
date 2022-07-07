@@ -9,8 +9,8 @@
   "repository": "git+https://github.com/ifcjs/fragment",
   "scripts": {
     "init-repo": "yarn && npm run build",
-    "start": "cd example && yarn start",
-    "build": "cd fragment && yarn build && cd ../example && yarn build",
+    "start": "cd examples/mouse-picking && yarn start",
+    "build": "cd fragment && yarn build && cd ../examples/mouse-picking/ && yarn build",
     "publish-repo": "cd viewer && yarn build && npm publish"
   },
   "bugs": {
@@ -25,7 +25,7 @@
   ],
   "workspaces": [
     "fragment",
-    "example"
+    "examples/mouse-picking"
   ],
   "dependencies": {}
 }

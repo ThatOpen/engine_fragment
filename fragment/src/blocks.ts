@@ -66,6 +66,7 @@ export class Blocks {
   // Remove previous indices or filter the given ones to avoid repeating items
   private filterIndices(removePrevious: boolean) {
     const geometry = this.fragment.mesh.geometry;
+
     if (!removePrevious) {
       this.tempIndex = Array.from(geometry.index.array);
       return;
