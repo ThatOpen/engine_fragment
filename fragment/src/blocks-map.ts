@@ -1,31 +1,11 @@
-import { BufferAttribute, BufferGeometry, Material } from 'three';
-import { IFragment } from '../base-types';
+import { Material } from 'three';
+import { FragmentGeometry, IFragment, IndicesMap, VertexGroup } from './base-types';
 
-// The number array has the meaning: [start, end, start, end, start, end...]
-export interface Indices {
-  [materialID: number]: number[];
-}
-
-export interface IndexedGeometry extends BufferGeometry {
-  index: BufferAttribute;
-}
-
-export interface Group {
-  start: number;
-  count: number;
-  materialIndex?: number;
-}
-
-export interface IndicesMap {
-  indexCache: Uint32Array;
-  map: Map<number, Indices>;
-}
-
-export class ItemsMap {
+export class BlocksMap {
   blocks: IndicesMap;
 
   constructor(fragment: IFragment) {
-    this.blocks = ItemsMap.initializeBlocks(fragment);
+    this.blocks = BlocksMap.initializeBlocks(fragment);
     this.generateGeometryIndexMap(fragment);
   }
 
@@ -61,7 +41,7 @@ export class ItemsMap {
     };
   }
 
-  private fillBlocksMapWithGroupInfo(group: Group, geometry: IndexedGeometry) {
+  private fillBlocksMapWithGroupInfo(group: VertexGroup, geometry: FragmentGeometry) {
     let prevBlockID = -1;
 
     const materialIndex = group.materialIndex as number;

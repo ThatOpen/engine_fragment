@@ -1,8 +1,8 @@
 import { BufferGeometry, Intersection, Material, Matrix4, Mesh } from 'three';
 import { Items, IFragment } from './base-types';
 import { FragmentMesh } from './fragment-mesh';
-import { SubsetManager } from './subsets/subset-manager';
-import { BVH } from './subsets/bvh';
+import { Blocks } from './blocks';
+import { BVH } from './bvh';
 
 /*
  * Fragments can contain one or multiple Instances of one or multiple Blocks
@@ -17,7 +17,7 @@ import { BVH } from './subsets/bvh';
  * If we raycast it, we will get an instanceId and the index of the found triangle
  * We can use the index to get the blockId for that triangle
  * Combining instanceId and blockId using the elementMap will give us the itemId
- * The itemsMap will look like this:
+ * The items will look like this:
  *
  *    [ A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P ]
  *
@@ -31,22 +31,20 @@ export class Fragment implements IFragment {
   mesh: FragmentMesh;
   capacity: number;
   fragments: { [id: string]: Fragment } = {};
-  blockCount = 1;
   id: string;
 
-  subsets: SubsetManager;
-
-  private itemsMap: number[] = [];
+  private blocks: Blocks;
+  private items: number[] = [];
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
     this.mesh = new FragmentMesh(geometry, material, count);
     this.id = this.mesh.uuid;
     this.capacity = count;
-    this.subsets = new SubsetManager(this);
+    this.blocks = new Blocks(this);
   }
 
   dispose(disposeResources = true) {
-    (this.itemsMap as any) = null;
+    (this.items as any) = null;
 
     if (disposeResources) {
       this.mesh.material.forEach((mat) => mat.dispose());
@@ -62,7 +60,7 @@ export class Fragment implements IFragment {
 
   getItem(instanceId: number, blockId: number) {
     const index = this.getItemIndex(instanceId, blockId);
-    return this.itemsMap[index];
+    return this.items[index];
   }
 
   getInstance(instanceId: number, matrix: Matrix4) {
@@ -110,7 +108,7 @@ export class Fragment implements IFragment {
   }
 
   setVisibleBlocks(blockIDs: number[]) {
-    this.subsets.createSubset({
+    this.blocks.createSubset({
       fragment: this,
       ids: blockIDs,
       removePrevious: true
@@ -120,7 +118,7 @@ export class Fragment implements IFragment {
   clear() {
     this.mesh.clear();
     this.mesh.count = 0;
-    this.itemsMap = [];
+    this.items = [];
   }
 
   addFragment(id: string, material = this.mesh.material) {
@@ -156,7 +154,7 @@ export class Fragment implements IFragment {
     let counter = 0;
     for (const id of ids) {
       const index = this.getItemIndex(instanceId, counter);
-      this.itemsMap[index] = id;
+      this.items[index] = id;
       counter++;
     }
   }
@@ -183,9 +181,9 @@ export class Fragment implements IFragment {
   }
 
   private checkBlockNumberValid(ids: number[]) {
-    if (ids.length > this.blockCount) {
+    if (ids.length > this.blocks.count) {
       throw new Error(
-        `You passed more items (${ids.length}) than blocks in this instance (${this.blockCount})`
+        `You passed more items (${ids.length}) than blocks in this instance (${this.blocks.count})`
       );
     }
   }
@@ -208,14 +206,14 @@ export class Fragment implements IFragment {
   }
 
   private deleteAndRearrange(id: number) {
-    const index = this.itemsMap.indexOf(id);
+    const index = this.items.indexOf(id);
     if (index === -1) return;
 
     this.mesh.count--;
     const lastElement = this.mesh.count;
 
-    this.itemsMap[index] = this.itemsMap[lastElement];
-    this.itemsMap.pop();
+    this.items[index] = this.items[lastElement];
+    this.items.pop();
 
     const instanceId = this.getInstanceId(id);
     const tempMatrix = new Matrix4();
@@ -224,10 +222,10 @@ export class Fragment implements IFragment {
   }
 
   private getItemIndex(instanceId: number, blockId: number) {
-    return instanceId * this.blockCount + blockId;
+    return instanceId * this.blocks.count + blockId;
   }
 
   private getInstanceId(itemIndex: number) {
-    return Math.trunc(itemIndex / this.blockCount);
+    return Math.trunc(itemIndex / this.blocks.count);
   }
 }

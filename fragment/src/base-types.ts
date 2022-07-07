@@ -3,6 +3,22 @@ import { BufferAttribute } from 'three/src/core/BufferAttribute';
 import { InterleavedBufferAttribute } from 'three/src/core/InterleavedBufferAttribute';
 import { FragmentMesh } from './fragment-mesh';
 
+// The number array has the meaning: [start, end, start, end, start, end...]
+export interface Indices {
+  [materialID: number]: number[];
+}
+
+export interface VertexGroup {
+  start: number;
+  count: number;
+  materialIndex?: number;
+}
+
+export interface IndicesMap {
+  indexCache: Uint32Array;
+  map: Map<number, Indices>;
+}
+
 export interface Items {
   ids?: number[];
   transform: Matrix4;
@@ -30,7 +46,6 @@ export interface IFragment {
   mesh: FragmentMesh;
   capacity: number;
   fragments: { [id: string]: IFragment };
-  blockCount: number;
   id: string;
 }
 

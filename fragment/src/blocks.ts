@@ -1,21 +1,27 @@
 import { BufferGeometry } from 'three';
-import { ItemsMap } from './items-map';
-import { IFragment, SubsetConfig } from '../base-types';
-import { SubsetUtils } from './subset-utils';
+import { BlocksMap } from './blocks-map';
+import { IFragment, SubsetConfig } from './base-types';
 
 /**
  * Contains the logic to get, create and delete geometric subsets of an IFC model. For example,
  * this can extract all the items in a specific IfcBuildingStorey and create a new Mesh.
  */
-export class SubsetManager {
-  private items: ItemsMap;
+export class Blocks {
+  private items: BlocksMap;
   private tempIndex: number[] = [];
   private ids = new Set<number>();
 
+  get count() {
+    return this.ids.size;
+  }
+
   constructor(private fragment: IFragment) {
-    this.items = new ItemsMap(fragment);
+    this.items = new BlocksMap(fragment);
     this.initializeSubsetGroups(fragment);
-    this.createDefaultSubset(fragment);
+
+    const rawIds = fragment.mesh.geometry.attributes.blockID.array as number[];
+    const ids = Array.from(new Set<number>(rawIds));
+    this.createSubset({ fragment, ids, removePrevious: true });
   }
 
   createSubset(config: SubsetConfig) {
@@ -46,12 +52,6 @@ export class SubsetManager {
     (this.ids as any) = null;
   }
 
-  private createDefaultSubset(fragment: IFragment) {
-    const rawIds = fragment.mesh.geometry.attributes.blockID.array as number[];
-    const ids = Array.from(new Set<number>(rawIds));
-    this.createSubset({ fragment, ids, removePrevious: false });
-  }
-
   private initializeSubsetGroups(fragment: IFragment) {
     const geometry = fragment.mesh.geometry;
     geometry.groups = JSON.parse(JSON.stringify(geometry.groups));
@@ -61,14 +61,15 @@ export class SubsetManager {
   // Remove previous indices or filter the given ones to avoid repeating items
   private filterIndices(config: SubsetConfig) {
     const geometry = this.fragment.mesh.geometry;
+
     if (config.removePrevious) {
       geometry.setIndex([]);
       this.resetGroups(geometry);
       return;
     }
+
     const previousIndices = geometry.index.array;
-    const previousIDs = this.ids;
-    config.ids = config.ids.filter((id) => !previousIDs.has(id));
+    config.ids = config.ids.filter((id) => !this.ids.has(id));
     this.tempIndex = Array.from(previousIndices);
   }
 
@@ -83,7 +84,7 @@ export class SubsetManager {
   // Inserts indices in correct position and update groups
   private insertNewIndices(config: SubsetConfig, materialIndex: number, newIndices: any) {
     const items = this.items.blocks;
-    const indicesOfOneMaterial = SubsetUtils.getAllIndicesOfGroup(
+    const indicesOfOneMaterial = Blocks.getAllIndicesOfGroup(
       config.ids,
       materialIndex,
       items
@@ -115,5 +116,45 @@ export class SubsetManager {
       group.start = 0;
       group.count = 0;
     });
+  }
+
+  // If flatten, all indices are in the same array; otherwise, indices are split in subarrays by material
+  private static getAllIndicesOfGroup(
+    ids: number[],
+    materialIndex: number,
+    items: any,
+    flatten = true
+  ) {
+    const indicesByGroup: any = [];
+    for (const id of ids) {
+      const entry = items.map.get(id);
+      if (!entry) continue;
+      const value = entry[materialIndex];
+      if (!value) continue;
+      Blocks.getIndexChunk(value, indicesByGroup, materialIndex, items, flatten);
+    }
+    return indicesByGroup;
+  }
+
+  private static getIndexChunk(
+    value: number[],
+    indicesByGroup: any,
+    materialIndex: number,
+    items: any,
+    flatten: boolean
+  ) {
+    const pairs = value.length / 2;
+    for (let pair = 0; pair < pairs; pair++) {
+      const pairIndex = pair * 2;
+      const start = value[pairIndex];
+      const end = value[pairIndex + 1];
+      for (let j = start; j <= end; j++) {
+        if (flatten) indicesByGroup.push(items.indexCache[j]);
+        else {
+          if (!indicesByGroup[materialIndex]) indicesByGroup[materialIndex] = [];
+          indicesByGroup[materialIndex].push(items.indexCache[j]);
+        }
+      }
+    }
   }
 }
