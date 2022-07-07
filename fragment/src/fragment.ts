@@ -1,6 +1,7 @@
 import { BufferGeometry, Material, Matrix4 } from 'three';
-import { Items } from './base-types';
+import { Items, IFragment } from './base-types';
 import { FragmentMesh } from './fragment-mesh';
+import { SubsetManager } from './subsets/subset-manager';
 
 /*
  * Fragments can contain one or multiple Instances of one or multiple Blocks
@@ -25,17 +26,33 @@ import { FragmentMesh } from './fragment-mesh';
  *        B  D  F  H  J  L  N  P
  * */
 
-export class Fragment {
+export class Fragment implements IFragment {
+  trueMesh: FragmentMesh;
   mesh: FragmentMesh;
   capacity: number;
   fragments: { [id: string]: Fragment } = {};
   blockCount = 1;
+  id: string;
+
+  subsets: SubsetManager;
 
   private itemsMap: number[] = [];
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
+    this.subsets = new SubsetManager();
+
     this.mesh = new FragmentMesh(geometry, material, count);
+    this.id = this.mesh.uuid;
     this.capacity = count;
+
+    const rawIds = this.mesh.geometry.attributes.blockID.array as number[];
+    const ids = Array.from(new Set<number>(rawIds));
+
+    this.trueMesh = this.subsets.createSubset({
+      fragment: this,
+      ids,
+      removePrevious: false
+    });
   }
 
   dispose(disposeResources = true) {
@@ -91,6 +108,14 @@ export class Fragment {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
+  setVisibleBlocks(blockIDs: number[]) {
+    this.subsets.createSubset({
+      fragment: this,
+      ids: blockIDs,
+      removePrevious: true
+    });
+  }
+
   clear() {
     this.mesh.clear();
     this.mesh.count = 0;
@@ -99,8 +124,10 @@ export class Fragment {
 
   addFragment(id: string, material = this.mesh.material) {
     const newGeometry = new BufferGeometry();
-    newGeometry.attributes = this.mesh.geometry.attributes;
-    newGeometry.setIndex(this.mesh.geometry.index);
+    newGeometry.setAttribute('position', this.mesh.geometry.attributes.position);
+    newGeometry.setAttribute('normal', this.mesh.geometry.attributes.normal);
+    newGeometry.setAttribute('blockID', this.mesh.geometry.attributes.blockID);
+    newGeometry.setIndex(Array.from(this.mesh.geometry.index.array));
     this.fragments[id] = new Fragment(newGeometry, material, this.capacity);
     return this.fragments[id];
   }

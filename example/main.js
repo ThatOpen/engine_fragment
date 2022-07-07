@@ -5,8 +5,8 @@ import {
     GridHelper, InstancedMesh, Mesh, MeshLambertMaterial, Object3D,
     PerspectiveCamera, Raycaster,
     Scene, Vector2, Color, Matrix4,
-    WebGLRenderer, MeshBasicMaterial,
-} from "three";
+    WebGLRenderer, MeshBasicMaterial, BufferAttribute
+} from 'three';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
 import {mergeBufferGeometries} from "three/examples/jsm/utils/BufferGeometryUtils";
@@ -99,7 +99,7 @@ async function loadModels() {
     scene.add(fragment.mesh);
 
     const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false, size: 2});
-    const selection = fragment.addFragment('selection', selectionMaterial);
+    const selection = fragment.addFragment('selection', [selectionMaterial]);
 
     scene.add(selection.mesh);
 
@@ -122,9 +122,17 @@ async function loadModels() {
             selection.setInstance(0, {transform: tempMatrix});
             selection.mesh.instanceMatrix.needsUpdate = true;
             selection.mesh.count = 1;
+
+            // const index = result.object.geometry.index.array[result.face.a];
+            const blockID = result.object.geometry.attributes.blockID.array[result.face.a];
+            selection.setVisibleBlocks([blockID]);
         } else {
             selection.mesh.count = 0;
         }
+    }
+
+    window.ondblclick = () => {
+        selection.setVisibleBlocks([1]);
     }
 
     // const tableScene = await loader.loadAsync('gltfs/table.glb');
@@ -166,6 +174,14 @@ function createFragment(meshes, count = 1, offset = 0.5) {
 function mergeGeometries(meshes) {
     const geometries = meshes.map(mesh => mesh.geometry);
     const sizes = meshes.map(mesh => mesh.geometry.index.count);
+
+    let i = 0;
+    for(const mesh of meshes) {
+        const size = mesh.geometry.attributes.position.count;
+        const array = new Uint8Array(size).fill(i);
+        mesh.geometry.setAttribute('blockID', new BufferAttribute(array), 1);
+        i++;
+    }
 
     const materials = meshes.map(mesh => {
         const mat = mesh.material;

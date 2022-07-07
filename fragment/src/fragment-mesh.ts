@@ -1,9 +1,9 @@
 import { BufferGeometry, InstancedMesh } from 'three';
 import { Material } from 'three/src/materials/Material';
 import { BufferAttribute } from 'three/src/core/BufferAttribute';
-import { FragmentGeometry } from './base-types';
+import { FragmentGeometry, IFragmentMesh } from './base-types';
 
-export class FragmentMesh extends InstancedMesh {
+export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   material: Material[];
   geometry: FragmentGeometry;
   elementCount = 0;
@@ -15,10 +15,18 @@ export class FragmentMesh extends InstancedMesh {
   }
 
   private newFragmentGeometry(geometry: BufferGeometry) {
-    const size = geometry.attributes.position.count;
-    const array = new Uint16Array(size);
-    array.fill(this.elementCount++);
-    geometry.attributes.blockId = new BufferAttribute(array, 3);
+    if (!geometry.index) {
+      throw new Error('The geometry must be indexed!');
+    }
+
+    if (!geometry.attributes.blockID) {
+      const vertexSize = geometry.attributes.position.count;
+      const array = new Uint16Array(vertexSize);
+      array.fill(this.elementCount++);
+      geometry.attributes.blockID = new BufferAttribute(array, 3);
+    }
+
+    const size = geometry.index.count;
     FragmentMesh.initializeGroups(geometry, size);
     return geometry as FragmentGeometry;
   }
