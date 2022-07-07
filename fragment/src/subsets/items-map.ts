@@ -16,29 +16,23 @@ export interface Group {
   materialIndex?: number;
 }
 
-export interface BlockMap {
+export interface IndicesMap {
   indexCache: Uint32Array;
   map: Map<number, Indices>;
 }
 
-export interface IndicesMap {
-  [fragmentID: string]: {
-    indexCache: Uint32Array;
-    map: Map<number, Indices>;
-  };
-}
-
 export class ItemsMap {
-  constructor() {}
+  blocks: IndicesMap;
 
-  map: IndicesMap = {};
+  constructor(fragment: IFragment) {
+    this.blocks = ItemsMap.initializeBlocks(fragment);
+    this.generateGeometryIndexMap(fragment);
+  }
 
-  generateGeometryIndexMap(fragment: IFragment) {
-    if (this.map[fragment.id]) return;
-    const blocksMap = this.newBlocksMap(fragment);
+  private generateGeometryIndexMap(fragment: IFragment) {
     const geometry = fragment.mesh.geometry;
     for (const group of geometry.groups) {
-      this.fillBlocksMapWithGroupInfo(group, geometry, blocksMap);
+      this.fillBlocksMapWithGroupInfo(group, geometry);
     }
   }
 
@@ -50,25 +44,24 @@ export class ItemsMap {
 
   // Use this only for destroying the current IFCLoader instance
   dispose() {
-    Object.values(this.map).forEach((model) => {
+    Object.values(this.blocks).forEach((model) => {
       (model.indexCache as any) = null;
       (model.map as any) = null;
     });
 
-    (this.map as any) = null;
+    (this.blocks as any) = null;
   }
 
-  private newBlocksMap(fragment: IFragment) {
+  private static initializeBlocks(fragment: IFragment) {
     const geometry = fragment.mesh.geometry;
     const startIndices = geometry.index.array as Uint32Array;
-    this.map[fragment.id] = {
+    return {
       indexCache: startIndices.slice(0, geometry.index.array.length),
       map: new Map()
     };
-    return this.map[fragment.id] as BlockMap;
   }
 
-  private fillBlocksMapWithGroupInfo(group: Group, geometry: IndexedGeometry, items: BlockMap) {
+  private fillBlocksMapWithGroupInfo(group: Group, geometry: IndexedGeometry) {
     let prevBlockID = -1;
 
     const materialIndex = group.materialIndex as number;
@@ -91,7 +84,7 @@ export class ItemsMap {
       // It's the end of the material, which also means end of the object
       const isEndOfMaterial = i === materialEnd;
       if (isEndOfMaterial) {
-        const store = this.getMaterialStore(items.map, blockID, materialIndex);
+        const store = this.getMaterialStore(blockID, materialIndex);
         store.push(objectStart, materialEnd);
         break;
       }
@@ -102,7 +95,7 @@ export class ItemsMap {
       // New object starts; save previous object
 
       // Store previous object
-      const store = this.getMaterialStore(items.map, prevBlockID, materialIndex);
+      const store = this.getMaterialStore(prevBlockID, materialIndex);
       objectEnd = i - 1;
       store.push(objectStart, objectEnd);
 
@@ -112,12 +105,12 @@ export class ItemsMap {
     }
   }
 
-  private getMaterialStore(map: Map<number, Indices>, id: number, matIndex: number) {
+  private getMaterialStore(id: number, matIndex: number) {
     // If this object wasn't store before, add it to the map
-    if (map.get(id) === undefined) {
-      map.set(id, {});
+    if (this.blocks.map.get(id) === undefined) {
+      this.blocks.map.set(id, {});
     }
-    const storedIfcItem = map.get(id);
+    const storedIfcItem = this.blocks.map.get(id);
     if (storedIfcItem === undefined) throw new Error('Geometry map generation error');
 
     // If this material wasn't stored for this object before, add it to the object

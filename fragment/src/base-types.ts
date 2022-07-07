@@ -46,7 +46,3 @@ export interface BaseSubsetConfig {
 export interface SubsetConfig extends BaseSubsetConfig {
   fragment: IFragment;
 }
-
-export type Subsets = {
-  [subsetID: string]: { ids: Set<number>; mesh: FragmentMesh; bvh: boolean };
-};

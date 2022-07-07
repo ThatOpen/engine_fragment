@@ -98,7 +98,7 @@ async function loadModels() {
     const fragment = createFragment(chairMeshes, 1000);
     scene.add(fragment.mesh);
 
-    const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false, size: 2});
+    const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false});
     const selection = fragment.addFragment('selection', [selectionMaterial]);
 
     scene.add(selection.mesh);
@@ -123,9 +123,10 @@ async function loadModels() {
             selection.mesh.instanceMatrix.needsUpdate = true;
             selection.mesh.count = 1;
 
-            // const index = result.object.geometry.index.array[result.face.a];
-            const blockID = result.object.geometry.attributes.blockID.array[result.face.a];
-            selection.setVisibleBlocks([blockID]);
+            const blockID = selection.getBlockID(result);
+            if(blockID !== null) {
+                selection.setVisibleBlocks([blockID]);
+            }
         } else {
             selection.mesh.count = 0;
         }
@@ -213,10 +214,12 @@ function generateInstances(fragment, count, offset) {
     for (let i = 0; i < rootCount; i++) {
         for (let j = 0; j < rootCount; j++) {
             for (let k = 0; k < rootCount; k++) {
+
                 const matrix = new Matrix4();
                 matrix.setPosition(i * offset, j * offset, k * offset);
                 const id = parseInt(`${i}${j}${k}`);
                 fragment.setInstance(counter++, {ids: [id], transform: matrix})
+
             }
         }
     }

@@ -1,14 +1,15 @@
-import { BufferGeometry, Material, Matrix4 } from 'three';
+import { BufferGeometry, Intersection, Material, Matrix4, Mesh } from 'three';
 import { Items, IFragment } from './base-types';
 import { FragmentMesh } from './fragment-mesh';
 import { SubsetManager } from './subsets/subset-manager';
+import { BVH } from './subsets/bvh';
 
 /*
  * Fragments can contain one or multiple Instances of one or multiple Blocks
- * Each Instance is identified by an instanceId (property of THREE.InstancedMesh)
- * Each Block identified by a blockId (custom bufferAttribute per vertex)
+ * Each Instance is identified by an instanceID (property of THREE.InstancedMesh)
+ * Each Block identified by a blockID (custom bufferAttribute per vertex)
  * Both instanceId and blockId are unsigned integers starting at 0 and going up sequentially
- * A specific Block of a specific Instance is an Item, identified by an itemId
+ * A specific Block of a specific Instance is an Item, identified by an itemID
  *
  * For example:
  * Imagine a fragment mesh with 8 instances and 2 elements (16 items, identified from A to P)
@@ -27,7 +28,6 @@ import { SubsetManager } from './subsets/subset-manager';
  * */
 
 export class Fragment implements IFragment {
-  trueMesh: FragmentMesh;
   mesh: FragmentMesh;
   capacity: number;
   fragments: { [id: string]: Fragment } = {};
@@ -39,20 +39,10 @@ export class Fragment implements IFragment {
   private itemsMap: number[] = [];
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
-    this.subsets = new SubsetManager();
-
     this.mesh = new FragmentMesh(geometry, material, count);
     this.id = this.mesh.uuid;
     this.capacity = count;
-
-    const rawIds = this.mesh.geometry.attributes.blockID.array as number[];
-    const ids = Array.from(new Set<number>(rawIds));
-
-    this.trueMesh = this.subsets.createSubset({
-      fragment: this,
-      ids,
-      removePrevious: false
-    });
+    this.subsets = new SubsetManager(this);
   }
 
   dispose(disposeResources = true) {
@@ -60,6 +50,7 @@ export class Fragment implements IFragment {
 
     if (disposeResources) {
       this.mesh.material.forEach((mat) => mat.dispose());
+      BVH.dispose(this.mesh.geometry);
       this.mesh.geometry.dispose();
     }
 
@@ -106,6 +97,16 @@ export class Fragment implements IFragment {
     this.deleteAndRearrangeInstances(ids);
     this.mesh.count -= ids.length;
     this.mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  getBlockID(intersection: Intersection) {
+    const mesh = intersection.object as Mesh;
+
+    if (!mesh.geometry || !intersection.face) {
+      return null;
+    }
+
+    return mesh.geometry.attributes.blockID.array[intersection.face.a];
   }
 
   setVisibleBlocks(blockIDs: number[]) {

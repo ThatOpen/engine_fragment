@@ -14,4 +14,8 @@ export class BVH {
     }
     geometry.computeBoundsTree();
   }
+
+  static dispose(geometry: BufferGeometry) {
+    geometry.disposeBoundsTree();
+  }
 }
