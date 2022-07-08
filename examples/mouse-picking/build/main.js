@@ -46584,6 +46584,247 @@
 
 	Float16BufferAttribute.prototype.isFloat16BufferAttribute = true;
 
+	class FragmentMesh extends InstancedMesh {
+	    constructor(geometry, material, count) {
+	        super(geometry, material, count);
+	        this.elementCount = 0;
+	        this.material = FragmentMesh.newMaterialArray(material);
+	        this.geometry = this.newFragmentGeometry(geometry);
+	    }
+	    newFragmentGeometry(geometry) {
+	        if (!geometry.index) {
+	            throw new Error('The geometry must be indexed!');
+	        }
+	        if (!geometry.attributes.blockID) {
+	            const vertexSize = geometry.attributes.position.count;
+	            const array = new Uint16Array(vertexSize);
+	            array.fill(this.elementCount++);
+	            geometry.attributes.blockID = new BufferAttribute(array, 3);
+	        }
+	        const size = geometry.index.count;
+	        FragmentMesh.initializeGroups(geometry, size);
+	        return geometry;
+	    }
+	    static initializeGroups(geometry, size) {
+	        if (!geometry.groups.length) {
+	            geometry.groups.push({
+	                start: 0,
+	                count: size,
+	                materialIndex: 0
+	            });
+	        }
+	    }
+	    static newMaterialArray(material) {
+	        if (!Array.isArray(material))
+	            material = [material];
+	        return material;
+	    }
+	}
+
+	class BlocksMap {
+	    constructor(fragment) {
+	        this.indices = BlocksMap.initializeBlocks(fragment);
+	        this.generateGeometryIndexMap(fragment);
+	    }
+	    generateGeometryIndexMap(fragment) {
+	        const geometry = fragment.mesh.geometry;
+	        for (const group of geometry.groups) {
+	            this.fillBlocksMapWithGroupInfo(group, geometry);
+	        }
+	    }
+	    getSubsetID(modelID, material, customID = 'DEFAULT') {
+	        const baseID = modelID;
+	        const materialID = material ? material.uuid : 'DEFAULT';
+	        return `${baseID} - ${materialID} - ${customID}`;
+	    }
+	    // Use this only for destroying the current IFCLoader instance
+	    dispose() {
+	        this.indices = null;
+	    }
+	    static initializeBlocks(fragment) {
+	        const geometry = fragment.mesh.geometry;
+	        const startIndices = geometry.index.array;
+	        return {
+	            indexCache: startIndices.slice(0, geometry.index.array.length),
+	            map: new Map()
+	        };
+	    }
+	    fillBlocksMapWithGroupInfo(group, geometry) {
+	        let prevBlockID = -1;
+	        const materialIndex = group.materialIndex;
+	        const materialStart = group.start;
+	        const materialEnd = materialStart + group.count - 1;
+	        let objectStart = -1;
+	        let objectEnd = -1;
+	        for (let i = materialStart; i <= materialEnd; i++) {
+	            const index = geometry.index.array[i];
+	            const blockID = geometry.attributes.blockID.array[index];
+	            // First iteration
+	            if (prevBlockID === -1) {
+	                prevBlockID = blockID;
+	                objectStart = i;
+	            }
+	            // It's the end of the material, which also means end of the object
+	            const isEndOfMaterial = i === materialEnd;
+	            if (isEndOfMaterial) {
+	                const store = this.getMaterialStore(blockID, materialIndex);
+	                store.push(objectStart, materialEnd);
+	                break;
+	            }
+	            // Still going through the same object
+	            if (prevBlockID === blockID)
+	                continue;
+	            // New object starts; save previous object
+	            // Store previous object
+	            const store = this.getMaterialStore(prevBlockID, materialIndex);
+	            objectEnd = i - 1;
+	            store.push(objectStart, objectEnd);
+	            // Get ready to process next object
+	            prevBlockID = blockID;
+	            objectStart = i;
+	        }
+	    }
+	    getMaterialStore(id, matIndex) {
+	        // If this object wasn't store before, add it to the map
+	        if (this.indices.map.get(id) === undefined) {
+	            this.indices.map.set(id, {});
+	        }
+	        const storedIfcItem = this.indices.map.get(id);
+	        if (storedIfcItem === undefined)
+	            throw new Error('Geometry map generation error');
+	        // If this material wasn't stored for this object before, add it to the object
+	        if (storedIfcItem[matIndex] === undefined) {
+	            storedIfcItem[matIndex] = [];
+	        }
+	        return storedIfcItem[matIndex];
+	    }
+	}
+
+	/**
+	 * Contains the logic to get, create and delete geometric subsets of an IFC model. For example,
+	 * this can extract all the items in a specific IfcBuildingStorey and create a new Mesh.
+	 */
+	class Blocks {
+	    constructor(fragment) {
+	        this.fragment = fragment;
+	        this.tempIndex = [];
+	        this.blocksMap = new BlocksMap(fragment);
+	        this.initializeSubsetGroups(fragment);
+	        const rawIds = fragment.mesh.geometry.attributes.blockID.array;
+	        this.visibleIds = new Set(rawIds);
+	        this.ids = new Set(rawIds);
+	        this.add(Array.from(this.ids), true);
+	    }
+	    get count() {
+	        return this.ids.size;
+	    }
+	    reset() {
+	        this.add(Array.from(this.ids), true);
+	    }
+	    add(ids, removePrevious = true) {
+	        this.filterIndices(removePrevious);
+	        const filtered = ids.filter((id) => !this.visibleIds.has(id));
+	        this.constructSubsetByMaterial(ids);
+	        filtered.forEach((id) => this.visibleIds.add(id));
+	        this.fragment.mesh.geometry.setIndex(this.tempIndex);
+	        this.tempIndex.length = 0;
+	    }
+	    remove(ids) {
+	        ids.forEach((id) => this.visibleIds.has(id) && this.visibleIds.delete(id));
+	        const remainingIDs = Array.from(this.visibleIds);
+	        this.add(remainingIDs, true);
+	    }
+	    // Use this only for destroying the current Fragment instance
+	    dispose() {
+	        this.blocksMap.dispose();
+	        this.tempIndex = [];
+	        this.visibleIds.clear();
+	        this.visibleIds = null;
+	        this.ids.clear();
+	        this.ids = null;
+	    }
+	    initializeSubsetGroups(fragment) {
+	        const geometry = fragment.mesh.geometry;
+	        geometry.groups = JSON.parse(JSON.stringify(geometry.groups));
+	        this.resetGroups(geometry);
+	    }
+	    // Remove previous indices or filter the given ones to avoid repeating items
+	    filterIndices(removePrevious) {
+	        const geometry = this.fragment.mesh.geometry;
+	        if (!removePrevious) {
+	            this.tempIndex = Array.from(geometry.index.array);
+	            return;
+	        }
+	        geometry.setIndex([]);
+	        this.resetGroups(geometry);
+	    }
+	    constructSubsetByMaterial(ids) {
+	        const length = this.fragment.mesh.geometry.groups.length;
+	        const newIndices = { count: 0 };
+	        for (let i = 0; i < length; i++) {
+	            this.insertNewIndices(ids, i, newIndices);
+	        }
+	    }
+	    // Inserts indices in correct position and update groups
+	    insertNewIndices(ids, materialIndex, newIndices) {
+	        const indicesOfOneMaterial = this.getAllIndicesOfGroup(ids, materialIndex);
+	        this.insertIndicesAtGroup(indicesOfOneMaterial, materialIndex, newIndices);
+	    }
+	    insertIndicesAtGroup(indicesByGroup, index, newIndices) {
+	        const currentGroup = this.getCurrentGroup(index);
+	        currentGroup.start += newIndices.count;
+	        const newIndicesPosition = currentGroup.start + currentGroup.count;
+	        newIndices.count += indicesByGroup.length;
+	        if (indicesByGroup.length > 0) {
+	            const position = newIndicesPosition;
+	            const start = this.tempIndex.slice(0, position);
+	            const end = this.tempIndex.slice(position);
+	            this.tempIndex = Array.prototype.concat.apply([], [start, indicesByGroup, end]);
+	            currentGroup.count += indicesByGroup.length;
+	        }
+	    }
+	    getCurrentGroup(groupIndex) {
+	        return this.fragment.mesh.geometry.groups[groupIndex];
+	    }
+	    resetGroups(geometry) {
+	        geometry.groups.forEach((group) => {
+	            group.start = 0;
+	            group.count = 0;
+	        });
+	    }
+	    // If flatten, all indices are in the same array; otherwise, indices are split in subarrays by material
+	    getAllIndicesOfGroup(ids, materialIndex, flatten = true) {
+	        const indicesByGroup = [];
+	        for (const id of ids) {
+	            const entry = this.blocksMap.indices.map.get(id);
+	            if (!entry)
+	                continue;
+	            const value = entry[materialIndex];
+	            if (!value)
+	                continue;
+	            this.getIndexChunk(value, indicesByGroup, materialIndex, flatten);
+	        }
+	        return indicesByGroup;
+	    }
+	    getIndexChunk(value, indicesByGroup, materialIndex, flatten) {
+	        const pairs = value.length / 2;
+	        for (let pair = 0; pair < pairs; pair++) {
+	            const pairIndex = pair * 2;
+	            const start = value[pairIndex];
+	            const end = value[pairIndex + 1];
+	            for (let j = start; j <= end; j++) {
+	                if (flatten)
+	                    indicesByGroup.push(this.blocksMap.indices.indexCache[j]);
+	                else {
+	                    if (!indicesByGroup[materialIndex])
+	                        indicesByGroup[materialIndex] = [];
+	                    indicesByGroup[materialIndex].push(this.blocksMap.indices.indexCache[j]);
+	                }
+	            }
+	        }
+	    }
+	}
+
 	// Split strategy constants
 	const CENTER = 0;
 	const AVERAGE = 1;
@@ -50840,248 +51081,6 @@
 	}
 	BVH.initialized = false;
 
-	class FragmentMesh extends InstancedMesh {
-	    constructor(geometry, material, count) {
-	        super(geometry, material, count);
-	        this.elementCount = 0;
-	        BVH.apply(geometry);
-	        this.material = FragmentMesh.newMaterialArray(material);
-	        this.geometry = this.newFragmentGeometry(geometry);
-	    }
-	    newFragmentGeometry(geometry) {
-	        if (!geometry.index) {
-	            throw new Error('The geometry must be indexed!');
-	        }
-	        if (!geometry.attributes.blockID) {
-	            const vertexSize = geometry.attributes.position.count;
-	            const array = new Uint16Array(vertexSize);
-	            array.fill(this.elementCount++);
-	            geometry.attributes.blockID = new BufferAttribute(array, 3);
-	        }
-	        const size = geometry.index.count;
-	        FragmentMesh.initializeGroups(geometry, size);
-	        return geometry;
-	    }
-	    static initializeGroups(geometry, size) {
-	        if (!geometry.groups.length) {
-	            geometry.groups.push({
-	                start: 0,
-	                count: size,
-	                materialIndex: 0
-	            });
-	        }
-	    }
-	    static newMaterialArray(material) {
-	        if (!Array.isArray(material))
-	            material = [material];
-	        return material;
-	    }
-	}
-
-	class BlocksMap {
-	    constructor(fragment) {
-	        this.indices = BlocksMap.initializeBlocks(fragment);
-	        this.generateGeometryIndexMap(fragment);
-	    }
-	    generateGeometryIndexMap(fragment) {
-	        const geometry = fragment.mesh.geometry;
-	        for (const group of geometry.groups) {
-	            this.fillBlocksMapWithGroupInfo(group, geometry);
-	        }
-	    }
-	    getSubsetID(modelID, material, customID = 'DEFAULT') {
-	        const baseID = modelID;
-	        const materialID = material ? material.uuid : 'DEFAULT';
-	        return `${baseID} - ${materialID} - ${customID}`;
-	    }
-	    // Use this only for destroying the current IFCLoader instance
-	    dispose() {
-	        this.indices = null;
-	    }
-	    static initializeBlocks(fragment) {
-	        const geometry = fragment.mesh.geometry;
-	        const startIndices = geometry.index.array;
-	        return {
-	            indexCache: startIndices.slice(0, geometry.index.array.length),
-	            map: new Map()
-	        };
-	    }
-	    fillBlocksMapWithGroupInfo(group, geometry) {
-	        let prevBlockID = -1;
-	        const materialIndex = group.materialIndex;
-	        const materialStart = group.start;
-	        const materialEnd = materialStart + group.count - 1;
-	        let objectStart = -1;
-	        let objectEnd = -1;
-	        for (let i = materialStart; i <= materialEnd; i++) {
-	            const index = geometry.index.array[i];
-	            const blockID = geometry.attributes.blockID.array[index];
-	            // First iteration
-	            if (prevBlockID === -1) {
-	                prevBlockID = blockID;
-	                objectStart = i;
-	            }
-	            // It's the end of the material, which also means end of the object
-	            const isEndOfMaterial = i === materialEnd;
-	            if (isEndOfMaterial) {
-	                const store = this.getMaterialStore(blockID, materialIndex);
-	                store.push(objectStart, materialEnd);
-	                break;
-	            }
-	            // Still going through the same object
-	            if (prevBlockID === blockID)
-	                continue;
-	            // New object starts; save previous object
-	            // Store previous object
-	            const store = this.getMaterialStore(prevBlockID, materialIndex);
-	            objectEnd = i - 1;
-	            store.push(objectStart, objectEnd);
-	            // Get ready to process next object
-	            prevBlockID = blockID;
-	            objectStart = i;
-	        }
-	    }
-	    getMaterialStore(id, matIndex) {
-	        // If this object wasn't store before, add it to the map
-	        if (this.indices.map.get(id) === undefined) {
-	            this.indices.map.set(id, {});
-	        }
-	        const storedIfcItem = this.indices.map.get(id);
-	        if (storedIfcItem === undefined)
-	            throw new Error('Geometry map generation error');
-	        // If this material wasn't stored for this object before, add it to the object
-	        if (storedIfcItem[matIndex] === undefined) {
-	            storedIfcItem[matIndex] = [];
-	        }
-	        return storedIfcItem[matIndex];
-	    }
-	}
-
-	/**
-	 * Contains the logic to get, create and delete geometric subsets of an IFC model. For example,
-	 * this can extract all the items in a specific IfcBuildingStorey and create a new Mesh.
-	 */
-	class Blocks {
-	    constructor(fragment) {
-	        this.fragment = fragment;
-	        this.tempIndex = [];
-	        this.blocksMap = new BlocksMap(fragment);
-	        this.initializeSubsetGroups(fragment);
-	        const rawIds = fragment.mesh.geometry.attributes.blockID.array;
-	        this.visibleIds = new Set(rawIds);
-	        this.ids = new Set(rawIds);
-	        this.add(Array.from(this.ids), true);
-	    }
-	    get count() {
-	        return this.ids.size;
-	    }
-	    reset() {
-	        this.add(Array.from(this.ids), true);
-	    }
-	    add(ids, removePrevious = true) {
-	        this.filterIndices(removePrevious);
-	        const filtered = ids.filter((id) => !this.visibleIds.has(id));
-	        this.constructSubsetByMaterial(ids);
-	        filtered.forEach((id) => this.visibleIds.add(id));
-	        this.fragment.mesh.geometry.setIndex(this.tempIndex);
-	        this.tempIndex.length = 0;
-	    }
-	    remove(ids) {
-	        ids.forEach((id) => this.visibleIds.has(id) && this.visibleIds.delete(id));
-	        const remainingIDs = Array.from(this.visibleIds);
-	        this.add(remainingIDs, true);
-	    }
-	    // Use this only for destroying the current Fragment instance
-	    dispose() {
-	        this.blocksMap.dispose();
-	        this.tempIndex = [];
-	        this.visibleIds.clear();
-	        this.visibleIds = null;
-	        this.ids.clear();
-	        this.ids = null;
-	    }
-	    initializeSubsetGroups(fragment) {
-	        const geometry = fragment.mesh.geometry;
-	        geometry.groups = JSON.parse(JSON.stringify(geometry.groups));
-	        this.resetGroups(geometry);
-	    }
-	    // Remove previous indices or filter the given ones to avoid repeating items
-	    filterIndices(removePrevious) {
-	        const geometry = this.fragment.mesh.geometry;
-	        if (!removePrevious) {
-	            this.tempIndex = Array.from(geometry.index.array);
-	            return;
-	        }
-	        geometry.setIndex([]);
-	        this.resetGroups(geometry);
-	    }
-	    constructSubsetByMaterial(ids) {
-	        const length = this.fragment.mesh.geometry.groups.length;
-	        const newIndices = { count: 0 };
-	        for (let i = 0; i < length; i++) {
-	            this.insertNewIndices(ids, i, newIndices);
-	        }
-	    }
-	    // Inserts indices in correct position and update groups
-	    insertNewIndices(ids, materialIndex, newIndices) {
-	        const indicesOfOneMaterial = this.getAllIndicesOfGroup(ids, materialIndex);
-	        this.insertIndicesAtGroup(indicesOfOneMaterial, materialIndex, newIndices);
-	    }
-	    insertIndicesAtGroup(indicesByGroup, index, newIndices) {
-	        const currentGroup = this.getCurrentGroup(index);
-	        currentGroup.start += newIndices.count;
-	        const newIndicesPosition = currentGroup.start + currentGroup.count;
-	        newIndices.count += indicesByGroup.length;
-	        if (indicesByGroup.length > 0) {
-	            const position = newIndicesPosition;
-	            const start = this.tempIndex.slice(0, position);
-	            const end = this.tempIndex.slice(position);
-	            this.tempIndex = Array.prototype.concat.apply([], [start, indicesByGroup, end]);
-	            currentGroup.count += indicesByGroup.length;
-	        }
-	    }
-	    getCurrentGroup(groupIndex) {
-	        return this.fragment.mesh.geometry.groups[groupIndex];
-	    }
-	    resetGroups(geometry) {
-	        geometry.groups.forEach((group) => {
-	            group.start = 0;
-	            group.count = 0;
-	        });
-	    }
-	    // If flatten, all indices are in the same array; otherwise, indices are split in subarrays by material
-	    getAllIndicesOfGroup(ids, materialIndex, flatten = true) {
-	        const indicesByGroup = [];
-	        for (const id of ids) {
-	            const entry = this.blocksMap.indices.map.get(id);
-	            if (!entry)
-	                continue;
-	            const value = entry[materialIndex];
-	            if (!value)
-	                continue;
-	            this.getIndexChunk(value, indicesByGroup, materialIndex, flatten);
-	        }
-	        return indicesByGroup;
-	    }
-	    getIndexChunk(value, indicesByGroup, materialIndex, flatten) {
-	        const pairs = value.length / 2;
-	        for (let pair = 0; pair < pairs; pair++) {
-	            const pairIndex = pair * 2;
-	            const start = value[pairIndex];
-	            const end = value[pairIndex + 1];
-	            for (let j = start; j <= end; j++) {
-	                if (flatten)
-	                    indicesByGroup.push(this.blocksMap.indices.indexCache[j]);
-	                else {
-	                    if (!indicesByGroup[materialIndex])
-	                        indicesByGroup[materialIndex] = [];
-	                    indicesByGroup[materialIndex].push(this.blocksMap.indices.indexCache[j]);
-	                }
-	            }
-	        }
-	    }
-	}
-
 	/*
 	 * Fragments can contain one or multiple Instances of one or multiple Blocks
 	 * Each Instance is identified by an instanceID (property of THREE.InstancedMesh)
@@ -51112,6 +51111,7 @@
 	        this.id = this.mesh.uuid;
 	        this.capacity = count;
 	        this.blocks = new Blocks(this);
+	        BVH.apply(geometry);
 	    }
 	    dispose(disposeResources = true) {
 	        this.items = null;
@@ -57427,7 +57427,7 @@
 	    const chairData = await models.getChair();
 	    const chairs = new Fragment(chairData.geometry, chairData.material, 1000);
 	    generateInstances(chairs, 1000, 0.5);
-	    // items[chairs.id] = chairs;
+	    items[chairs.id] = chairs;
 
 	    const fragments = Object.values(items);
 
@@ -57443,7 +57443,7 @@
 
 	    // Set up raycasting
 	    const caster = new Raycaster();
-	    // caster.firstHitOnly = true;
+	    caster.firstHitOnly = true;
 	    const mouse = new Vector2$1();
 	    const tempMatrix = new Matrix4();
 	    let previousSelection;

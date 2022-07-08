@@ -2,7 +2,6 @@ import { BufferGeometry, InstancedMesh } from 'three';
 import { Material } from 'three/src/materials/Material';
 import { BufferAttribute } from 'three/src/core/BufferAttribute';
 import { IFragmentGeometry, IFragmentMesh } from './base-types';
-import { BVH } from './bvh';
 
 export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   material: Material[];
@@ -11,7 +10,6 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
     super(geometry, material, count);
-    BVH.apply(geometry);
     this.material = FragmentMesh.newMaterialArray(material);
     this.geometry = this.newFragmentGeometry(geometry);
   }

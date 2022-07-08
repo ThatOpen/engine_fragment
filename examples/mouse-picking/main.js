@@ -27,7 +27,7 @@ async function loadModels() {
     const chairData = await models.getChair();
     const chairs = new Fragment(chairData.geometry, chairData.material, 1000);
     generateInstances(chairs, 1000, 0.5);
-    // items[chairs.id] = chairs;
+    items[chairs.id] = chairs;
 
     const fragments = Object.values(items);
 
@@ -43,7 +43,7 @@ async function loadModels() {
 
     // Set up raycasting
     const caster = new Raycaster();
-    // caster.firstHitOnly = true;
+    caster.firstHitOnly = true;
     const mouse = new Vector2();
     const tempMatrix = new Matrix4();
     let previousSelection;

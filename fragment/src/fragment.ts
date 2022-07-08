@@ -41,6 +41,7 @@ export class Fragment implements IFragment {
     this.id = this.mesh.uuid;
     this.capacity = count;
     this.blocks = new Blocks(this);
+    BVH.apply(geometry);
   }
 
   dispose(disposeResources = true) {
