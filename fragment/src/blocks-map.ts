@@ -1,5 +1,5 @@
 import { Material } from 'three';
-import { FragmentGeometry, IFragment, IndicesMap, VertexGroup } from './base-types';
+import { IFragmentGeometry, IFragment, IndicesMap, VertexGroup } from './base-types';
 
 export class BlocksMap {
   indices: IndicesMap;
@@ -36,7 +36,7 @@ export class BlocksMap {
     };
   }
 
-  private fillBlocksMapWithGroupInfo(group: VertexGroup, geometry: FragmentGeometry) {
+  private fillBlocksMapWithGroupInfo(group: VertexGroup, geometry: IFragmentGeometry) {
     let prevBlockID = -1;
 
     const materialIndex = group.materialIndex as number;

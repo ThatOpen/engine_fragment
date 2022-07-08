@@ -58,9 +58,16 @@ export class Fragment implements IFragment {
     this.disposeNestedFragments();
   }
 
-  getItem(instanceId: number, blockId: number) {
-    const index = this.getItemIndex(instanceId, blockId);
+  getItemID(instanceID: number, blockID: number) {
+    const index = this.getItemIndex(instanceID, blockID);
     return this.items[index];
+  }
+
+  getItemData(itemID: number) {
+    const index = this.items.indexOf(itemID);
+    const instanceID = Math.ceil(index / this.blocks.count);
+    const blockID = index % this.blocks.count;
+    return { instanceID, blockID };
   }
 
   getInstance(instanceId: number, matrix: Matrix4) {

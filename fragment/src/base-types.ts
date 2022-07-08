@@ -24,7 +24,7 @@ export interface Items {
   transform: Matrix4;
 }
 
-export interface FragmentGeometry extends BufferGeometry {
+export interface IFragmentGeometry extends BufferGeometry {
   attributes: {
     [name: string]: BufferAttribute | InterleavedBufferAttribute;
     blockID: BufferAttribute;
@@ -34,7 +34,7 @@ export interface FragmentGeometry extends BufferGeometry {
 
 export interface IFragmentMesh {
   material: Material[];
-  geometry: FragmentGeometry;
+  geometry: IFragmentGeometry;
   elementCount: number;
 }
 

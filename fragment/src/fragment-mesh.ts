@@ -1,15 +1,17 @@
 import { BufferGeometry, InstancedMesh } from 'three';
 import { Material } from 'three/src/materials/Material';
 import { BufferAttribute } from 'three/src/core/BufferAttribute';
-import { FragmentGeometry, IFragmentMesh } from './base-types';
+import { IFragmentGeometry, IFragmentMesh } from './base-types';
+import { BVH } from './bvh';
 
 export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   material: Material[];
-  geometry: FragmentGeometry;
+  geometry: IFragmentGeometry;
   elementCount = 0;
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
     super(geometry, material, count);
+    BVH.apply(geometry);
     this.material = FragmentMesh.newMaterialArray(material);
     this.geometry = this.newFragmentGeometry(geometry);
   }
@@ -28,7 +30,7 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
 
     const size = geometry.index.count;
     FragmentMesh.initializeGroups(geometry, size);
-    return geometry as FragmentGeometry;
+    return geometry as IFragmentGeometry;
   }
 
   private static initializeGroups(geometry: BufferGeometry, size: number) {

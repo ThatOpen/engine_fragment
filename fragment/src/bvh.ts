@@ -12,7 +12,9 @@ export class BVH {
       Mesh.prototype.raycast = acceleratedRaycast;
       BVH.initialized = true;
     }
-    geometry.computeBoundsTree();
+    if (!geometry.boundsTree) {
+      geometry.computeBoundsTree();
+    }
   }
 
   static dispose(geometry: BufferGeometry) {

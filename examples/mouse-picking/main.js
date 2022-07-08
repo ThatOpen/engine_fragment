@@ -27,7 +27,7 @@ async function loadModels() {
     const chairData = await models.getChair();
     const chairs = new Fragment(chairData.geometry, chairData.material, 1000);
     generateInstances(chairs, 1000, 0.5);
-    items[chairs.id] = chairs;
+    // items[chairs.id] = chairs;
 
     const fragments = Object.values(items);
 
@@ -38,12 +38,12 @@ async function loadModels() {
     // Set up selection
     const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false});
     for(const fragment of fragments) {
-        const selection = fragment.addFragment('selection', [selectionMaterial]);
-        threeScene.scene.add(selection.mesh);
+        fragment.addFragment('selection', [selectionMaterial]);
     }
 
     // Set up raycasting
     const caster = new Raycaster();
+    // caster.firstHitOnly = true;
     const mouse = new Vector2();
     const tempMatrix = new Matrix4();
     let previousSelection;
@@ -52,19 +52,20 @@ async function loadModels() {
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         caster.setFromCamera(mouse, threeScene.camera);
-        const result = caster.intersectObjects(meshes)[0];
+        const results = caster.intersectObjects(meshes);
+        const result = results[0];
 
         if (result) {
 
             // Reset previous selection (if any)
-            if(previousSelection) previousSelection.mesh.visible = false;
+            if(previousSelection) previousSelection.mesh.removeFromParent();
 
             // Get found fragment
             const fragment = items[result.object.uuid];
             previousSelection = fragment.fragments['selection'];
 
             // Select instance
-            previousSelection.mesh.visible = true;
+            threeScene.scene.add(previousSelection.mesh);
             fragment.getInstance(result.instanceId, tempMatrix);
             previousSelection.setInstance(0, {transform: tempMatrix});
             previousSelection.mesh.instanceMatrix.needsUpdate = true;
@@ -76,7 +77,7 @@ async function loadModels() {
             }
         } else {
             // Reset previous selection (if any)
-            if(previousSelection) previousSelection.mesh.visible = false;
+            if(previousSelection) previousSelection.mesh.removeFromParent();
         }
     }
 

@@ -1,75 +1,59 @@
-import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader";
-import { Mesh, MeshLambertMaterial, BufferAttribute } from 'three';
-import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
+import { MeshLambertMaterial } from 'three';
+import { GeometryUtils } from 'bim-fragment/dist/geometry-utils';
 
 export class Models {
   loader = new GLTFLoader();
 
   async getChair() {
-    const chairScene = await this.loader.loadAsync('../models/chair.glb');
-    const meshes = chairScene.scene.children[0].children;
-    return this.mergeGeometries(meshes);
-  }
+    const meshes = await this.getChairModel('../models/chair.glb');
+    const geometries = meshes.map((mesh) => [mesh.geometry]);
+    const material = this.getLambertMaterials(meshes);
 
-  async getWalls() {
-    const wall1 = await this.getWall('../models/wall_1.glb');
-    const wall2 = await this.getWall('../models/wall_2.glb');
-    const wall3 = await this.getWall('../models/wall_3.glb');
-    const wall4 = await this.getWall('../models/wall_4.glb');
-
-    const walls = [wall1, wall2, wall3, wall4];
-
-    const previousMat = wall1.material;
-    const material = new MeshLambertMaterial({color: previousMat});
-
-    let i = 0;
-    for(const wall of walls) {
-      const size = wall.geometry.attributes.position.count;
-      const array = new Uint8Array(size).fill(i++);
-      wall.geometry.setAttribute('blockID', new BufferAttribute(array, 1));
-    }
-
-    const geometries = walls.map(wall => wall.geometry);
-    const geometry = mergeBufferGeometries(geometries);
-
+    // All parts of the chair are the same item, so splitByBlock = false
+    const geometry = GeometryUtils.merge(geometries);
     return { geometry, material };
   }
 
+  async getWalls() {
+    const walls = [
+      await this.getWallModel('../models/wall_1.glb'),
+      await this.getWallModel('../models/wall_2.glb'),
+      await this.getWallModel('../models/wall_3.glb'),
+      await this.getWallModel('../models/wall_4.glb')
+    ];
 
+    const geometries = [walls.map(wall => wall.geometry)];
 
-  mergeGeometries(meshes) {
-    const geometries = meshes.map(mesh => mesh.geometry);
-    const sizes = meshes.map(mesh => mesh.geometry.index.count);
+    // All walls have the same material
+    const color = walls[0].material.color;
+    const material = new MeshLambertMaterial({ color });
 
-    const material = meshes.map(mesh => {
+    // Each wall is a different item, so splitByBlocks = true
+    const geometry = GeometryUtils.merge(geometries, true);
+    return { geometry, material };
+  }
+
+  getLambertMaterials(meshes) {
+    return meshes.map(mesh => {
       const mat = mesh.material;
-      const result = new MeshLambertMaterial({
+      const lambertMaterial = new MeshLambertMaterial({
         color: mat.color,
         transparent: mat.transparent,
         opacity: mat.opacity
       });
       mat.dispose();
-      return result;
+      return lambertMaterial;
     });
-
-    const geometry = mergeBufferGeometries(geometries);
-    geometries.forEach(geometry => geometry.dispose());
-
-    let vertexCounter = 0;
-    let counter = 0;
-    for (let size of sizes) {
-      const group = {start: vertexCounter, count: size, materialIndex: counter++};
-      geometry.groups.push(group);
-      vertexCounter += size;
-    }
-    return {material, geometry};
   }
 
-  async getWall(url) {
+  async getChairModel(url) {
+    const loaded = await this.loader.loadAsync(url);
+    return loaded.scene.children[0].children;
+  }
+
+  async getWallModel(url) {
     const loaded = await this.loader.loadAsync(url);
     return loaded.scene.children[0];
   }
-
 }
-
-
