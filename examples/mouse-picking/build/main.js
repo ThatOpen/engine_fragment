@@ -60124,7 +60124,7 @@
 	            const blockID = previousSelection.getBlockID(result);
 	            if(blockID !== null) {
 	                previousSelection.blocks.add([blockID], true);
-	                const itemID = chairs.getItemID(result.instanceId, blockID);
+	                const itemID = fragment.getItemID(result.instanceId, blockID);
 	                console.log(itemID);
 	            }
 	        } else {

@@ -59437,13 +59437,13 @@
 	    }
 	    async export() {
 	        const geometryBuffer = await this.mesh.export();
-	        const geometry = new File([new Blob([geometryBuffer])], 'FragmentGeometry');
+	        const geometry = new File([new Blob([geometryBuffer])], `${this.id}.glb`);
 	        const fragmentData = {
 	            matrices: Array.from(this.mesh.instanceMatrix.array),
 	            ids: this.items
 	        };
 	        const dataString = JSON.stringify(fragmentData);
-	        const data = new File([new Blob([dataString])], 'FragmentData');
+	        const data = new File([new Blob([dataString])], `${this.id}.json`);
 	        return { geometry, data };
 	    }
 	    copyGroups(newGeometry) {
