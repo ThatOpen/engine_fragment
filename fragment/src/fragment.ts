@@ -1,5 +1,5 @@
 import { BufferGeometry, Intersection, Material, Matrix4, Mesh } from 'three';
-import { Items, IFragment } from './base-types';
+import { Items, IFragment, ExportedFragment } from './base-types';
 import { FragmentMesh } from './fragment-mesh';
 import { Blocks } from './blocks';
 import { BVH } from './bvh';
@@ -147,6 +147,21 @@ export class Fragment implements IFragment {
     oldMesh.removeFromParent();
     this.mesh = newMesh;
     oldMesh.dispose();
+  }
+
+  async export() {
+    const geometryBuffer = await this.mesh.export();
+    const geometry = new File([new Blob([geometryBuffer])], `${this.id}.glb`);
+
+    const fragmentData: ExportedFragment = {
+      matrices: Array.from(this.mesh.instanceMatrix.array),
+      ids: this.items
+    };
+
+    const dataString = JSON.stringify(fragmentData);
+    const data = new File([new Blob([dataString])], `${this.id}.json`);
+
+    return { geometry, data };
   }
 
   private copyGroups(newGeometry: BufferGeometry) {

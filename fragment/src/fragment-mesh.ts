@@ -1,6 +1,7 @@
 import { BufferGeometry, InstancedMesh } from 'three';
 import { Material } from 'three/src/materials/Material';
 import { BufferAttribute } from 'three/src/core/BufferAttribute';
+import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
 import { IFragmentGeometry, IFragmentMesh } from './base-types';
 
 export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
@@ -8,10 +9,27 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   geometry: IFragmentGeometry;
   elementCount = 0;
 
+  private exportOptions = {
+    trs: false,
+    onlyVisible: false,
+    truncateDrawRange: true,
+    binary: true,
+    maxTextureSize: 0
+  };
+
+  private exporter = new GLTFExporter();
+
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
     super(geometry, material, count);
     this.material = FragmentMesh.newMaterialArray(material);
     this.geometry = this.newFragmentGeometry(geometry);
+  }
+
+  export() {
+    const mesh = this;
+    return new Promise<any>((resolve) => {
+      this.exporter.parse(mesh, (geometry: any) => resolve(geometry), this.exportOptions);
+    });
   }
 
   private newFragmentGeometry(geometry: BufferGeometry) {
@@ -23,7 +41,7 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
       const vertexSize = geometry.attributes.position.count;
       const array = new Uint16Array(vertexSize);
       array.fill(this.elementCount++);
-      geometry.attributes.blockID = new BufferAttribute(array, 3);
+      geometry.attributes.blockID = new BufferAttribute(array, 1);
     }
 
     const size = geometry.index.count;

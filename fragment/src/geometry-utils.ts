@@ -1,4 +1,4 @@
-import { BufferAttribute, BufferGeometry } from 'three';
+import { BufferAttribute, BufferGeometry, Mesh } from 'three';
 import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils';
 
 export class GeometryUtils {
@@ -15,6 +15,58 @@ export class GeometryUtils {
     this.setupMaterialGroups(sizes, geometry);
     this.cleanUp(geometriesByMat);
     return geometry;
+  }
+
+  // When Three.js exports to glTF, it generates one separate mesh per material. All meshes
+  // share the same BufferAttributes and have different indices
+  static async mergeGltfMeshes(meshes: Mesh[]) {
+    const geometry = new BufferGeometry();
+    const attributes = meshes[0].geometry.attributes;
+    this.getMeshesAttributes(geometry, attributes);
+    this.getMeshesIndices(geometry, meshes);
+    return geometry;
+  }
+
+  private static getMeshesAttributes(geometry: BufferGeometry, attributes: any) {
+    // Three.js GLTFExporter exports custom BufferAttributes as underscore lowercase
+    // eslint-disable-next-line no-underscore-dangle
+    geometry.setAttribute('blockID', attributes._blockid);
+    geometry.setAttribute('position', attributes.position);
+    geometry.setAttribute('normal', attributes.normal);
+    geometry.groups = [];
+  }
+
+  private static getMeshesIndices(geometry: BufferGeometry, meshes: Mesh[]) {
+    const counter = { index: 0, material: 0 };
+    const indices: number[] = [];
+    for (const mesh of meshes) {
+      const index = mesh.geometry.index!;
+      this.getIndicesOfMesh(index, indices);
+      this.getMeshGroup(geometry, counter, index);
+      this.cleanUpMesh(mesh);
+    }
+    geometry.setIndex(indices);
+  }
+
+  private static getMeshGroup(geometry: BufferGeometry, counter: any, index: BufferAttribute) {
+    geometry.groups.push({
+      start: counter.index,
+      count: index.count,
+      materialIndex: counter.material++
+    });
+    counter.index += index.count;
+  }
+
+  private static cleanUpMesh(mesh: Mesh) {
+    mesh.geometry.setIndex([]);
+    mesh.geometry.attributes = {};
+    mesh.geometry.dispose();
+  }
+
+  private static getIndicesOfMesh(index: BufferAttribute, indices: number[]) {
+    for (const number of index.array as Uint32Array) {
+      indices.push(number);
+    }
   }
 
   private static cleanUp(geometries: BufferGeometry[]) {

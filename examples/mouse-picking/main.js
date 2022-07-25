@@ -2,7 +2,7 @@ import {
     Raycaster,
     Vector2,
     Matrix4,
-    MeshBasicMaterial,
+    MeshBasicMaterial, MeshLambertMaterial
 } from 'three';
 import { Fragment } from "bim-fragment/dist/fragment";
 import { ThreeScene } from '../utils/scene';
@@ -48,7 +48,15 @@ async function loadModels() {
     const tempMatrix = new Matrix4();
     let previousSelection;
 
+    const pickingLimit = 100;
+    let lastPicked = 0;
+
     window.onmousemove = (event) => {
+
+        // const time = performance.now() - lastPicked;
+        // if(time < pickingLimit) return;
+        // lastPicked = performance.now();
+
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
         caster.setFromCamera(mouse, threeScene.camera);
@@ -74,6 +82,8 @@ async function loadModels() {
             const blockID = previousSelection.getBlockID(result);
             if(blockID !== null) {
                 previousSelection.blocks.add([blockID], true);
+                const itemID = chairs.getItemID(result.instanceId, blockID);
+                console.log(itemID);
             }
         } else {
             // Reset previous selection (if any)

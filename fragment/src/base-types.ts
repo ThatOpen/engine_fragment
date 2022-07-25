@@ -44,3 +44,8 @@ export interface IFragment {
   fragments: { [id: string]: IFragment };
   id: string;
 }
+
+export interface ExportedFragment {
+  ids: number[];
+  matrices: number[];
+}

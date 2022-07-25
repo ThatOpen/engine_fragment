@@ -1,5 +1,5 @@
 Arguments: 
-  C:\Program Files\nodejs\node.exe C:\Users\anton\AppData\Roaming\npm\node_modules\yarn\bin\yarn.js install
+  C:\Program Files\nodejs\node.exe C:\Users\anton\AppData\Roaming\npm\node_modules\yarn\lib\cli.js add bim-fragment@0.0.4
 
 PATH: 
   C:\Users\anton\AppData\Local\Temp\yarn--1658751677074-0.6010594131337643;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\Data\link\node_modules\.bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Program Files\libexec\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\nodejs\node_modules\npm\bin\node-gyp-bin;C:\Users\anton\AppData\Local\Temp\yarn--1658751674162-0.3424358965852079;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\Data\link\node_modules\.bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\bin;C:\Program Files\libexec\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\nodejs\node_modules\npm\bin\node-gyp-bin;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\iCLS\;C:\Program Files\Intel\Intel(R) Management Engine Components\iCLS\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files\Intel\WiFi\bin\;C:\Program Files\Common Files\Intel\WirelessCommon\;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\Program Files\nodejs\;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\DockerDesktop\version-bin;C:\Users\anton\AppData\Local\Microsoft\WindowsApps;C:\Users\anton\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\anton\AppData\Roaming\npm;C:\Users\anton\AppData\Local\gitkraken\bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin
@@ -14,41 +14,35 @@ Platform:
   win32 x64
 
 Trace: 
-  Error: ENOENT: no such file or directory, lstat 'C:\Users\anton\Desktop\IFCjs\fragment\node_modules\@rollup\plugin-node-resolve\node_modules'
+  Error: ENOENT: no such file or directory, lstat 'C:\Users\anton\Desktop\IFCjs\fragment\node_modules\@rollup\plugin-node-resolve\node_modules\.bin'
 
 npm manifest: 
   {
-    "name": "bim-fragment-root",
-    "description": "BIM geometry API",
-    "version": "0.0.4",
+    "name": "mouse-picking",
     "private": true,
-    "main": "fragment/src/fragment.ts",
+    "type": "module",
+    "version": "0.0.1",
+    "description": "A basic html example for BIM fragment.",
+    "main": "main.js",
+    "scripts": {
+      "build": "node_modules/.bin/rollup -c",
+      "watch": "node_modules/.bin/rollup -c -w",
+      "start": "node_modules/.bin/serve"
+    },
     "author": "agviegas",
     "license": "MIT",
-    "repository": "git+https://github.com/ifcjs/fragment",
-    "scripts": {
-      "init-repo": "yarn && npm run build",
-      "build": "cd fragment && yarn build && cd .. && yarn build-examples",
-      "build-examples": "node example-builder.js",
-      "publish-repo": "cd fragment && npm run publish-repo"
+    "devDependencies": {
+      "@rollup/plugin-commonjs": "^19.0.0",
+      "@rollup/plugin-node-resolve": "^13.0.0",
+      "rollup": "^2.47.0",
+      "serve": "^11.3.2"
     },
-    "bugs": {
-      "url": "https://github.com/agviegas/web-ifc-viewer/issues"
-    },
-    "keywords": [
-      "ifc",
-      "geometry",
-      "threejs",
-      "bim",
-      "3d"
-    ],
-    "workspaces": [
-      "fragment",
-      "examples/mouse-picking",
-      "examples/raw-merge",
-      "examples/import-export"
-    ],
-    "dependencies": {}
+    "dependencies": {
+      "@types/three": "^0.134.0",
+      "bim-fragment": "0.0.4",
+      "stats.js": "0.17.0",
+      "three": "0.135"
+    }
   }
 
 yarn manifest: 

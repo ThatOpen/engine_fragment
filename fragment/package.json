@@ -1,11 +1,12 @@
 {
   "name": "bim-fragment",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "3D BIM Geometry API",
   "main": "dist/fragment-api.js",
   "scripts": {
     "watch": "tsc -w",
-    "build": "tsc"
+    "build": "tsc",
+    "publish-repo": "yarn build && copy package.json dist && cd dist && npm publish"
   },
   "repository": {
     "type": "git",

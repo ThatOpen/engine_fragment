@@ -1,7 +1,7 @@
 {
   "name": "bim-fragment-root",
   "description": "BIM geometry API",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "private": true,
   "main": "fragment/src/fragment.ts",
   "author": "agviegas",
@@ -9,9 +9,9 @@
   "repository": "git+https://github.com/ifcjs/fragment",
   "scripts": {
     "init-repo": "yarn && npm run build",
-    "start": "cd examples/mouse-picking && yarn start",
-    "build": "cd fragment && yarn build && cd ../examples/mouse-picking/ && yarn build",
-    "publish-repo": "cd viewer && yarn build && npm publish"
+    "build": "cd fragment && yarn build && cd .. && yarn build-examples",
+    "build-examples": "node example-builder.js",
+    "publish-repo": "cd fragment && npm run publish-repo"
   },
   "bugs": {
     "url": "https://github.com/agviegas/web-ifc-viewer/issues"
@@ -25,7 +25,8 @@
   ],
   "workspaces": [
     "fragment",
-    "examples/mouse-picking"
+    "examples/mouse-picking",
+    "examples/import-export"
   ],
   "dependencies": {}
 }
