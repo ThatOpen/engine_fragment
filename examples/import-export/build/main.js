@@ -59897,7 +59897,9 @@
 	    }
 	    async load(geometryURL, dataURL) {
 	        const loadedGeom = await this.loader.loadAsync(geometryURL);
-	        const meshes = loadedGeom.scene.children[0].children;
+	        const sceneRoot = loadedGeom.scene.children[0];
+	        const hasChildren = !!sceneRoot.children.length;
+	        const meshes = (hasChildren ? sceneRoot.children : [loadedGeom.scene.children[0]]);
 	        const geometry = await GeometryUtils.mergeGltfMeshes(meshes);
 	        const materials = this.getMaterials(meshes);
 	        const items = await this.getItems(dataURL);

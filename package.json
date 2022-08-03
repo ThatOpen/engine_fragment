@@ -1,7 +1,7 @@
 {
   "name": "bim-fragment-root",
   "description": "BIM geometry API",
-  "version": "0.0.4",
+  "version": "0.0.6",
   "private": true,
   "main": "fragment/src/fragment.ts",
   "author": "agviegas",
@@ -26,6 +26,7 @@
   "workspaces": [
     "fragment",
     "examples/mouse-picking",
+    "examples/culling",
     "examples/import-export"
   ],
   "dependencies": {}

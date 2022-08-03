@@ -32,8 +32,8 @@ export class Fragment implements IFragment {
   capacity: number;
   fragments: { [id: string]: Fragment } = {};
   id: string;
+  blocks: Blocks;
 
-  private blocks: Blocks;
   private items: number[] = [];
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {

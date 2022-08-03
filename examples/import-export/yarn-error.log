@@ -1,8 +1,8 @@
 Arguments: 
-  C:\Program Files\nodejs\node.exe C:\Users\anton\AppData\Roaming\npm\node_modules\yarn\lib\cli.js add bim-fragment@0.0.4
+  C:\Program Files\nodejs\node.exe C:\Users\anton\AppData\Roaming\npm\node_modules\yarn\lib\cli.js add bim-fragment@0.0.6
 
 PATH: 
-  C:\Users\anton\AppData\Local\Temp\yarn--1658751615410-0.00442934556879071;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\Data\link\node_modules\.bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Program Files\libexec\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\nodejs\node_modules\npm\bin\node-gyp-bin;C:\Users\anton\AppData\Local\Temp\yarn--1658751612416-0.0016802267850570818;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\Data\link\node_modules\.bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\bin;C:\Program Files\libexec\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\nodejs\node_modules\npm\bin\node-gyp-bin;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\iCLS\;C:\Program Files\Intel\Intel(R) Management Engine Components\iCLS\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files\Intel\WiFi\bin\;C:\Program Files\Common Files\Intel\WirelessCommon\;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\Program Files\nodejs\;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\DockerDesktop\version-bin;C:\Users\anton\AppData\Local\Microsoft\WindowsApps;C:\Users\anton\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\anton\AppData\Roaming\npm;C:\Users\anton\AppData\Local\gitkraken\bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin
+  C:\Users\anton\AppData\Local\Temp\yarn--1659545073109-0.06933214874002558;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\Data\link\node_modules\.bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Program Files\libexec\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\nodejs\node_modules\npm\bin\node-gyp-bin;C:\Users\anton\AppData\Local\Temp\yarn--1659545070475-0.2111401236269883;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\Data\link\node_modules\.bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin;C:\Users\anton\AppData\Local\Yarn\bin;C:\Program Files\libexec\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\lib\node_modules\npm\bin\node-gyp-bin;C:\Program Files\nodejs\node_modules\npm\bin\node-gyp-bin;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\iCLS\;C:\Program Files\Intel\Intel(R) Management Engine Components\iCLS\;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files (x86)\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files\Intel\Intel(R) Management Engine Components\DAL;C:\Program Files\Intel\WiFi\bin\;C:\Program Files\Common Files\Intel\WirelessCommon\;C:\WINDOWS\system32;C:\WINDOWS;C:\WINDOWS\System32\Wbem;C:\WINDOWS\System32\WindowsPowerShell\v1.0\;C:\WINDOWS\System32\OpenSSH\;C:\Program Files\Git\cmd;C:\Program Files\nodejs\;C:\Program Files\Docker\Docker\resources\bin;C:\ProgramData\DockerDesktop\version-bin;C:\Users\anton\AppData\Local\Microsoft\WindowsApps;C:\Users\anton\AppData\Local\Programs\Microsoft VS Code\bin;C:\Users\anton\AppData\Roaming\npm;C:\Users\anton\AppData\Local\gitkraken\bin;C:\Users\anton\Desktop\IFCjs\fragment\node_modules\.bin
 
 Yarn version: 
   1.22.19
@@ -14,14 +14,14 @@ Platform:
   win32 x64
 
 Trace: 
-  Error: ENOENT: no such file or directory, open 'C:\Users\anton\Desktop\IFCjs\fragment\node_modules\@typescript-eslint\eslint-plugin\node_modules\.bin\semver.cmd'
+  Error: ENOENT: no such file or directory, chmod 'C:\Users\anton\Desktop\IFCjs\fragment\node_modules\@rollup\plugin-commonjs\node_modules\.bin\rollup.cmd'
 
 npm manifest: 
   {
     "name": "import-export",
     "private": true,
     "type": "module",
-    "version": "0.0.1",
+    "version": "0.0.6",
     "description": "A basic html example for BIM fragment.",
     "main": "main.js",
     "scripts": {
@@ -39,7 +39,7 @@ npm manifest:
     },
     "dependencies": {
       "@types/three": "^0.134.0",
-      "bim-fragment": "0.0.4",
+      "bim-fragment": "0.0.6",
       "stats.js": "0.17.0",
       "three": "0.135"
     }
@@ -587,13 +587,6 @@ Lockfile:
       isobject "^3.0.1"
       mixin-deep "^1.2.0"
       pascalcase "^0.1.1"
-  
-  bim-fragment@0.0.4:
-    version "0.0.4"
-    resolved "https://registry.yarnpkg.com/bim-fragment/-/bim-fragment-0.0.4.tgz#d7f7689c2177d561df97bd902618446321fdaeff"
-    integrity sha512-jslm9E+1fF7wsoFKfg7goYjFv6LsIR2ErKp4R7mpZzcod/IoPqra/G+uo3rAmwvFyMkOfRN8I8OQa+/i4owFUA==
-    dependencies:
-      three-mesh-bvh "^0.5.14"
   
   boxen@1.3.0:
     version "1.3.0"
