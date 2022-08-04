@@ -10,7 +10,7 @@
   "scripts": {
     "init-repo": "yarn && npm run build",
     "build": "cd fragment && yarn build && cd .. && yarn build-examples",
-    "build-examples": "node example-builder.js",
+    "build-examples": "node examples/example-builder.js",
     "publish-repo": "cd fragment && npm run publish-repo"
   },
   "bugs": {
