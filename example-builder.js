@@ -27,12 +27,20 @@ function updateAllExamples() {
 
     const isExampleFolder = files.includes(rollupConfigFile);
     if(isExampleFolder) {
-      exec(`yarn workspace ${folder} add bim-fragment@${version}`);
-      exec(`yarn workspace ${folder} build`);
+      execute(`yarn workspace ${folder} add bim-fragment@${version}`);
+      execute(`yarn workspace ${folder} build`);
     }
   }
 
   exec(`yarn install`);
+}
+
+function execute(command) {
+  exec(command, (error) => {
+    if(error) {
+      console.log(error.message);
+    }
+  });
 }
 
 updateAllExamples();

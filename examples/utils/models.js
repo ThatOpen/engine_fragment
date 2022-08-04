@@ -1,5 +1,5 @@
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
-import { MeshLambertMaterial } from 'three';
+import { MeshLambertMaterial, Matrix4 } from 'three';
 import { GeometryUtils } from 'bim-fragment/dist/geometry-utils';
 
 export class Models {
@@ -55,5 +55,22 @@ export class Models {
   async getWallModel(url) {
     const loaded = await this.loader.loadAsync(url);
     return loaded.scene.children[0];
+  }
+
+  // Create many chair instances
+  generateInstances(fragment, count, offset) {
+    const rootCount = Math.cbrt(count);
+    let counter = 0;
+    for (let i = 0; i < rootCount; i++) {
+      for (let j = 0; j < rootCount; j++) {
+        for (let k = 0; k < rootCount; k++) {
+
+          const matrix = new Matrix4();
+          matrix.setPosition(i * offset, j * offset, k * offset);
+          const id = parseInt(`${i}${j}${k}`);
+          fragment.setInstance(counter++, {ids: [id], transform: matrix})
+        }
+      }
+    }
   }
 }

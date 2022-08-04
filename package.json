@@ -26,7 +26,7 @@
   "workspaces": [
     "fragment",
     "examples/mouse-picking",
-    "examples/culling",
+    "examples/visibility",
     "examples/import-export"
   ],
   "dependencies": {}

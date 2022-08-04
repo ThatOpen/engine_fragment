@@ -10,6 +10,7 @@ import { Models } from '../utils/models';
 
 const threeScene = new ThreeScene();
 const models = new Models();
+loadModels();
 
 async function loadModels() {
 
@@ -26,7 +27,7 @@ async function loadModels() {
     // Create chairs fragment
     const chairData = await models.getChair();
     const chairs = new Fragment(chairData.geometry, chairData.material, 1000);
-    generateInstances(chairs, 1000, 0.5);
+    models.generateInstances(chairs, 1000, 0.5);
     items[chairs.id] = chairs;
 
     const fragments = Object.values(items);
@@ -79,39 +80,16 @@ async function loadModels() {
             previousSelection.mesh.instanceMatrix.needsUpdate = true;
 
             // Select block
-            const blockID = previousSelection.getBlockID(result);
+            const blockID = previousSelection.getVertexBlockID(result.object.geometry, result.face.a);
             if(blockID !== null) {
                 previousSelection.blocks.add([blockID], true);
-                const itemID = fragment.getItemID(result.instanceId, blockID);
-                console.log(itemID);
+                // const itemID = fragment.getItemID(result.instanceId, blockID);
+                // console.log(itemID);
             }
         } else {
             // Reset previous selection (if any)
             if(previousSelection) previousSelection.mesh.removeFromParent();
         }
     }
-
-    window.ondblclick = () => {
-        chairSelection.blocks.reset();
-    }
 }
 
-// Create many chair instances
-function generateInstances(fragment, count, offset) {
-    const rootCount = Math.cbrt(count);
-    let counter = 0;
-    for (let i = 0; i < rootCount; i++) {
-        for (let j = 0; j < rootCount; j++) {
-            for (let k = 0; k < rootCount; k++) {
-
-                const matrix = new Matrix4();
-                matrix.setPosition(i * offset, j * offset, k * offset);
-                const id = parseInt(`${i}${j}${k}`);
-                fragment.setInstance(counter++, {ids: [id], transform: matrix})
-
-            }
-        }
-    }
-}
-
-loadModels();

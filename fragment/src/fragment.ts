@@ -1,4 +1,4 @@
-import { BufferGeometry, Intersection, Material, Matrix4, Mesh } from 'three';
+import { BufferGeometry, Material, Matrix4 } from 'three';
 import { Items, IFragment, ExportedFragment } from './base-types';
 import { FragmentMesh } from './fragment-mesh';
 import { Blocks } from './blocks';
@@ -34,7 +34,8 @@ export class Fragment implements IFragment {
   id: string;
   blocks: Blocks;
 
-  private items: number[] = [];
+  items: number[] = [];
+  hiddenItems: { [id: number]: Items } = {};
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
     this.mesh = new FragmentMesh(geometry, material, count);
@@ -64,6 +65,17 @@ export class Fragment implements IFragment {
     return this.items[index];
   }
 
+  getInstanceAndBlockID(itemID: number) {
+    const index = this.items.indexOf(itemID);
+    const instanceID = this.getInstanceIDFromIndex(index);
+    const blockID = index % this.blocks.count;
+    return { instanceID, blockID };
+  }
+
+  getVertexBlockID(geometry: BufferGeometry, index: number) {
+    return geometry.attributes.blockID.array[index];
+  }
+
   getItemData(itemID: number) {
     const index = this.items.indexOf(itemID);
     const instanceID = Math.ceil(index / this.blocks.count);
@@ -71,17 +83,17 @@ export class Fragment implements IFragment {
     return { instanceID, blockID };
   }
 
-  getInstance(instanceId: number, matrix: Matrix4) {
-    return this.mesh.getMatrixAt(instanceId, matrix);
+  getInstance(instanceID: number, matrix: Matrix4) {
+    return this.mesh.getMatrixAt(instanceID, matrix);
   }
 
-  setInstance(instanceId: number, items: Items) {
-    this.checkIfInstanceExist(instanceId);
-    this.mesh.setMatrixAt(instanceId, items.transform);
+  setInstance(instanceID: number, items: Items) {
+    this.checkIfInstanceExist(instanceID);
+    this.mesh.setMatrixAt(instanceID, items.transform);
     this.mesh.instanceMatrix.needsUpdate = true;
 
     if (items.ids) {
-      this.saveItemsInMap(items.ids, instanceId);
+      this.saveItemsInMap(items.ids, instanceID);
     }
   }
 
@@ -94,25 +106,15 @@ export class Fragment implements IFragment {
     }
   }
 
-  removeInstances(ids: number[]) {
+  removeInstances(itemsIDs: number[]) {
     if (this.mesh.count <= 1) {
       this.clear();
       return;
     }
 
-    this.deleteAndRearrangeInstances(ids);
-    this.mesh.count -= ids.length;
+    this.deleteAndRearrangeInstances(itemsIDs);
+    this.mesh.count -= itemsIDs.length;
     this.mesh.instanceMatrix.needsUpdate = true;
-  }
-
-  getBlockID(intersection: Intersection) {
-    const mesh = intersection.object as Mesh;
-
-    if (!mesh.geometry || !intersection.face) {
-      return null;
-    }
-
-    return mesh.geometry.attributes.blockID.array[intersection.face.a];
   }
 
   clear() {
@@ -136,6 +138,21 @@ export class Fragment implements IFragment {
     if (fragment) {
       fragment.dispose(false);
       delete this.fragments[id];
+    }
+  }
+
+  resetVisibility() {
+    this.blocks.reset();
+    const hiddenInstances = Object.keys(this.hiddenItems).map((id) => parseInt(id, 10));
+    this.makeInstancesInvisible(hiddenInstances);
+    this.hiddenItems = {};
+  }
+
+  setVisibility(itemIDs: number[], visible: boolean) {
+    if (this.blocks.count > 1) {
+      this.toggleBlockVisibility(visible, itemIDs);
+    } else {
+      this.toggleInstanceVisibility(visible, itemIDs);
     }
   }
 
@@ -231,14 +248,25 @@ export class Fragment implements IFragment {
   // F.e. let there be 6 instances: (A) (B) (C) (D) (E) (F)
   // If instance (C) is removed: -> (A) (B) (F) (D) (E)
   private deleteAndRearrangeInstances(ids: number[]) {
+    const deletedItems: Items[] = [];
+
     for (const id of ids) {
-      this.deleteAndRearrange(id);
+      const deleted = this.deleteAndRearrange(id);
+      if (deleted) {
+        deletedItems.push(deleted);
+      }
     }
+
+    for (const id of ids) {
+      delete this.hiddenItems[id];
+    }
+
+    return deletedItems;
   }
 
   private deleteAndRearrange(id: number) {
     const index = this.items.indexOf(id);
-    if (index === -1) return;
+    if (index === -1) return null;
 
     this.mesh.count--;
     const lastElement = this.mesh.count;
@@ -246,17 +274,57 @@ export class Fragment implements IFragment {
     this.items[index] = this.items[lastElement];
     this.items.pop();
 
-    const instanceId = this.getInstanceId(id);
+    const instanceId = this.getInstanceIDFromIndex(id);
     const tempMatrix = new Matrix4();
+
+    const transform = new Matrix4();
+    this.mesh.setMatrixAt(instanceId, transform);
+
     this.mesh.getMatrixAt(lastElement, tempMatrix);
     this.mesh.setMatrixAt(instanceId, tempMatrix);
+
+    return { ids: [id], transform } as Items;
   }
 
   private getItemIndex(instanceId: number, blockId: number) {
     return instanceId * this.blocks.count + blockId;
   }
 
-  private getInstanceId(itemIndex: number) {
+  private getInstanceIDFromIndex(itemIndex: number) {
     return Math.trunc(itemIndex / this.blocks.count);
+  }
+
+  private toggleInstanceVisibility(visible: boolean, itemIDs: number[]) {
+    if (visible) {
+      this.makeInstancesVisible(itemIDs);
+    } else {
+      this.makeInstancesInvisible(itemIDs);
+    }
+  }
+
+  private makeInstancesInvisible(itemIDs: number[]) {
+    const deletedItems = this.deleteAndRearrangeInstances(itemIDs);
+    for (const item of deletedItems) {
+      if (item.ids) {
+        this.hiddenItems[item.ids[0]] = item;
+      }
+    }
+  }
+
+  private makeInstancesVisible(itemIDs: number[]) {
+    const items: Items[] = [];
+    for (const id of itemIDs) {
+      items.push(this.hiddenItems[id]);
+      delete this.hiddenItems[id];
+    }
+    this.addInstances(items);
+  }
+
+  private toggleBlockVisibility(visible: boolean, itemIDs: number[]) {
+    if (visible) {
+      this.blocks.add(itemIDs, false);
+    } else {
+      this.blocks.remove(itemIDs);
+    }
   }
 }

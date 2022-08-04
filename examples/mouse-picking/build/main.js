@@ -53695,6 +53695,7 @@
 	    constructor(geometry, material, count) {
 	        this.fragments = {};
 	        this.items = [];
+	        this.hiddenItems = {};
 	        this.mesh = new FragmentMesh(geometry, material, count);
 	        this.id = this.mesh.uuid;
 	        this.capacity = count;
@@ -53716,21 +53717,30 @@
 	        const index = this.getItemIndex(instanceID, blockID);
 	        return this.items[index];
 	    }
+	    getInstanceAndBlockID(itemID) {
+	        const index = this.items.indexOf(itemID);
+	        const instanceID = this.getInstanceIDFromIndex(index);
+	        const blockID = index % this.blocks.count;
+	        return { instanceID, blockID };
+	    }
+	    getVertexBlockID(geometry, index) {
+	        return geometry.attributes.blockID.array[index];
+	    }
 	    getItemData(itemID) {
 	        const index = this.items.indexOf(itemID);
 	        const instanceID = Math.ceil(index / this.blocks.count);
 	        const blockID = index % this.blocks.count;
 	        return { instanceID, blockID };
 	    }
-	    getInstance(instanceId, matrix) {
-	        return this.mesh.getMatrixAt(instanceId, matrix);
+	    getInstance(instanceID, matrix) {
+	        return this.mesh.getMatrixAt(instanceID, matrix);
 	    }
-	    setInstance(instanceId, items) {
-	        this.checkIfInstanceExist(instanceId);
-	        this.mesh.setMatrixAt(instanceId, items.transform);
+	    setInstance(instanceID, items) {
+	        this.checkIfInstanceExist(instanceID);
+	        this.mesh.setMatrixAt(instanceID, items.transform);
 	        this.mesh.instanceMatrix.needsUpdate = true;
 	        if (items.ids) {
-	            this.saveItemsInMap(items.ids, instanceId);
+	            this.saveItemsInMap(items.ids, instanceID);
 	        }
 	    }
 	    addInstances(items) {
@@ -53741,21 +53751,14 @@
 	            this.setInstance(start + i, items[i]);
 	        }
 	    }
-	    removeInstances(ids) {
+	    removeInstances(itemsIDs) {
 	        if (this.mesh.count <= 1) {
 	            this.clear();
 	            return;
 	        }
-	        this.deleteAndRearrangeInstances(ids);
-	        this.mesh.count -= ids.length;
+	        this.deleteAndRearrangeInstances(itemsIDs);
+	        this.mesh.count -= itemsIDs.length;
 	        this.mesh.instanceMatrix.needsUpdate = true;
-	    }
-	    getBlockID(intersection) {
-	        const mesh = intersection.object;
-	        if (!mesh.geometry || !intersection.face) {
-	            return null;
-	        }
-	        return mesh.geometry.attributes.blockID.array[intersection.face.a];
 	    }
 	    clear() {
 	        this.mesh.clear();
@@ -53775,6 +53778,20 @@
 	        if (fragment) {
 	            fragment.dispose(false);
 	            delete this.fragments[id];
+	        }
+	    }
+	    resetVisibility() {
+	        this.blocks.reset();
+	        const hiddenInstances = Object.keys(this.hiddenItems).map((id) => parseInt(id, 10));
+	        this.makeInstancesInvisible(hiddenInstances);
+	        this.hiddenItems = {};
+	    }
+	    setVisibility(itemIDs, visible) {
+	        if (this.blocks.count > 1) {
+	            this.toggleBlockVisibility(visible, itemIDs);
+	        }
+	        else {
+	            this.toggleInstanceVisibility(visible, itemIDs);
 	        }
 	    }
 	    resize(size) {
@@ -53853,28 +53870,71 @@
 	    // F.e. let there be 6 instances: (A) (B) (C) (D) (E) (F)
 	    // If instance (C) is removed: -> (A) (B) (F) (D) (E)
 	    deleteAndRearrangeInstances(ids) {
+	        const deletedItems = [];
 	        for (const id of ids) {
-	            this.deleteAndRearrange(id);
+	            const deleted = this.deleteAndRearrange(id);
+	            if (deleted) {
+	                deletedItems.push(deleted);
+	            }
 	        }
+	        for (const id of ids) {
+	            delete this.hiddenItems[id];
+	        }
+	        return deletedItems;
 	    }
 	    deleteAndRearrange(id) {
 	        const index = this.items.indexOf(id);
 	        if (index === -1)
-	            return;
+	            return null;
 	        this.mesh.count--;
 	        const lastElement = this.mesh.count;
 	        this.items[index] = this.items[lastElement];
 	        this.items.pop();
-	        const instanceId = this.getInstanceId(id);
+	        const instanceId = this.getInstanceIDFromIndex(id);
 	        const tempMatrix = new Matrix4();
+	        const transform = new Matrix4();
+	        this.mesh.setMatrixAt(instanceId, transform);
 	        this.mesh.getMatrixAt(lastElement, tempMatrix);
 	        this.mesh.setMatrixAt(instanceId, tempMatrix);
+	        return { ids: [id], transform };
 	    }
 	    getItemIndex(instanceId, blockId) {
 	        return instanceId * this.blocks.count + blockId;
 	    }
-	    getInstanceId(itemIndex) {
+	    getInstanceIDFromIndex(itemIndex) {
 	        return Math.trunc(itemIndex / this.blocks.count);
+	    }
+	    toggleInstanceVisibility(visible, itemIDs) {
+	        if (visible) {
+	            this.makeInstancesVisible(itemIDs);
+	        }
+	        else {
+	            this.makeInstancesInvisible(itemIDs);
+	        }
+	    }
+	    makeInstancesInvisible(itemIDs) {
+	        const deletedItems = this.deleteAndRearrangeInstances(itemIDs);
+	        for (const item of deletedItems) {
+	            if (item.ids) {
+	                this.hiddenItems[item.ids[0]] = item;
+	            }
+	        }
+	    }
+	    makeInstancesVisible(itemIDs) {
+	        const items = [];
+	        for (const id of itemIDs) {
+	            items.push(this.hiddenItems[id]);
+	            delete this.hiddenItems[id];
+	        }
+	        this.addInstances(items);
+	    }
+	    toggleBlockVisibility(visible, itemIDs) {
+	        if (visible) {
+	            this.blocks.add(itemIDs, false);
+	        }
+	        else {
+	            this.blocks.remove(itemIDs);
+	        }
 	    }
 	}
 
@@ -60051,10 +60111,28 @@
 	    const loaded = await this.loader.loadAsync(url);
 	    return loaded.scene.children[0];
 	  }
+
+	  // Create many chair instances
+	  generateInstances(fragment, count, offset) {
+	    const rootCount = Math.cbrt(count);
+	    let counter = 0;
+	    for (let i = 0; i < rootCount; i++) {
+	      for (let j = 0; j < rootCount; j++) {
+	        for (let k = 0; k < rootCount; k++) {
+
+	          const matrix = new Matrix4();
+	          matrix.setPosition(i * offset, j * offset, k * offset);
+	          const id = parseInt(`${i}${j}${k}`);
+	          fragment.setInstance(counter++, {ids: [id], transform: matrix});
+	        }
+	      }
+	    }
+	  }
 	}
 
 	const threeScene = new ThreeScene();
 	const models = new Models();
+	loadModels();
 
 	async function loadModels() {
 
@@ -60071,7 +60149,7 @@
 	    // Create chairs fragment
 	    const chairData = await models.getChair();
 	    const chairs = new Fragment(chairData.geometry, chairData.material, 1000);
-	    generateInstances(chairs, 1000, 0.5);
+	    models.generateInstances(chairs, 1000, 0.5);
 	    items[chairs.id] = chairs;
 
 	    const fragments = Object.values(items);
@@ -60121,41 +60199,17 @@
 	            previousSelection.mesh.instanceMatrix.needsUpdate = true;
 
 	            // Select block
-	            const blockID = previousSelection.getBlockID(result);
+	            const blockID = previousSelection.getVertexBlockID(result.object.geometry, result.face.a);
 	            if(blockID !== null) {
 	                previousSelection.blocks.add([blockID], true);
-	                const itemID = fragment.getItemID(result.instanceId, blockID);
-	                console.log(itemID);
+	                // const itemID = fragment.getItemID(result.instanceId, blockID);
+	                // console.log(itemID);
 	            }
 	        } else {
 	            // Reset previous selection (if any)
 	            if(previousSelection) previousSelection.mesh.removeFromParent();
 	        }
 	    };
-
-	    window.ondblclick = () => {
-	        chairSelection.blocks.reset();
-	    };
 	}
-
-	// Create many chair instances
-	function generateInstances(fragment, count, offset) {
-	    const rootCount = Math.cbrt(count);
-	    let counter = 0;
-	    for (let i = 0; i < rootCount; i++) {
-	        for (let j = 0; j < rootCount; j++) {
-	            for (let k = 0; k < rootCount; k++) {
-
-	                const matrix = new Matrix4();
-	                matrix.setPosition(i * offset, j * offset, k * offset);
-	                const id = parseInt(`${i}${j}${k}`);
-	                fragment.setInstance(counter++, {ids: [id], transform: matrix});
-
-	            }
-	        }
-	    }
-	}
-
-	loadModels();
 
 })();
