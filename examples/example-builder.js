@@ -27,7 +27,6 @@ function updateAllExamples() {
 
     const isExampleFolder = files.includes(rollupConfigFile);
     if(isExampleFolder) {
-      execute(`yarn workspace ${folder} add bim-fragment@${version}`);
       execute(`yarn workspace ${folder} build`);
     }
   }

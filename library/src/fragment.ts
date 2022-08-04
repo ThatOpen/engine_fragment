@@ -269,19 +269,27 @@ export class Fragment implements IFragment {
     if (index === -1) return null;
 
     this.mesh.count--;
+    const isLastElement = index === this.mesh.count;
+
+    const instanceId = this.getInstanceIDFromIndex(index);
+    const tempMatrix = new Matrix4();
+
+    const transform = new Matrix4();
+    this.mesh.getMatrixAt(instanceId, transform);
+
+    if (isLastElement) {
+      this.items.pop();
+      return { ids: [id], transform } as Items;
+    }
+
     const lastElement = this.mesh.count;
 
     this.items[index] = this.items[lastElement];
     this.items.pop();
 
-    const instanceId = this.getInstanceIDFromIndex(id);
-    const tempMatrix = new Matrix4();
-
-    const transform = new Matrix4();
-    this.mesh.setMatrixAt(instanceId, transform);
-
     this.mesh.getMatrixAt(lastElement, tempMatrix);
     this.mesh.setMatrixAt(instanceId, tempMatrix);
+    this.mesh.instanceMatrix.needsUpdate = true;
 
     return { ids: [id], transform } as Items;
   }

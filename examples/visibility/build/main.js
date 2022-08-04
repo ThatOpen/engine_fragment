@@ -40872,112 +40872,6 @@
 
 	InstancedInterleavedBuffer.prototype.isInstancedInterleavedBuffer = true;
 
-	class Raycaster {
-
-		constructor( origin, direction, near = 0, far = Infinity ) {
-
-			this.ray = new Ray( origin, direction );
-			// direction is assumed to be normalized (for accurate distance calculations)
-
-			this.near = near;
-			this.far = far;
-			this.camera = null;
-			this.layers = new Layers();
-
-			this.params = {
-				Mesh: {},
-				Line: { threshold: 1 },
-				LOD: {},
-				Points: { threshold: 1 },
-				Sprite: {}
-			};
-
-		}
-
-		set( origin, direction ) {
-
-			// direction is assumed to be normalized (for accurate distance calculations)
-
-			this.ray.set( origin, direction );
-
-		}
-
-		setFromCamera( coords, camera ) {
-
-			if ( camera && camera.isPerspectiveCamera ) {
-
-				this.ray.origin.setFromMatrixPosition( camera.matrixWorld );
-				this.ray.direction.set( coords.x, coords.y, 0.5 ).unproject( camera ).sub( this.ray.origin ).normalize();
-				this.camera = camera;
-
-			} else if ( camera && camera.isOrthographicCamera ) {
-
-				this.ray.origin.set( coords.x, coords.y, ( camera.near + camera.far ) / ( camera.near - camera.far ) ).unproject( camera ); // set origin in plane of camera
-				this.ray.direction.set( 0, 0, - 1 ).transformDirection( camera.matrixWorld );
-				this.camera = camera;
-
-			} else {
-
-				console.error( 'THREE.Raycaster: Unsupported camera type: ' + camera.type );
-
-			}
-
-		}
-
-		intersectObject( object, recursive = true, intersects = [] ) {
-
-			intersectObject( object, this, intersects, recursive );
-
-			intersects.sort( ascSort );
-
-			return intersects;
-
-		}
-
-		intersectObjects( objects, recursive = true, intersects = [] ) {
-
-			for ( let i = 0, l = objects.length; i < l; i ++ ) {
-
-				intersectObject( objects[ i ], this, intersects, recursive );
-
-			}
-
-			intersects.sort( ascSort );
-
-			return intersects;
-
-		}
-
-	}
-
-	function ascSort( a, b ) {
-
-		return a.distance - b.distance;
-
-	}
-
-	function intersectObject( object, raycaster, intersects, recursive ) {
-
-		if ( object.layers.test( raycaster.layers ) ) {
-
-			object.raycast( raycaster, intersects );
-
-		}
-
-		if ( recursive === true ) {
-
-			const children = object.children;
-
-			for ( let i = 0, l = children.length; i < l; i ++ ) {
-
-				intersectObject( children[ i ], raycaster, intersects, true );
-
-			}
-
-		}
-
-	}
-
 	/**
 	 * Ref: https://en.wikipedia.org/wiki/Spherical_coordinate_system
 	 *
@@ -60164,57 +60058,16 @@
 	    const meshes = fragments.map(item => item.mesh);
 	    threeScene.scene.add(...meshes);
 
-	    // Set up selection
-	    const selectionMaterial = new MeshBasicMaterial({color: 0xff0000, depthTest: false});
-	    for(const fragment of fragments) {
-	        fragment.addFragment('selection', [selectionMaterial]);
-	    }
+	    // Visibility
+	    const halfChairs = chairs.items.slice(0, Math.ceil(chairs.items.length / 2));
+	    const halfWalls = walls.items.slice(0, Math.ceil(walls.items.length / 2));
 
-	    // Set up raycasting
-	    const caster = new Raycaster();
-	    caster.firstHitOnly = true;
-	    const mouse = new Vector2$1();
-	    const tempMatrix = new Matrix4();
-	    let previousSelection;
-
-	    window.onmousemove = (event) => {
-
-	        // const time = performance.now() - lastPicked;
-	        // if(time < pickingLimit) return;
-	        // lastPicked = performance.now();
-
-	        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-	        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-	        caster.setFromCamera(mouse, threeScene.camera);
-	        const results = caster.intersectObjects(meshes);
-	        const result = results[0];
-
-	        if (result) {
-
-	            // Reset previous selection (if any)
-	            if(previousSelection) previousSelection.mesh.removeFromParent();
-
-	            // Get found fragment
-	            const fragment = items[result.object.uuid];
-	            previousSelection = fragment.fragments['selection'];
-
-	            // Select instance
-	            threeScene.scene.add(previousSelection.mesh);
-	            fragment.getInstance(result.instanceId, tempMatrix);
-	            previousSelection.setInstance(0, {transform: tempMatrix});
-	            previousSelection.mesh.instanceMatrix.needsUpdate = true;
-
-	            // Select block
-	            const blockID = previousSelection.getVertexBlockID(result.object.geometry, result.face.a);
-	            if(blockID !== null) {
-	                previousSelection.blocks.add([blockID], true);
-	                // const itemID = fragment.getItemID(result.instanceId, blockID);
-	                // console.log(itemID);
-	            }
-	        } else {
-	            // Reset previous selection (if any)
-	            if(previousSelection) previousSelection.mesh.removeFromParent();
-	        }
+	    let visibility = true;
+	    const exportButton = document.getElementById('visibility');
+	    exportButton.onclick = () => {
+	        visibility = !visibility;
+	        chairs.setVisibility(halfChairs, visibility);
+	        walls.setVisibility(halfWalls, visibility);
 	    };
 	}
 

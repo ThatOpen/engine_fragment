@@ -1,8 +1,8 @@
 {
-  "name": "import-export",
+  "name": "visibility",
   "private": true,
   "type": "module",
-  "version": "0.0.6",
+  "version": "0.0.1",
   "description": "A basic html example for BIM fragment.",
   "main": "main.js",
   "scripts": {

@@ -1,6 +1,8 @@
 import { ThreeScene } from '../utils/scene';
 import { FragmentLoader } from 'bim-fragment/dist/fragment-loader.js';
 
+setupScene();
+
 async function setupScene() {
     const threeScene = new ThreeScene();
     const chairs = await importChairs();
@@ -32,5 +34,3 @@ async function exportChairs(chairs) {
 
     link.remove();
 }
-
-setupScene();
