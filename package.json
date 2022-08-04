@@ -9,7 +9,7 @@
   "repository": "git+https://github.com/ifcjs/fragment",
   "scripts": {
     "init-repo": "yarn && npm run build",
-    "build": "cd fragment && yarn build && cd .. && yarn build-examples",
+    "build": "cd library && yarn build && cd .. && yarn build-examples",
     "build-examples": "node examples/example-builder.js",
     "publish-repo": "cd fragment && npm run publish-repo"
   },
@@ -24,7 +24,7 @@
     "3d"
   ],
   "workspaces": [
-    "fragment",
+    "library",
     "examples/mouse-picking",
     "examples/visibility",
     "examples/import-export"
