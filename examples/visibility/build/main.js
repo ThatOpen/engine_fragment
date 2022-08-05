@@ -53664,7 +53664,10 @@
 	        if (material === this.mesh.material) {
 	            this.copyGroups(newGeometry);
 	        }
-	        this.fragments[id] = new Fragment(newGeometry, material, this.capacity);
+	        const newFragment = new Fragment(newGeometry, material, this.capacity);
+	        newFragment.mesh.applyMatrix4(this.mesh.matrix);
+	        newFragment.mesh.updateMatrix();
+	        this.fragments[id] = newFragment;
 	        return this.fragments[id];
 	    }
 	    removeFragment(id) {
@@ -53677,7 +53680,7 @@
 	    resetVisibility() {
 	        this.blocks.reset();
 	        const hiddenInstances = Object.keys(this.hiddenItems).map((id) => parseInt(id, 10));
-	        this.makeInstancesInvisible(hiddenInstances);
+	        this.makeInstancesVisible(hiddenInstances);
 	        this.hiddenItems = {};
 	    }
 	    setVisibility(itemIDs, visible) {
@@ -53829,11 +53832,12 @@
 	        this.addInstances(items);
 	    }
 	    toggleBlockVisibility(visible, itemIDs) {
+	        const blockIDs = itemIDs.map((id) => this.getInstanceAndBlockID(id).blockID);
 	        if (visible) {
-	            this.blocks.add(itemIDs, false);
+	            this.blocks.add(blockIDs, false);
 	        }
 	        else {
-	            this.blocks.remove(itemIDs);
+	            this.blocks.remove(blockIDs);
 	        }
 	    }
 	}
@@ -60043,7 +60047,7 @@
 	    const walls = new Fragment(wallsData.geometry, wallsData.material, 1);
 	    const transform = new Matrix4();
 	    transform.setPosition(-1, 0, 2);
-	    walls.setInstance(0, {ids: [1, 2, 3, 4], transform });
+	    walls.setInstance(0, {ids: [11, 12, 13, 14], transform });
 	    items[walls.id] = walls;
 
 	    // Create chairs fragment

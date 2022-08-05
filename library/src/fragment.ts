@@ -129,7 +129,10 @@ export class Fragment implements IFragment {
       this.copyGroups(newGeometry);
     }
 
-    this.fragments[id] = new Fragment(newGeometry, material, this.capacity);
+    const newFragment = new Fragment(newGeometry, material, this.capacity);
+    newFragment.mesh.applyMatrix4(this.mesh.matrix);
+    newFragment.mesh.updateMatrix();
+    this.fragments[id] = newFragment;
     return this.fragments[id];
   }
 
@@ -144,7 +147,7 @@ export class Fragment implements IFragment {
   resetVisibility() {
     this.blocks.reset();
     const hiddenInstances = Object.keys(this.hiddenItems).map((id) => parseInt(id, 10));
-    this.makeInstancesInvisible(hiddenInstances);
+    this.makeInstancesVisible(hiddenInstances);
     this.hiddenItems = {};
   }
 
@@ -329,10 +332,11 @@ export class Fragment implements IFragment {
   }
 
   private toggleBlockVisibility(visible: boolean, itemIDs: number[]) {
+    const blockIDs = itemIDs.map((id) => this.getInstanceAndBlockID(id).blockID);
     if (visible) {
-      this.blocks.add(itemIDs, false);
+      this.blocks.add(blockIDs, false);
     } else {
-      this.blocks.remove(itemIDs);
+      this.blocks.remove(blockIDs);
     }
   }
 }
