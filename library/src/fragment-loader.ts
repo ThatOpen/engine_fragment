@@ -42,26 +42,25 @@ export class FragmentLoader {
   }
 
   private getInstances(data: ExportedFragment) {
-    const idCounter = 0;
+    let idCounter = 0;
     const items: Items[] = [];
+    const blockCount = data.matrices.length === 16 ? data.ids.length : 1;
 
-    for (let i = 0; i < data.matrices.length - 15; i += 16) {
-      this.getInstance(data, i, idCounter, items);
+    for (let matrixIndex = 0; matrixIndex < data.matrices.length - 15; matrixIndex += 16) {
+      const matrixArray = [];
+
+      for (let j = 0; j < 16; j++) {
+        matrixArray.push(data.matrices[j + matrixIndex]);
+      }
+
+      const transform = new Matrix4().fromArray(matrixArray);
+      const start = idCounter * blockCount;
+      const ids = data.ids.slice(start, start + blockCount);
+      idCounter++;
+      items.push({ ids, transform });
     }
 
     return items;
-  }
-
-  private getInstance(data: ExportedFragment, i: number, idCounter: number, items: Items[]) {
-    const matrixArray = [];
-
-    for (let j = 0; j < 16; j++) {
-      matrixArray.push(data.matrices[j + i]);
-    }
-
-    const transform = new Matrix4().fromArray(matrixArray);
-    const ids = [data.ids[idCounter++]];
-    items.push({ ids, transform });
   }
 
   private getMaterials(meshes: Object3D[]) {

@@ -59343,7 +59343,7 @@
 	    constructor(geometry, material, count) {
 	        this.fragments = {};
 	        this.items = [];
-	        this.hiddenItems = {};
+	        this.hiddenInstances = {};
 	        this.mesh = new FragmentMesh(geometry, material, count);
 	        this.id = this.mesh.uuid;
 	        this.capacity = count;
@@ -59432,14 +59432,20 @@
 	        }
 	    }
 	    resetVisibility() {
-	        this.blocks.reset();
-	        const hiddenInstances = Object.keys(this.hiddenItems).map((id) => parseInt(id, 10));
-	        this.makeInstancesVisible(hiddenInstances);
-	        this.hiddenItems = {};
+	        if (this.blocks.count > 1) {
+	            this.blocks.reset();
+	        }
+	        else {
+	            const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => parseInt(id, 10));
+	            this.makeInstancesVisible(hiddenInstances);
+	            this.hiddenInstances = {};
+	        }
 	    }
 	    setVisibility(itemIDs, visible) {
 	        if (this.blocks.count > 1) {
 	            this.toggleBlockVisibility(visible, itemIDs);
+	            this.mesh.geometry.disposeBoundsTree();
+	            BVH.apply(this.mesh.geometry);
 	        }
 	        else {
 	            this.toggleInstanceVisibility(visible, itemIDs);
@@ -59529,7 +59535,7 @@
 	            }
 	        }
 	        for (const id of ids) {
-	            delete this.hiddenItems[id];
+	            delete this.hiddenInstances[id];
 	        }
 	        return deletedItems;
 	    }
@@ -59570,20 +59576,26 @@
 	        }
 	    }
 	    makeInstancesInvisible(itemIDs) {
+	        itemIDs = this.filterHiddenItems(itemIDs, false);
 	        const deletedItems = this.deleteAndRearrangeInstances(itemIDs);
 	        for (const item of deletedItems) {
 	            if (item.ids) {
-	                this.hiddenItems[item.ids[0]] = item;
+	                this.hiddenInstances[item.ids[0]] = item;
 	            }
 	        }
 	    }
 	    makeInstancesVisible(itemIDs) {
 	        const items = [];
+	        itemIDs = this.filterHiddenItems(itemIDs, true);
 	        for (const id of itemIDs) {
-	            items.push(this.hiddenItems[id]);
-	            delete this.hiddenItems[id];
+	            items.push(this.hiddenInstances[id]);
+	            delete this.hiddenInstances[id];
 	        }
 	        this.addInstances(items);
+	    }
+	    filterHiddenItems(itemIDs, hidden) {
+	        const hiddenItems = Object.keys(this.hiddenInstances).map((item) => parseInt(item, 10));
+	        return itemIDs.filter((item) => hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item));
 	    }
 	    toggleBlockVisibility(visible, itemIDs) {
 	        const blockIDs = itemIDs.map((id) => this.getInstanceAndBlockID(id).blockID);
@@ -59988,21 +60000,21 @@
 	        return this.getInstances(data);
 	    }
 	    getInstances(data) {
-	        const idCounter = 0;
+	        let idCounter = 0;
 	        const items = [];
-	        for (let i = 0; i < data.matrices.length - 15; i += 16) {
-	            this.getInstance(data, i, idCounter, items);
+	        const blockCount = data.matrices.length === 16 ? data.ids.length : 1;
+	        for (let matrixIndex = 0; matrixIndex < data.matrices.length - 15; matrixIndex += 16) {
+	            const matrixArray = [];
+	            for (let j = 0; j < 16; j++) {
+	                matrixArray.push(data.matrices[j + matrixIndex]);
+	            }
+	            const transform = new Matrix4().fromArray(matrixArray);
+	            const start = idCounter * blockCount;
+	            const ids = data.ids.slice(start, start + blockCount);
+	            idCounter++;
+	            items.push({ ids, transform });
 	        }
 	        return items;
-	    }
-	    getInstance(data, i, idCounter, items) {
-	        const matrixArray = [];
-	        for (let j = 0; j < 16; j++) {
-	            matrixArray.push(data.matrices[j + i]);
-	        }
-	        const transform = new Matrix4().fromArray(matrixArray);
-	        const ids = [data.ids[idCounter++]];
-	        items.push({ ids, transform });
 	    }
 	    getMaterials(meshes) {
 	        return meshes.map((child) => {

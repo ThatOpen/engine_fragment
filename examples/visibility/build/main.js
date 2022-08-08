@@ -53589,7 +53589,7 @@
 	    constructor(geometry, material, count) {
 	        this.fragments = {};
 	        this.items = [];
-	        this.hiddenItems = {};
+	        this.hiddenInstances = {};
 	        this.mesh = new FragmentMesh(geometry, material, count);
 	        this.id = this.mesh.uuid;
 	        this.capacity = count;
@@ -53678,14 +53678,20 @@
 	        }
 	    }
 	    resetVisibility() {
-	        this.blocks.reset();
-	        const hiddenInstances = Object.keys(this.hiddenItems).map((id) => parseInt(id, 10));
-	        this.makeInstancesVisible(hiddenInstances);
-	        this.hiddenItems = {};
+	        if (this.blocks.count > 1) {
+	            this.blocks.reset();
+	        }
+	        else {
+	            const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => parseInt(id, 10));
+	            this.makeInstancesVisible(hiddenInstances);
+	            this.hiddenInstances = {};
+	        }
 	    }
 	    setVisibility(itemIDs, visible) {
 	        if (this.blocks.count > 1) {
 	            this.toggleBlockVisibility(visible, itemIDs);
+	            this.mesh.geometry.disposeBoundsTree();
+	            BVH.apply(this.mesh.geometry);
 	        }
 	        else {
 	            this.toggleInstanceVisibility(visible, itemIDs);
@@ -53775,7 +53781,7 @@
 	            }
 	        }
 	        for (const id of ids) {
-	            delete this.hiddenItems[id];
+	            delete this.hiddenInstances[id];
 	        }
 	        return deletedItems;
 	    }
@@ -53816,20 +53822,26 @@
 	        }
 	    }
 	    makeInstancesInvisible(itemIDs) {
+	        itemIDs = this.filterHiddenItems(itemIDs, false);
 	        const deletedItems = this.deleteAndRearrangeInstances(itemIDs);
 	        for (const item of deletedItems) {
 	            if (item.ids) {
-	                this.hiddenItems[item.ids[0]] = item;
+	                this.hiddenInstances[item.ids[0]] = item;
 	            }
 	        }
 	    }
 	    makeInstancesVisible(itemIDs) {
 	        const items = [];
+	        itemIDs = this.filterHiddenItems(itemIDs, true);
 	        for (const id of itemIDs) {
-	            items.push(this.hiddenItems[id]);
-	            delete this.hiddenItems[id];
+	            items.push(this.hiddenInstances[id]);
+	            delete this.hiddenInstances[id];
 	        }
 	        this.addInstances(items);
+	    }
+	    filterHiddenItems(itemIDs, hidden) {
+	        const hiddenItems = Object.keys(this.hiddenInstances).map((item) => parseInt(item, 10));
+	        return itemIDs.filter((item) => hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item));
 	    }
 	    toggleBlockVisibility(visible, itemIDs) {
 	        const blockIDs = itemIDs.map((id) => this.getInstanceAndBlockID(id).blockID);

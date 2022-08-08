@@ -2,7 +2,7 @@
   "name": "mouse-picking",
   "private": true,
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.10",
   "description": "A basic html example for BIM fragment.",
   "main": "main.js",
   "scripts": {
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@types/three": "^0.134.0",
-    "bim-fragment": "0.0.8",
+    "bim-fragment": "0.0.10",
     "stats.js": "0.17.0",
     "three": "0.135"
   }
