@@ -20,7 +20,7 @@ export interface IndicesMap {
 }
 
 export interface Items {
-  ids?: number[];
+  ids?: string[];
   transform: Matrix4;
 }
 
@@ -46,6 +46,6 @@ export interface IFragment {
 }
 
 export interface ExportedFragment {
-  ids: number[];
+  ids: string[];
   matrices: number[];
 }
