@@ -53788,7 +53788,7 @@
 	            this.blocks.reset();
 	        }
 	        else {
-	            const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => parseInt(id, 10));
+	            const hiddenInstances = Object.keys(this.hiddenInstances);
 	            this.makeInstancesVisible(hiddenInstances);
 	            this.hiddenInstances = {};
 	        }
@@ -53946,7 +53946,7 @@
 	        this.addInstances(items);
 	    }
 	    filterHiddenItems(itemIDs, hidden) {
-	        const hiddenItems = Object.keys(this.hiddenInstances).map((item) => parseInt(item, 10));
+	        const hiddenItems = Object.keys(this.hiddenInstances);
 	        return itemIDs.filter((item) => hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item));
 	    }
 	    toggleBlockVisibility(visible, itemIDs) {
@@ -60144,7 +60144,7 @@
 
 	          const matrix = new Matrix4();
 	          matrix.setPosition(i * offset, j * offset, k * offset);
-	          const id = parseInt(`${i}${j}${k}`);
+	          const id = `${i}${j}${k}`;
 	          fragment.setInstance(counter++, {ids: [id], transform: matrix});
 	        }
 	      }

@@ -34,8 +34,8 @@ export class Fragment implements IFragment {
   id: string;
   blocks: Blocks;
 
-  items: number[] = [];
-  hiddenInstances: { [id: number]: Items } = {};
+  items: string[] = [];
+  hiddenInstances: { [id: string]: Items } = {};
 
   constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
     this.mesh = new FragmentMesh(geometry, material, count);
@@ -65,7 +65,7 @@ export class Fragment implements IFragment {
     return this.items[index];
   }
 
-  getInstanceAndBlockID(itemID: number) {
+  getInstanceAndBlockID(itemID: string) {
     const index = this.items.indexOf(itemID);
     const instanceID = this.getInstanceIDFromIndex(index);
     const blockID = index % this.blocks.count;
@@ -76,7 +76,7 @@ export class Fragment implements IFragment {
     return geometry.attributes.blockID.array[index];
   }
 
-  getItemData(itemID: number) {
+  getItemData(itemID: string) {
     const index = this.items.indexOf(itemID);
     const instanceID = Math.ceil(index / this.blocks.count);
     const blockID = index % this.blocks.count;
@@ -106,7 +106,7 @@ export class Fragment implements IFragment {
     }
   }
 
-  removeInstances(itemsIDs: number[]) {
+  removeInstances(itemsIDs: string[]) {
     if (this.mesh.count <= 1) {
       this.clear();
       return;
@@ -148,13 +148,13 @@ export class Fragment implements IFragment {
     if (this.blocks.count > 1) {
       this.blocks.reset();
     } else {
-      const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => parseInt(id, 10));
+      const hiddenInstances = Object.keys(this.hiddenInstances);
       this.makeInstancesVisible(hiddenInstances);
       this.hiddenInstances = {};
     }
   }
 
-  setVisibility(itemIDs: number[], visible: boolean) {
+  setVisibility(itemIDs: string[], visible: boolean) {
     if (this.blocks.count > 1) {
       this.toggleBlockVisibility(visible, itemIDs);
       this.mesh.geometry.disposeBoundsTree();
@@ -205,7 +205,7 @@ export class Fragment implements IFragment {
     return newGeometry;
   }
 
-  private saveItemsInMap(ids: number[], instanceId: number) {
+  private saveItemsInMap(ids: string[], instanceId: number) {
     this.checkBlockNumberValid(ids);
     let counter = 0;
     for (const id of ids) {
@@ -236,7 +236,7 @@ export class Fragment implements IFragment {
     this.fragments = {};
   }
 
-  private checkBlockNumberValid(ids: number[]) {
+  private checkBlockNumberValid(ids: string[]) {
     if (ids.length > this.blocks.count) {
       throw new Error(
         `You passed more items (${ids.length}) than blocks in this instance (${this.blocks.count})`
@@ -255,7 +255,7 @@ export class Fragment implements IFragment {
   // Assigns the index of the removed instance to the last instance
   // F.e. let there be 6 instances: (A) (B) (C) (D) (E) (F)
   // If instance (C) is removed: -> (A) (B) (F) (D) (E)
-  private deleteAndRearrangeInstances(ids: number[]) {
+  private deleteAndRearrangeInstances(ids: string[]) {
     const deletedItems: Items[] = [];
 
     for (const id of ids) {
@@ -272,7 +272,7 @@ export class Fragment implements IFragment {
     return deletedItems;
   }
 
-  private deleteAndRearrange(id: number) {
+  private deleteAndRearrange(id: string) {
     const index = this.items.indexOf(id);
     if (index === -1) return null;
 
@@ -310,7 +310,7 @@ export class Fragment implements IFragment {
     return Math.trunc(itemIndex / this.blocks.count);
   }
 
-  private toggleInstanceVisibility(visible: boolean, itemIDs: number[]) {
+  private toggleInstanceVisibility(visible: boolean, itemIDs: string[]) {
     if (visible) {
       this.makeInstancesVisible(itemIDs);
     } else {
@@ -318,7 +318,7 @@ export class Fragment implements IFragment {
     }
   }
 
-  private makeInstancesInvisible(itemIDs: number[]) {
+  private makeInstancesInvisible(itemIDs: string[]) {
     itemIDs = this.filterHiddenItems(itemIDs, false);
     const deletedItems = this.deleteAndRearrangeInstances(itemIDs);
     for (const item of deletedItems) {
@@ -328,7 +328,7 @@ export class Fragment implements IFragment {
     }
   }
 
-  private makeInstancesVisible(itemIDs: number[]) {
+  private makeInstancesVisible(itemIDs: string[]) {
     const items: Items[] = [];
     itemIDs = this.filterHiddenItems(itemIDs, true);
     for (const id of itemIDs) {
@@ -338,14 +338,14 @@ export class Fragment implements IFragment {
     this.addInstances(items);
   }
 
-  private filterHiddenItems(itemIDs: number[], hidden: boolean) {
-    const hiddenItems = Object.keys(this.hiddenInstances).map((item) => parseInt(item, 10));
+  private filterHiddenItems(itemIDs: string[], hidden: boolean) {
+    const hiddenItems = Object.keys(this.hiddenInstances);
     return itemIDs.filter((item) =>
       hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item)
     );
   }
 
-  private toggleBlockVisibility(visible: boolean, itemIDs: number[]) {
+  private toggleBlockVisibility(visible: boolean, itemIDs: string[]) {
     const blockIDs = itemIDs.map((id) => this.getInstanceAndBlockID(id).blockID);
     if (visible) {
       this.blocks.add(blockIDs, false);
