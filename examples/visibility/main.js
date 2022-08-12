@@ -16,7 +16,7 @@ async function loadModels() {
     const walls = new Fragment(wallsData.geometry, wallsData.material, 1);
     const transform = new Matrix4();
     transform.setPosition(-1, 0, 2);
-    walls.setInstance(0, {ids: [11, 12, 13, 14], transform })
+    walls.setInstance(0, {ids: ["11", "12", "13", "14"], transform })
     items[walls.id] = walls;
 
     // Create chairs fragment
@@ -40,7 +40,7 @@ async function loadModels() {
     exportButton.onclick = () => {
         visibility = !visibility;
         chairs.setVisibility(halfChairs, visibility);
-        walls.setVisibility(halfWalls, visibility);
+        //walls.setVisibility(halfWalls, visibility);
     }
 }
 

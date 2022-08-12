@@ -67,7 +67,7 @@ export class Models {
 
           const matrix = new Matrix4();
           matrix.setPosition(i * offset, j * offset, k * offset);
-          const id = parseInt(`${i}${j}${k}`);
+          const id = `${i}${j}${k}`;
           fragment.setInstance(counter++, {ids: [id], transform: matrix})
         }
       }

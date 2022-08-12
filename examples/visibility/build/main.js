@@ -53682,7 +53682,7 @@
 	            this.blocks.reset();
 	        }
 	        else {
-	            const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => parseInt(id, 10));
+	            const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => id);
 	            this.makeInstancesVisible(hiddenInstances);
 	            this.hiddenInstances = {};
 	        }
@@ -53840,7 +53840,7 @@
 	        this.addInstances(items);
 	    }
 	    filterHiddenItems(itemIDs, hidden) {
-	        const hiddenItems = Object.keys(this.hiddenInstances).map((item) => parseInt(item, 10));
+	        const hiddenItems = Object.keys(this.hiddenInstances).map((item) => item);
 	        return itemIDs.filter((item) => hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item));
 	    }
 	    toggleBlockVisibility(visible, itemIDs) {
@@ -60038,7 +60038,7 @@
 
 	          const matrix = new Matrix4();
 	          matrix.setPosition(i * offset, j * offset, k * offset);
-	          const id = parseInt(`${i}${j}${k}`);
+	          const id = `${i}${j}${k}`;
 	          fragment.setInstance(counter++, {ids: [id], transform: matrix});
 	        }
 	      }
@@ -60059,7 +60059,7 @@
 	    const walls = new Fragment(wallsData.geometry, wallsData.material, 1);
 	    const transform = new Matrix4();
 	    transform.setPosition(-1, 0, 2);
-	    walls.setInstance(0, {ids: [11, 12, 13, 14], transform });
+	    walls.setInstance(0, {ids: ["11", "12", "13", "14"], transform });
 	    items[walls.id] = walls;
 
 	    // Create chairs fragment
@@ -60076,14 +60076,14 @@
 
 	    // Visibility
 	    const halfChairs = chairs.items.slice(0, Math.ceil(chairs.items.length / 2));
-	    const halfWalls = walls.items.slice(0, Math.ceil(walls.items.length / 2));
+	    walls.items.slice(0, Math.ceil(walls.items.length / 2));
 
 	    let visibility = true;
 	    const exportButton = document.getElementById('visibility');
 	    exportButton.onclick = () => {
 	        visibility = !visibility;
 	        chairs.setVisibility(halfChairs, visibility);
-	        walls.setVisibility(halfWalls, visibility);
+	        //walls.setVisibility(halfWalls, visibility);
 	    };
 	}
 
