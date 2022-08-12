@@ -60076,14 +60076,14 @@
 
 	    // Visibility
 	    const halfChairs = chairs.items.slice(0, Math.ceil(chairs.items.length / 2));
-	    walls.items.slice(0, Math.ceil(walls.items.length / 2));
+	    const halfWalls = walls.items.slice(0, Math.ceil(walls.items.length / 2));
 
 	    let visibility = true;
 	    const exportButton = document.getElementById('visibility');
 	    exportButton.onclick = () => {
 	        visibility = !visibility;
 	        chairs.setVisibility(halfChairs, visibility);
-	        //walls.setVisibility(halfWalls, visibility);
+	        walls.setVisibility(halfWalls, visibility);
 	    };
 	}
 

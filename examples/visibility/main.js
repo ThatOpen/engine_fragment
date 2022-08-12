@@ -40,7 +40,7 @@ async function loadModels() {
     exportButton.onclick = () => {
         visibility = !visibility;
         chairs.setVisibility(halfChairs, visibility);
-        //walls.setVisibility(halfWalls, visibility);
+        walls.setVisibility(halfWalls, visibility);
     }
 }
 
