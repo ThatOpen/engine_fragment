@@ -53682,7 +53682,7 @@
 	            this.blocks.reset();
 	        }
 	        else {
-	            const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => id);
+	            const hiddenInstances = Object.keys(this.hiddenInstances);
 	            this.makeInstancesVisible(hiddenInstances);
 	            this.hiddenInstances = {};
 	        }
@@ -53840,7 +53840,7 @@
 	        this.addInstances(items);
 	    }
 	    filterHiddenItems(itemIDs, hidden) {
-	        const hiddenItems = Object.keys(this.hiddenInstances).map((item) => item);
+	        const hiddenItems = Object.keys(this.hiddenInstances);
 	        return itemIDs.filter((item) => hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item));
 	    }
 	    toggleBlockVisibility(visible, itemIDs) {

@@ -148,7 +148,7 @@ export class Fragment implements IFragment {
     if (this.blocks.count > 1) {
       this.blocks.reset();
     } else {
-      const hiddenInstances = Object.keys(this.hiddenInstances).map((id) => id);
+      const hiddenInstances = Object.keys(this.hiddenInstances);
       this.makeInstancesVisible(hiddenInstances);
       this.hiddenInstances = {};
     }
@@ -339,7 +339,7 @@ export class Fragment implements IFragment {
   }
 
   private filterHiddenItems(itemIDs: string[], hidden: boolean) {
-    const hiddenItems = Object.keys(this.hiddenInstances).map((item) => item);
+    const hiddenItems = Object.keys(this.hiddenInstances);
     return itemIDs.filter((item) =>
       hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item)
     );
