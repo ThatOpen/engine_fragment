@@ -6,7 +6,7 @@ export default {
   input: "dist/index.js",
   external: ["three"], // so it's not included
   output: {
-    file: "../examples/resources/openbim-components.js",
+    file: "../examples/resources/fragment.js",
     format: "esm",
     inlineDynamicImports: true, // Necessary for jspdf
     paths: {

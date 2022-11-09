@@ -1,7 +1,7 @@
-import { BufferGeometry, Material, Matrix4 } from 'three';
-import { BufferAttribute } from 'three/src/core/BufferAttribute';
-import { InterleavedBufferAttribute } from 'three/src/core/InterleavedBufferAttribute';
-import { FragmentMesh } from './fragment-mesh';
+import { BufferGeometry, Material, Matrix4 } from "three";
+import { BufferAttribute } from "three/src/core/BufferAttribute";
+import { InterleavedBufferAttribute } from "three/src/core/InterleavedBufferAttribute";
+import { FragmentMesh } from "./fragment-mesh";
 
 // The number array has the meaning: [start, end, start, end, start, end...]
 export interface Indices {

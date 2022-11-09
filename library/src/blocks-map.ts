@@ -1,5 +1,10 @@
-import { Material } from 'three';
-import { IFragmentGeometry, IFragment, IndicesMap, VertexGroup } from './base-types';
+import { Material } from "three";
+import {
+  IFragmentGeometry,
+  IFragment,
+  IndicesMap,
+  VertexGroup,
+} from "./base-types";
 
 export class BlocksMap {
   indices: IndicesMap;
@@ -16,9 +21,9 @@ export class BlocksMap {
     }
   }
 
-  getSubsetID(modelID: number, material?: Material, customID = 'DEFAULT') {
+  getSubsetID(modelID: number, material?: Material, customID = "DEFAULT") {
     const baseID = modelID;
-    const materialID = material ? material.uuid : 'DEFAULT';
+    const materialID = material ? material.uuid : "DEFAULT";
     return `${baseID} - ${materialID} - ${customID}`;
   }
 
@@ -32,11 +37,14 @@ export class BlocksMap {
     const startIndices = geometry.index.array as Uint32Array;
     return {
       indexCache: startIndices.slice(0, geometry.index.array.length),
-      map: new Map()
+      map: new Map(),
     };
   }
 
-  private fillBlocksMapWithGroupInfo(group: VertexGroup, geometry: IFragmentGeometry) {
+  private fillBlocksMapWithGroupInfo(
+    group: VertexGroup,
+    geometry: IFragmentGeometry
+  ) {
     let prevBlockID = -1;
 
     const materialIndex = group.materialIndex as number;
@@ -86,7 +94,8 @@ export class BlocksMap {
       this.indices.map.set(id, {});
     }
     const storedIfcItem = this.indices.map.get(id);
-    if (storedIfcItem === undefined) throw new Error('Geometry map generation error');
+    if (storedIfcItem === undefined)
+      throw new Error("Geometry map generation error");
 
     // If this material wasn't stored for this object before, add it to the object
     if (storedIfcItem[matIndex] === undefined) {

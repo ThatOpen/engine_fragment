@@ -70,7 +70,7 @@ export default class BinaryReader {
   }
 
   readArrayAsString(length: number) {
-    let string = '';
+    let string = "";
     for (let i = this.offset; i < this.offset + length; i++) {
       string += String.fromCharCode(this.binary[i] as any);
     }

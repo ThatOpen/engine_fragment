@@ -1,8 +1,8 @@
-import { BufferGeometry, InstancedMesh } from 'three';
-import { Material } from 'three/src/materials/Material';
-import { BufferAttribute } from 'three/src/core/BufferAttribute';
-import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter';
-import { IFragmentGeometry, IFragmentMesh } from './base-types';
+import { BufferGeometry, InstancedMesh } from "three";
+import { Material } from "three/src/materials/Material";
+import { BufferAttribute } from "three/src/core/BufferAttribute";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
+import { IFragmentGeometry, IFragmentMesh } from "./base-types";
 
 export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   material: Material[];
@@ -14,12 +14,16 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
     onlyVisible: false,
     truncateDrawRange: true,
     binary: true,
-    maxTextureSize: 0
+    maxTextureSize: 0,
   };
 
   private exporter = new GLTFExporter();
 
-  constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
+  constructor(
+    geometry: BufferGeometry,
+    material: Material | Material[],
+    count: number
+  ) {
     super(geometry, material, count);
     this.material = FragmentMesh.newMaterialArray(material);
     this.geometry = this.newFragmentGeometry(geometry);
@@ -28,13 +32,18 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   export() {
     const mesh = this;
     return new Promise<any>((resolve) => {
-      this.exporter.parse(mesh, (geometry: any) => resolve(geometry), this.exportOptions);
+      this.exporter.parse(
+        mesh,
+        (geometry: any) => resolve(geometry),
+        (error) => console.log(error),
+        this.exportOptions
+      );
     });
   }
 
   private newFragmentGeometry(geometry: BufferGeometry) {
     if (!geometry.index) {
-      throw new Error('The geometry must be indexed!');
+      throw new Error("The geometry must be indexed!");
     }
 
     if (!geometry.attributes.blockID) {
@@ -54,7 +63,7 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
       geometry.groups.push({
         start: 0,
         count: size,
-        materialIndex: 0
+        materialIndex: 0,
       });
     }
   }

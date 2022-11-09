@@ -30,6 +30,7 @@
   },
   "homepage": "https://github.com/ifcjs/fragment",
   "dependencies": {
+    "three": "0.135",
     "three-mesh-bvh": "^0.5.14"
   },
   "devDependencies": {
@@ -57,8 +58,5 @@
     "crypto": false,
     "fs": false,
     "path": false
-  },
-  "peerDependencies": {
-    "three": "^0.135.0"
   }
 }

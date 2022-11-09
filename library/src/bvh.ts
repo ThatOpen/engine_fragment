@@ -1,5 +1,9 @@
-import { BufferGeometry, Mesh } from 'three';
-import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
+import { BufferGeometry, Mesh } from "three";
+import {
+  computeBoundsTree,
+  disposeBoundsTree,
+  acceleratedRaycast,
+} from "three-mesh-bvh";
 
 // Source: https://github.com/gkjohnson/three-mesh-bvh
 export class BVH {

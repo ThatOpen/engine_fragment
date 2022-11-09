@@ -1,8 +1,8 @@
-import { BufferGeometry, Material, Matrix4 } from 'three';
-import { Items, IFragment, ExportedFragment } from './base-types';
-import { FragmentMesh } from './fragment-mesh';
-import { Blocks } from './blocks';
-import { BVH } from './bvh';
+import { BufferGeometry, Material, Matrix4 } from "three";
+import { Items, IFragment, ExportedFragment } from "./base-types";
+import { FragmentMesh } from "./fragment-mesh";
+import { Blocks } from "./blocks";
+import { BVH } from "./bvh";
 
 /*
  * Fragments can contain one or multiple Instances of one or multiple Blocks
@@ -37,7 +37,11 @@ export class Fragment implements IFragment {
   items: string[] = [];
   hiddenInstances: { [id: string]: Items } = {};
 
-  constructor(geometry: BufferGeometry, material: Material | Material[], count: number) {
+  constructor(
+    geometry: BufferGeometry,
+    material: Material | Material[],
+    count: number
+  ) {
     this.mesh = new FragmentMesh(geometry, material, count);
     this.id = this.mesh.uuid;
     this.capacity = count;
@@ -180,7 +184,7 @@ export class Fragment implements IFragment {
 
     const fragmentData: ExportedFragment = {
       matrices: Array.from(this.mesh.instanceMatrix.array),
-      ids: this.items
+      ids: this.items,
     };
 
     const dataString = JSON.stringify(fragmentData);
@@ -198,9 +202,12 @@ export class Fragment implements IFragment {
 
   private initializeGeometry() {
     const newGeometry = new BufferGeometry();
-    newGeometry.setAttribute('position', this.mesh.geometry.attributes.position);
-    newGeometry.setAttribute('normal', this.mesh.geometry.attributes.normal);
-    newGeometry.setAttribute('blockID', this.mesh.geometry.attributes.blockID);
+    newGeometry.setAttribute(
+      "position",
+      this.mesh.geometry.attributes.position
+    );
+    newGeometry.setAttribute("normal", this.mesh.geometry.attributes.normal);
+    newGeometry.setAttribute("blockID", this.mesh.geometry.attributes.blockID);
     newGeometry.setIndex(Array.from(this.mesh.geometry.index.array));
     return newGeometry;
   }
@@ -223,7 +230,11 @@ export class Fragment implements IFragment {
   }
 
   private createFragmentMeshWithNewSize(capacity: number) {
-    const newMesh = new FragmentMesh(this.mesh.geometry, this.mesh.material, capacity);
+    const newMesh = new FragmentMesh(
+      this.mesh.geometry,
+      this.mesh.material,
+      capacity
+    );
     newMesh.count = this.mesh.count;
     return newMesh;
   }
@@ -346,7 +357,9 @@ export class Fragment implements IFragment {
   }
 
   private toggleBlockVisibility(visible: boolean, itemIDs: string[]) {
-    const blockIDs = itemIDs.map((id) => this.getInstanceAndBlockID(id).blockID);
+    const blockIDs = itemIDs.map(
+      (id) => this.getInstanceAndBlockID(id).blockID
+    );
     if (visible) {
       this.blocks.add(blockIDs, false);
     } else {

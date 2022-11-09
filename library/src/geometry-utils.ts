@@ -1,8 +1,11 @@
-import { BufferAttribute, BufferGeometry, Mesh } from 'three';
-import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils';
+import { BufferAttribute, BufferGeometry, Mesh } from "three";
+import { mergeBufferGeometries } from "three/examples/jsm/utils/BufferGeometryUtils";
 
 export class GeometryUtils {
-  static merge(geometriesByMaterial: BufferGeometry[][], splitByBlocks = false) {
+  static merge(
+    geometriesByMaterial: BufferGeometry[][],
+    splitByBlocks = false
+  ) {
     const geometriesByMat: BufferGeometry[] = [];
     const sizes: number[] = [];
     for (const geometries of geometriesByMaterial) {
@@ -27,12 +30,15 @@ export class GeometryUtils {
     return geometry;
   }
 
-  private static getMeshesAttributes(geometry: BufferGeometry, attributes: any) {
+  private static getMeshesAttributes(
+    geometry: BufferGeometry,
+    attributes: any
+  ) {
     // Three.js GLTFExporter exports custom BufferAttributes as underscore lowercase
     // eslint-disable-next-line no-underscore-dangle
-    geometry.setAttribute('blockID', attributes._blockid);
-    geometry.setAttribute('position', attributes.position);
-    geometry.setAttribute('normal', attributes.normal);
+    geometry.setAttribute("blockID", attributes._blockid);
+    geometry.setAttribute("position", attributes.position);
+    geometry.setAttribute("normal", attributes.normal);
     geometry.groups = [];
   }
 
@@ -48,11 +54,15 @@ export class GeometryUtils {
     geometry.setIndex(indices);
   }
 
-  private static getMeshGroup(geometry: BufferGeometry, counter: any, index: BufferAttribute) {
+  private static getMeshGroup(
+    geometry: BufferGeometry,
+    counter: any,
+    index: BufferAttribute
+  ) {
     geometry.groups.push({
       start: counter.index,
       count: index.count,
-      materialIndex: counter.material++
+      materialIndex: counter.material++,
     });
     counter.index += index.count;
   }
@@ -74,17 +84,27 @@ export class GeometryUtils {
     geometries.length = 0;
   }
 
-  private static setupMaterialGroups(sizes: number[], geometry: BufferGeometry) {
+  private static setupMaterialGroups(
+    sizes: number[],
+    geometry: BufferGeometry
+  ) {
     let vertexCounter = 0;
     let counter = 0;
     for (const size of sizes) {
-      const group = { start: vertexCounter, count: size, materialIndex: counter++ };
+      const group = {
+        start: vertexCounter,
+        count: size,
+        materialIndex: counter++,
+      };
       geometry.groups.push(group);
       vertexCounter += size;
     }
   }
 
-  private static mergeGeomsOfSameMaterial(geometries: BufferGeometry[], splitByBlocks: boolean) {
+  private static mergeGeomsOfSameMaterial(
+    geometries: BufferGeometry[],
+    splitByBlocks: boolean
+  ) {
     this.checkAllGeometriesAreIndexed(geometries);
     if (splitByBlocks) {
       this.splitByBlocks(geometries);
@@ -99,14 +119,14 @@ export class GeometryUtils {
     for (const geometry of geometries) {
       const size = geometry.attributes.position.count;
       const array = new Uint8Array(size).fill(i++);
-      geometry.setAttribute('blockID', new BufferAttribute(array, 1));
+      geometry.setAttribute("blockID", new BufferAttribute(array, 1));
     }
   }
 
   private static checkAllGeometriesAreIndexed(geometries: BufferGeometry[]) {
     for (const geometry of geometries) {
       if (!geometry.index) {
-        throw new Error('All geometries must be indexed!');
+        throw new Error("All geometries must be indexed!");
       }
     }
   }

@@ -1,6 +1,6 @@
-import { BufferGeometry } from 'three';
-import { BlocksMap } from './blocks-map';
-import { IFragment } from './base-types';
+import { BufferGeometry } from "three";
+import { BlocksMap } from "./blocks-map";
+import { IFragment } from "./base-types";
 
 /**
  * Contains the logic to get, create and delete geometric subsets of an IFC model. For example,
@@ -85,12 +85,23 @@ export class Blocks {
   }
 
   // Inserts indices in correct position and update groups
-  private insertNewIndices(ids: number[], materialIndex: number, newIndices: any) {
-    const indicesOfOneMaterial = this.getAllIndicesOfGroup(ids, materialIndex) as number[];
+  private insertNewIndices(
+    ids: number[],
+    materialIndex: number,
+    newIndices: any
+  ) {
+    const indicesOfOneMaterial = this.getAllIndicesOfGroup(
+      ids,
+      materialIndex
+    ) as number[];
     this.insertIndicesAtGroup(indicesOfOneMaterial, materialIndex, newIndices);
   }
 
-  private insertIndicesAtGroup(indicesByGroup: number[], index: number, newIndices: any) {
+  private insertIndicesAtGroup(
+    indicesByGroup: number[],
+    index: number,
+    newIndices: any
+  ) {
     const currentGroup = this.getCurrentGroup(index);
     currentGroup.start += newIndices.count;
     const newIndicesPosition = currentGroup.start + currentGroup.count;
@@ -99,7 +110,10 @@ export class Blocks {
       const position = newIndicesPosition;
       const start = this.tempIndex.slice(0, position);
       const end = this.tempIndex.slice(position);
-      this.tempIndex = Array.prototype.concat.apply([], [start, indicesByGroup, end]);
+      this.tempIndex = Array.prototype.concat.apply(
+        [],
+        [start, indicesByGroup, end]
+      );
       currentGroup.count += indicesByGroup.length;
     }
   }
@@ -116,7 +130,11 @@ export class Blocks {
   }
 
   // If flatten, all indices are in the same array; otherwise, indices are split in subarrays by material
-  private getAllIndicesOfGroup(ids: number[], materialIndex: number, flatten = true) {
+  private getAllIndicesOfGroup(
+    ids: number[],
+    materialIndex: number,
+    flatten = true
+  ) {
     const indicesByGroup: any = [];
     for (const id of ids) {
       const entry = this.blocksMap.indices.map.get(id);
@@ -142,8 +160,11 @@ export class Blocks {
       for (let j = start; j <= end; j++) {
         if (flatten) indicesByGroup.push(this.blocksMap.indices.indexCache[j]);
         else {
-          if (!indicesByGroup[materialIndex]) indicesByGroup[materialIndex] = [];
-          indicesByGroup[materialIndex].push(this.blocksMap.indices.indexCache[j]);
+          if (!indicesByGroup[materialIndex])
+            indicesByGroup[materialIndex] = [];
+          indicesByGroup[materialIndex].push(
+            this.blocksMap.indices.indexCache[j]
+          );
         }
       }
     }
