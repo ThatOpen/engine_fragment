@@ -8,9 +8,9 @@
   "license": "MIT",
   "repository": "git+https://github.com/ifcjs/fragment",
   "scripts": {
-    "init-repo": "yarn && npm run build",
-    "build": "cd library && yarn build && cd .. && yarn build-examples",
-    "build-examples": "node examples/example-builder.js",
+    "build": "yarn workspace bim-fragment build",
+    "build-docs": "yarn workspace bim-fragment build-docs",
+    "test": "yarn workspace bim-fragment test",
     "publish-repo": "cd library && npm run publish-repo"
   },
   "bugs": {
@@ -24,10 +24,6 @@
     "3d"
   ],
   "workspaces": [
-    "library",
-    "examples/mouse-picking",
-    "examples/visibility",
-    "examples/import-export"
-  ],
-  "dependencies": {}
+    "library"
+  ]
 }

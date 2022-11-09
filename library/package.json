@@ -4,9 +4,13 @@
   "description": "3D BIM Geometry API",
   "main": "dist/fragment-api.js",
   "scripts": {
-    "watch": "tsc -w",
-    "build": "tsc",
-    "publish-repo": "yarn build && copy package.json dist && cd dist && npm publish"
+    "test": "jest",
+    "build": "yarn build-library && yarn build-examples",
+    "build-library": "tsc",
+    "build-examples": "rollup -c",
+    "build-docs": "npx typedoc && yarn copy-cover",
+    "copy-cover": "cpy ../cover.png ../docs",
+    "publish-repo": "cpy package.json dist && cd dist && npm publish"
   },
   "repository": {
     "type": "git",
@@ -29,8 +33,11 @@
     "three-mesh-bvh": "^0.5.14"
   },
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^22.0.2",
+    "@rollup/plugin-node-resolve": "^14.1.0",
+    "@types/jest": "^26.0.23",
     "@types/node": "^14.14.31",
-    "@types/three": "^0.134.0",
+    "@types/three": "^0.143.0",
     "@typescript-eslint/eslint-plugin": "^4.27.0",
     "@typescript-eslint/parser": "^4.27.0",
     "cpy-cli": "^3.1.1",
@@ -39,7 +46,10 @@
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-import": "^2.23.4",
     "eslint-plugin-prettier": "^3.4.0",
+    "jest": "^27.0.4",
     "prettier": "^2.3.1",
+    "rollup": "^2.79.1",
+    "ts-jest": "^27.0.3",
     "ts-node": "^10.0.0",
     "typescript": "^4.3.2"
   },
