@@ -58,6 +58,7 @@ export class Fragment implements IFragment {
       this.mesh.geometry.dispose();
     }
 
+    this.mesh.removeFromParent();
     this.mesh.dispose();
     (this.mesh as any) = null;
 

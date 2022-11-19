@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <link rel="stylesheet" href="resources/styles.css">
+  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <title>Components | Instanced fragment</title>
+</head>
+<body>
+<canvas class="full-screen" id="container"></canvas>
+<script type="module">
+  import { SimpleThreeScene } from './resources/simple-three-scene.js';
+  import * as FRAGS from './resources/fragment.js';
+  import * as THREE from './resources/three.module.js';
+  import { GLTFLoader } from './resources/GLTFLoader.js';
+
+  const canvas = document.getElementById("container");
+  const threeScene = new SimpleThreeScene(canvas);
+
+  // Get the chair geometry
+
+  const loader = new GLTFLoader();
+  const rawGltf = await loader.loadAsync("./resources/models/chair.glb");
+  const chairMeshes = rawGltf.scene.children[0].children;
+  const chairGeometries = chairMeshes.map((mesh) => [mesh.geometry]);
+  const geometry = FRAGS.GeometryUtils.merge(chairGeometries);
+
+  // Get the chair materials
+
+  const materials = chairMeshes.map(mesh => new THREE.MeshLambertMaterial({
+      color: mesh.material.color,
+      transparent: mesh.material.transparent,
+      opacity: mesh.material.opacity
+    }));
+
+  // Create a new fragment and add it to the scene
+
+  const chairs = new FRAGS.Fragment(geometry, materials, 1000);
+  threeScene.scene.add(chairs.mesh);
+
+  // Now we need to specify the position of the 1000 instances and its ID
+  // We will create a cube of 10 x 10 x 10 chairs, and each ID will be its position in the matrix
+
+  const offset = 0.5;
+  let counter = 0;
+  for (let i = 0; i < 10; i++) {
+    for (let j = 0; j < 10; j++) {
+      for (let k = 0; k < 10; k++) {
+        const matrix = new THREE.Matrix4();
+        matrix.setPosition(i * offset, j * offset, k * offset);
+        const id = `${i}${j}${k}`;
+        chairs.setInstance(counter++, {ids: [id], transform: matrix})
+      }
+    }
+  }
+
+</script>
+</body>
+</html>
