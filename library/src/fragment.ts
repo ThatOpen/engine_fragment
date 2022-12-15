@@ -186,6 +186,7 @@ export class Fragment implements IFragment {
     const fragmentData: ExportedFragment = {
       matrices: Array.from(this.mesh.instanceMatrix.array),
       ids: this.items,
+      id: this.id,
     };
 
     const dataString = JSON.stringify(fragmentData);

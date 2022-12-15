@@ -10,7 +10,7 @@ export default {
     format: "esm",
     inlineDynamicImports: true, // Necessary for jspdf
     paths: {
-      three: "./three.module.js",
+      three: "three",
     },
   },
   plugins: [nodeResolve(), commonjs()],

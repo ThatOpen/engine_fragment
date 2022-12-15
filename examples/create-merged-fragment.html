@@ -11,11 +11,25 @@
 </head>
 <body>
 <canvas class='full-screen' id='container'></canvas>
+<script type='importmap'>
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.135.0/build/three.module.js",
+        "three/examples/jsm/lines/LineMaterial": "https://unpkg.com/three@0.135.0/examples/jsm/lines/LineMaterial.js",
+        "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.135.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/loaders/GLTFLoader": "https://unpkg.com/three@0.135.0/examples/jsm/loaders/GLTFLoader.js",
+        "three/examples/jsm/libs/lil-gui.module.min": "https://unpkg.com/three@0.135.0/examples/jsm/libs/lil-gui.module.min.js",
+        "stats.js/src/Stats.js": "https://unpkg.com/stats-js@1.0.1/src/Stats.js",
+        "unzipit": "https://unpkg.com/unzipit@1.4.0/dist/unzipit.module.js",
+        "client-zip": "https://unpkg.com/client-zip@2.3.0/index.js"
+      }
+    }
+</script>
 <script type='module'>
   import { SimpleThreeScene } from './resources/simple-three-scene.js';
   import * as FRAGS from './resources/fragment.js';
-  import * as THREE from './resources/three.module.js';
-  import { GLTFLoader } from './resources/GLTFLoader.js';
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
   const canvas = document.getElementById('container');
   const threeScene = new SimpleThreeScene(canvas);

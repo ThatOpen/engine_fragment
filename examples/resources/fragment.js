@@ -1,4 +1,4 @@
-import { BufferGeometry, BufferAttribute as BufferAttribute$1, PropertyBinding, InterpolateLinear, Vector3 as Vector3$1, RGBAFormat, RGBFormat, DoubleSide, MathUtils, InterpolateDiscrete, Matrix4, Scene, NearestFilter, NearestMipmapNearestFilter, NearestMipmapLinearFilter, LinearFilter, LinearMipmapNearestFilter, LinearMipmapLinearFilter, ClampToEdgeWrapping, RepeatWrapping, MirroredRepeatWrapping, InstancedMesh, Vector2 as Vector2$1, Plane, Line3, Triangle, Sphere, BackSide, Box3, FrontSide, Mesh, Ray, Quaternion as Quaternion$1, Interpolant, Loader, LoaderUtils, FileLoader, Color as Color$1, SpotLight, PointLight, DirectionalLight, MeshBasicMaterial, MeshPhysicalMaterial, sRGBEncoding, TangentSpaceNormalMap, ImageBitmapLoader, TextureLoader, InterleavedBuffer, InterleavedBufferAttribute, PointsMaterial, Material, LineBasicMaterial, MeshStandardMaterial, SkinnedMesh, LineSegments, Line, LineLoop, Points, Group, PerspectiveCamera, OrthographicCamera, AnimationClip, Bone, Object3D, Skeleton, TriangleFanDrawMode, Texture, TriangleStripDrawMode, VectorKeyframeTrack, QuaternionKeyframeTrack, NumberKeyframeTrack, MeshLambertMaterial } from './three.module.js';
+import { BufferGeometry, BufferAttribute as BufferAttribute$1, PropertyBinding, InterpolateLinear, Vector3 as Vector3$1, RGBAFormat, RGBFormat, DoubleSide, MathUtils, InterpolateDiscrete, Matrix4, Scene, NearestFilter, NearestMipmapNearestFilter, NearestMipmapLinearFilter, LinearFilter, LinearMipmapNearestFilter, LinearMipmapLinearFilter, ClampToEdgeWrapping, RepeatWrapping, MirroredRepeatWrapping, InstancedMesh, Vector2 as Vector2$1, Plane, Line3, Triangle, Sphere, BackSide, Box3, FrontSide, Mesh, Ray, Quaternion as Quaternion$1, Interpolant, Loader, LoaderUtils, FileLoader, Color as Color$1, SpotLight, PointLight, DirectionalLight, MeshBasicMaterial, MeshPhysicalMaterial, sRGBEncoding, TangentSpaceNormalMap, ImageBitmapLoader, TextureLoader, InterleavedBuffer, InterleavedBufferAttribute, PointsMaterial, Material, LineBasicMaterial, MeshStandardMaterial, SkinnedMesh, LineSegments, Line, LineLoop, Points, Group, PerspectiveCamera, OrthographicCamera, AnimationClip, Bone, Object3D, Skeleton, TriangleFanDrawMode, Texture, TriangleStripDrawMode, VectorKeyframeTrack, QuaternionKeyframeTrack, NumberKeyframeTrack, MeshLambertMaterial } from 'three';
 
 /**
 	 * @param  {Array<BufferGeometry>} geometries
@@ -11077,6 +11077,7 @@ class Fragment {
         const fragmentData = {
             matrices: Array.from(this.mesh.instanceMatrix.array),
             ids: this.items,
+            id: this.id,
         };
         const dataString = JSON.stringify(fragmentData);
         const data = new File([new Blob([dataString])], `${this.id}.json`);
@@ -15511,20 +15512,21 @@ class FragmentLoader {
         const meshes = (hasChildren ? sceneRoot.children : [loadedGeom.scene.children[0]]);
         const geometry = await GeometryUtils.mergeGltfMeshes(meshes);
         const materials = this.getMaterials(meshes);
-        const items = await this.getItems(dataURL);
-        return this.getFragment(geometry, materials, items);
+        const dataResponse = await fetch(dataURL);
+        const data = (await dataResponse.json());
+        return this.getFragment(geometry, materials, data);
     }
-    getFragment(geometry, materials, items) {
+    getFragment(geometry, materials, data) {
+        const items = this.getInstances(data);
         const fragment = new Fragment(geometry, materials, items.length);
+        if (data.id) {
+            fragment.id = data.id;
+            fragment.mesh.uuid = data.id;
+        }
         for (let i = 0; i < items.length; i++) {
             fragment.setInstance(i, items[i]);
         }
         return fragment;
-    }
-    async getItems(url) {
-        const dataResponse = await fetch(url);
-        const data = await dataResponse.json();
-        return this.getInstances(data);
     }
     getInstances(data) {
         let idCounter = 0;
