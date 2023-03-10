@@ -11083,6 +11083,16 @@ class Fragment {
         const data = new File([new Blob([dataString])], `${this.id}.json`);
         return { geometry, data };
     }
+    async exportRaw() {
+        const geometryBuffer = await this.mesh.export();
+        const fragmentData = {
+            matrices: Array.from(this.mesh.instanceMatrix.array),
+            ids: this.items,
+            id: this.id,
+        };
+        const dataString = JSON.stringify(fragmentData);
+        return { geometry: geometryBuffer, data: dataString };
+    }
     copyGroups(newGeometry) {
         newGeometry.groups = [];
         for (const group of this.mesh.geometry.groups) {

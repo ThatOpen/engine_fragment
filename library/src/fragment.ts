@@ -194,6 +194,19 @@ export class Fragment implements IFragment {
 
     return { geometry, data };
   }
+  async exportRaw() {
+    const geometryBuffer = await this.mesh.export();
+
+    const fragmentData: ExportedFragment = {
+      matrices: Array.from(this.mesh.instanceMatrix.array),
+      ids: this.items,
+      id: this.id,
+    };
+
+    const dataString = JSON.stringify(fragmentData);
+
+    return { geometry: geometryBuffer, data: dataString };
+  }
 
   private copyGroups(newGeometry: BufferGeometry) {
     newGeometry.groups = [];
