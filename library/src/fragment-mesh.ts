@@ -1,23 +1,17 @@
-import { BufferGeometry, InstancedMesh } from "three";
+import {
+  BufferGeometry,
+  InstancedMesh,
+  Color,
+  MeshLambertMaterial,
+} from "three";
 import { Material } from "three/src/materials/Material";
 import { BufferAttribute } from "three/src/core/BufferAttribute";
-import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
 import { IFragmentGeometry, IFragmentMesh } from "./base-types";
 
 export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   material: Material[];
   geometry: IFragmentGeometry;
   elementCount = 0;
-
-  private exportOptions = {
-    trs: false,
-    onlyVisible: false,
-    truncateDrawRange: true,
-    binary: true,
-    maxTextureSize: 0,
-  };
-
-  private exporter = new GLTFExporter();
 
   constructor(
     geometry: BufferGeometry,
@@ -30,15 +24,30 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   }
 
   export() {
-    const mesh = this;
-    return new Promise<any>((resolve) => {
-      this.exporter.parse(
-        mesh,
-        (geometry: any) => resolve(geometry),
-        (error) => console.log(error),
-        this.exportOptions
-      );
-    });
+    const position = Array.from(this.geometry.attributes.position.array);
+    const normal = Array.from(this.geometry.attributes.normal.array);
+    const blockID = Array.from(this.geometry.attributes.blockID.array);
+
+    const groups: number[] = [];
+    for (const group of this.geometry.groups) {
+      const index = group.materialIndex || 0;
+      const { start, count } = group;
+      groups.push(start, count, index);
+    }
+
+    const materials: number[] = [];
+    if (Array.isArray(this.material)) {
+      for (const material of this.material as MeshLambertMaterial[]) {
+        const opacity = material.opacity;
+        const transparent = material.transparent ? 1 : 0;
+        const color = new Color(material.color).toArray();
+        materials.push(opacity, transparent, ...color);
+      }
+    }
+
+    const matrices = Array.from(this.instanceMatrix.array);
+
+    return { position, normal, blockID, groups, materials, matrices };
   }
 
   private newFragmentGeometry(geometry: BufferGeometry) {

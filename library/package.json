@@ -10,7 +10,8 @@
     "build-examples": "rollup -c",
     "build-docs": "npx typedoc && yarn copy-cover",
     "copy-cover": "cpy ../cover.png ../docs",
-    "publish-repo": "cpy package.json dist && cd dist && npm publish"
+    "publish-repo": "cpy package.json dist && cd dist && npm publish",
+    "create-flatbuffers": "cd src/flatbuffers && flatc.exe --ts fragment.fbs"
   },
   "repository": {
     "type": "git",
@@ -30,6 +31,7 @@
   },
   "homepage": "https://github.com/ifcjs/fragment",
   "dependencies": {
+    "flatbuffers": "^23.3.3",
     "three": "0.135",
     "three-mesh-bvh": "^0.5.14"
   },

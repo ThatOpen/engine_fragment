@@ -54,19 +54,21 @@
   async function exportChairs() {
     if (!chairs) return;
 
-    const file = await chairs.export();
-    const link = document.createElement('a');
-    document.body.appendChild(link);
-
-    link.download = 'geometry.gltf';
-    link.href = URL.createObjectURL(file.geometry);
-    link.click();
-
-    link.download = 'data.json';
-    link.href = URL.createObjectURL(file.data);
-    link.click();
-
-    link.remove();
+    const exporter = new FRAGS.Exporter();
+    const file = exporter.export([chairs]);
+    console.log(file);
+    // const link = document.createElement('a');
+    // document.body.appendChild(link);
+    //
+    // link.download = 'geometry.gltf';
+    // link.href = URL.createObjectURL(file.geometry);
+    // link.click();
+    //
+    // link.download = 'data.json';
+    // link.href = URL.createObjectURL(file.data);
+    // link.click();
+    //
+    // link.remove();
   }
 
   // Set up dat.gui menu

@@ -179,21 +179,13 @@ export class Fragment implements IFragment {
     oldMesh.dispose();
   }
 
-  async export() {
-    const geometryBuffer = await this.mesh.export();
-    const geometry = new File([new Blob([geometryBuffer])], `${this.id}.glb`);
-
-    const fragmentData: ExportedFragment = {
-      matrices: Array.from(this.mesh.instanceMatrix.array),
-      ids: this.items,
-      id: this.id,
-    };
-
-    const dataString = JSON.stringify(fragmentData);
-    const data = new File([new Blob([dataString])], `${this.id}.json`);
-
-    return { geometry, data };
+  export() {
+    const geometry = this.mesh.export();
+    const ids = this.items.join("|");
+    const id = this.id;
+    return { ...geometry, ids, id };
   }
+
   async exportRaw() {
     const geometryBuffer = await this.mesh.export();
 
