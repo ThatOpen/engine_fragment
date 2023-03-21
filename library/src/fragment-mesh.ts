@@ -4,6 +4,7 @@ import {
   Color,
   MeshLambertMaterial,
 } from "three";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
 import { Material } from "three/src/materials/Material";
 import { BufferAttribute } from "three/src/core/BufferAttribute";
 import { IFragmentGeometry, IFragmentMesh } from "./base-types";
@@ -12,6 +13,16 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   material: Material[];
   geometry: IFragmentGeometry;
   elementCount = 0;
+
+  private exportOptions = {
+    trs: false,
+    onlyVisible: false,
+    truncateDrawRange: true,
+    binary: true,
+    maxTextureSize: 0,
+  };
+
+  private exporter = new GLTFExporter();
 
   constructor(
     geometry: BufferGeometry,
@@ -23,10 +34,11 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
     this.geometry = this.newFragmentGeometry(geometry);
   }
 
-  export() {
-    const position = Array.from(this.geometry.attributes.position.array);
-    const normal = Array.from(this.geometry.attributes.normal.array);
+  exportData() {
+    const position = this.geometry.attributes.position.array as Float32Array;
+    const normal = this.geometry.attributes.normal.array as Float32Array;
     const blockID = Array.from(this.geometry.attributes.blockID.array);
+    const index = Array.from(this.geometry.index.array as Uint32Array);
 
     const groups: number[] = [];
     for (const group of this.geometry.groups) {
@@ -47,7 +59,19 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
 
     const matrices = Array.from(this.instanceMatrix.array);
 
-    return { position, normal, blockID, groups, materials, matrices };
+    return { position, normal, index, blockID, groups, materials, matrices };
+  }
+
+  export() {
+    const mesh = this;
+    return new Promise<any>((resolve) => {
+      this.exporter.parse(
+        mesh,
+        (geometry: any) => resolve(geometry),
+        (error) => console.log(error),
+        this.exportOptions
+      );
+    });
   }
 
   private newFragmentGeometry(geometry: BufferGeometry) {

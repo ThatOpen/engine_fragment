@@ -7,7 +7,8 @@ table Fragments {
 table Fragment {
     position: [float];
     normal: [float];
-    block_id: [float];
+    index: [int];
+    block_id: [int];
     groups: [float];
     materials: [float];
     matrices: [float];

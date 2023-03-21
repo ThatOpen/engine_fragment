@@ -14,7 +14,7 @@ module.exports = {
     "**/dist/*",
     "**/node_modules/*",
     "**/*.json",
-    "**/fragments-flatbuffers/*",
+    "**/flatbuffers/*",
   ],
   rules: {
     "prettier/prettier": [

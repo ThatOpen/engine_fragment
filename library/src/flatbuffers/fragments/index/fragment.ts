@@ -50,82 +50,97 @@ normalArray():Float32Array|null {
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
-blockId(index: number):number|null {
+index(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 8);
-  return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
-blockIdLength():number {
+indexLength():number {
   const offset = this.bb!.__offset(this.bb_pos, 8);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-blockIdArray():Float32Array|null {
+indexArray():Int32Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 8);
-  return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
+blockId(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+blockIdLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+blockIdArray():Int32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 groups(index: number):number|null {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 groupsLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 groupsArray():Float32Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 10);
+  const offset = this.bb!.__offset(this.bb_pos, 12);
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 materials(index: number):number|null {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 materialsLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 materialsArray():Float32Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 12);
+  const offset = this.bb!.__offset(this.bb_pos, 14);
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 matrices(index: number):number|null {
-  const offset = this.bb!.__offset(this.bb_pos, 14);
+  const offset = this.bb!.__offset(this.bb_pos, 16);
   return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 matricesLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 14);
+  const offset = this.bb!.__offset(this.bb_pos, 16);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 matricesArray():Float32Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 14);
+  const offset = this.bb!.__offset(this.bb_pos, 16);
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 ids():string|null
 ids(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 ids(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 16);
+  const offset = this.bb!.__offset(this.bb_pos, 18);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 id():string|null
 id(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 id(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 18);
+  const offset = this.bb!.__offset(this.bb_pos, 20);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 static startFragment(builder:flatbuffers.Builder) {
-  builder.startObject(8);
+  builder.startObject(9);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
@@ -170,19 +185,40 @@ static startNormalVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
-static addBlockId(builder:flatbuffers.Builder, blockIdOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(2, blockIdOffset, 0);
+static addIndex(builder:flatbuffers.Builder, indexOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, indexOffset, 0);
 }
 
-static createBlockIdVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
+static createIndexVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createIndexVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createIndexVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startIndexVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addBlockId(builder:flatbuffers.Builder, blockIdOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(3, blockIdOffset, 0);
+}
+
+static createBlockIdVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
 /**
  * @deprecated This Uint8Array overload will be removed in the future.
  */
 static createBlockIdVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
-static createBlockIdVector(builder:flatbuffers.Builder, data:number[]|Float32Array|Uint8Array):flatbuffers.Offset {
+static createBlockIdVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
-    builder.addFloat32(data[i]!);
+    builder.addInt32(data[i]!);
   }
   return builder.endVector();
 }
@@ -192,7 +228,7 @@ static startBlockIdVector(builder:flatbuffers.Builder, numElems:number) {
 }
 
 static addGroups(builder:flatbuffers.Builder, groupsOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(3, groupsOffset, 0);
+  builder.addFieldOffset(4, groupsOffset, 0);
 }
 
 static createGroupsVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
@@ -213,7 +249,7 @@ static startGroupsVector(builder:flatbuffers.Builder, numElems:number) {
 }
 
 static addMaterials(builder:flatbuffers.Builder, materialsOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(4, materialsOffset, 0);
+  builder.addFieldOffset(5, materialsOffset, 0);
 }
 
 static createMaterialsVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
@@ -234,7 +270,7 @@ static startMaterialsVector(builder:flatbuffers.Builder, numElems:number) {
 }
 
 static addMatrices(builder:flatbuffers.Builder, matricesOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(5, matricesOffset, 0);
+  builder.addFieldOffset(6, matricesOffset, 0);
 }
 
 static createMatricesVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
@@ -255,11 +291,11 @@ static startMatricesVector(builder:flatbuffers.Builder, numElems:number) {
 }
 
 static addIds(builder:flatbuffers.Builder, idsOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(6, idsOffset, 0);
+  builder.addFieldOffset(7, idsOffset, 0);
 }
 
 static addId(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(7, idOffset, 0);
+  builder.addFieldOffset(8, idOffset, 0);
 }
 
 static endFragment(builder:flatbuffers.Builder):flatbuffers.Offset {
@@ -267,10 +303,11 @@ static endFragment(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, blockIdOffset:flatbuffers.Offset, groupsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, matricesOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, indexOffset:flatbuffers.Offset, blockIdOffset:flatbuffers.Offset, groupsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, matricesOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset):flatbuffers.Offset {
   Fragment.startFragment(builder);
   Fragment.addPosition(builder, positionOffset);
   Fragment.addNormal(builder, normalOffset);
+  Fragment.addIndex(builder, indexOffset);
   Fragment.addBlockId(builder, blockIdOffset);
   Fragment.addGroups(builder, groupsOffset);
   Fragment.addMaterials(builder, materialsOffset);

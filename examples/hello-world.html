@@ -37,6 +37,20 @@
 
   let chairs;
 
+  const serializer = new FRAGS.Serializer();
+
+  async function importChairsBinary() {
+    if (chairs !== undefined) return;
+    const fetched = await fetch("./example.bin");
+    const rawData = await fetched.arrayBuffer();
+    const buffer = new Uint8Array(rawData);
+    const result = serializer.import(buffer);
+
+    for(const frag of result) {
+      threeScene.scene.add(frag.mesh);
+    }
+  }
+
   async function importChairs() {
     if (chairs !== undefined) return;
     const geometry = './resources/exported/chairs/geometry.gltf';
@@ -54,21 +68,35 @@
   async function exportChairs() {
     if (!chairs) return;
 
-    const exporter = new FRAGS.Exporter();
-    const file = exporter.export([chairs]);
-    console.log(file);
-    // const link = document.createElement('a');
-    // document.body.appendChild(link);
-    //
-    // link.download = 'geometry.gltf';
-    // link.href = URL.createObjectURL(file.geometry);
-    // link.click();
-    //
-    // link.download = 'data.json';
-    // link.href = URL.createObjectURL(file.data);
-    // link.click();
-    //
-    // link.remove();
+    const link = document.createElement('a');
+    document.body.appendChild(link);
+
+    link.download = 'geometry.gltf';
+    link.href = URL.createObjectURL(file.geometry);
+    link.click();
+
+    link.download = 'data.json';
+    link.href = URL.createObjectURL(file.data);
+    link.click();
+
+    link.remove();
+  }
+
+  async function exportChairsBinary() {
+    if (!chairs) return;
+
+    const buffer = serializer.export([chairs]);
+    console.log(buffer);
+
+    const file = new File([new Blob([buffer])], "example.bin");
+    const link = document.createElement('a');
+    document.body.appendChild(link);
+
+    link.download = 'example.glb';
+    link.href = URL.createObjectURL(file);
+    link.click();
+
+    link.remove();
   }
 
   // Set up dat.gui menu
@@ -82,15 +110,23 @@
     'Import chairs': () => {
       importChairs();
     },
+    'Import chairs binary': () => {
+      importChairsBinary();
+    },
     'Export chairs': () => {
       exportChairs();
+    },
+    'Export chairs binary': () => {
+      exportChairsBinary();
     }
   };
 
   const actionsFolder = gui.addFolder('Actions');
   actionsFolder.add(actions, 'Import chairs');
+  actionsFolder.add(actions, 'Import chairs binary');
   actionsFolder.add(actions, 'Delete chairs');
   actionsFolder.add(actions, 'Export chairs');
+  actionsFolder.add(actions, 'Export chairs binary');
 
 </script>
 </body>

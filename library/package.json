@@ -11,6 +11,7 @@
     "build-docs": "npx typedoc && yarn copy-cover",
     "copy-cover": "cpy ../cover.png ../docs",
     "publish-repo": "cpy package.json dist && cd dist && npm publish",
+    "regen-json": "cd src/flatbuffers && flatc.exe --json --raw-binary fragment.fbs -- example.bin",
     "create-flatbuffers": "cd src/flatbuffers && flatc.exe --ts fragment.fbs"
   },
   "repository": {
