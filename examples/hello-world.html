@@ -68,10 +68,12 @@
   async function exportChairs() {
     if (!chairs) return;
 
+    const file = await chairs.export();
+
     const link = document.createElement('a');
     document.body.appendChild(link);
 
-    link.download = 'geometry.gltf';
+    link.download = 'geometry.frag';
     link.href = URL.createObjectURL(file.geometry);
     link.click();
 
