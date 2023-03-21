@@ -1,29 +1,44 @@
 <!doctype html>
-<html lang="en">
+<html lang='en'>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <link rel="stylesheet" href="resources/styles.css">
-  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <meta charset='UTF-8'>
+  <meta name='viewport'
+        content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
+  <meta http-equiv='X-UA-Compatible' content='ie=edge'>
+  <link rel='stylesheet' href='resources/styles.css'>
+  <link rel='icon' type='image/x-icon' href='../favicon.ico'>
   <title>Components | Instanced fragment</title>
 </head>
 <body>
-<canvas class="full-screen" id="container"></canvas>
-<script type="module">
+<canvas class='full-screen' id='container'></canvas>
+<script type='importmap'>
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.135.0/build/three.module.js",
+        "three/examples/jsm/lines/LineMaterial": "https://unpkg.com/three@0.135.0/examples/jsm/lines/LineMaterial.js",
+        "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.135.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/loaders/GLTFLoader": "https://unpkg.com/three@0.135.0/examples/jsm/loaders/GLTFLoader.js",
+        "three/examples/jsm/libs/lil-gui.module.min": "https://unpkg.com/three@0.135.0/examples/jsm/libs/lil-gui.module.min.js",
+        "stats.js/src/Stats.js": "https://unpkg.com/stats-js@1.0.1/src/Stats.js",
+        "unzipit": "https://unpkg.com/unzipit@1.4.0/dist/unzipit.module.js",
+        "client-zip": "https://unpkg.com/client-zip@2.3.0/index.js"
+      }
+    }
+
+</script>
+<script type='module'>
   import { SimpleThreeScene } from './resources/simple-three-scene.js';
   import * as FRAGS from './resources/fragment.js';
-  import * as THREE from './resources/three.module.js';
-  import { GLTFLoader } from './resources/GLTFLoader.js';
+  import * as THREE from 'three';
+  import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
-  const canvas = document.getElementById("container");
+  const canvas = document.getElementById('container');
   const threeScene = new SimpleThreeScene(canvas);
 
   // Get the chair geometry
 
   const loader = new GLTFLoader();
-  const rawGltf = await loader.loadAsync("./resources/models/chair.glb");
+  const rawGltf = await loader.loadAsync('./resources/models/chair.glb');
   const chairMeshes = rawGltf.scene.children[0].children;
   const chairGeometries = chairMeshes.map((mesh) => [mesh.geometry]);
   const geometry = FRAGS.GeometryUtils.merge(chairGeometries);
@@ -31,10 +46,10 @@
   // Get the chair materials
 
   const materials = chairMeshes.map(mesh => new THREE.MeshLambertMaterial({
-      color: mesh.material.color,
-      transparent: mesh.material.transparent,
-      opacity: mesh.material.opacity
-    }));
+    color: mesh.material.color,
+    transparent: mesh.material.transparent,
+    opacity: mesh.material.opacity
+  }));
 
   // Create a new fragment and add it to the scene
 
@@ -52,7 +67,7 @@
         const matrix = new THREE.Matrix4();
         matrix.setPosition(i * offset, j * offset, k * offset);
         const id = `${i}${j}${k}`;
-        chairs.setInstance(counter++, {ids: [id], transform: matrix})
+        chairs.setInstance(counter++, { ids: [id], transform: matrix });
       }
     }
   }

@@ -1,81 +1,133 @@
 <!doctype html>
-<html lang="en">
+<html lang='en'>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-  <meta http-equiv="X-UA-Compatible" content="ie=edge">
-  <link rel="stylesheet" href="resources/styles.css">
-  <link rel="icon" type="image/x-icon" href="../favicon.ico">
+  <meta charset='UTF-8'>
+  <meta name='viewport'
+        content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
+  <meta http-equiv='X-UA-Compatible' content='ie=edge'>
+  <link rel='stylesheet' href='resources/styles.css'>
+  <link rel='icon' type='image/x-icon' href='../favicon.ico'>
   <title>Components | Hello world</title>
 </head>
 <body>
-  <canvas class="full-screen" id="container"></canvas>
-  <script type="module">
-    import { SimpleThreeScene } from './resources/simple-three-scene.js';
-    import * as FRAGS from './resources/fragment.js';
-    import * as dat from './resources/lil-gui.module.min.js'
-
-		const canvas = document.getElementById("container");
-    const threeScene = new SimpleThreeScene(canvas);
-
-    const loader = new FRAGS.FragmentLoader();
-
-    let chairs;
-
-    async function importChairs() {
-      if(chairs !== undefined) return;
-      const geometry = "./resources/exported/chairs/geometry.gltf";
-      const data = "./resources/exported/chairs/data.json";
-      chairs = await loader.load(geometry, data);
-      threeScene.scene.add(chairs.mesh);
-    }
-
-    function deleteChairs() {
-      if(!chairs) return;
-      chairs.dispose(true);
-      chairs = undefined;
-    }
-
-    async function exportChairs() {
-      if(!chairs) return;
-
-      const file = await chairs.export();
-      const link = document.createElement('a');
-      document.body.appendChild(link);
-
-      link.download = "geometry.gltf";
-      link.href = URL.createObjectURL(file.geometry);
-      link.click();
-
-      link.download = "data.json";
-      link.href = URL.createObjectURL(file.data);
-      link.click();
-
-      link.remove();
-    }
-
-    // Set up dat.gui menu
-
-    const gui = new dat.GUI();
-
-    const actions = {
-      'Delete chairs': () => {
-        deleteChairs();
-      },
-      'Import chairs': () => {
-        importChairs();
-      },
-      'Export chairs': () => {
-        exportChairs();
+<canvas class='full-screen' id='container'></canvas>
+<script type='importmap'>
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.135.0/build/three.module.js",
+        "three/examples/jsm/lines/LineMaterial": "https://unpkg.com/three@0.135.0/examples/jsm/lines/LineMaterial.js",
+        "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.135.0/examples/jsm/controls/OrbitControls.js",
+        "three/examples/jsm/libs/lil-gui.module.min": "https://unpkg.com/three@0.135.0/examples/jsm/libs/lil-gui.module.min.js",
+        "stats.js/src/Stats.js": "https://unpkg.com/stats-js@1.0.1/src/Stats.js",
+        "unzipit": "https://unpkg.com/unzipit@1.4.0/dist/unzipit.module.js",
+        "client-zip": "https://unpkg.com/client-zip@2.3.0/index.js"
       }
     }
 
-    const actionsFolder = gui.addFolder('Actions');
-    actionsFolder.add(actions, 'Import chairs');
-    actionsFolder.add(actions, 'Delete chairs');
-    actionsFolder.add(actions, 'Export chairs');
+</script>
+<script type='module'>
+  import { SimpleThreeScene } from './resources/simple-three-scene.js';
+  import * as dat from 'three/examples/jsm/libs/lil-gui.module.min';
+  import * as FRAGS from './resources/fragment.js';
 
-  </script>
+  const canvas = document.getElementById('container');
+  const threeScene = new SimpleThreeScene(canvas);
+
+  const loader = new FRAGS.FragmentLoader();
+
+  let chairs;
+
+  const serializer = new FRAGS.Serializer();
+
+  async function importChairsBinary() {
+    if (chairs !== undefined) return;
+    const fetched = await fetch("./resources/chairs.frag");
+    const rawData = await fetched.arrayBuffer();
+    const buffer = new Uint8Array(rawData);
+    const result = serializer.import(buffer);
+
+    for(const frag of result) {
+      threeScene.scene.add(frag.mesh);
+    }
+  }
+
+  async function importChairs() {
+    if (chairs !== undefined) return;
+    const geometry = './resources/exported/chairs/geometry.gltf';
+    const data = './resources/exported/chairs/data.json';
+    chairs = await loader.load(geometry, data);
+    threeScene.scene.add(chairs.mesh);
+  }
+
+  function deleteChairs() {
+    if (!chairs) return;
+    chairs.dispose(true);
+    chairs = undefined;
+  }
+
+  async function exportChairs() {
+    if (!chairs) return;
+
+    const file = await chairs.export();
+
+    const link = document.createElement('a');
+    document.body.appendChild(link);
+
+    link.download = 'chairs.frag';
+    link.href = URL.createObjectURL(file.geometry);
+    link.click();
+
+    link.download = 'data.json';
+    link.href = URL.createObjectURL(file.data);
+    link.click();
+
+    link.remove();
+  }
+
+  async function exportChairsBinary() {
+    if (!chairs) return;
+
+    const buffer = serializer.export([chairs]);
+    const file = new File([new Blob([buffer])], "chairs.frag");
+    const link = document.createElement('a');
+    document.body.appendChild(link);
+
+    link.download = 'chairs.frag';
+    link.href = URL.createObjectURL(file);
+    link.click();
+
+    link.remove();
+  }
+
+  // Set up dat.gui menu
+
+  const gui = new dat.GUI();
+
+  const actions = {
+    'Delete chairs': () => {
+      deleteChairs();
+    },
+    'Import chairs': () => {
+      importChairs();
+    },
+    'Import chairs binary': () => {
+      importChairsBinary();
+    },
+    'Export chairs': () => {
+      exportChairs();
+    },
+    'Export chairs binary': () => {
+      exportChairsBinary();
+    },
+  };
+
+  const actionsFolder = gui.addFolder('Actions');
+  actionsFolder.add(actions, 'Import chairs');
+  actionsFolder.add(actions, 'Import chairs binary');
+  actionsFolder.add(actions, 'Delete chairs');
+  actionsFolder.add(actions, 'Export chairs');
+  actionsFolder.add(actions, 'Export chairs binary');
+
+</script>
 </body>
 </html>

@@ -23,28 +23,31 @@ export class FragmentLoader {
     ) as Mesh[];
     const geometry = await GeometryUtils.mergeGltfMeshes(meshes);
     const materials = this.getMaterials(meshes);
-    const items = await this.getItems(dataURL);
-    return this.getFragment(geometry, materials, items);
+
+    const dataResponse = await fetch(dataURL);
+    const data = (await dataResponse.json()) as ExportedFragment;
+
+    return this.getFragment(geometry, materials, data);
   }
 
   private getFragment(
     geometry: BufferGeometry,
     materials: MeshLambertMaterial[],
-    items: any[]
+    data: ExportedFragment
   ) {
+    const items = this.getInstances(data);
     const fragment = new Fragment(geometry, materials, items.length);
+
+    if (data.id) {
+      fragment.id = data.id;
+      fragment.mesh.uuid = data.id;
+    }
 
     for (let i = 0; i < items.length; i++) {
       fragment.setInstance(i, items[i]);
     }
 
     return fragment;
-  }
-
-  private async getItems(url: string) {
-    const dataResponse = await fetch(url);
-    const data = await dataResponse.json();
-    return this.getInstances(data);
   }
 
   private getInstances(data: ExportedFragment) {

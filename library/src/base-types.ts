@@ -48,4 +48,5 @@ export interface IFragment {
 export interface ExportedFragment {
   ids: string[];
   matrices: number[];
+  id: string;
 }

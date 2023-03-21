@@ -1,7 +1,12 @@
-import { BufferGeometry, InstancedMesh } from "three";
+import {
+  BufferGeometry,
+  InstancedMesh,
+  Color,
+  MeshLambertMaterial,
+} from "three";
+import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
 import { Material } from "three/src/materials/Material";
 import { BufferAttribute } from "three/src/core/BufferAttribute";
-import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
 import { IFragmentGeometry, IFragmentMesh } from "./base-types";
 
 export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
@@ -27,6 +32,34 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
     super(geometry, material, count);
     this.material = FragmentMesh.newMaterialArray(material);
     this.geometry = this.newFragmentGeometry(geometry);
+  }
+
+  exportData() {
+    const position = this.geometry.attributes.position.array as Float32Array;
+    const normal = this.geometry.attributes.normal.array as Float32Array;
+    const blockID = Array.from(this.geometry.attributes.blockID.array);
+    const index = Array.from(this.geometry.index.array as Uint32Array);
+
+    const groups: number[] = [];
+    for (const group of this.geometry.groups) {
+      const index = group.materialIndex || 0;
+      const { start, count } = group;
+      groups.push(start, count, index);
+    }
+
+    const materials: number[] = [];
+    if (Array.isArray(this.material)) {
+      for (const material of this.material as MeshLambertMaterial[]) {
+        const opacity = material.opacity;
+        const transparent = material.transparent ? 1 : 0;
+        const color = new Color(material.color).toArray();
+        materials.push(opacity, transparent, ...color);
+      }
+    }
+
+    const matrices = Array.from(this.instanceMatrix.array);
+
+    return { position, normal, index, blockID, groups, materials, matrices };
   }
 
   export() {
