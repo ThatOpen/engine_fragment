@@ -41,7 +41,7 @@
 
   async function importChairsBinary() {
     if (chairs !== undefined) return;
-    const fetched = await fetch("./example.bin");
+    const fetched = await fetch("./resources/chairs.frag");
     const rawData = await fetched.arrayBuffer();
     const buffer = new Uint8Array(rawData);
     const result = serializer.import(buffer);
@@ -73,7 +73,7 @@
     const link = document.createElement('a');
     document.body.appendChild(link);
 
-    link.download = 'geometry.frag';
+    link.download = 'chairs.frag';
     link.href = URL.createObjectURL(file.geometry);
     link.click();
 
@@ -88,13 +88,11 @@
     if (!chairs) return;
 
     const buffer = serializer.export([chairs]);
-    console.log(buffer);
-
-    const file = new File([new Blob([buffer])], "example.bin");
+    const file = new File([new Blob([buffer])], "chairs.frag");
     const link = document.createElement('a');
     document.body.appendChild(link);
 
-    link.download = 'example.glb';
+    link.download = 'chairs.frag';
     link.href = URL.createObjectURL(file);
     link.click();
 
@@ -120,7 +118,7 @@
     },
     'Export chairs binary': () => {
       exportChairsBinary();
-    }
+    },
   };
 
   const actionsFolder = gui.addFolder('Actions');
