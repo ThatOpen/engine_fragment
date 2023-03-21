@@ -1,7 +1,7 @@
 {
   "name": "bim-fragment-root",
   "description": "BIM geometry API",
-  "version": "0.0.14",
+  "version": "0.0.15",
   "private": true,
   "main": "fragment/src/fragment.ts",
   "author": "agviegas",
