@@ -19,6 +19,7 @@ export class Serializer {
       const instances = this.constructInstances(fbFragment);
       const fragment = new Fragment(geometry, materials, instances.length);
       this.setInstances(instances, fragment);
+      this.setID(fbFragment, fragment);
       fragments.push(fragment);
     }
 
@@ -82,6 +83,13 @@ export class Serializer {
     builder.finish(result);
 
     return builder.asUint8Array();
+  }
+
+  private setID(fbFragment: FB.Fragment, fragment: Fragment) {
+    const id = fbFragment.id();
+    if (id) {
+      fragment.id = id;
+    }
   }
 
   private setInstances(instances: Items[], fragment: Fragment) {
