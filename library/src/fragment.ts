@@ -1,4 +1,5 @@
 import { BufferGeometry, Material, Matrix4 } from "three";
+import { BufferAttribute } from "three/src/core/BufferAttribute";
 import { Items, IFragment, ExportedFragment } from "./base-types";
 import { FragmentMesh } from "./fragment-mesh";
 import { Blocks } from "./blocks";
@@ -78,7 +79,8 @@ export class Fragment implements IFragment {
   }
 
   getVertexBlockID(geometry: BufferGeometry, index: number) {
-    return geometry.attributes.blockID.array[index];
+    const blocks = geometry.attributes.blockID as BufferAttribute;
+    return blocks.array[index];
   }
 
   getItemData(itemID: string) {
