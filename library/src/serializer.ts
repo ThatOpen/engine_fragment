@@ -4,6 +4,10 @@ import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
 import { Items } from "./base-types";
 
+/**
+ * Object to export and import sets of fragments efficiently using
+ * [flatbuffers](https://flatbuffers.dev/).
+ */
 export class Serializer {
   import(bytes: Uint8Array): Fragment[] {
     const buffer = new flatbuffers.ByteBuffer(bytes);
