@@ -6,6 +6,7 @@ import {
   MeshLambertMaterial,
   MeshPhysicalMaterial,
   Object3D,
+  DoubleSide
 } from "three";
 import { Fragment } from "./fragment";
 import { ExportedFragment, Items } from "./base-types";
@@ -84,6 +85,7 @@ export class FragmentLoader {
         color: material.color,
         opacity: material.opacity,
         transparent: material.transparent,
+        side: DoubleSide
       });
     });
   }
