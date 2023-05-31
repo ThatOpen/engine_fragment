@@ -33,8 +33,6 @@
   const canvas = document.getElementById('container');
   const threeScene = new SimpleThreeScene(canvas);
 
-  const loader = new FRAGS.FragmentLoader();
-
   let chairs;
 
   const serializer = new FRAGS.Serializer();
@@ -51,37 +49,10 @@
     }
   }
 
-  async function importChairs() {
-    if (chairs !== undefined) return;
-    const geometry = './resources/exported/chairs/geometry.gltf';
-    const data = './resources/exported/chairs/data.json';
-    chairs = await loader.load(geometry, data);
-    threeScene.scene.add(chairs.mesh);
-  }
-
   function deleteChairs() {
     if (!chairs) return;
     chairs.dispose(true);
     chairs = undefined;
-  }
-
-  async function exportChairs() {
-    if (!chairs) return;
-
-    const file = await chairs.export();
-
-    const link = document.createElement('a');
-    document.body.appendChild(link);
-
-    link.download = 'chairs.frag';
-    link.href = URL.createObjectURL(file.geometry);
-    link.click();
-
-    link.download = 'data.json';
-    link.href = URL.createObjectURL(file.data);
-    link.click();
-
-    link.remove();
   }
 
   async function exportChairsBinary() {
@@ -107,14 +78,8 @@
     'Delete chairs': () => {
       deleteChairs();
     },
-    'Import chairs': () => {
-      importChairs();
-    },
     'Import chairs binary': () => {
       importChairsBinary();
-    },
-    'Export chairs': () => {
-      exportChairs();
     },
     'Export chairs binary': () => {
       exportChairsBinary();

@@ -1,0 +1,19 @@
+namespace Fragments.index;
+
+table Fragments {
+    items: [Fragment];
+}
+
+table Fragment {
+    position: [float];
+    normal: [float];
+    index: [int];
+    block_id: [int];
+    groups: [float];
+    materials: [float];
+    matrices: [float];
+    ids: string;
+    id: string;
+}
+
+root_type Fragments;

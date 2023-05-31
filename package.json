@@ -1,20 +1,19 @@
 {
-  "name": "bim-fragment-root",
-  "description": "BIM geometry API",
-  "version": "0.0.16",
-  "private": true,
-  "main": "fragment/src/fragment.ts",
-  "author": "agviegas",
-  "license": "MIT",
-  "repository": "git+https://github.com/ifcjs/fragment",
+  "name": "bim-fragment",
+  "version": "0.0.18",
+  "description": "3D BIM Geometry API",
+  "main": "index.js",
   "scripts": {
-    "build": "yarn workspace bim-fragment build",
-    "build-docs": "yarn workspace bim-fragment build-docs",
-    "test": "yarn workspace bim-fragment test",
-    "publish-repo": "cd library && npm run publish-repo"
+    "test": "jest",
+    "build": "tsc && yarn build-examples",
+    "build-examples": "rollup -c resources/rollup.config.mjs",
+    "publish-repo": "cpy package.json dist && cd dist && npm publish",
+    "create-flatbuffers": "cd src/flatbuffers && flatc.exe --ts fragment.fbs",
+    "regen-json": "cd src/flatbuffers && flatc.exe --json --raw-binary fragment.fbs -- example.bin"
   },
-  "bugs": {
-    "url": "https://github.com/agviegas/web-ifc-viewer/issues"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ifcjs/fragment.git"
   },
   "keywords": [
     "ifc",
@@ -23,7 +22,42 @@
     "bim",
     "3d"
   ],
-  "workspaces": [
-    "library"
-  ]
+  "author": "agviegas",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ifcjs/fragment/issues"
+  },
+  "homepage": "https://github.com/ifcjs/fragment",
+  "dependencies": {
+    "flatbuffers": "^23.3.3",
+    "three": "0.152.2",
+    "three-mesh-bvh": "0.6.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "25.0.0",
+    "@rollup/plugin-node-resolve": "15.1.0",
+    "@tailwindcss/forms": "^0.5.3",
+    "@types/jest": "27.0.0",
+    "@types/node": "^14.14.31",
+    "@types/three": "0.152.1",
+    "@typescript-eslint/eslint-plugin": "^4.27.0",
+    "@typescript-eslint/parser": "^4.27.0",
+    "cpy-cli": "^3.1.1",
+    "eslint": "^7.28.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-import": "^2.23.4",
+    "eslint-plugin-prettier": "^3.4.0",
+    "jest": "^27.0.4",
+    "prettier": "^2.3.1",
+    "rollup": "^3.2.3",
+    "ts-jest": "^27.0.3",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.3.2"
+  },
+  "browser": {
+    "crypto": false,
+    "fs": false,
+    "path": false
+  }
 }
