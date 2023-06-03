@@ -11597,7 +11597,7 @@ class Serializer {
             const red = materials[i + 2];
             const green = materials[i + 3];
             const blue = materials[i + 4];
-            const color = new THREE.Color(red, green, blue);
+            const color = new THREE.Color().setRGB(red, green, blue, "srgb");
             const material = new THREE.MeshLambertMaterial({
                 color,
                 opacity,
