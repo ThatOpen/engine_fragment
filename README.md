@@ -20,7 +20,7 @@
 [![NPM Package][npm-downloads]][npm-url]
 [![NPM Package][oc-contributors]][oc]
 [![Discord][discord]][discord-url]
-[![Tests](https://github.com/IFCjs/fragment/actions/workflows/tests.yaml/badge.svg)](https://github.com/IFCjs/fragment/actions/workflows/tests.yaml)
+[![Tests](https://github.com/IFCjs/fragment/actions/workflows/tests.yml/badge.svg)](https://github.com/IFCjs/fragment/actions/workflows/tests.yml)
 
 This library is a geometric API based on [Three.js](https://github.com/mrdoob/three.js/) and other libraries to efficiently display built environment data.
 
