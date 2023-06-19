@@ -93,6 +93,7 @@ export class Serializer {
     const id = fbFragment.id();
     if (id) {
       fragment.id = id;
+      fragment.mesh.uuid = id;
     }
   }
 
