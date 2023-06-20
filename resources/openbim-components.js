@@ -1,12 +1,12 @@
 import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
-import { BufferGeometry, BufferAttribute as BufferAttribute$1, PropertyBinding, InterpolateLinear, Vector3 as Vector3$1, RGBAFormat, RGBFormat, DoubleSide, MathUtils, InterpolateDiscrete, Matrix4, Scene, NearestFilter, NearestMipmapNearestFilter, NearestMipmapLinearFilter, LinearFilter, LinearMipmapNearestFilter, LinearMipmapLinearFilter, ClampToEdgeWrapping, RepeatWrapping, MirroredRepeatWrapping, InstancedMesh, Color as Color$1, Vector2 as Vector2$1, Plane, Line3, Triangle, Sphere, BackSide, Box3, FrontSide, Mesh, Ray } from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+import { BufferGeometry, BufferAttribute as BufferAttribute$1, Color, PropertyBinding, InterpolateLinear, Vector3 as Vector3$1, Source, NoColorSpace, MathUtils, RGBAFormat, DoubleSide, InterpolateDiscrete, Matrix4, Scene, NearestFilter, NearestMipmapNearestFilter, NearestMipmapLinearFilter, LinearFilter, LinearMipmapNearestFilter, LinearMipmapLinearFilter, ClampToEdgeWrapping, RepeatWrapping, MirroredRepeatWrapping, SRGBColorSpace, InstancedMesh, Vector2 as Vector2$1, Plane, Line3, Triangle, Sphere, BackSide, Box3, FrontSide, Mesh, Ray } from 'https://unpkg.com/three@0.152.2/build/three.module.js';
 
 /**
-	 * @param  {Array<BufferGeometry>} geometries
-	 * @param  {Boolean} useGroups
-	 * @return {BufferGeometry}
-	 */
-function mergeBufferGeometries( geometries, useGroups = false ) {
+ * @param  {Array<BufferGeometry>} geometries
+ * @param  {Boolean} useGroups
+ * @return {BufferGeometry}
+ */
+function mergeGeometries( geometries, useGroups = false ) {
 
 	const isIndexed = geometries[ 0 ].index !== null;
 
@@ -31,7 +31,7 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 		if ( isIndexed !== ( geometry.index !== null ) ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure index attribute exists among all geometries, or in none of them.' );
 			return null;
 
 		}
@@ -42,7 +42,7 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 			if ( ! attributesUsed.has( name ) ) {
 
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure "' + name + '" attribute exists among all geometries, or in none of them.' );
+				console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index ' + i + '. All geometries must have compatible attributes; make sure "' + name + '" attribute exists among all geometries, or in none of them.' );
 				return null;
 
 			}
@@ -59,7 +59,7 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 		if ( attributesCount !== attributesUsed.size ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. Make sure all geometries have the same number of attributes.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index ' + i + '. Make sure all geometries have the same number of attributes.' );
 			return null;
 
 		}
@@ -68,7 +68,7 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 		if ( morphTargetsRelative !== geometry.morphTargetsRelative ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. .morphTargetsRelative must be consistent throughout all geometries.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index ' + i + '. .morphTargetsRelative must be consistent throughout all geometries.' );
 			return null;
 
 		}
@@ -77,7 +77,7 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 			if ( ! morphAttributesUsed.has( name ) ) {
 
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '.  .morphAttributes must be consistent throughout all geometries.' );
+				console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index ' + i + '.  .morphAttributes must be consistent throughout all geometries.' );
 				return null;
 
 			}
@@ -87,11 +87,6 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 			morphAttributes[ name ].push( geometry.morphAttributes[ name ] );
 
 		}
-
-		// gather .userData
-
-		mergedGeometry.userData.mergedUserData = mergedGeometry.userData.mergedUserData || [];
-		mergedGeometry.userData.mergedUserData.push( geometry.userData );
 
 		if ( useGroups ) {
 
@@ -107,7 +102,7 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 			} else {
 
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed with geometry at index ' + i + '. The geometry must have either an index or a position attribute' );
+				console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed with geometry at index ' + i + '. The geometry must have either an index or a position attribute' );
 				return null;
 
 			}
@@ -149,11 +144,11 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 	for ( const name in attributes ) {
 
-		const mergedAttribute = mergeBufferAttributes( attributes[ name ] );
+		const mergedAttribute = mergeAttributes( attributes[ name ] );
 
 		if ( ! mergedAttribute ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed while trying to merge the ' + name + ' attribute.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the ' + name + ' attribute.' );
 			return null;
 
 		}
@@ -183,11 +178,11 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
 
 			}
 
-			const mergedMorphAttribute = mergeBufferAttributes( morphAttributesToMerge );
+			const mergedMorphAttribute = mergeAttributes( morphAttributesToMerge );
 
 			if ( ! mergedMorphAttribute ) {
 
-				console.error( 'THREE.BufferGeometryUtils: .mergeBufferGeometries() failed while trying to merge the ' + name + ' morphAttribute.' );
+				console.error( 'THREE.BufferGeometryUtils: .mergeGeometries() failed while trying to merge the ' + name + ' morphAttribute.' );
 				return null;
 
 			}
@@ -206,7 +201,7 @@ function mergeBufferGeometries( geometries, useGroups = false ) {
  * @param {Array<BufferAttribute>} attributes
  * @return {BufferAttribute}
  */
-function mergeBufferAttributes( attributes ) {
+function mergeAttributes( attributes ) {
 
 	let TypedArray;
 	let itemSize;
@@ -219,7 +214,7 @@ function mergeBufferAttributes( attributes ) {
 
 		if ( attribute.isInterleavedBufferAttribute ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. InterleavedBufferAttributes are not supported.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeAttributes() failed. InterleavedBufferAttributes are not supported.' );
 			return null;
 
 		}
@@ -227,7 +222,7 @@ function mergeBufferAttributes( attributes ) {
 		if ( TypedArray === undefined ) TypedArray = attribute.array.constructor;
 		if ( TypedArray !== attribute.array.constructor ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.array must be of consistent array types across matching attributes.' );
 			return null;
 
 		}
@@ -235,7 +230,7 @@ function mergeBufferAttributes( attributes ) {
 		if ( itemSize === undefined ) itemSize = attribute.itemSize;
 		if ( itemSize !== attribute.itemSize ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.itemSize must be consistent across matching attributes.' );
 			return null;
 
 		}
@@ -243,7 +238,7 @@ function mergeBufferAttributes( attributes ) {
 		if ( normalized === undefined ) normalized = attribute.normalized;
 		if ( normalized !== attribute.normalized ) {
 
-			console.error( 'THREE.BufferGeometryUtils: .mergeBufferAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.' );
+			console.error( 'THREE.BufferGeometryUtils: .mergeAttributes() failed. BufferAttribute.normalized must be consistent across matching attributes.' );
 			return null;
 
 		}
@@ -276,7 +271,7 @@ class GeometryUtils {
             geometriesByMat.push(merged);
             sizes.push(merged.index.count);
         }
-        const geometry = mergeBufferGeometries(geometriesByMat);
+        const geometry = mergeGeometries(geometriesByMat);
         this.setupMaterialGroups(sizes, geometry);
         this.cleanUp(geometriesByMat);
         return geometry;
@@ -349,7 +344,7 @@ class GeometryUtils {
         if (splitByBlocks) {
             this.splitByBlocks(geometries);
         }
-        const merged = mergeBufferGeometries(geometries);
+        const merged = mergeGeometries(geometries);
         this.cleanUp(geometries);
         return merged;
     }
@@ -369,6 +364,41 @@ class GeometryUtils {
         }
     }
 }
+
+/**
+ * The KHR_mesh_quantization extension allows these extra attribute component types
+ *
+ * @see https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md#extending-mesh-attributes
+ */
+const KHR_mesh_quantization_ExtraAttrTypes = {
+	POSITION: [
+		'byte',
+		'byte normalized',
+		'unsigned byte',
+		'unsigned byte normalized',
+		'short',
+		'short normalized',
+		'unsigned short',
+		'unsigned short normalized',
+	],
+	NORMAL: [
+		'byte normalized',
+		'short normalized',
+	],
+	TANGENT: [
+		'byte normalized',
+		'short normalized',
+	],
+	TEXCOORD: [
+		'byte',
+		'byte normalized',
+		'unsigned byte',
+		'short',
+		'short normalized',
+		'unsigned short',
+	],
+};
+
 
 class GLTFExporter {
 
@@ -390,12 +420,6 @@ class GLTFExporter {
 
 		this.register( function ( writer ) {
 
-			return new GLTFMaterialsPBRSpecularGlossiness( writer );
-
-		} );
-
-		this.register( function ( writer ) {
-
 			return new GLTFMaterialsTransmissionExtension( writer );
 
 		} );
@@ -408,7 +432,37 @@ class GLTFExporter {
 
 		this.register( function ( writer ) {
 
+			return new GLTFMaterialsIorExtension( writer );
+
+		} );
+
+		this.register( function ( writer ) {
+
+			return new GLTFMaterialsSpecularExtension( writer );
+
+		} );
+
+		this.register( function ( writer ) {
+
 			return new GLTFMaterialsClearcoatExtension( writer );
+
+		} );
+
+		this.register( function ( writer ) {
+
+			return new GLTFMaterialsIridescenceExtension( writer );
+
+		} );
+
+		this.register( function ( writer ) {
+
+			return new GLTFMaterialsSheenExtension( writer );
+
+		} );
+
+		this.register( function ( writer ) {
+
+			return new GLTFMaterialsEmissiveStrengthExtension( writer );
 
 		} );
 
@@ -446,14 +500,6 @@ class GLTFExporter {
 	 * @param  {Object} options options
 	 */
 	parse( input, onDone, onError, options ) {
-
-		if ( typeof onError === 'object' ) {
-
-			console.warn( 'THREE.GLTFExporter: parse() expects options as the fourth argument now.' );
-
-			options = onError;
-
-		}
 
 		const writer = new GLTFWriter();
 		const plugins = [];
@@ -496,10 +542,14 @@ const WEBGL_CONSTANTS = {
 	TRIANGLE_STRIP: 0x0005,
 	TRIANGLE_FAN: 0x0006,
 
+	BYTE: 0x1400,
 	UNSIGNED_BYTE: 0x1401,
+	SHORT: 0x1402,
 	UNSIGNED_SHORT: 0x1403,
-	FLOAT: 0x1406,
+	INT: 0x1404,
 	UNSIGNED_INT: 0x1405,
+	FLOAT: 0x1406,
+
 	ARRAY_BUFFER: 0x8892,
 	ELEMENT_ARRAY_BUFFER: 0x8893,
 
@@ -514,6 +564,8 @@ const WEBGL_CONSTANTS = {
 	MIRRORED_REPEAT: 33648,
 	REPEAT: 10497
 };
+
+const KHR_MESH_QUANTIZATION = 'KHR_mesh_quantization';
 
 const THREE_TO_WEBGL = {};
 
@@ -534,6 +586,8 @@ const PATH_PROPERTIES = {
 	quaternion: 'rotation',
 	morphTargetInfluences: 'weights'
 };
+
+const DEFAULT_SPECULAR_COLOR = new Color();
 
 // GLB constants
 // https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
@@ -573,24 +627,7 @@ function equalArray( array1, array2 ) {
  */
 function stringToArrayBuffer( text ) {
 
-	if ( window.TextEncoder !== undefined ) {
-
-		return new TextEncoder().encode( text ).buffer;
-
-	}
-
-	const array = new Uint8Array( new ArrayBuffer( text.length ) );
-
-	for ( let i = 0, il = text.length; i < il; i ++ ) {
-
-		const value = text.charCodeAt( i );
-
-		// Replacing multi-byte character with space(0x20).
-		array[ i ] = value > 0xFF ? 0x20 : value;
-
-	}
-
-	return array.buffer;
+	return new TextEncoder().encode( text ).buffer;
 
 }
 
@@ -640,6 +677,12 @@ function getMinMax( attribute, start, count ) {
 				else if ( a === 1 ) value = attribute.getY( i );
 				else if ( a === 2 ) value = attribute.getZ( i );
 				else if ( a === 3 ) value = attribute.getW( i );
+
+				if ( attribute.normalized === true ) {
+
+					value = MathUtils.normalize( value, attribute.array );
+
+				}
 
 			}
 
@@ -702,7 +745,48 @@ function getPaddedArrayBuffer( arrayBuffer, paddingByte = 0 ) {
 
 }
 
-let cachedCanvas = null;
+function getCanvas() {
+
+	if ( typeof document === 'undefined' && typeof OffscreenCanvas !== 'undefined' ) {
+
+		return new OffscreenCanvas( 1, 1 );
+
+	}
+
+	return document.createElement( 'canvas' );
+
+}
+
+function getToBlobPromise( canvas, mimeType ) {
+
+	if ( canvas.toBlob !== undefined ) {
+
+		return new Promise( ( resolve ) => canvas.toBlob( resolve, mimeType ) );
+
+	}
+
+	let quality;
+
+	// Blink's implementation of convertToBlob seems to default to a quality level of 100%
+	// Use the Blink default quality levels of toBlob instead so that file sizes are comparable.
+	if ( mimeType === 'image/jpeg' ) {
+
+		quality = 0.92;
+
+	} else if ( mimeType === 'image/webp' ) {
+
+		quality = 0.8;
+
+	}
+
+	return canvas.convertToBlob( {
+
+		type: mimeType,
+		quality: quality
+
+	} );
+
+}
 
 /**
  * Writer
@@ -721,7 +805,9 @@ class GLTFWriter {
 		this.buffers = [];
 		this.nodeMap = new Map();
 		this.skins = [];
+
 		this.extensionsUsed = {};
+		this.extensionsRequired = {};
 
 		this.uids = new Map();
 		this.uid = 0;
@@ -756,15 +842,13 @@ class GLTFWriter {
 	 * @param  {Function} onDone  Callback on completed
 	 * @param  {Object} options options
 	 */
-	async write( input, onDone, options ) {
+	async write( input, onDone, options = {} ) {
 
-		this.options = Object.assign( {}, {
+		this.options = Object.assign( {
 			// default options
 			binary: false,
 			trs: false,
 			onlyVisible: true,
-			truncateDrawRange: true,
-			embedImages: true,
 			maxTextureSize: Infinity,
 			animations: [],
 			includeCustomExtensions: false
@@ -785,15 +869,19 @@ class GLTFWriter {
 		const buffers = writer.buffers;
 		const json = writer.json;
 		options = writer.options;
+
 		const extensionsUsed = writer.extensionsUsed;
+		const extensionsRequired = writer.extensionsRequired;
 
 		// Merge buffers.
 		const blob = new Blob( buffers, { type: 'application/octet-stream' } );
 
 		// Declare extensions.
 		const extensionsUsedList = Object.keys( extensionsUsed );
+		const extensionsRequiredList = Object.keys( extensionsRequired );
 
 		if ( extensionsUsedList.length > 0 ) json.extensionsUsed = extensionsUsedList;
+		if ( extensionsRequiredList.length > 0 ) json.extensionsRequired = extensionsRequiredList;
 
 		// Update bytelength of the single buffer.
 		if ( json.buffers && json.buffers.length > 0 ) json.buffers[ 0 ].byteLength = blob.size;
@@ -802,7 +890,7 @@ class GLTFWriter {
 
 			// https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#glb-file-format-specification
 
-			const reader = new window.FileReader();
+			const reader = new FileReader();
 			reader.readAsArrayBuffer( blob );
 			reader.onloadend = function () {
 
@@ -836,7 +924,7 @@ class GLTFWriter {
 					binaryChunk
 				], { type: 'application/octet-stream' } );
 
-				const glbReader = new window.FileReader();
+				const glbReader = new FileReader();
 				glbReader.readAsArrayBuffer( glbBlob );
 				glbReader.onloadend = function () {
 
@@ -850,7 +938,7 @@ class GLTFWriter {
 
 			if ( json.buffers && json.buffers.length > 0 ) {
 
-				const reader = new window.FileReader();
+				const reader = new FileReader();
 				reader.readAsDataURL( blob );
 				reader.onloadend = function () {
 
@@ -915,16 +1003,26 @@ class GLTFWriter {
 	}
 
 	/**
-	 * Assign and return a temporal unique id for an object
-	 * especially which doesn't have .uuid
+	 * Returns ids for buffer attributes.
 	 * @param  {Object} object
 	 * @return {Integer}
 	 */
-	getUID( object ) {
+	getUID( attribute, isRelativeCopy = false ) {
 
-		if ( ! this.uids.has( object ) ) this.uids.set( object, this.uid ++ );
+		if ( this.uids.has( attribute ) === false ) {
 
-		return this.uids.get( object );
+			const uids = new Map();
+
+			uids.set( true, this.uid ++ );
+			uids.set( false, this.uid ++ );
+
+			this.uids.set( attribute, uids );
+
+		}
+
+		const uids = this.uids.get( attribute );
+
+		return uids.get( isRelativeCopy );
 
 	}
 
@@ -1037,6 +1135,100 @@ class GLTFWriter {
 
 	}
 
+	buildMetalRoughTexture( metalnessMap, roughnessMap ) {
+
+		if ( metalnessMap === roughnessMap ) return metalnessMap;
+
+		function getEncodingConversion( map ) {
+
+			if ( map.colorSpace === SRGBColorSpace ) {
+
+				return function SRGBToLinear( c ) {
+
+					return ( c < 0.04045 ) ? c * 0.0773993808 : Math.pow( c * 0.9478672986 + 0.0521327014, 2.4 );
+
+				};
+
+			}
+
+			return function LinearToLinear( c ) {
+
+				return c;
+
+			};
+
+		}
+
+		console.warn( 'THREE.GLTFExporter: Merged metalnessMap and roughnessMap textures.' );
+
+		const metalness = metalnessMap ? metalnessMap.image : null;
+		const roughness = roughnessMap ? roughnessMap.image : null;
+
+		const width = Math.max( metalness ? metalness.width : 0, roughness ? roughness.width : 0 );
+		const height = Math.max( metalness ? metalness.height : 0, roughness ? roughness.height : 0 );
+
+		const canvas = getCanvas();
+		canvas.width = width;
+		canvas.height = height;
+
+		const context = canvas.getContext( '2d' );
+		context.fillStyle = '#00ffff';
+		context.fillRect( 0, 0, width, height );
+
+		const composite = context.getImageData( 0, 0, width, height );
+
+		if ( metalness ) {
+
+			context.drawImage( metalness, 0, 0, width, height );
+
+			const convert = getEncodingConversion( metalnessMap );
+			const data = context.getImageData( 0, 0, width, height ).data;
+
+			for ( let i = 2; i < data.length; i += 4 ) {
+
+				composite.data[ i ] = convert( data[ i ] / 256 ) * 256;
+
+			}
+
+		}
+
+		if ( roughness ) {
+
+			context.drawImage( roughness, 0, 0, width, height );
+
+			const convert = getEncodingConversion( roughnessMap );
+			const data = context.getImageData( 0, 0, width, height ).data;
+
+			for ( let i = 1; i < data.length; i += 4 ) {
+
+				composite.data[ i ] = convert( data[ i ] / 256 ) * 256;
+
+			}
+
+		}
+
+		context.putImageData( composite, 0, 0 );
+
+		//
+
+		const reference = metalnessMap || roughnessMap;
+
+		const texture = reference.clone();
+
+		texture.source = new Source( canvas );
+		texture.colorSpace = NoColorSpace;
+		texture.channel = ( metalnessMap || roughnessMap ).channel;
+
+		if ( metalnessMap && roughnessMap && metalnessMap.channel !== roughnessMap.channel ) {
+
+			console.warn( 'THREE.GLTFExporter: UV channels for metalnessMap and roughnessMap textures must match.' );
+
+		}
+
+		return texture;
+
+	}
+
 	/**
 	 * Process a buffer to append to the default one.
 	 * @param  {ArrayBuffer} buffer
@@ -1075,17 +1267,25 @@ class GLTFWriter {
 
 		let componentSize;
 
-		if ( componentType === WEBGL_CONSTANTS.UNSIGNED_BYTE ) {
+		switch ( componentType ) {
 
-			componentSize = 1;
+			case WEBGL_CONSTANTS.BYTE:
+			case WEBGL_CONSTANTS.UNSIGNED_BYTE:
 
-		} else if ( componentType === WEBGL_CONSTANTS.UNSIGNED_SHORT ) {
+				componentSize = 1;
 
-			componentSize = 2;
+				break;
 
-		} else {
+			case WEBGL_CONSTANTS.SHORT:
+			case WEBGL_CONSTANTS.UNSIGNED_SHORT:
 
-			componentSize = 4;
+				componentSize = 2;
+
+				break;
+
+			default:
+
+				componentSize = 4;
 
 		}
 
@@ -1112,19 +1312,37 @@ class GLTFWriter {
 					else if ( a === 2 ) value = attribute.getZ( i );
 					else if ( a === 3 ) value = attribute.getW( i );
 
+					if ( attribute.normalized === true ) {
+
+						value = MathUtils.normalize( value, attribute.array );
+
+					}
+
 				}
 
 				if ( componentType === WEBGL_CONSTANTS.FLOAT ) {
 
 					dataView.setFloat32( offset, value, true );
 
+				} else if ( componentType === WEBGL_CONSTANTS.INT ) {
+
+					dataView.setInt32( offset, value, true );
+
 				} else if ( componentType === WEBGL_CONSTANTS.UNSIGNED_INT ) {
 
 					dataView.setUint32( offset, value, true );
 
+				} else if ( componentType === WEBGL_CONSTANTS.SHORT ) {
+
+					dataView.setInt16( offset, value, true );
+
 				} else if ( componentType === WEBGL_CONSTANTS.UNSIGNED_SHORT ) {
 
 					dataView.setUint16( offset, value, true );
+
+				} else if ( componentType === WEBGL_CONSTANTS.BYTE ) {
+
+					dataView.setInt8( offset, value );
 
 				} else if ( componentType === WEBGL_CONSTANTS.UNSIGNED_BYTE ) {
 
@@ -1185,7 +1403,7 @@ class GLTFWriter {
 
 		return new Promise( function ( resolve ) {
 
-			const reader = new window.FileReader();
+			const reader = new FileReader();
 			reader.readAsArrayBuffer( blob );
 			reader.onloadend = function () {
 
@@ -1216,7 +1434,6 @@ class GLTFWriter {
 	 */
 	processAccessor( attribute, geometry, start, count ) {
 
-		const options = this.options;
 		const json = this.json;
 
 		const types = {
@@ -1225,24 +1442,37 @@ class GLTFWriter {
 			2: 'VEC2',
 			3: 'VEC3',
 			4: 'VEC4',
+			9: 'MAT3',
 			16: 'MAT4'
 
 		};
 
 		let componentType;
 
-		// Detect the component type of the attribute array (float, uint or ushort)
+		// Detect the component type of the attribute array
 		if ( attribute.array.constructor === Float32Array ) {
 
 			componentType = WEBGL_CONSTANTS.FLOAT;
+
+		} else if ( attribute.array.constructor === Int32Array ) {
+
+			componentType = WEBGL_CONSTANTS.INT;
 
 		} else if ( attribute.array.constructor === Uint32Array ) {
 
 			componentType = WEBGL_CONSTANTS.UNSIGNED_INT;
 
+		} else if ( attribute.array.constructor === Int16Array ) {
+
+			componentType = WEBGL_CONSTANTS.SHORT;
+
 		} else if ( attribute.array.constructor === Uint16Array ) {
 
 			componentType = WEBGL_CONSTANTS.UNSIGNED_SHORT;
+
+		} else if ( attribute.array.constructor === Int8Array ) {
+
+			componentType = WEBGL_CONSTANTS.BYTE;
 
 		} else if ( attribute.array.constructor === Uint8Array ) {
 
@@ -1256,21 +1486,6 @@ class GLTFWriter {
 
 		if ( start === undefined ) start = 0;
 		if ( count === undefined ) count = attribute.count;
-
-		// @TODO Indexed buffer geometry with drawRange not supported yet
-		if ( options.truncateDrawRange && geometry !== undefined && geometry.index === null ) {
-
-			const end = start + count;
-			const end2 = geometry.drawRange.count === Infinity
-				? attribute.count
-				: geometry.drawRange.start + geometry.drawRange.count;
-
-			start = Math.max( start, geometry.drawRange.start );
-			count = Math.min( end, end2 ) - start;
-
-			if ( count < 0 ) count = 0;
-
-		}
 
 		// Skip creating an accessor if the attribute doesn't have data to export
 		if ( count === 0 ) return null;
@@ -1310,33 +1525,34 @@ class GLTFWriter {
 	/**
 	 * Process image
 	 * @param  {Image} image to process
-	 * @param  {Integer} format of the image (e.g. RGBFormat, RGBAFormat etc)
+	 * @param  {Integer} format of the image (RGBAFormat)
 	 * @param  {Boolean} flipY before writing out the image
+	 * @param  {String} mimeType export format
 	 * @return {Integer}     Index of the processed texture in the "images" array
 	 */
-	processImage( image, format, flipY ) {
+	processImage( image, format, flipY, mimeType = 'image/png' ) {
 
-		const writer = this;
-		const cache = writer.cache;
-		const json = writer.json;
-		const options = writer.options;
-		const pending = writer.pending;
+		if ( image !== null ) {
 
-		if ( ! cache.images.has( image ) ) cache.images.set( image, {} );
+			const writer = this;
+			const cache = writer.cache;
+			const json = writer.json;
+			const options = writer.options;
+			const pending = writer.pending;
 
-		const cachedImages = cache.images.get( image );
-		const mimeType = format === RGBAFormat ? 'image/png' : 'image/jpeg';
-		const key = mimeType + ':flipY/' + flipY.toString();
+			if ( ! cache.images.has( image ) ) cache.images.set( image, {} );
 
-		if ( cachedImages[ key ] !== undefined ) return cachedImages[ key ];
+			const cachedImages = cache.images.get( image );
 
-		if ( ! json.images ) json.images = [];
+			const key = mimeType + ':flipY/' + flipY.toString();
 
-		const imageDef = { mimeType: mimeType };
+			if ( cachedImages[ key ] !== undefined ) return cachedImages[ key ];
 
-		if ( options.embedImages ) {
+			if ( ! json.images ) json.images = [];
 
-			const canvas = cachedCanvas = cachedCanvas || document.createElement( 'canvas' );
+			const imageDef = { mimeType: mimeType };
+
+			const canvas = getCanvas();
 
 			canvas.width = Math.min( image.width, options.maxTextureSize );
 			canvas.height = Math.min( image.height, options.maxTextureSize );
@@ -1350,18 +1566,11 @@ class GLTFWriter {
 
 			}
 
-			if ( ( typeof HTMLImageElement !== 'undefined' && image instanceof HTMLImageElement ) ||
-				( typeof HTMLCanvasElement !== 'undefined' && image instanceof HTMLCanvasElement ) ||
-				( typeof OffscreenCanvas !== 'undefined' && image instanceof OffscreenCanvas ) ||
-				( typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap ) ) {
+			if ( image.data !== undefined ) { // THREE.DataTexture
 
-				ctx.drawImage( image, 0, 0, canvas.width, canvas.height );
+				if ( format !== RGBAFormat ) {
 
-			} else {
-
-				if ( format !== RGBAFormat && format !== RGBFormat ) {
-
-					console.error( 'GLTFExporter: Only RGB and RGBA formats are supported.' );
+					console.error( 'GLTFExporter: Only RGBAFormat is supported.' );
 
 				}
 
@@ -1373,66 +1582,70 @@ class GLTFWriter {
 
 				const data = new Uint8ClampedArray( image.height * image.width * 4 );
 
-				if ( format === RGBAFormat ) {
+				for ( let i = 0; i < data.length; i += 4 ) {
 
-					for ( let i = 0; i < data.length; i += 4 ) {
-
-						data[ i + 0 ] = image.data[ i + 0 ];
-						data[ i + 1 ] = image.data[ i + 1 ];
-						data[ i + 2 ] = image.data[ i + 2 ];
-						data[ i + 3 ] = image.data[ i + 3 ];
-
-					}
-
-				} else {
-
-					for ( let i = 0, j = 0; i < data.length; i += 4, j += 3 ) {
-
-						data[ i + 0 ] = image.data[ j + 0 ];
-						data[ i + 1 ] = image.data[ j + 1 ];
-						data[ i + 2 ] = image.data[ j + 2 ];
-						data[ i + 3 ] = 255;
-
-					}
+					data[ i + 0 ] = image.data[ i + 0 ];
+					data[ i + 1 ] = image.data[ i + 1 ];
+					data[ i + 2 ] = image.data[ i + 2 ];
+					data[ i + 3 ] = image.data[ i + 3 ];
 
 				}
 
 				ctx.putImageData( new ImageData( data, image.width, image.height ), 0, 0 );
 
+			} else {
+
+				ctx.drawImage( image, 0, 0, canvas.width, canvas.height );
+
 			}
 
 			if ( options.binary === true ) {
 
-				pending.push( new Promise( function ( resolve ) {
+				pending.push(
 
-					canvas.toBlob( function ( blob ) {
-
-						writer.processBufferViewImage( blob ).then( function ( bufferViewIndex ) {
+					getToBlobPromise( canvas, mimeType )
+						.then( blob => writer.processBufferViewImage( blob ) )
+						.then( bufferViewIndex => {
 
 							imageDef.bufferView = bufferViewIndex;
-							resolve();
 
-						} );
+						} )
 
-					}, mimeType );
-
-				} ) );
+				);
 
 			} else {
 
-				imageDef.uri = canvas.toDataURL( mimeType );
+				if ( canvas.toDataURL !== undefined ) {
+
+					imageDef.uri = canvas.toDataURL( mimeType );
+
+				} else {
+
+					pending.push(
+
+						getToBlobPromise( canvas, mimeType )
+							.then( blob => new FileReader().readAsDataURL( blob ) )
+							.then( dataURL => {
+
+								imageDef.uri = dataURL;
+
+							} )
+
+					);
+
+				}
 
 			}
 
+			const index = json.images.push( imageDef ) - 1;
+			cachedImages[ key ] = index;
+			return index;
+
 		} else {
 
-			imageDef.uri = image.src;
+			throw new Error( 'THREE.GLTFExporter: No valid image data found. Unable to process texture.' );
 
 		}
-
-		const index = json.images.push( imageDef ) - 1;
-		cachedImages[ key ] = index;
-		return index;
 
 	}
 
@@ -1472,9 +1685,13 @@ class GLTFWriter {
 
 		if ( ! json.textures ) json.textures = [];
 
+		let mimeType = map.userData.mimeType;
+
+		if ( mimeType === 'image/webp' ) mimeType = 'image/png';
+
 		const textureDef = {
 			sampler: this.processSampler( map ),
-			source: this.processImage( map.image, map.format, map.flipY )
+			source: this.processImage( map.image, map.format, map.flipY, mimeType )
 		};
 
 		if ( map.name ) textureDef.name = map.name;
@@ -1545,24 +1762,24 @@ class GLTFWriter {
 		// pbrMetallicRoughness.metallicRoughnessTexture
 		if ( material.metalnessMap || material.roughnessMap ) {
 
-			if ( material.metalnessMap === material.roughnessMap ) {
+			const metalRoughTexture = this.buildMetalRoughTexture( material.metalnessMap, material.roughnessMap );
 
-				const metalRoughMapDef = { index: this.processTexture( material.metalnessMap ) };
-				this.applyTextureTransform( metalRoughMapDef, material.metalnessMap );
-				materialDef.pbrMetallicRoughness.metallicRoughnessTexture = metalRoughMapDef;
-
-			} else {
-
-				console.warn( 'THREE.GLTFExporter: Ignoring metalnessMap and roughnessMap because they are not the same Texture.' );
-
-			}
+			const metalRoughMapDef = {
+				index: this.processTexture( metalRoughTexture ),
+				channel: metalRoughTexture.channel
+			};
+			this.applyTextureTransform( metalRoughMapDef, metalRoughTexture );
+			materialDef.pbrMetallicRoughness.metallicRoughnessTexture = metalRoughMapDef;
 
 		}
 
-		// pbrMetallicRoughness.baseColorTexture or pbrSpecularGlossiness diffuseTexture
+		// pbrMetallicRoughness.baseColorTexture
 		if ( material.map ) {
 
-			const baseColorMapDef = { index: this.processTexture( material.map ) };
+			const baseColorMapDef = {
+				index: this.processTexture( material.map ),
+				texCoord: material.map.channel
+			};
 			this.applyTextureTransform( baseColorMapDef, material.map );
 			materialDef.pbrMetallicRoughness.baseColorTexture = baseColorMapDef;
 
@@ -1570,28 +1787,22 @@ class GLTFWriter {
 
 		if ( material.emissive ) {
 
-			// note: emissive components are limited to stay within the 0 - 1 range to accommodate glTF spec. see #21849 and #22000.
-			const emissive = material.emissive.clone().multiplyScalar( material.emissiveIntensity );
+			const emissive = material.emissive;
 			const maxEmissiveComponent = Math.max( emissive.r, emissive.g, emissive.b );
-
-			if ( maxEmissiveComponent > 1 ) {
-
-				emissive.multiplyScalar( 1 / maxEmissiveComponent );
-
-				console.warn( 'THREE.GLTFExporter: Some emissive components exceed 1; emissive has been limited' );
-
-			}
 
 			if ( maxEmissiveComponent > 0 ) {
 
-				materialDef.emissiveFactor = emissive.toArray();
+				materialDef.emissiveFactor = material.emissive.toArray();
 
 			}
 
 			// emissiveTexture
 			if ( material.emissiveMap ) {
 
-				const emissiveMapDef = { index: this.processTexture( material.emissiveMap ) };
+				const emissiveMapDef = {
+					index: this.processTexture( material.emissiveMap ),
+					texCoord: material.emissiveMap.channel
+				};
 				this.applyTextureTransform( emissiveMapDef, material.emissiveMap );
 				materialDef.emissiveTexture = emissiveMapDef;
 
@@ -1602,7 +1813,10 @@ class GLTFWriter {
 		// normalTexture
 		if ( material.normalMap ) {
 
-			const normalMapDef = { index: this.processTexture( material.normalMap ) };
+			const normalMapDef = {
+				index: this.processTexture( material.normalMap ),
+				texCoord: material.normalMap.channel
+			};
 
 			if ( material.normalScale && material.normalScale.x !== 1 ) {
 
@@ -1622,7 +1836,7 @@ class GLTFWriter {
 
 			const occlusionMapDef = {
 				index: this.processTexture( material.aoMap ),
-				texCoord: 1
+				texCoord: material.aoMap.channel
 			};
 
 			if ( material.aoMapIntensity !== 1.0 ) {
@@ -1701,6 +1915,7 @@ class GLTFWriter {
 		if ( cache.meshes.has( meshCacheKey ) ) return cache.meshes.get( meshCacheKey );
 
 		const geometry = mesh.geometry;
+
 		let mode;
 
 		// Use the correct mode
@@ -1726,12 +1941,6 @@ class GLTFWriter {
 
 		}
 
-		if ( geometry.isBufferGeometry !== true ) {
-
-			throw new Error( 'THREE.GLTFExporter: Geometry is not of type THREE.BufferGeometry.' );
-
-		}
-
 		const meshDef = {};
 		const attributes = {};
 		const primitives = [];
@@ -1740,7 +1949,7 @@ class GLTFWriter {
 		// Conversion between attributes names in threejs and gltf spec
 		const nameConversion = {
 			uv: 'TEXCOORD_0',
-			uv2: 'TEXCOORD_1',
+			uv1: 'TEXCOORD_1',
 			color: 'COLOR_0',
 			skinWeight: 'WEIGHTS_0',
 			skinIndex: 'JOINTS_0'
@@ -1763,7 +1972,7 @@ class GLTFWriter {
 		for ( let attributeName in geometry.attributes ) {
 
 			// Ignore morph target attributes, which are exported later.
-			if ( attributeName.substr( 0, 5 ) === 'morph' ) continue;
+			if ( attributeName.slice( 0, 5 ) === 'morph' ) continue;
 
 			const attribute = geometry.attributes[ attributeName ];
 			attributeName = nameConversion[ attributeName ] || attributeName.toUpperCase();
@@ -1798,6 +2007,12 @@ class GLTFWriter {
 			const accessor = this.processAccessor( modifiedAttribute || attribute, geometry );
 
 			if ( accessor !== null ) {
+
+				if ( ! attributeName.startsWith( '_' ) ) {
+
+					this.detectMeshQuantization( attributeName, attribute );
+
+				}
 
 				attributes[ attributeName ] = accessor;
 				cache.attributes.set( this.getUID( attribute ), accessor );
@@ -1861,9 +2076,9 @@ class GLTFWriter {
 
 					const baseAttribute = geometry.attributes[ attributeName ];
 
-					if ( cache.attributes.has( this.getUID( attribute ) ) ) {
+					if ( cache.attributes.has( this.getUID( attribute, true ) ) ) {
 
-						target[ gltfAttributeName ] = cache.attributes.get( this.getUID( attribute ) );
+						target[ gltfAttributeName ] = cache.attributes.get( this.getUID( attribute, true ) );
 						continue;
 
 					}
@@ -1875,19 +2090,21 @@ class GLTFWriter {
 
 						for ( let j = 0, jl = attribute.count; j < jl; j ++ ) {
 
-							relativeAttribute.setXYZ(
-								j,
-								attribute.getX( j ) - baseAttribute.getX( j ),
-								attribute.getY( j ) - baseAttribute.getY( j ),
-								attribute.getZ( j ) - baseAttribute.getZ( j )
-							);
+							for ( let a = 0; a < attribute.itemSize; a ++ ) {
+
+								if ( a === 0 ) relativeAttribute.setX( j, attribute.getX( j ) - baseAttribute.getX( j ) );
+								if ( a === 1 ) relativeAttribute.setY( j, attribute.getY( j ) - baseAttribute.getY( j ) );
+								if ( a === 2 ) relativeAttribute.setZ( j, attribute.getZ( j ) - baseAttribute.getZ( j ) );
+								if ( a === 3 ) relativeAttribute.setW( j, attribute.getW( j ) - baseAttribute.getW( j ) );
+
+							}
 
 						}
 
 					}
 
 					target[ gltfAttributeName ] = this.processAccessor( relativeAttribute, geometry );
-					cache.attributes.set( this.getUID( baseAttribute ), target[ gltfAttributeName ] );
+					cache.attributes.set( this.getUID( baseAttribute, true ), target[ gltfAttributeName ] );
 
 				}
 
@@ -1974,6 +2191,68 @@ class GLTFWriter {
 		const index = json.meshes.push( meshDef ) - 1;
 		cache.meshes.set( meshCacheKey, index );
 		return index;
+
+	}
+
+	/**
+	 * If a vertex attribute with a
+	 * [non-standard data type](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#meshes-overview)
+	 * is used, it is checked whether it is a valid data type according to the
+	 * [KHR_mesh_quantization](https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_mesh_quantization/README.md)
+	 * extension.
+	 * In this case the extension is automatically added to the list of used extensions.
+	 *
+	 * @param {string} attributeName
+	 * @param {THREE.BufferAttribute} attribute
+	 */
+	detectMeshQuantization( attributeName, attribute ) {
+
+		if ( this.extensionsUsed[ KHR_MESH_QUANTIZATION ] ) return;
+
+		let attrType = undefined;
+
+		switch ( attribute.array.constructor ) {
+
+			case Int8Array:
+
+				attrType = 'byte';
+
+				break;
+
+			case Uint8Array:
+
+				attrType = 'unsigned byte';
+
+				break;
+
+			case Int16Array:
+
+				attrType = 'short';
+
+				break;
+
+			case Uint16Array:
+
+				attrType = 'unsigned short';
+
+				break;
+
+			default:
+
+				return;
+
+		}
+
+		if ( attribute.normalized ) attrType += ' normalized';
+
+		const attrNamePrefix = attributeName.split( '_', 1 )[ 0 ];
+
+		if ( KHR_mesh_quantization_ExtraAttrTypes[ attrNamePrefix ] && KHR_mesh_quantization_ExtraAttrTypes[ attrNamePrefix ].includes( attrType ) ) {
+
+			this.extensionsUsed[ KHR_MESH_QUANTIZATION ] = true;
+			this.extensionsRequired[ KHR_MESH_QUANTIZATION ] = true;
+
+		}
 
 	}
 
@@ -2545,62 +2824,6 @@ class GLTFMaterialsUnlitExtension {
 }
 
 /**
- * Specular-Glossiness Extension
- *
- * Specification: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_pbrSpecularGlossiness
- */
-class GLTFMaterialsPBRSpecularGlossiness {
-
-	constructor( writer ) {
-
-		this.writer = writer;
-		this.name = 'KHR_materials_pbrSpecularGlossiness';
-
-	}
-
-	writeMaterial( material, materialDef ) {
-
-		if ( ! material.isGLTFSpecularGlossinessMaterial ) return;
-
-		const writer = this.writer;
-		const extensionsUsed = writer.extensionsUsed;
-
-		const extensionDef = {};
-
-		if ( materialDef.pbrMetallicRoughness.baseColorFactor ) {
-
-			extensionDef.diffuseFactor = materialDef.pbrMetallicRoughness.baseColorFactor;
-
-		}
-
-		const specularFactor = [ 1, 1, 1 ];
-		material.specular.toArray( specularFactor, 0 );
-		extensionDef.specularFactor = specularFactor;
-		extensionDef.glossinessFactor = material.glossiness;
-
-		if ( materialDef.pbrMetallicRoughness.baseColorTexture ) {
-
-			extensionDef.diffuseTexture = materialDef.pbrMetallicRoughness.baseColorTexture;
-
-		}
-
-		if ( material.specularMap ) {
-
-			const specularMapDef = { index: writer.processTexture( material.specularMap ) };
-			writer.applyTextureTransform( specularMapDef, material.specularMap );
-			extensionDef.specularGlossinessTexture = specularMapDef;
-
-		}
-
-		materialDef.extensions = materialDef.extensions || {};
-		materialDef.extensions[ this.name ] = extensionDef;
-		extensionsUsed[ this.name ] = true;
-
-	}
-
-}
-
-/**
  * Clearcoat Materials Extension
  *
  * Specification: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_clearcoat
@@ -2616,7 +2839,7 @@ class GLTFMaterialsClearcoatExtension {
 
 	writeMaterial( material, materialDef ) {
 
-		if ( ! material.isMeshPhysicalMaterial ) return;
+		if ( ! material.isMeshPhysicalMaterial || material.clearcoat === 0 ) return;
 
 		const writer = this.writer;
 		const extensionsUsed = writer.extensionsUsed;
@@ -2627,7 +2850,10 @@ class GLTFMaterialsClearcoatExtension {
 
 		if ( material.clearcoatMap ) {
 
-			const clearcoatMapDef = { index: writer.processTexture( material.clearcoatMap ) };
+			const clearcoatMapDef = {
+				index: writer.processTexture( material.clearcoatMap ),
+				texCoord: material.clearcoatMap.channel
+			};
 			writer.applyTextureTransform( clearcoatMapDef, material.clearcoatMap );
 			extensionDef.clearcoatTexture = clearcoatMapDef;
 
@@ -2637,7 +2863,10 @@ class GLTFMaterialsClearcoatExtension {
 
 		if ( material.clearcoatRoughnessMap ) {
 
-			const clearcoatRoughnessMapDef = { index: writer.processTexture( material.clearcoatRoughnessMap ) };
+			const clearcoatRoughnessMapDef = {
+				index: writer.processTexture( material.clearcoatRoughnessMap ),
+				texCoord: material.clearcoatRoughnessMap.channel
+			};
 			writer.applyTextureTransform( clearcoatRoughnessMapDef, material.clearcoatRoughnessMap );
 			extensionDef.clearcoatRoughnessTexture = clearcoatRoughnessMapDef;
 
@@ -2645,7 +2874,10 @@ class GLTFMaterialsClearcoatExtension {
 
 		if ( material.clearcoatNormalMap ) {
 
-			const clearcoatNormalMapDef = { index: writer.processTexture( material.clearcoatNormalMap ) };
+			const clearcoatNormalMapDef = {
+				index: writer.processTexture( material.clearcoatNormalMap ),
+				texCoord: material.clearcoatNormalMap.channel
+			};
 			writer.applyTextureTransform( clearcoatNormalMapDef, material.clearcoatNormalMap );
 			extensionDef.clearcoatNormalTexture = clearcoatNormalMapDef;
 
@@ -2656,6 +2888,66 @@ class GLTFMaterialsClearcoatExtension {
 
 		extensionsUsed[ this.name ] = true;
 
+
+	}
+
+}
+
+/**
+ * Iridescence Materials Extension
+ *
+ * Specification: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_iridescence
+ */
+class GLTFMaterialsIridescenceExtension {
+
+	constructor( writer ) {
+
+		this.writer = writer;
+		this.name = 'KHR_materials_iridescence';
+
+	}
+
+	writeMaterial( material, materialDef ) {
+
+		if ( ! material.isMeshPhysicalMaterial || material.iridescence === 0 ) return;
+
+		const writer = this.writer;
+		const extensionsUsed = writer.extensionsUsed;
+
+		const extensionDef = {};
+
+		extensionDef.iridescenceFactor = material.iridescence;
+
+		if ( material.iridescenceMap ) {
+
+			const iridescenceMapDef = {
+				index: writer.processTexture( material.iridescenceMap ),
+				texCoord: material.iridescenceMap.channel
+			};
+			writer.applyTextureTransform( iridescenceMapDef, material.iridescenceMap );
+			extensionDef.iridescenceTexture = iridescenceMapDef;
+
+		}
+
+		extensionDef.iridescenceIor = material.iridescenceIOR;
+		extensionDef.iridescenceThicknessMinimum = material.iridescenceThicknessRange[ 0 ];
+		extensionDef.iridescenceThicknessMaximum = material.iridescenceThicknessRange[ 1 ];
+
+		if ( material.iridescenceThicknessMap ) {
+
+			const iridescenceThicknessMapDef = {
+				index: writer.processTexture( material.iridescenceThicknessMap ),
+				texCoord: material.iridescenceThicknessMap.channel
+			};
+			writer.applyTextureTransform( iridescenceThicknessMapDef, material.iridescenceThicknessMap );
+			extensionDef.iridescenceThicknessTexture = iridescenceThicknessMapDef;
+
+		}
+
+		materialDef.extensions = materialDef.extensions || {};
+		materialDef.extensions[ this.name ] = extensionDef;
+
+		extensionsUsed[ this.name ] = true;
 
 	}
 
@@ -2688,7 +2980,10 @@ class GLTFMaterialsTransmissionExtension {
 
 		if ( material.transmissionMap ) {
 
-			const transmissionMapDef = { index: writer.processTexture( material.transmissionMap ) };
+			const transmissionMapDef = {
+				index: writer.processTexture( material.transmissionMap ),
+				texCoord: material.transmissionMap.channel
+			};
 			writer.applyTextureTransform( transmissionMapDef, material.transmissionMap );
 			extensionDef.transmissionTexture = transmissionMapDef;
 
@@ -2730,7 +3025,10 @@ class GLTFMaterialsVolumeExtension {
 
 		if ( material.thicknessMap ) {
 
-			const thicknessMapDef = { index: writer.processTexture( material.thicknessMap ) };
+			const thicknessMapDef = {
+				index: writer.processTexture( material.thicknessMap ),
+				texCoord: material.thicknessMap.channel
+			};
 			writer.applyTextureTransform( thicknessMapDef, material.thicknessMap );
 			extensionDef.thicknessTexture = thicknessMapDef;
 
@@ -2738,6 +3036,190 @@ class GLTFMaterialsVolumeExtension {
 
 		extensionDef.attenuationDistance = material.attenuationDistance;
 		extensionDef.attenuationColor = material.attenuationColor.toArray();
+
+		materialDef.extensions = materialDef.extensions || {};
+		materialDef.extensions[ this.name ] = extensionDef;
+
+		extensionsUsed[ this.name ] = true;
+
+	}
+
+}
+
+/**
+ * Materials ior Extension
+ *
+ * Specification: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_ior
+ */
+class GLTFMaterialsIorExtension {
+
+	constructor( writer ) {
+
+		this.writer = writer;
+		this.name = 'KHR_materials_ior';
+
+	}
+
+	writeMaterial( material, materialDef ) {
+
+		if ( ! material.isMeshPhysicalMaterial || material.ior === 1.5 ) return;
+
+		const writer = this.writer;
+		const extensionsUsed = writer.extensionsUsed;
+
+		const extensionDef = {};
+
+		extensionDef.ior = material.ior;
+
+		materialDef.extensions = materialDef.extensions || {};
+		materialDef.extensions[ this.name ] = extensionDef;
+
+		extensionsUsed[ this.name ] = true;
+
+	}
+
+}
+
+/**
+ * Materials specular Extension
+ *
+ * Specification: https://github.com/KhronosGroup/glTF/tree/master/extensions/2.0/Khronos/KHR_materials_specular
+ */
+class GLTFMaterialsSpecularExtension {
+
+	constructor( writer ) {
+
+		this.writer = writer;
+		this.name = 'KHR_materials_specular';
+
+	}
+
+	writeMaterial( material, materialDef ) {
+
+		if ( ! material.isMeshPhysicalMaterial || ( material.specularIntensity === 1.0 &&
+		       material.specularColor.equals( DEFAULT_SPECULAR_COLOR ) &&
+		     ! material.specularIntensityMap && ! material.specularColorTexture ) ) return;
+
+		const writer = this.writer;
+		const extensionsUsed = writer.extensionsUsed;
+
+		const extensionDef = {};
+
+		if ( material.specularIntensityMap ) {
+
+			const specularIntensityMapDef = {
+				index: writer.processTexture( material.specularIntensityMap ),
+				texCoord: material.specularIntensityMap.channel
+			};
+			writer.applyTextureTransform( specularIntensityMapDef, material.specularIntensityMap );
+			extensionDef.specularTexture = specularIntensityMapDef;
+
+		}
+
+		if ( material.specularColorMap ) {
+
+			const specularColorMapDef = {
+				index: writer.processTexture( material.specularColorMap ),
+				texCoord: material.specularColorMap.channel
+			};
+			writer.applyTextureTransform( specularColorMapDef, material.specularColorMap );
+			extensionDef.specularColorTexture = specularColorMapDef;
+
+		}
+
+		extensionDef.specularFactor = material.specularIntensity;
+		extensionDef.specularColorFactor = material.specularColor.toArray();
+
+		materialDef.extensions = materialDef.extensions || {};
+		materialDef.extensions[ this.name ] = extensionDef;
+
+		extensionsUsed[ this.name ] = true;
+
+	}
+
+}
+
+/**
+ * Sheen Materials Extension
+ *
+ * Specification: https://github.com/KhronosGroup/glTF/tree/main/extensions/2.0/Khronos/KHR_materials_sheen
+ */
+class GLTFMaterialsSheenExtension {
+
+	constructor( writer ) {
+
+		this.writer = writer;
+		this.name = 'KHR_materials_sheen';
+
+	}
+
+	writeMaterial( material, materialDef ) {
+
+		if ( ! material.isMeshPhysicalMaterial || material.sheen == 0.0 ) return;
+
+		const writer = this.writer;
+		const extensionsUsed = writer.extensionsUsed;
+
+		const extensionDef = {};
+
+		if ( material.sheenRoughnessMap ) {
+
+			const sheenRoughnessMapDef = {
+				index: writer.processTexture( material.sheenRoughnessMap ),
+				texCoord: material.sheenRoughnessMap.channel
+			};
+			writer.applyTextureTransform( sheenRoughnessMapDef, material.sheenRoughnessMap );
+			extensionDef.sheenRoughnessTexture = sheenRoughnessMapDef;
+
+		}
+
+		if ( material.sheenColorMap ) {
+
+			const sheenColorMapDef = {
+				index: writer.processTexture( material.sheenColorMap ),
+				texCoord: material.sheenColorMap.channel
+			};
+			writer.applyTextureTransform( sheenColorMapDef, material.sheenColorMap );
+			extensionDef.sheenColorTexture = sheenColorMapDef;
+
+		}
+
+		extensionDef.sheenRoughnessFactor = material.sheenRoughness;
+		extensionDef.sheenColorFactor = material.sheenColor.toArray();
+
+		materialDef.extensions = materialDef.extensions || {};
+		materialDef.extensions[ this.name ] = extensionDef;
+
+		extensionsUsed[ this.name ] = true;
+
+	}
+
+}
+
+/**
+ * Materials Emissive Strength Extension
+ *
+ * Specification: https://github.com/KhronosGroup/glTF/blob/5768b3ce0ef32bc39cdf1bef10b948586635ead3/extensions/2.0/Khronos/KHR_materials_emissive_strength/README.md
+ */
+class GLTFMaterialsEmissiveStrengthExtension {
+
+	constructor( writer ) {
+
+		this.writer = writer;
+		this.name = 'KHR_materials_emissive_strength';
+
+	}
+
+	writeMaterial( material, materialDef ) {
+
+		if ( ! material.isMeshStandardMaterial || material.emissiveIntensity === 1.0 ) return;
+
+		const writer = this.writer;
+		const extensionsUsed = writer.extensionsUsed;
+
+		const extensionDef = {};
+
+		extensionDef.emissiveStrength = material.emissiveIntensity;
 
 		materialDef.extensions = materialDef.extensions || {};
 		materialDef.extensions[ this.name ] = extensionDef;
@@ -2944,693 +3426,73 @@ GLTFExporter.Utils = {
 
 };
 
-class Vector4 {
-
-	constructor( x = 0, y = 0, z = 0, w = 1 ) {
-
-		this.x = x;
-		this.y = y;
-		this.z = z;
-		this.w = w;
-
-	}
-
-	get width() {
-
-		return this.z;
-
-	}
-
-	set width( value ) {
-
-		this.z = value;
-
-	}
-
-	get height() {
-
-		return this.w;
-
-	}
-
-	set height( value ) {
-
-		this.w = value;
-
-	}
-
-	set( x, y, z, w ) {
-
-		this.x = x;
-		this.y = y;
-		this.z = z;
-		this.w = w;
-
-		return this;
-
-	}
-
-	setScalar( scalar ) {
-
-		this.x = scalar;
-		this.y = scalar;
-		this.z = scalar;
-		this.w = scalar;
-
-		return this;
-
-	}
-
-	setX( x ) {
-
-		this.x = x;
-
-		return this;
-
-	}
-
-	setY( y ) {
-
-		this.y = y;
-
-		return this;
-
-	}
-
-	setZ( z ) {
-
-		this.z = z;
-
-		return this;
-
-	}
-
-	setW( w ) {
-
-		this.w = w;
-
-		return this;
-
-	}
-
-	setComponent( index, value ) {
-
-		switch ( index ) {
-
-			case 0: this.x = value; break;
-			case 1: this.y = value; break;
-			case 2: this.z = value; break;
-			case 3: this.w = value; break;
-			default: throw new Error( 'index is out of range: ' + index );
-
-		}
-
-		return this;
-
-	}
-
-	getComponent( index ) {
-
-		switch ( index ) {
-
-			case 0: return this.x;
-			case 1: return this.y;
-			case 2: return this.z;
-			case 3: return this.w;
-			default: throw new Error( 'index is out of range: ' + index );
-
-		}
-
-	}
-
-	clone() {
-
-		return new this.constructor( this.x, this.y, this.z, this.w );
-
-	}
-
-	copy( v ) {
-
-		this.x = v.x;
-		this.y = v.y;
-		this.z = v.z;
-		this.w = ( v.w !== undefined ) ? v.w : 1;
-
-		return this;
-
-	}
-
-	add( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector4: .add() now only accepts one argument. Use .addVectors( a, b ) instead.' );
-			return this.addVectors( v, w );
-
-		}
-
-		this.x += v.x;
-		this.y += v.y;
-		this.z += v.z;
-		this.w += v.w;
-
-		return this;
-
-	}
-
-	addScalar( s ) {
-
-		this.x += s;
-		this.y += s;
-		this.z += s;
-		this.w += s;
-
-		return this;
-
-	}
-
-	addVectors( a, b ) {
-
-		this.x = a.x + b.x;
-		this.y = a.y + b.y;
-		this.z = a.z + b.z;
-		this.w = a.w + b.w;
-
-		return this;
-
-	}
-
-	addScaledVector( v, s ) {
-
-		this.x += v.x * s;
-		this.y += v.y * s;
-		this.z += v.z * s;
-		this.w += v.w * s;
-
-		return this;
-
-	}
-
-	sub( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector4: .sub() now only accepts one argument. Use .subVectors( a, b ) instead.' );
-			return this.subVectors( v, w );
-
-		}
-
-		this.x -= v.x;
-		this.y -= v.y;
-		this.z -= v.z;
-		this.w -= v.w;
-
-		return this;
-
-	}
-
-	subScalar( s ) {
-
-		this.x -= s;
-		this.y -= s;
-		this.z -= s;
-		this.w -= s;
-
-		return this;
-
-	}
-
-	subVectors( a, b ) {
-
-		this.x = a.x - b.x;
-		this.y = a.y - b.y;
-		this.z = a.z - b.z;
-		this.w = a.w - b.w;
-
-		return this;
-
-	}
-
-	multiply( v ) {
-
-		this.x *= v.x;
-		this.y *= v.y;
-		this.z *= v.z;
-		this.w *= v.w;
-
-		return this;
-
-	}
-
-	multiplyScalar( scalar ) {
-
-		this.x *= scalar;
-		this.y *= scalar;
-		this.z *= scalar;
-		this.w *= scalar;
-
-		return this;
-
-	}
-
-	applyMatrix4( m ) {
-
-		const x = this.x, y = this.y, z = this.z, w = this.w;
-		const e = m.elements;
-
-		this.x = e[ 0 ] * x + e[ 4 ] * y + e[ 8 ] * z + e[ 12 ] * w;
-		this.y = e[ 1 ] * x + e[ 5 ] * y + e[ 9 ] * z + e[ 13 ] * w;
-		this.z = e[ 2 ] * x + e[ 6 ] * y + e[ 10 ] * z + e[ 14 ] * w;
-		this.w = e[ 3 ] * x + e[ 7 ] * y + e[ 11 ] * z + e[ 15 ] * w;
-
-		return this;
-
-	}
-
-	divideScalar( scalar ) {
-
-		return this.multiplyScalar( 1 / scalar );
-
-	}
-
-	setAxisAngleFromQuaternion( q ) {
-
-		// http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToAngle/index.htm
-
-		// q is assumed to be normalized
-
-		this.w = 2 * Math.acos( q.w );
-
-		const s = Math.sqrt( 1 - q.w * q.w );
-
-		if ( s < 0.0001 ) {
-
-			this.x = 1;
-			this.y = 0;
-			this.z = 0;
-
-		} else {
-
-			this.x = q.x / s;
-			this.y = q.y / s;
-			this.z = q.z / s;
-
-		}
-
-		return this;
-
-	}
-
-	setAxisAngleFromRotationMatrix( m ) {
-
-		// http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToAngle/index.htm
-
-		// assumes the upper 3x3 of m is a pure rotation matrix (i.e, unscaled)
-
-		let angle, x, y, z; // variables for result
-		const epsilon = 0.01,		// margin to allow for rounding errors
-			epsilon2 = 0.1,		// margin to distinguish between 0 and 180 degrees
-
-			te = m.elements,
-
-			m11 = te[ 0 ], m12 = te[ 4 ], m13 = te[ 8 ],
-			m21 = te[ 1 ], m22 = te[ 5 ], m23 = te[ 9 ],
-			m31 = te[ 2 ], m32 = te[ 6 ], m33 = te[ 10 ];
-
-		if ( ( Math.abs( m12 - m21 ) < epsilon ) &&
-		     ( Math.abs( m13 - m31 ) < epsilon ) &&
-		     ( Math.abs( m23 - m32 ) < epsilon ) ) {
-
-			// singularity found
-			// first check for identity matrix which must have +1 for all terms
-			// in leading diagonal and zero in other terms
-
-			if ( ( Math.abs( m12 + m21 ) < epsilon2 ) &&
-			     ( Math.abs( m13 + m31 ) < epsilon2 ) &&
-			     ( Math.abs( m23 + m32 ) < epsilon2 ) &&
-			     ( Math.abs( m11 + m22 + m33 - 3 ) < epsilon2 ) ) {
-
-				// this singularity is identity matrix so angle = 0
-
-				this.set( 1, 0, 0, 0 );
-
-				return this; // zero angle, arbitrary axis
-
-			}
-
-			// otherwise this singularity is angle = 180
-
-			angle = Math.PI;
-
-			const xx = ( m11 + 1 ) / 2;
-			const yy = ( m22 + 1 ) / 2;
-			const zz = ( m33 + 1 ) / 2;
-			const xy = ( m12 + m21 ) / 4;
-			const xz = ( m13 + m31 ) / 4;
-			const yz = ( m23 + m32 ) / 4;
-
-			if ( ( xx > yy ) && ( xx > zz ) ) {
-
-				// m11 is the largest diagonal term
-
-				if ( xx < epsilon ) {
-
-					x = 0;
-					y = 0.707106781;
-					z = 0.707106781;
-
-				} else {
-
-					x = Math.sqrt( xx );
-					y = xy / x;
-					z = xz / x;
-
-				}
-
-			} else if ( yy > zz ) {
-
-				// m22 is the largest diagonal term
-
-				if ( yy < epsilon ) {
-
-					x = 0.707106781;
-					y = 0;
-					z = 0.707106781;
-
-				} else {
-
-					y = Math.sqrt( yy );
-					x = xy / y;
-					z = yz / y;
-
-				}
-
-			} else {
-
-				// m33 is the largest diagonal term so base result on this
-
-				if ( zz < epsilon ) {
-
-					x = 0.707106781;
-					y = 0.707106781;
-					z = 0;
-
-				} else {
-
-					z = Math.sqrt( zz );
-					x = xz / z;
-					y = yz / z;
-
-				}
-
-			}
-
-			this.set( x, y, z, angle );
-
-			return this; // return 180 deg rotation
-
-		}
-
-		// as we have reached here there are no singularities so we can handle normally
-
-		let s = Math.sqrt( ( m32 - m23 ) * ( m32 - m23 ) +
-			( m13 - m31 ) * ( m13 - m31 ) +
-			( m21 - m12 ) * ( m21 - m12 ) ); // used to normalize
-
-		if ( Math.abs( s ) < 0.001 ) s = 1;
-
-		// prevent divide by zero, should not happen if matrix is orthogonal and should be
-		// caught by singularity test above, but I've left it in just in case
-
-		this.x = ( m32 - m23 ) / s;
-		this.y = ( m13 - m31 ) / s;
-		this.z = ( m21 - m12 ) / s;
-		this.w = Math.acos( ( m11 + m22 + m33 - 1 ) / 2 );
-
-		return this;
-
-	}
-
-	min( v ) {
-
-		this.x = Math.min( this.x, v.x );
-		this.y = Math.min( this.y, v.y );
-		this.z = Math.min( this.z, v.z );
-		this.w = Math.min( this.w, v.w );
-
-		return this;
-
-	}
-
-	max( v ) {
-
-		this.x = Math.max( this.x, v.x );
-		this.y = Math.max( this.y, v.y );
-		this.z = Math.max( this.z, v.z );
-		this.w = Math.max( this.w, v.w );
-
-		return this;
-
-	}
-
-	clamp( min, max ) {
-
-		// assumes min < max, componentwise
-
-		this.x = Math.max( min.x, Math.min( max.x, this.x ) );
-		this.y = Math.max( min.y, Math.min( max.y, this.y ) );
-		this.z = Math.max( min.z, Math.min( max.z, this.z ) );
-		this.w = Math.max( min.w, Math.min( max.w, this.w ) );
-
-		return this;
-
-	}
-
-	clampScalar( minVal, maxVal ) {
-
-		this.x = Math.max( minVal, Math.min( maxVal, this.x ) );
-		this.y = Math.max( minVal, Math.min( maxVal, this.y ) );
-		this.z = Math.max( minVal, Math.min( maxVal, this.z ) );
-		this.w = Math.max( minVal, Math.min( maxVal, this.w ) );
-
-		return this;
-
-	}
-
-	clampLength( min, max ) {
-
-		const length = this.length();
-
-		return this.divideScalar( length || 1 ).multiplyScalar( Math.max( min, Math.min( max, length ) ) );
-
-	}
-
-	floor() {
-
-		this.x = Math.floor( this.x );
-		this.y = Math.floor( this.y );
-		this.z = Math.floor( this.z );
-		this.w = Math.floor( this.w );
-
-		return this;
-
-	}
-
-	ceil() {
-
-		this.x = Math.ceil( this.x );
-		this.y = Math.ceil( this.y );
-		this.z = Math.ceil( this.z );
-		this.w = Math.ceil( this.w );
-
-		return this;
-
-	}
-
-	round() {
-
-		this.x = Math.round( this.x );
-		this.y = Math.round( this.y );
-		this.z = Math.round( this.z );
-		this.w = Math.round( this.w );
-
-		return this;
-
-	}
-
-	roundToZero() {
-
-		this.x = ( this.x < 0 ) ? Math.ceil( this.x ) : Math.floor( this.x );
-		this.y = ( this.y < 0 ) ? Math.ceil( this.y ) : Math.floor( this.y );
-		this.z = ( this.z < 0 ) ? Math.ceil( this.z ) : Math.floor( this.z );
-		this.w = ( this.w < 0 ) ? Math.ceil( this.w ) : Math.floor( this.w );
-
-		return this;
-
-	}
-
-	negate() {
-
-		this.x = - this.x;
-		this.y = - this.y;
-		this.z = - this.z;
-		this.w = - this.w;
-
-		return this;
-
-	}
-
-	dot( v ) {
-
-		return this.x * v.x + this.y * v.y + this.z * v.z + this.w * v.w;
-
-	}
-
-	lengthSq() {
-
-		return this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w;
-
-	}
-
-	length() {
-
-		return Math.sqrt( this.x * this.x + this.y * this.y + this.z * this.z + this.w * this.w );
-
-	}
-
-	manhattanLength() {
-
-		return Math.abs( this.x ) + Math.abs( this.y ) + Math.abs( this.z ) + Math.abs( this.w );
-
-	}
-
-	normalize() {
-
-		return this.divideScalar( this.length() || 1 );
-
-	}
-
-	setLength( length ) {
-
-		return this.normalize().multiplyScalar( length );
-
-	}
-
-	lerp( v, alpha ) {
-
-		this.x += ( v.x - this.x ) * alpha;
-		this.y += ( v.y - this.y ) * alpha;
-		this.z += ( v.z - this.z ) * alpha;
-		this.w += ( v.w - this.w ) * alpha;
-
-		return this;
-
-	}
-
-	lerpVectors( v1, v2, alpha ) {
-
-		this.x = v1.x + ( v2.x - v1.x ) * alpha;
-		this.y = v1.y + ( v2.y - v1.y ) * alpha;
-		this.z = v1.z + ( v2.z - v1.z ) * alpha;
-		this.w = v1.w + ( v2.w - v1.w ) * alpha;
-
-		return this;
-
-	}
-
-	equals( v ) {
-
-		return ( ( v.x === this.x ) && ( v.y === this.y ) && ( v.z === this.z ) && ( v.w === this.w ) );
-
-	}
-
-	fromArray( array, offset = 0 ) {
-
-		this.x = array[ offset ];
-		this.y = array[ offset + 1 ];
-		this.z = array[ offset + 2 ];
-		this.w = array[ offset + 3 ];
-
-		return this;
-
-	}
-
-	toArray( array = [], offset = 0 ) {
-
-		array[ offset ] = this.x;
-		array[ offset + 1 ] = this.y;
-		array[ offset + 2 ] = this.z;
-		array[ offset + 3 ] = this.w;
-
-		return array;
-
-	}
-
-	fromBufferAttribute( attribute, index, offset ) {
-
-		if ( offset !== undefined ) {
-
-			console.warn( 'THREE.Vector4: offset has been removed from .fromBufferAttribute().' );
-
-		}
-
-		this.x = attribute.getX( index );
-		this.y = attribute.getY( index );
-		this.z = attribute.getZ( index );
-		this.w = attribute.getW( index );
-
-		return this;
-
-	}
-
-	random() {
-
-		this.x = Math.random();
-		this.y = Math.random();
-		this.z = Math.random();
-		this.w = Math.random();
-
-		return this;
-
-	}
-
-	*[ Symbol.iterator ]() {
-
-		yield this.x;
-		yield this.y;
-		yield this.z;
-		yield this.w;
-
-	}
-
-}
-
-Vector4.prototype.isVector4 = true;
-
-for ( let i = 0; i < 256; i ++ ) {
-
-	( i < 16 ? '0' : '' ) + ( i ).toString( 16 );
-
-}
-
 function clamp( value, min, max ) {
 
 	return Math.max( min, Math.min( max, value ) );
 
 }
 
-// compute euclidian modulo of m % n
-// https://en.wikipedia.org/wiki/Modulo_operation
-function euclideanModulo( n, m ) {
+function denormalize( value, array ) {
 
-	return ( ( n % m ) + m ) % m;
+	switch ( array.constructor ) {
+
+		case Float32Array:
+
+			return value;
+
+		case Uint16Array:
+
+			return value / 65535.0;
+
+		case Uint8Array:
+
+			return value / 255.0;
+
+		case Int16Array:
+
+			return Math.max( value / 32767.0, - 1.0 );
+
+		case Int8Array:
+
+			return Math.max( value / 127.0, - 1.0 );
+
+		default:
+
+			throw new Error( 'Invalid component type.' );
+
+	}
 
 }
 
-// https://en.wikipedia.org/wiki/Linear_interpolation
-function lerp( x, y, t ) {
+function normalize( value, array ) {
 
-	return ( 1 - t ) * x + t * y;
+	switch ( array.constructor ) {
+
+		case Float32Array:
+
+			return value;
+
+		case Uint16Array:
+
+			return Math.round( value * 65535.0 );
+
+		case Uint8Array:
+
+			return Math.round( value * 255.0 );
+
+		case Int16Array:
+
+			return Math.round( value * 32767.0 );
+
+		case Int8Array:
+
+			return Math.round( value * 127.0 );
+
+		default:
+
+			throw new Error( 'Invalid component type.' );
+
+	}
 
 }
 
@@ -3638,17 +3500,12 @@ class Quaternion {
 
 	constructor( x = 0, y = 0, z = 0, w = 1 ) {
 
+		this.isQuaternion = true;
+
 		this._x = x;
 		this._y = y;
 		this._z = z;
 		this._w = w;
-
-	}
-
-	static slerp( qa, qb, qm, t ) {
-
-		console.warn( 'THREE.Quaternion: Static .slerp() has been deprecated. Use qm.slerpQuaternions( qa, qb, t ) instead.' );
-		return qm.slerpQuaternions( qa, qb, t );
 
 	}
 
@@ -3838,12 +3695,6 @@ class Quaternion {
 	}
 
 	setFromEuler( euler, update ) {
-
-		if ( ! ( euler && euler.isEuler ) ) {
-
-			throw new Error( 'THREE.Quaternion: .setFromEuler() now expects an Euler rotation rather than a Vector3 and order.' );
-
-		}
 
 		const x = euler._x, y = euler._y, z = euler._z, order = euler._order;
 
@@ -4129,14 +3980,7 @@ class Quaternion {
 
 	}
 
-	multiply( q, p ) {
-
-		if ( p !== undefined ) {
-
-			console.warn( 'THREE.Quaternion: .multiply() now only accepts one argument. Use .multiplyQuaternions( a, b ) instead.' );
-			return this.multiplyQuaternions( q, p );
-
-		}
+	multiply( q ) {
 
 		return this.multiplyQuaternions( this, q );
 
@@ -4238,7 +4082,7 @@ class Quaternion {
 
 	slerpQuaternions( qa, qb, t ) {
 
-		this.copy( qa ).slerp( qb, t );
+		return this.copy( qa ).slerp( qb, t );
 
 	}
 
@@ -4306,6 +4150,12 @@ class Quaternion {
 
 	}
 
+	toJSON() {
+
+		return this.toArray();
+
+	}
+
 	_onChange( callback ) {
 
 		this._onChangeCallback = callback;
@@ -4316,13 +4166,22 @@ class Quaternion {
 
 	_onChangeCallback() {}
 
-}
+	*[ Symbol.iterator ]() {
 
-Quaternion.prototype.isQuaternion = true;
+		yield this._x;
+		yield this._y;
+		yield this._z;
+		yield this._w;
+
+	}
+
+}
 
 class Vector3 {
 
 	constructor( x = 0, y = 0, z = 0 ) {
+
+		Vector3.prototype.isVector3 = true;
 
 		this.x = x;
 		this.y = y;
@@ -4420,14 +4279,7 @@ class Vector3 {
 
 	}
 
-	add( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector3: .add() now only accepts one argument. Use .addVectors( a, b ) instead.' );
-			return this.addVectors( v, w );
-
-		}
+	add( v ) {
 
 		this.x += v.x;
 		this.y += v.y;
@@ -4467,14 +4319,7 @@ class Vector3 {
 
 	}
 
-	sub( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector3: .sub() now only accepts one argument. Use .subVectors( a, b ) instead.' );
-			return this.subVectors( v, w );
-
-		}
+	sub( v ) {
 
 		this.x -= v.x;
 		this.y -= v.y;
@@ -4504,14 +4349,7 @@ class Vector3 {
 
 	}
 
-	multiply( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector3: .multiply() now only accepts one argument. Use .multiplyVectors( a, b ) instead.' );
-			return this.multiplyVectors( v, w );
-
-		}
+	multiply( v ) {
 
 		this.x *= v.x;
 		this.y *= v.y;
@@ -4542,12 +4380,6 @@ class Vector3 {
 	}
 
 	applyEuler( euler ) {
-
-		if ( ! ( euler && euler.isEuler ) ) {
-
-			console.error( 'THREE.Vector3: .applyEuler() now expects an Euler rotation rather than a Vector3 and order.' );
-
-		}
 
 		return this.applyQuaternion( _quaternion.setFromEuler( euler ) );
 
@@ -4817,14 +4649,7 @@ class Vector3 {
 
 	}
 
-	cross( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector3: .cross() now only accepts one argument. Use .crossVectors( a, b ) instead.' );
-			return this.crossVectors( v, w );
-
-		}
+	cross( v ) {
 
 		return this.crossVectors( this, v );
 
@@ -4978,6 +4803,26 @@ class Vector3 {
 
 	}
 
+	setFromEuler( e ) {
+
+		this.x = e._x;
+		this.y = e._y;
+		this.z = e._z;
+
+		return this;
+
+	}
+
+	setFromColor( c ) {
+
+		this.x = c.r;
+		this.y = c.g;
+		this.z = c.b;
+
+		return this;
+
+	}
+
 	equals( v ) {
 
 		return ( ( v.x === this.x ) && ( v.y === this.y ) && ( v.z === this.z ) );
@@ -5004,13 +4849,7 @@ class Vector3 {
 
 	}
 
-	fromBufferAttribute( attribute, index, offset ) {
-
-		if ( offset !== undefined ) {
-
-			console.warn( 'THREE.Vector3: offset has been removed from .fromBufferAttribute().' );
-
-		}
+	fromBufferAttribute( attribute, index ) {
 
 		this.x = attribute.getX( index );
 		this.y = attribute.getY( index );
@@ -5056,14 +4895,14 @@ class Vector3 {
 
 }
 
-Vector3.prototype.isVector3 = true;
-
 const _vector$1 = /*@__PURE__*/ new Vector3();
 const _quaternion = /*@__PURE__*/ new Quaternion();
 
 class Vector2 {
 
 	constructor( x = 0, y = 0 ) {
+
+		Vector2.prototype.isVector2 = true;
 
 		this.x = x;
 		this.y = y;
@@ -5169,14 +5008,7 @@ class Vector2 {
 
 	}
 
-	add( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector2: .add() now only accepts one argument. Use .addVectors( a, b ) instead.' );
-			return this.addVectors( v, w );
-
-		}
+	add( v ) {
 
 		this.x += v.x;
 		this.y += v.y;
@@ -5212,14 +5044,7 @@ class Vector2 {
 
 	}
 
-	sub( v, w ) {
-
-		if ( w !== undefined ) {
-
-			console.warn( 'THREE.Vector2: .sub() now only accepts one argument. Use .subVectors( a, b ) instead.' );
-			return this.subVectors( v, w );
-
-		}
+	sub( v ) {
 
 		this.x -= v.x;
 		this.y -= v.y;
@@ -5428,6 +5253,20 @@ class Vector2 {
 
 	}
 
+	angleTo( v ) {
+
+		const denominator = Math.sqrt( this.lengthSq() * v.lengthSq() );
+
+		if ( denominator === 0 ) return Math.PI / 2;
+
+		const theta = this.dot( v ) / denominator;
+
+		// clamp, to handle numerical problems
+
+		return Math.acos( clamp( theta, - 1, 1 ) );
+
+	}
+
 	distanceTo( v ) {
 
 		return Math.sqrt( this.distanceToSquared( v ) );
@@ -5495,13 +5334,7 @@ class Vector2 {
 
 	}
 
-	fromBufferAttribute( attribute, index, offset ) {
-
-		if ( offset !== undefined ) {
-
-			console.warn( 'THREE.Vector2: offset has been removed from .fromBufferAttribute().' );
-
-		}
+	fromBufferAttribute( attribute, index ) {
 
 		this.x = attribute.getX( index );
 		this.y = attribute.getY( index );
@@ -5542,609 +5375,6 @@ class Vector2 {
 
 }
 
-Vector2.prototype.isVector2 = true;
-
-const _colorKeywords = { 'aliceblue': 0xF0F8FF, 'antiquewhite': 0xFAEBD7, 'aqua': 0x00FFFF, 'aquamarine': 0x7FFFD4, 'azure': 0xF0FFFF,
-	'beige': 0xF5F5DC, 'bisque': 0xFFE4C4, 'black': 0x000000, 'blanchedalmond': 0xFFEBCD, 'blue': 0x0000FF, 'blueviolet': 0x8A2BE2,
-	'brown': 0xA52A2A, 'burlywood': 0xDEB887, 'cadetblue': 0x5F9EA0, 'chartreuse': 0x7FFF00, 'chocolate': 0xD2691E, 'coral': 0xFF7F50,
-	'cornflowerblue': 0x6495ED, 'cornsilk': 0xFFF8DC, 'crimson': 0xDC143C, 'cyan': 0x00FFFF, 'darkblue': 0x00008B, 'darkcyan': 0x008B8B,
-	'darkgoldenrod': 0xB8860B, 'darkgray': 0xA9A9A9, 'darkgreen': 0x006400, 'darkgrey': 0xA9A9A9, 'darkkhaki': 0xBDB76B, 'darkmagenta': 0x8B008B,
-	'darkolivegreen': 0x556B2F, 'darkorange': 0xFF8C00, 'darkorchid': 0x9932CC, 'darkred': 0x8B0000, 'darksalmon': 0xE9967A, 'darkseagreen': 0x8FBC8F,
-	'darkslateblue': 0x483D8B, 'darkslategray': 0x2F4F4F, 'darkslategrey': 0x2F4F4F, 'darkturquoise': 0x00CED1, 'darkviolet': 0x9400D3,
-	'deeppink': 0xFF1493, 'deepskyblue': 0x00BFFF, 'dimgray': 0x696969, 'dimgrey': 0x696969, 'dodgerblue': 0x1E90FF, 'firebrick': 0xB22222,
-	'floralwhite': 0xFFFAF0, 'forestgreen': 0x228B22, 'fuchsia': 0xFF00FF, 'gainsboro': 0xDCDCDC, 'ghostwhite': 0xF8F8FF, 'gold': 0xFFD700,
-	'goldenrod': 0xDAA520, 'gray': 0x808080, 'green': 0x008000, 'greenyellow': 0xADFF2F, 'grey': 0x808080, 'honeydew': 0xF0FFF0, 'hotpink': 0xFF69B4,
-	'indianred': 0xCD5C5C, 'indigo': 0x4B0082, 'ivory': 0xFFFFF0, 'khaki': 0xF0E68C, 'lavender': 0xE6E6FA, 'lavenderblush': 0xFFF0F5, 'lawngreen': 0x7CFC00,
-	'lemonchiffon': 0xFFFACD, 'lightblue': 0xADD8E6, 'lightcoral': 0xF08080, 'lightcyan': 0xE0FFFF, 'lightgoldenrodyellow': 0xFAFAD2, 'lightgray': 0xD3D3D3,
-	'lightgreen': 0x90EE90, 'lightgrey': 0xD3D3D3, 'lightpink': 0xFFB6C1, 'lightsalmon': 0xFFA07A, 'lightseagreen': 0x20B2AA, 'lightskyblue': 0x87CEFA,
-	'lightslategray': 0x778899, 'lightslategrey': 0x778899, 'lightsteelblue': 0xB0C4DE, 'lightyellow': 0xFFFFE0, 'lime': 0x00FF00, 'limegreen': 0x32CD32,
-	'linen': 0xFAF0E6, 'magenta': 0xFF00FF, 'maroon': 0x800000, 'mediumaquamarine': 0x66CDAA, 'mediumblue': 0x0000CD, 'mediumorchid': 0xBA55D3,
-	'mediumpurple': 0x9370DB, 'mediumseagreen': 0x3CB371, 'mediumslateblue': 0x7B68EE, 'mediumspringgreen': 0x00FA9A, 'mediumturquoise': 0x48D1CC,
-	'mediumvioletred': 0xC71585, 'midnightblue': 0x191970, 'mintcream': 0xF5FFFA, 'mistyrose': 0xFFE4E1, 'moccasin': 0xFFE4B5, 'navajowhite': 0xFFDEAD,
-	'navy': 0x000080, 'oldlace': 0xFDF5E6, 'olive': 0x808000, 'olivedrab': 0x6B8E23, 'orange': 0xFFA500, 'orangered': 0xFF4500, 'orchid': 0xDA70D6,
-	'palegoldenrod': 0xEEE8AA, 'palegreen': 0x98FB98, 'paleturquoise': 0xAFEEEE, 'palevioletred': 0xDB7093, 'papayawhip': 0xFFEFD5, 'peachpuff': 0xFFDAB9,
-	'peru': 0xCD853F, 'pink': 0xFFC0CB, 'plum': 0xDDA0DD, 'powderblue': 0xB0E0E6, 'purple': 0x800080, 'rebeccapurple': 0x663399, 'red': 0xFF0000, 'rosybrown': 0xBC8F8F,
-	'royalblue': 0x4169E1, 'saddlebrown': 0x8B4513, 'salmon': 0xFA8072, 'sandybrown': 0xF4A460, 'seagreen': 0x2E8B57, 'seashell': 0xFFF5EE,
-	'sienna': 0xA0522D, 'silver': 0xC0C0C0, 'skyblue': 0x87CEEB, 'slateblue': 0x6A5ACD, 'slategray': 0x708090, 'slategrey': 0x708090, 'snow': 0xFFFAFA,
-	'springgreen': 0x00FF7F, 'steelblue': 0x4682B4, 'tan': 0xD2B48C, 'teal': 0x008080, 'thistle': 0xD8BFD8, 'tomato': 0xFF6347, 'turquoise': 0x40E0D0,
-	'violet': 0xEE82EE, 'wheat': 0xF5DEB3, 'white': 0xFFFFFF, 'whitesmoke': 0xF5F5F5, 'yellow': 0xFFFF00, 'yellowgreen': 0x9ACD32 };
-
-const _hslA = { h: 0, s: 0, l: 0 };
-const _hslB = { h: 0, s: 0, l: 0 };
-
-function hue2rgb( p, q, t ) {
-
-	if ( t < 0 ) t += 1;
-	if ( t > 1 ) t -= 1;
-	if ( t < 1 / 6 ) return p + ( q - p ) * 6 * t;
-	if ( t < 1 / 2 ) return q;
-	if ( t < 2 / 3 ) return p + ( q - p ) * 6 * ( 2 / 3 - t );
-	return p;
-
-}
-
-function SRGBToLinear( c ) {
-
-	return ( c < 0.04045 ) ? c * 0.0773993808 : Math.pow( c * 0.9478672986 + 0.0521327014, 2.4 );
-
-}
-
-function LinearToSRGB( c ) {
-
-	return ( c < 0.0031308 ) ? c * 12.92 : 1.055 * ( Math.pow( c, 0.41666 ) ) - 0.055;
-
-}
-
-class Color {
-
-	constructor( r, g, b ) {
-
-		if ( g === undefined && b === undefined ) {
-
-			// r is THREE.Color, hex or string
-			return this.set( r );
-
-		}
-
-		return this.setRGB( r, g, b );
-
-	}
-
-	set( value ) {
-
-		if ( value && value.isColor ) {
-
-			this.copy( value );
-
-		} else if ( typeof value === 'number' ) {
-
-			this.setHex( value );
-
-		} else if ( typeof value === 'string' ) {
-
-			this.setStyle( value );
-
-		}
-
-		return this;
-
-	}
-
-	setScalar( scalar ) {
-
-		this.r = scalar;
-		this.g = scalar;
-		this.b = scalar;
-
-		return this;
-
-	}
-
-	setHex( hex ) {
-
-		hex = Math.floor( hex );
-
-		this.r = ( hex >> 16 & 255 ) / 255;
-		this.g = ( hex >> 8 & 255 ) / 255;
-		this.b = ( hex & 255 ) / 255;
-
-		return this;
-
-	}
-
-	setRGB( r, g, b ) {
-
-		this.r = r;
-		this.g = g;
-		this.b = b;
-
-		return this;
-
-	}
-
-	setHSL( h, s, l ) {
-
-		// h,s,l ranges are in 0.0 - 1.0
-		h = euclideanModulo( h, 1 );
-		s = clamp( s, 0, 1 );
-		l = clamp( l, 0, 1 );
-
-		if ( s === 0 ) {
-
-			this.r = this.g = this.b = l;
-
-		} else {
-
-			const p = l <= 0.5 ? l * ( 1 + s ) : l + s - ( l * s );
-			const q = ( 2 * l ) - p;
-
-			this.r = hue2rgb( q, p, h + 1 / 3 );
-			this.g = hue2rgb( q, p, h );
-			this.b = hue2rgb( q, p, h - 1 / 3 );
-
-		}
-
-		return this;
-
-	}
-
-	setStyle( style ) {
-
-		function handleAlpha( string ) {
-
-			if ( string === undefined ) return;
-
-			if ( parseFloat( string ) < 1 ) {
-
-				console.warn( 'THREE.Color: Alpha component of ' + style + ' will be ignored.' );
-
-			}
-
-		}
-
-
-		let m;
-
-		if ( m = /^((?:rgb|hsl)a?)\(([^\)]*)\)/.exec( style ) ) {
-
-			// rgb / hsl
-
-			let color;
-			const name = m[ 1 ];
-			const components = m[ 2 ];
-
-			switch ( name ) {
-
-				case 'rgb':
-				case 'rgba':
-
-					if ( color = /^\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec( components ) ) {
-
-						// rgb(255,0,0) rgba(255,0,0,0.5)
-						this.r = Math.min( 255, parseInt( color[ 1 ], 10 ) ) / 255;
-						this.g = Math.min( 255, parseInt( color[ 2 ], 10 ) ) / 255;
-						this.b = Math.min( 255, parseInt( color[ 3 ], 10 ) ) / 255;
-
-						handleAlpha( color[ 4 ] );
-
-						return this;
-
-					}
-
-					if ( color = /^\s*(\d+)\%\s*,\s*(\d+)\%\s*,\s*(\d+)\%\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec( components ) ) {
-
-						// rgb(100%,0%,0%) rgba(100%,0%,0%,0.5)
-						this.r = Math.min( 100, parseInt( color[ 1 ], 10 ) ) / 100;
-						this.g = Math.min( 100, parseInt( color[ 2 ], 10 ) ) / 100;
-						this.b = Math.min( 100, parseInt( color[ 3 ], 10 ) ) / 100;
-
-						handleAlpha( color[ 4 ] );
-
-						return this;
-
-					}
-
-					break;
-
-				case 'hsl':
-				case 'hsla':
-
-					if ( color = /^\s*(\d*\.?\d+)\s*,\s*(\d+)\%\s*,\s*(\d+)\%\s*(?:,\s*(\d*\.?\d+)\s*)?$/.exec( components ) ) {
-
-						// hsl(120,50%,50%) hsla(120,50%,50%,0.5)
-						const h = parseFloat( color[ 1 ] ) / 360;
-						const s = parseInt( color[ 2 ], 10 ) / 100;
-						const l = parseInt( color[ 3 ], 10 ) / 100;
-
-						handleAlpha( color[ 4 ] );
-
-						return this.setHSL( h, s, l );
-
-					}
-
-					break;
-
-			}
-
-		} else if ( m = /^\#([A-Fa-f\d]+)$/.exec( style ) ) {
-
-			// hex color
-
-			const hex = m[ 1 ];
-			const size = hex.length;
-
-			if ( size === 3 ) {
-
-				// #ff0
-				this.r = parseInt( hex.charAt( 0 ) + hex.charAt( 0 ), 16 ) / 255;
-				this.g = parseInt( hex.charAt( 1 ) + hex.charAt( 1 ), 16 ) / 255;
-				this.b = parseInt( hex.charAt( 2 ) + hex.charAt( 2 ), 16 ) / 255;
-
-				return this;
-
-			} else if ( size === 6 ) {
-
-				// #ff0000
-				this.r = parseInt( hex.charAt( 0 ) + hex.charAt( 1 ), 16 ) / 255;
-				this.g = parseInt( hex.charAt( 2 ) + hex.charAt( 3 ), 16 ) / 255;
-				this.b = parseInt( hex.charAt( 4 ) + hex.charAt( 5 ), 16 ) / 255;
-
-				return this;
-
-			}
-
-		}
-
-		if ( style && style.length > 0 ) {
-
-			return this.setColorName( style );
-
-		}
-
-		return this;
-
-	}
-
-	setColorName( style ) {
-
-		// color keywords
-		const hex = _colorKeywords[ style.toLowerCase() ];
-
-		if ( hex !== undefined ) {
-
-			// red
-			this.setHex( hex );
-
-		} else {
-
-			// unknown color
-			console.warn( 'THREE.Color: Unknown color ' + style );
-
-		}
-
-		return this;
-
-	}
-
-	clone() {
-
-		return new this.constructor( this.r, this.g, this.b );
-
-	}
-
-	copy( color ) {
-
-		this.r = color.r;
-		this.g = color.g;
-		this.b = color.b;
-
-		return this;
-
-	}
-
-	copyGammaToLinear( color, gammaFactor = 2.0 ) {
-
-		this.r = Math.pow( color.r, gammaFactor );
-		this.g = Math.pow( color.g, gammaFactor );
-		this.b = Math.pow( color.b, gammaFactor );
-
-		return this;
-
-	}
-
-	copyLinearToGamma( color, gammaFactor = 2.0 ) {
-
-		const safeInverse = ( gammaFactor > 0 ) ? ( 1.0 / gammaFactor ) : 1.0;
-
-		this.r = Math.pow( color.r, safeInverse );
-		this.g = Math.pow( color.g, safeInverse );
-		this.b = Math.pow( color.b, safeInverse );
-
-		return this;
-
-	}
-
-	convertGammaToLinear( gammaFactor ) {
-
-		this.copyGammaToLinear( this, gammaFactor );
-
-		return this;
-
-	}
-
-	convertLinearToGamma( gammaFactor ) {
-
-		this.copyLinearToGamma( this, gammaFactor );
-
-		return this;
-
-	}
-
-	copySRGBToLinear( color ) {
-
-		this.r = SRGBToLinear( color.r );
-		this.g = SRGBToLinear( color.g );
-		this.b = SRGBToLinear( color.b );
-
-		return this;
-
-	}
-
-	copyLinearToSRGB( color ) {
-
-		this.r = LinearToSRGB( color.r );
-		this.g = LinearToSRGB( color.g );
-		this.b = LinearToSRGB( color.b );
-
-		return this;
-
-	}
-
-	convertSRGBToLinear() {
-
-		this.copySRGBToLinear( this );
-
-		return this;
-
-	}
-
-	convertLinearToSRGB() {
-
-		this.copyLinearToSRGB( this );
-
-		return this;
-
-	}
-
-	getHex() {
-
-		return ( this.r * 255 ) << 16 ^ ( this.g * 255 ) << 8 ^ ( this.b * 255 ) << 0;
-
-	}
-
-	getHexString() {
-
-		return ( '000000' + this.getHex().toString( 16 ) ).slice( - 6 );
-
-	}
-
-	getHSL( target ) {
-
-		// h,s,l ranges are in 0.0 - 1.0
-
-		const r = this.r, g = this.g, b = this.b;
-
-		const max = Math.max( r, g, b );
-		const min = Math.min( r, g, b );
-
-		let hue, saturation;
-		const lightness = ( min + max ) / 2.0;
-
-		if ( min === max ) {
-
-			hue = 0;
-			saturation = 0;
-
-		} else {
-
-			const delta = max - min;
-
-			saturation = lightness <= 0.5 ? delta / ( max + min ) : delta / ( 2 - max - min );
-
-			switch ( max ) {
-
-				case r: hue = ( g - b ) / delta + ( g < b ? 6 : 0 ); break;
-				case g: hue = ( b - r ) / delta + 2; break;
-				case b: hue = ( r - g ) / delta + 4; break;
-
-			}
-
-			hue /= 6;
-
-		}
-
-		target.h = hue;
-		target.s = saturation;
-		target.l = lightness;
-
-		return target;
-
-	}
-
-	getStyle() {
-
-		return 'rgb(' + ( ( this.r * 255 ) | 0 ) + ',' + ( ( this.g * 255 ) | 0 ) + ',' + ( ( this.b * 255 ) | 0 ) + ')';
-
-	}
-
-	offsetHSL( h, s, l ) {
-
-		this.getHSL( _hslA );
-
-		_hslA.h += h; _hslA.s += s; _hslA.l += l;
-
-		this.setHSL( _hslA.h, _hslA.s, _hslA.l );
-
-		return this;
-
-	}
-
-	add( color ) {
-
-		this.r += color.r;
-		this.g += color.g;
-		this.b += color.b;
-
-		return this;
-
-	}
-
-	addColors( color1, color2 ) {
-
-		this.r = color1.r + color2.r;
-		this.g = color1.g + color2.g;
-		this.b = color1.b + color2.b;
-
-		return this;
-
-	}
-
-	addScalar( s ) {
-
-		this.r += s;
-		this.g += s;
-		this.b += s;
-
-		return this;
-
-	}
-
-	sub( color ) {
-
-		this.r = Math.max( 0, this.r - color.r );
-		this.g = Math.max( 0, this.g - color.g );
-		this.b = Math.max( 0, this.b - color.b );
-
-		return this;
-
-	}
-
-	multiply( color ) {
-
-		this.r *= color.r;
-		this.g *= color.g;
-		this.b *= color.b;
-
-		return this;
-
-	}
-
-	multiplyScalar( s ) {
-
-		this.r *= s;
-		this.g *= s;
-		this.b *= s;
-
-		return this;
-
-	}
-
-	lerp( color, alpha ) {
-
-		this.r += ( color.r - this.r ) * alpha;
-		this.g += ( color.g - this.g ) * alpha;
-		this.b += ( color.b - this.b ) * alpha;
-
-		return this;
-
-	}
-
-	lerpColors( color1, color2, alpha ) {
-
-		this.r = color1.r + ( color2.r - color1.r ) * alpha;
-		this.g = color1.g + ( color2.g - color1.g ) * alpha;
-		this.b = color1.b + ( color2.b - color1.b ) * alpha;
-
-		return this;
-
-	}
-
-	lerpHSL( color, alpha ) {
-
-		this.getHSL( _hslA );
-		color.getHSL( _hslB );
-
-		const h = lerp( _hslA.h, _hslB.h, alpha );
-		const s = lerp( _hslA.s, _hslB.s, alpha );
-		const l = lerp( _hslA.l, _hslB.l, alpha );
-
-		this.setHSL( h, s, l );
-
-		return this;
-
-	}
-
-	equals( c ) {
-
-		return ( c.r === this.r ) && ( c.g === this.g ) && ( c.b === this.b );
-
-	}
-
-	fromArray( array, offset = 0 ) {
-
-		this.r = array[ offset ];
-		this.g = array[ offset + 1 ];
-		this.b = array[ offset + 2 ];
-
-		return this;
-
-	}
-
-	toArray( array = [], offset = 0 ) {
-
-		array[ offset ] = this.r;
-		array[ offset + 1 ] = this.g;
-		array[ offset + 2 ] = this.b;
-
-		return array;
-
-	}
-
-	fromBufferAttribute( attribute, index ) {
-
-		this.r = attribute.getX( index );
-		this.g = attribute.getY( index );
-		this.b = attribute.getZ( index );
-
-		if ( attribute.normalized === true ) {
-
-			// assuming Uint8Array
-
-			this.r /= 255;
-			this.g /= 255;
-			this.b /= 255;
-
-		}
-
-		return this;
-
-	}
-
-	toJSON() {
-
-		return this.getHex();
-
-	}
-
-}
-
-Color.NAMES = _colorKeywords;
-
-Color.prototype.isColor = true;
-Color.prototype.r = 1;
-Color.prototype.g = 1;
-Color.prototype.b = 1;
-
 const StaticDrawUsage = 35044;
 
 const _vector = /*@__PURE__*/ new Vector3();
@@ -6152,7 +5382,7 @@ const _vector2 = /*@__PURE__*/ new Vector2();
 
 class BufferAttribute {
 
-	constructor( array, itemSize, normalized ) {
+	constructor( array, itemSize, normalized = false ) {
 
 		if ( Array.isArray( array ) ) {
 
@@ -6160,12 +5390,14 @@ class BufferAttribute {
 
 		}
 
+		this.isBufferAttribute = true;
+
 		this.name = '';
 
 		this.array = array;
 		this.itemSize = itemSize;
 		this.count = array !== undefined ? array.length / itemSize : 0;
-		this.normalized = normalized === true;
+		this.normalized = normalized;
 
 		this.usage = StaticDrawUsage;
 		this.updateRange = { offset: 0, count: - 1 };
@@ -6227,110 +5459,6 @@ class BufferAttribute {
 
 	}
 
-	copyColorsArray( colors ) {
-
-		const array = this.array;
-		let offset = 0;
-
-		for ( let i = 0, l = colors.length; i < l; i ++ ) {
-
-			let color = colors[ i ];
-
-			if ( color === undefined ) {
-
-				console.warn( 'THREE.BufferAttribute.copyColorsArray(): color is undefined', i );
-				color = new Color();
-
-			}
-
-			array[ offset ++ ] = color.r;
-			array[ offset ++ ] = color.g;
-			array[ offset ++ ] = color.b;
-
-		}
-
-		return this;
-
-	}
-
-	copyVector2sArray( vectors ) {
-
-		const array = this.array;
-		let offset = 0;
-
-		for ( let i = 0, l = vectors.length; i < l; i ++ ) {
-
-			let vector = vectors[ i ];
-
-			if ( vector === undefined ) {
-
-				console.warn( 'THREE.BufferAttribute.copyVector2sArray(): vector is undefined', i );
-				vector = new Vector2();
-
-			}
-
-			array[ offset ++ ] = vector.x;
-			array[ offset ++ ] = vector.y;
-
-		}
-
-		return this;
-
-	}
-
-	copyVector3sArray( vectors ) {
-
-		const array = this.array;
-		let offset = 0;
-
-		for ( let i = 0, l = vectors.length; i < l; i ++ ) {
-
-			let vector = vectors[ i ];
-
-			if ( vector === undefined ) {
-
-				console.warn( 'THREE.BufferAttribute.copyVector3sArray(): vector is undefined', i );
-				vector = new Vector3();
-
-			}
-
-			array[ offset ++ ] = vector.x;
-			array[ offset ++ ] = vector.y;
-			array[ offset ++ ] = vector.z;
-
-		}
-
-		return this;
-
-	}
-
-	copyVector4sArray( vectors ) {
-
-		const array = this.array;
-		let offset = 0;
-
-		for ( let i = 0, l = vectors.length; i < l; i ++ ) {
-
-			let vector = vectors[ i ];
-
-			if ( vector === undefined ) {
-
-				console.warn( 'THREE.BufferAttribute.copyVector4sArray(): vector is undefined', i );
-				vector = new Vector4();
-
-			}
-
-			array[ offset ++ ] = vector.x;
-			array[ offset ++ ] = vector.y;
-			array[ offset ++ ] = vector.z;
-			array[ offset ++ ] = vector.w;
-
-		}
-
-		return this;
-
-	}
-
 	applyMatrix3( m ) {
 
 		if ( this.itemSize === 2 ) {
@@ -6365,9 +5493,7 @@ class BufferAttribute {
 
 		for ( let i = 0, l = this.count; i < l; i ++ ) {
 
-			_vector.x = this.getX( i );
-			_vector.y = this.getY( i );
-			_vector.z = this.getZ( i );
+			_vector.fromBufferAttribute( this, i );
 
 			_vector.applyMatrix4( m );
 
@@ -6383,9 +5509,7 @@ class BufferAttribute {
 
 		for ( let i = 0, l = this.count; i < l; i ++ ) {
 
-			_vector.x = this.getX( i );
-			_vector.y = this.getY( i );
-			_vector.z = this.getZ( i );
+			_vector.fromBufferAttribute( this, i );
 
 			_vector.applyNormalMatrix( m );
 
@@ -6401,9 +5525,7 @@ class BufferAttribute {
 
 		for ( let i = 0, l = this.count; i < l; i ++ ) {
 
-			_vector.x = this.getX( i );
-			_vector.y = this.getY( i );
-			_vector.z = this.getZ( i );
+			_vector.fromBufferAttribute( this, i );
 
 			_vector.transformDirection( m );
 
@@ -6417,6 +5539,7 @@ class BufferAttribute {
 
 	set( value, offset = 0 ) {
 
+		// Matching BufferAttribute constructor, do not normalize the array.
 		this.array.set( value, offset );
 
 		return this;
@@ -6425,11 +5548,17 @@ class BufferAttribute {
 
 	getX( index ) {
 
-		return this.array[ index * this.itemSize ];
+		let x = this.array[ index * this.itemSize ];
+
+		if ( this.normalized ) x = denormalize( x, this.array );
+
+		return x;
 
 	}
 
 	setX( index, x ) {
+
+		if ( this.normalized ) x = normalize( x, this.array );
 
 		this.array[ index * this.itemSize ] = x;
 
@@ -6439,11 +5568,17 @@ class BufferAttribute {
 
 	getY( index ) {
 
-		return this.array[ index * this.itemSize + 1 ];
+		let y = this.array[ index * this.itemSize + 1 ];
+
+		if ( this.normalized ) y = denormalize( y, this.array );
+
+		return y;
 
 	}
 
 	setY( index, y ) {
+
+		if ( this.normalized ) y = normalize( y, this.array );
 
 		this.array[ index * this.itemSize + 1 ] = y;
 
@@ -6453,11 +5588,17 @@ class BufferAttribute {
 
 	getZ( index ) {
 
-		return this.array[ index * this.itemSize + 2 ];
+		let z = this.array[ index * this.itemSize + 2 ];
+
+		if ( this.normalized ) z = denormalize( z, this.array );
+
+		return z;
 
 	}
 
 	setZ( index, z ) {
+
+		if ( this.normalized ) z = normalize( z, this.array );
 
 		this.array[ index * this.itemSize + 2 ] = z;
 
@@ -6467,11 +5608,17 @@ class BufferAttribute {
 
 	getW( index ) {
 
-		return this.array[ index * this.itemSize + 3 ];
+		let w = this.array[ index * this.itemSize + 3 ];
+
+		if ( this.normalized ) w = denormalize( w, this.array );
+
+		return w;
 
 	}
 
 	setW( index, w ) {
+
+		if ( this.normalized ) w = normalize( w, this.array );
 
 		this.array[ index * this.itemSize + 3 ] = w;
 
@@ -6482,6 +5629,13 @@ class BufferAttribute {
 	setXY( index, x, y ) {
 
 		index *= this.itemSize;
+
+		if ( this.normalized ) {
+
+			x = normalize( x, this.array );
+			y = normalize( y, this.array );
+
+		}
 
 		this.array[ index + 0 ] = x;
 		this.array[ index + 1 ] = y;
@@ -6494,6 +5648,14 @@ class BufferAttribute {
 
 		index *= this.itemSize;
 
+		if ( this.normalized ) {
+
+			x = normalize( x, this.array );
+			y = normalize( y, this.array );
+			z = normalize( z, this.array );
+
+		}
+
 		this.array[ index + 0 ] = x;
 		this.array[ index + 1 ] = y;
 		this.array[ index + 2 ] = z;
@@ -6505,6 +5667,15 @@ class BufferAttribute {
 	setXYZW( index, x, y, z, w ) {
 
 		index *= this.itemSize;
+
+		if ( this.normalized ) {
+
+			x = normalize( x, this.array );
+			y = normalize( y, this.array );
+			z = normalize( z, this.array );
+			w = normalize( w, this.array );
+
+		}
 
 		this.array[ index + 0 ] = x;
 		this.array[ index + 1 ] = y;
@@ -6534,7 +5705,7 @@ class BufferAttribute {
 		const data = {
 			itemSize: this.itemSize,
 			type: this.array.constructor.name,
-			array: Array.prototype.slice.call( this.array ),
+			array: Array.from( this.array ),
 			normalized: this.normalized
 		};
 
@@ -6546,21 +5717,31 @@ class BufferAttribute {
 
 	}
 
-}
+	copyColorsArray() { // @deprecated, r144
 
-BufferAttribute.prototype.isBufferAttribute = true;
+		console.error( 'THREE.BufferAttribute: copyColorsArray() was removed in r144.' );
 
-class Float16BufferAttribute extends BufferAttribute {
+	}
 
-	constructor( array, itemSize, normalized ) {
+	copyVector2sArray() { // @deprecated, r144
 
-		super( new Uint16Array( array ), itemSize, normalized );
+		console.error( 'THREE.BufferAttribute: copyVector2sArray() was removed in r144.' );
+
+	}
+
+	copyVector3sArray() { // @deprecated, r144
+
+		console.error( 'THREE.BufferAttribute: copyVector3sArray() was removed in r144.' );
+
+	}
+
+	copyVector4sArray() { // @deprecated, r144
+
+		console.error( 'THREE.BufferAttribute: copyVector4sArray() was removed in r144.' );
 
 	}
 
 }
-
-Float16BufferAttribute.prototype.isFloat16BufferAttribute = true;
 
 class FragmentMesh extends InstancedMesh {
     constructor(geometry, material, count) {
@@ -6593,7 +5774,7 @@ class FragmentMesh extends InstancedMesh {
             for (const material of this.material) {
                 const opacity = material.opacity;
                 const transparent = material.transparent ? 1 : 0;
-                const color = new Color$1(material.color).toArray();
+                const color = new Color(material.color).toArray();
                 materials.push(opacity, transparent, ...color);
             }
         }
@@ -6908,7 +6089,7 @@ function getLongestEdgeIndex( bounds ) {
 
 }
 
-// copys bounds a into bounds b
+// copies bounds a into bounds b
 function copyBounds( source, target ) {
 
 	target.set( source );
@@ -7446,7 +6627,7 @@ function getOptimalSplit( nodeBoundingData, centroidBoundingData, triangleBounds
 					const nextBin = sahBins[ i + 1 ];
 					const rightBounds = nextBin.rightCacheBounds;
 
-					// dont do anything with the bounds if the new bounds have no triangles
+					// don't do anything with the bounds if the new bounds have no triangles
 					if ( binCount !== 0 ) {
 
 						if ( leftCount === 0 ) {
@@ -7931,43 +7112,6 @@ SeparatingAxisBounds.prototype.setFromBox = ( function () {
 
 } )();
 
-( (function () {
-
-	const cacheSatBounds = new SeparatingAxisBounds();
-	return function areIntersecting( shape1, shape2 ) {
-
-		const points1 = shape1.points;
-		const satAxes1 = shape1.satAxes;
-		const satBounds1 = shape1.satBounds;
-
-		const points2 = shape2.points;
-		const satAxes2 = shape2.satAxes;
-		const satBounds2 = shape2.satBounds;
-
-		// check axes of the first shape
-		for ( let i = 0; i < 3; i ++ ) {
-
-			const sb = satBounds1[ i ];
-			const sa = satAxes1[ i ];
-			cacheSatBounds.setFromPoints( sa, points2 );
-			if ( sb.isSeparated( cacheSatBounds ) ) return false;
-
-		}
-
-		// check axes of the second shape
-		for ( let i = 0; i < 3; i ++ ) {
-
-			const sb = satBounds2[ i ];
-			const sa = satAxes2[ i ];
-			cacheSatBounds.setFromPoints( sa, points1 );
-			if ( sb.isSeparated( cacheSatBounds ) ) return false;
-
-		}
-
-	};
-
-}) )();
-
 const closestPointLineToLine = ( function () {
 
 	// https://github.com/juj/MathGeoLib/blob/master/src/Geometry/Line.cpp#L56
@@ -8314,7 +7458,7 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 
 	// TODO: If the triangles are coplanar and intersecting the target is nonsensical. It should at least
 	// be a line contained by both triangles if not a different special case somehow represented in the return result.
-	return function intersectsTriangle( other, target = null ) {
+	return function intersectsTriangle( other, target = null, suppressLog = false ) {
 
 		if ( this.needsUpdate ) {
 
@@ -8387,7 +7531,11 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 			if ( target ) {
 
 				// TODO find two points that intersect on the edges and make that the result
-				console.warn( 'ExtendedTriangle.intersectsTriangle: Triangles are coplanar which does not support an output edge. Setting edge to 0, 0, 0.' );
+				if ( ! suppressLog ) {
+
+					console.warn( 'ExtendedTriangle.intersectsTriangle: Triangles are coplanar which does not support an output edge. Setting edge to 0, 0, 0.' );
+
+				}
 
 				target.start.set( 0, 0, 0 );
 				target.end.set( 0, 0, 0 );
@@ -8439,7 +7587,7 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 
 			}
 
-			if ( count1 === 1 && this.containsPoint( edge1.end ) ) {
+			if ( count1 === 1 && other.containsPoint( edge1.end ) ) {
 
 				if ( target ) {
 
@@ -9100,15 +8248,19 @@ OrientedBox.prototype.distanceToBox = ( function () {
 
 // Ripped and modified From THREE.js Mesh raycast
 // https://github.com/mrdoob/three.js/blob/0aa87c999fe61e216c1133fba7a95772b503eddf/src/objects/Mesh.js#L115
-const vA = /* @__PURE__ */ new Vector3$1();
-const vB = /* @__PURE__ */ new Vector3$1();
-const vC = /* @__PURE__ */ new Vector3$1();
+const _vA = /* @__PURE__ */ new Vector3$1();
+const _vB = /* @__PURE__ */ new Vector3$1();
+const _vC = /* @__PURE__ */ new Vector3$1();
 
-const uvA = /* @__PURE__ */ new Vector2$1();
-const uvB = /* @__PURE__ */ new Vector2$1();
-const uvC = /* @__PURE__ */ new Vector2$1();
+const _uvA = /* @__PURE__ */ new Vector2$1();
+const _uvB = /* @__PURE__ */ new Vector2$1();
+const _uvC = /* @__PURE__ */ new Vector2$1();
 
-const intersectionPoint = /* @__PURE__ */ new Vector3$1();
+const _normalA = /* @__PURE__ */ new Vector3$1();
+const _normalB = /* @__PURE__ */ new Vector3$1();
+const _normalC = /* @__PURE__ */ new Vector3$1();
+
+const _intersectionPoint = /* @__PURE__ */ new Vector3$1();
 function checkIntersection( ray, pA, pB, pC, point, side ) {
 
 	let intersect;
@@ -9135,23 +8287,48 @@ function checkIntersection( ray, pA, pB, pC, point, side ) {
 
 }
 
-function checkBufferGeometryIntersection( ray, position, uv, a, b, c, side ) {
+function checkBufferGeometryIntersection( ray, position, normal, uv, uv1, a, b, c, side ) {
 
-	vA.fromBufferAttribute( position, a );
-	vB.fromBufferAttribute( position, b );
-	vC.fromBufferAttribute( position, c );
+	_vA.fromBufferAttribute( position, a );
+	_vB.fromBufferAttribute( position, b );
+	_vC.fromBufferAttribute( position, c );
 
-	const intersection = checkIntersection( ray, vA, vB, vC, intersectionPoint, side );
+	const intersection = checkIntersection( ray, _vA, _vB, _vC, _intersectionPoint, side );
 
 	if ( intersection ) {
 
 		if ( uv ) {
 
-			uvA.fromBufferAttribute( uv, a );
-			uvB.fromBufferAttribute( uv, b );
-			uvC.fromBufferAttribute( uv, c );
+			_uvA.fromBufferAttribute( uv, a );
+			_uvB.fromBufferAttribute( uv, b );
+			_uvC.fromBufferAttribute( uv, c );
 
-			intersection.uv = Triangle.getUV( intersectionPoint, vA, vB, vC, uvA, uvB, uvC, new Vector2$1( ) );
+			intersection.uv = Triangle.getInterpolation( _intersectionPoint, _vA, _vB, _vC, _uvA, _uvB, _uvC, new Vector2$1() );
+
+		}
+
+		if ( uv1 ) {
+
+			_uvA.fromBufferAttribute( uv1, a );
+			_uvB.fromBufferAttribute( uv1, b );
+			_uvC.fromBufferAttribute( uv1, c );
+
+			intersection.uv1 = Triangle.getInterpolation( _intersectionPoint, _vA, _vB, _vC, _uvA, _uvB, _uvC, new Vector2$1() );
+
+		}
+
+		if ( normal ) {
+
+			_normalA.fromBufferAttribute( normal, a );
+			_normalB.fromBufferAttribute( normal, b );
+			_normalC.fromBufferAttribute( normal, c );
+
+			intersection.normal = Triangle.getInterpolation( _intersectionPoint, _vA, _vB, _vC, _normalA, _normalB, _normalC, new Vector3$1() );
+			if ( intersection.normal.dot( ray.direction ) > 0 ) {
+
+				intersection.normal.multiplyScalar( - 1 );
+
+			}
 
 		}
 
@@ -9163,7 +8340,7 @@ function checkBufferGeometryIntersection( ray, position, uv, a, b, c, side ) {
 			materialIndex: 0
 		};
 
-		Triangle.getNormal( vA, vB, vC, face.normal );
+		Triangle.getNormal( _vA, _vB, _vC, face.normal );
 
 		intersection.face = face;
 		intersection.faceIndex = a;
@@ -9182,7 +8359,8 @@ function intersectTri( geo, side, ray, tri, intersections ) {
 	const b = geo.index.getX( triOffset + 1 );
 	const c = geo.index.getX( triOffset + 2 );
 
-	const intersection = checkBufferGeometryIntersection( ray, geo.attributes.position, geo.attributes.uv, a, b, c, side );
+	const { position, normal, uv, uv1 } = geo.attributes;
+	const intersection = checkBufferGeometryIntersection( ray, position, normal, uv, uv1, a, b, c, side );
 
 	if ( intersection ) {
 
@@ -10972,7 +10150,7 @@ BVH.initialized = false;
  *        A  C  E  G  I  K  M  O
  *        B  D  F  H  J  L  N  P
  * */
-class Fragment$1 {
+let Fragment$1 = class Fragment {
     constructor(geometry, material, count) {
         this.fragments = {};
         this.items = [];
@@ -11053,7 +10231,7 @@ class Fragment$1 {
         if (material === this.mesh.material) {
             this.copyGroups(newGeometry);
         }
-        const newFragment = new Fragment$1(newGeometry, material, this.capacity);
+        const newFragment = new Fragment(newGeometry, material, this.capacity);
         newFragment.mesh.applyMatrix4(this.mesh.matrix);
         newFragment.mesh.updateMatrix();
         this.fragments[id] = newFragment;
@@ -11236,7 +10414,7 @@ class Fragment$1 {
             this.blocks.remove(blockIDs);
         }
     }
-}
+};
 
 const SIZEOF_SHORT = 2;
 const SIZEOF_INT = 4;
