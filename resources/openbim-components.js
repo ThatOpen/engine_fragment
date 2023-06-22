@@ -352,7 +352,8 @@ class GeometryUtils {
         let i = 0;
         for (const geometry of geometries) {
             const size = geometry.attributes.position.count;
-            const array = new Uint8Array(size).fill(i++);
+            // TODO: Substitute blockID attribute by block id map
+            const array = new Uint16Array(size).fill(i++);
             geometry.setAttribute("blockID", new BufferAttribute$1(array, 1));
         }
     }
