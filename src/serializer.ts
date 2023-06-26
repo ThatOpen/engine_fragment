@@ -20,9 +20,9 @@ export class Serializer {
 
       const geometry = this.constructGeometry(fbFragment);
       const materials = this.constructMaterials(fbFragment);
-      const instances = this.constructInstances(fbFragment);
+      const { instances, colors } = this.constructInstances(fbFragment);
       const fragment = new Fragment(geometry, materials, instances.length);
-      this.setInstances(instances, fragment);
+      this.setInstances(instances, colors, fragment);
       this.setID(fbFragment, fragment);
       fragments.push(fragment);
     }
@@ -62,6 +62,11 @@ export class Serializer {
         result.matrices
       );
 
+      const colorsVector = FB.Fragment.createColorsVector(
+        builder,
+        result.colors
+      );
+
       const idsStr = builder.createString(result.ids);
       const idStr = builder.createString(result.id);
 
@@ -73,6 +78,7 @@ export class Serializer {
       FB.Fragment.addGroups(builder, groupsVector);
       FB.Fragment.addMaterials(builder, matsVector);
       FB.Fragment.addMatrices(builder, matricesVector);
+      FB.Fragment.addColors(builder, colorsVector);
       FB.Fragment.addIds(builder, idsStr);
       FB.Fragment.addId(builder, idStr);
       const exported = FB.Fragment.endFragment(builder);
@@ -97,42 +103,61 @@ export class Serializer {
     }
   }
 
-  private setInstances(instances: Items[], fragment: Fragment) {
-    let counter = 0;
-    for (const instance of instances) {
-      fragment.setInstance(counter++, instance);
+  private setInstances(
+    instances: Items[],
+    colors: THREE.Color[],
+    fragment: Fragment
+  ) {
+    for (let i = 0; i < instances.length; i++) {
+      fragment.setInstance(i, instances[i]);
+      if (colors.length) {
+        fragment.mesh.setColorAt(i, colors[i]);
+      }
     }
   }
 
   private constructInstances(fragment: FB.Fragment) {
-    const matrices = fragment.matricesArray();
+    const matricesData = fragment.matricesArray();
+    const colorData = fragment.colorsArray();
+    const colors: THREE.Color[] = [];
+
     const idsString = fragment.ids();
     const id = fragment.id();
 
-    if (!matrices || !idsString) {
+    if (!matricesData || !idsString) {
       throw new Error(`Error: Can't load empty fragment: ${id}`);
     }
 
     const ids = idsString.split("|");
 
-    const singleInstance = matrices.length === 16;
+    const singleInstance = matricesData.length === 16;
     const manyItems = ids.length > 1;
 
     const isMergedFragment = singleInstance && manyItems;
     if (isMergedFragment) {
-      const transform = new THREE.Matrix4().fromArray(matrices);
-      return [{ ids, transform }];
+      const transform = new THREE.Matrix4().fromArray(matricesData);
+      const instances = [{ ids, transform }];
+      return { instances, colors };
     }
 
     // Instanced fragment
-    const groups: { ids: string[]; transform: THREE.Matrix4 }[] = [];
-    for (let i = 0; i < matrices.length; i += 16) {
-      const currentArray = matrices.subarray(i, i + 17);
-      const transform = new THREE.Matrix4().fromArray(currentArray);
+    const instances: { ids: string[]; transform: THREE.Matrix4 }[] = [];
+    for (let i = 0; i < matricesData.length; i += 16) {
+      const matrixArray = matricesData.subarray(i, i + 17);
+      const transform = new THREE.Matrix4().fromArray(matrixArray);
       const id = ids[i / 16];
-      groups.push({ ids: [id], transform });
+      instances.push({ ids: [id], transform });
     }
-    return groups;
+
+    if (colorData && colorData.length === instances.length * 3) {
+      for (let i = 0; i < colorData.length; i += 3) {
+        const [r, g, b] = colorData.subarray(i, i + 4);
+        const color = new THREE.Color(r, g, b);
+        colors.push(color);
+      }
+    }
+
+    return { instances, colors };
   }
 
   private constructMaterials(fragment: FB.Fragment) {
@@ -147,7 +172,7 @@ export class Serializer {
       const green = materials[i + 3];
       const blue = materials[i + 4];
 
-      const color = new THREE.Color().setRGB(red, green, blue, "srgb");
+      const color = new THREE.Color(red, green, blue);
 
       const material = new THREE.MeshLambertMaterial({
         color,

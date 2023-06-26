@@ -125,22 +125,37 @@ matricesArray():Float32Array|null {
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
+colors(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+colorsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+colorsArray():Float32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 18);
+  return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
 ids():string|null
 ids(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 ids(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 18);
+  const offset = this.bb!.__offset(this.bb_pos, 20);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 id():string|null
 id(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 id(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 20);
+  const offset = this.bb!.__offset(this.bb_pos, 22);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 static startFragment(builder:flatbuffers.Builder) {
-  builder.startObject(9);
+  builder.startObject(10);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
@@ -290,12 +305,33 @@ static startMatricesVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
+static addColors(builder:flatbuffers.Builder, colorsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(7, colorsOffset, 0);
+}
+
+static createColorsVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createColorsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createColorsVector(builder:flatbuffers.Builder, data:number[]|Float32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addFloat32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startColorsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
 static addIds(builder:flatbuffers.Builder, idsOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(7, idsOffset, 0);
+  builder.addFieldOffset(8, idsOffset, 0);
 }
 
 static addId(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(8, idOffset, 0);
+  builder.addFieldOffset(9, idOffset, 0);
 }
 
 static endFragment(builder:flatbuffers.Builder):flatbuffers.Offset {
@@ -303,7 +339,7 @@ static endFragment(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, indexOffset:flatbuffers.Offset, blockIdOffset:flatbuffers.Offset, groupsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, matricesOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, indexOffset:flatbuffers.Offset, blockIdOffset:flatbuffers.Offset, groupsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, matricesOffset:flatbuffers.Offset, colorsOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset):flatbuffers.Offset {
   Fragment.startFragment(builder);
   Fragment.addPosition(builder, positionOffset);
   Fragment.addNormal(builder, normalOffset);
@@ -312,6 +348,7 @@ static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Of
   Fragment.addGroups(builder, groupsOffset);
   Fragment.addMaterials(builder, materialsOffset);
   Fragment.addMatrices(builder, matricesOffset);
+  Fragment.addColors(builder, colorsOffset);
   Fragment.addIds(builder, idsOffset);
   Fragment.addId(builder, idOffset);
   return Fragment.endFragment(builder);

@@ -59,7 +59,23 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
 
     const matrices = Array.from(this.instanceMatrix.array);
 
-    return { position, normal, index, blockID, groups, materials, matrices };
+    let colors: number[];
+    if (this.instanceColor !== null) {
+      colors = Array.from(this.instanceColor.array);
+    } else {
+      colors = [];
+    }
+
+    return {
+      position,
+      normal,
+      index,
+      blockID,
+      groups,
+      materials,
+      matrices,
+      colors,
+    };
   }
 
   export() {

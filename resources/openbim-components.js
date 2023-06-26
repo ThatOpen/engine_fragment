@@ -5780,7 +5780,23 @@ class FragmentMesh extends InstancedMesh {
             }
         }
         const matrices = Array.from(this.instanceMatrix.array);
-        return { position, normal, index, blockID, groups, materials, matrices };
+        let colors;
+        if (this.instanceColor !== null) {
+            colors = Array.from(this.instanceColor.array);
+        }
+        else {
+            colors = [];
+        }
+        return {
+            position,
+            normal,
+            index,
+            blockID,
+            groups,
+            materials,
+            matrices,
+            colors,
+        };
     }
     export() {
         const mesh = this;
@@ -11299,16 +11315,28 @@ class Fragment {
         const offset = this.bb.__offset(this.bb_pos, 16);
         return offset ? new Float32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
-    ids(optionalEncoding) {
+    colors(index) {
         const offset = this.bb.__offset(this.bb_pos, 18);
-        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+        return offset ? this.bb.readFloat32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
-    id(optionalEncoding) {
+    colorsLength() {
+        const offset = this.bb.__offset(this.bb_pos, 18);
+        return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+    }
+    colorsArray() {
+        const offset = this.bb.__offset(this.bb_pos, 18);
+        return offset ? new Float32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+    }
+    ids(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 20);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
+    id(optionalEncoding) {
+        const offset = this.bb.__offset(this.bb_pos, 22);
+        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+    }
     static startFragment(builder) {
-        builder.startObject(9);
+        builder.startObject(10);
     }
     static addPosition(builder, positionOffset) {
         builder.addFieldOffset(0, positionOffset, 0);
@@ -11401,17 +11429,30 @@ class Fragment {
     static startMatricesVector(builder, numElems) {
         builder.startVector(4, numElems, 4);
     }
+    static addColors(builder, colorsOffset) {
+        builder.addFieldOffset(7, colorsOffset, 0);
+    }
+    static createColorsVector(builder, data) {
+        builder.startVector(4, data.length, 4);
+        for (let i = data.length - 1; i >= 0; i--) {
+            builder.addFloat32(data[i]);
+        }
+        return builder.endVector();
+    }
+    static startColorsVector(builder, numElems) {
+        builder.startVector(4, numElems, 4);
+    }
     static addIds(builder, idsOffset) {
-        builder.addFieldOffset(7, idsOffset, 0);
+        builder.addFieldOffset(8, idsOffset, 0);
     }
     static addId(builder, idOffset) {
-        builder.addFieldOffset(8, idOffset, 0);
+        builder.addFieldOffset(9, idOffset, 0);
     }
     static endFragment(builder) {
         const offset = builder.endObject();
         return offset;
     }
-    static createFragment(builder, positionOffset, normalOffset, indexOffset, blockIdOffset, groupsOffset, materialsOffset, matricesOffset, idsOffset, idOffset) {
+    static createFragment(builder, positionOffset, normalOffset, indexOffset, blockIdOffset, groupsOffset, materialsOffset, matricesOffset, colorsOffset, idsOffset, idOffset) {
         Fragment.startFragment(builder);
         Fragment.addPosition(builder, positionOffset);
         Fragment.addNormal(builder, normalOffset);
@@ -11420,6 +11461,7 @@ class Fragment {
         Fragment.addGroups(builder, groupsOffset);
         Fragment.addMaterials(builder, materialsOffset);
         Fragment.addMatrices(builder, matricesOffset);
+        Fragment.addColors(builder, colorsOffset);
         Fragment.addIds(builder, idsOffset);
         Fragment.addId(builder, idOffset);
         return Fragment.endFragment(builder);
@@ -11501,9 +11543,9 @@ class Serializer {
                 continue;
             const geometry = this.constructGeometry(fbFragment);
             const materials = this.constructMaterials(fbFragment);
-            const instances = this.constructInstances(fbFragment);
+            const { instances, colors } = this.constructInstances(fbFragment);
             const fragment = new Fragment$1(geometry, materials, instances.length);
-            this.setInstances(instances, fragment);
+            this.setInstances(instances, colors, fragment);
             this.setID(fbFragment, fragment);
             fragments.push(fragment);
         }
@@ -11521,6 +11563,7 @@ class Serializer {
             const groupsVector = Fragment.createGroupsVector(builder, result.groups);
             const matsVector = Fragment.createMaterialsVector(builder, result.materials);
             const matricesVector = Fragment.createMatricesVector(builder, result.matrices);
+            const colorsVector = Fragment.createColorsVector(builder, result.colors);
             const idsStr = builder.createString(result.ids);
             const idStr = builder.createString(result.id);
             Fragment.startFragment(builder);
@@ -11531,6 +11574,7 @@ class Serializer {
             Fragment.addGroups(builder, groupsVector);
             Fragment.addMaterials(builder, matsVector);
             Fragment.addMatrices(builder, matricesVector);
+            Fragment.addColors(builder, colorsVector);
             Fragment.addIds(builder, idsStr);
             Fragment.addId(builder, idStr);
             const exported = Fragment.endFragment(builder);
@@ -11550,36 +11594,48 @@ class Serializer {
             fragment.mesh.uuid = id;
         }
     }
-    setInstances(instances, fragment) {
-        let counter = 0;
-        for (const instance of instances) {
-            fragment.setInstance(counter++, instance);
+    setInstances(instances, colors, fragment) {
+        for (let i = 0; i < instances.length; i++) {
+            fragment.setInstance(i, instances[i]);
+            if (colors.length) {
+                fragment.mesh.setColorAt(i, colors[i]);
+            }
         }
     }
     constructInstances(fragment) {
-        const matrices = fragment.matricesArray();
+        const matricesData = fragment.matricesArray();
+        const colorData = fragment.colorsArray();
+        const colors = [];
         const idsString = fragment.ids();
         const id = fragment.id();
-        if (!matrices || !idsString) {
+        if (!matricesData || !idsString) {
             throw new Error(`Error: Can't load empty fragment: ${id}`);
         }
         const ids = idsString.split("|");
-        const singleInstance = matrices.length === 16;
+        const singleInstance = matricesData.length === 16;
         const manyItems = ids.length > 1;
         const isMergedFragment = singleInstance && manyItems;
         if (isMergedFragment) {
-            const transform = new THREE.Matrix4().fromArray(matrices);
-            return [{ ids, transform }];
+            const transform = new THREE.Matrix4().fromArray(matricesData);
+            const instances = [{ ids, transform }];
+            return { instances, colors };
         }
         // Instanced fragment
-        const groups = [];
-        for (let i = 0; i < matrices.length; i += 16) {
-            const currentArray = matrices.subarray(i, i + 17);
-            const transform = new THREE.Matrix4().fromArray(currentArray);
+        const instances = [];
+        for (let i = 0; i < matricesData.length; i += 16) {
+            const matrixArray = matricesData.subarray(i, i + 17);
+            const transform = new THREE.Matrix4().fromArray(matrixArray);
             const id = ids[i / 16];
-            groups.push({ ids: [id], transform });
+            instances.push({ ids: [id], transform });
         }
-        return groups;
+        if (colorData && colorData.length === instances.length * 3) {
+            for (let i = 0; i < colorData.length; i += 3) {
+                const [r, g, b] = colorData.subarray(i, i + 4);
+                const color = new THREE.Color(r, g, b);
+                colors.push(color);
+            }
+        }
+        return { instances, colors };
     }
     constructMaterials(fragment) {
         const materials = fragment.materialsArray();
@@ -11592,7 +11648,7 @@ class Serializer {
             const red = materials[i + 2];
             const green = materials[i + 3];
             const blue = materials[i + 4];
-            const color = new THREE.Color().setRGB(red, green, blue, "srgb");
+            const color = new THREE.Color(red, green, blue);
             const material = new THREE.MeshLambertMaterial({
                 color,
                 opacity,

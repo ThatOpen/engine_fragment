@@ -12,6 +12,7 @@ table Fragment {
     groups: [float];
     materials: [float];
     matrices: [float];
+    colors: [float];
     ids: string;
     id: string;
 }
