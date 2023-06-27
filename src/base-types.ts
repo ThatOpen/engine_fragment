@@ -1,4 +1,4 @@
-import { BufferGeometry, Material, Matrix4 } from "three";
+import * as THREE from "three";
 import { BufferAttribute } from "three/src/core/BufferAttribute";
 import { InterleavedBufferAttribute } from "three/src/core/InterleavedBufferAttribute";
 import { FragmentMesh } from "./fragment-mesh";
@@ -21,10 +21,10 @@ export interface IndicesMap {
 
 export interface Items {
   ids?: string[];
-  transform: Matrix4;
+  transform: THREE.Matrix4;
 }
 
-export interface IFragmentGeometry extends BufferGeometry {
+export interface IFragmentGeometry extends THREE.BufferGeometry {
   attributes: {
     [name: string]: BufferAttribute | InterleavedBufferAttribute;
     blockID: BufferAttribute;
@@ -33,7 +33,7 @@ export interface IFragmentGeometry extends BufferGeometry {
 }
 
 export interface IFragmentMesh {
-  material: Material[];
+  material: THREE.Material[];
   geometry: IFragmentGeometry;
   elementCount: number;
 }

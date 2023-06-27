@@ -1,7 +1,11 @@
 namespace Fragments.index;
 
-table Fragments {
+table FragmentsGroup {
     items: [Fragment];
+    matrix: [float];
+    items_data: [int];
+    items_indices: [int];
+    fragment_keys: string;
 }
 
 table Fragment {
@@ -17,4 +21,4 @@ table Fragment {
     id: string;
 }
 
-root_type Fragments;
+root_type FragmentsGroup;

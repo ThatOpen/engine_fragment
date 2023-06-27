@@ -53,15 +53,19 @@ export class Fragment implements IFragment {
   dispose(disposeResources = true) {
     (this.items as any) = null;
 
-    if (disposeResources) {
-      this.mesh.material.forEach((mat) => mat.dispose());
-      BVH.dispose(this.mesh.geometry);
-      this.mesh.geometry.dispose();
-    }
+    if (this.mesh) {
+      if (disposeResources) {
+        this.mesh.material.forEach((mat) => mat.dispose());
+        this.mesh.material = [];
+        BVH.dispose(this.mesh.geometry);
+        this.mesh.geometry.dispose();
+        (this.mesh.geometry as any) = null;
+      }
 
-    this.mesh.removeFromParent();
-    this.mesh.dispose();
-    (this.mesh as any) = null;
+      this.mesh.removeFromParent();
+      this.mesh.dispose();
+      (this.mesh as any) = null;
+    }
 
     this.disposeNestedFragments();
   }

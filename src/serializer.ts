@@ -3,38 +3,43 @@ import * as flatbuffers from "flatbuffers";
 import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
 import { Items } from "./base-types";
+import { FragmentsGroup } from "./fragments-group";
 
 /**
  * Object to export and import sets of fragments efficiently using
  * [flatbuffers](https://flatbuffers.dev/).
  */
 export class Serializer {
-  import(bytes: Uint8Array): Fragment[] {
-    const buffer = new flatbuffers.ByteBuffer(bytes);
-    const fragments: Fragment[] = [];
-    const fbFragments = FB.Fragments.getRootAsFragments(buffer);
-    const length = fbFragments.itemsLength();
-    for (let i = 0; i < length; i++) {
-      const fbFragment = fbFragments.items(i);
-      if (!fbFragment) continue;
+  private fragmentIDSeparator = "|";
 
+  import(bytes: Uint8Array): FragmentsGroup {
+    const buffer = new flatbuffers.ByteBuffer(bytes);
+
+    const fbFragmentsGroup = FB.FragmentsGroup.getRootAsFragmentsGroup(buffer);
+    const fragmentsGroup = this.constructFragmentGroup(fbFragmentsGroup);
+
+    const length = fbFragmentsGroup.itemsLength();
+    for (let i = 0; i < length; i++) {
+      const fbFragment = fbFragmentsGroup.items(i);
+      if (!fbFragment) continue;
       const geometry = this.constructGeometry(fbFragment);
       const materials = this.constructMaterials(fbFragment);
       const { instances, colors } = this.constructInstances(fbFragment);
       const fragment = new Fragment(geometry, materials, instances.length);
       this.setInstances(instances, colors, fragment);
       this.setID(fbFragment, fragment);
-      fragments.push(fragment);
+      fragmentsGroup.items.push(fragment);
+      fragmentsGroup.add(fragment.mesh);
     }
 
-    return fragments;
+    return fragmentsGroup;
   }
 
-  export(fragments: Fragment[]) {
+  export(group: FragmentsGroup) {
     const builder = new flatbuffers.Builder(1024);
     const items: number[] = [];
 
-    for (const fragment of fragments) {
+    for (const fragment of group.items) {
       const result = fragment.exportData();
       const posVector = FB.Fragment.createPositionVector(
         builder,
@@ -85,11 +90,53 @@ export class Serializer {
       items.push(exported);
     }
 
-    const itemsVector = FB.Fragments.createItemsVector(builder, items);
+    const itemsVector = FB.FragmentsGroup.createItemsVector(builder, items);
 
-    FB.Fragments.startFragments(builder);
-    FB.Fragments.addItems(builder, itemsVector);
-    const result = FB.Fragments.endFragments(builder);
+    const matrixVector = FB.FragmentsGroup.createMatrixVector(
+      builder,
+      group.matrix.elements
+    );
+
+    let fragmentKeys = "";
+    for (const key in group.keys) {
+      const fragmentID = group.keys[key];
+      if (fragmentKeys.length) fragmentKeys += this.fragmentIDSeparator;
+      fragmentKeys += fragmentID;
+    }
+
+    const fragmentKeysRef = builder.createString(fragmentKeys);
+
+    const indices: number[] = [];
+    const itemsData: number[] = [];
+    let counter = 0;
+    for (const expressID in group.data) {
+      indices.push(counter);
+      const itemData = group.data[expressID];
+      const id = parseInt(expressID, 10);
+      itemsData.push(id);
+      for (const data of itemData) {
+        itemsData.push(data);
+      }
+      counter += itemData.length + 1;
+    }
+
+    const indicesVector = FB.FragmentsGroup.createItemsIndicesVector(
+      builder,
+      indices
+    );
+
+    const dataVector = FB.FragmentsGroup.createItemsDataVector(
+      builder,
+      itemsData
+    );
+
+    FB.FragmentsGroup.startFragmentsGroup(builder);
+    FB.FragmentsGroup.addItems(builder, itemsVector);
+    FB.FragmentsGroup.addFragmentKeys(builder, fragmentKeysRef);
+    FB.FragmentsGroup.addItemsIndices(builder, indicesVector);
+    FB.FragmentsGroup.addItemsData(builder, dataVector);
+    FB.FragmentsGroup.addMatrix(builder, matrixVector);
+    const result = FB.FragmentsGroup.endFragmentsGroup(builder);
     builder.finish(result);
 
     return builder.asUint8Array();
@@ -186,6 +233,37 @@ export class Serializer {
     return matArray;
   }
 
+  private constructFragmentGroup(group: FB.FragmentsGroup) {
+    const fragmentsGroup = new FragmentsGroup();
+
+    const matrixArray = group.matrixArray() || new Float32Array();
+    const keysIndicesArray = group.itemsIndicesArray() || new Int32Array();
+    const keysArray = group.itemsDataArray() || new Int32Array();
+    const keysIdsString = group.fragmentKeys() || "";
+    const keysIdsArray = keysIdsString.split(this.fragmentIDSeparator);
+
+    for (let i = 0; i < keysIndicesArray.length - 1; i++) {
+      const currentIndex = keysIndicesArray[i];
+      const nextIndex = keysIndicesArray[i + 1];
+      const expressID = keysArray[currentIndex];
+      const itemData: number[] = [];
+      for (let j = currentIndex + 1; j < nextIndex; j++) {
+        itemData.push(keysArray[j]);
+      }
+      fragmentsGroup.data[expressID] = itemData;
+    }
+
+    for (let i = 0; i < keysIdsArray.length; i++) {
+      fragmentsGroup.keys[i] = keysIdsArray[i];
+    }
+
+    if (matrixArray.length === 16) {
+      fragmentsGroup.matrix.fromArray(matrixArray);
+    }
+
+    return fragmentsGroup;
+  }
+
   private constructGeometry(fragment: FB.Fragment) {
     const position = fragment.positionArray();
     const normal = fragment.normalArray();
@@ -199,12 +277,12 @@ export class Serializer {
     this.loadAttribute(geometry, "position", position, 3);
     this.loadAttribute(geometry, "normal", normal, 3);
     this.loadAttribute(geometry, "blockID", blockID, 1);
-    this.loadGroups(groups, geometry);
+    this.loadGeometryGroups(groups, geometry);
 
     return geometry;
   }
 
-  private loadGroups(groups: Float32Array | null, geometry: any) {
+  private loadGeometryGroups(groups: Float32Array | null, geometry: any) {
     if (!groups) return;
     for (let i = 0; i < groups.length; i += 3) {
       const start = groups[i];
