@@ -5745,7 +5745,7 @@ class BufferAttribute {
 }
 
 class FragmentMesh extends InstancedMesh {
-    constructor(geometry, material, count) {
+    constructor(geometry, material, count, fragment) {
         super(geometry, material, count);
         this.elementCount = 0;
         this.exportOptions = {
@@ -5758,6 +5758,7 @@ class FragmentMesh extends InstancedMesh {
         this.exporter = new GLTFExporter();
         this.material = FragmentMesh.newMaterialArray(material);
         this.geometry = this.newFragmentGeometry(geometry);
+        this.fragment = fragment;
     }
     exportData() {
         const position = this.geometry.attributes.position.array;
@@ -10172,7 +10173,7 @@ let Fragment$1 = class Fragment {
         this.fragments = {};
         this.items = [];
         this.hiddenInstances = {};
-        this.mesh = new FragmentMesh(geometry, material, count);
+        this.mesh = new FragmentMesh(geometry, material, count, this);
         this.id = this.mesh.uuid;
         this.capacity = count;
         this.blocks = new Blocks(this);
@@ -10180,6 +10181,7 @@ let Fragment$1 = class Fragment {
     }
     dispose(disposeResources = true) {
         this.items = null;
+        this.group = undefined;
         if (this.mesh) {
             if (disposeResources) {
                 this.mesh.material.forEach((mat) => mat.dispose());
@@ -10190,6 +10192,7 @@ let Fragment$1 = class Fragment {
             }
             this.mesh.removeFromParent();
             this.mesh.dispose();
+            this.mesh.fragment = null;
             this.mesh = null;
         }
         this.disposeNestedFragments();
@@ -10331,7 +10334,7 @@ let Fragment$1 = class Fragment {
         }
     }
     createFragmentMeshWithNewSize(capacity) {
-        const newMesh = new FragmentMesh(this.mesh.geometry, this.mesh.material, capacity);
+        const newMesh = new FragmentMesh(this.mesh.geometry, this.mesh.material, capacity, this);
         newMesh.count = this.mesh.count;
         return newMesh;
     }

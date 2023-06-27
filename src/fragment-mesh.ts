@@ -8,11 +8,13 @@ import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter";
 import { Material } from "three/src/materials/Material";
 import { BufferAttribute } from "three/src/core/BufferAttribute";
 import { IFragmentGeometry, IFragmentMesh } from "./base-types";
+import { Fragment } from "./fragment";
 
 export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   material: Material[];
   geometry: IFragmentGeometry;
   elementCount = 0;
+  fragment: Fragment;
 
   private exportOptions = {
     trs: false,
@@ -27,11 +29,13 @@ export class FragmentMesh extends InstancedMesh implements IFragmentMesh {
   constructor(
     geometry: BufferGeometry,
     material: Material | Material[],
-    count: number
+    count: number,
+    fragment: Fragment
   ) {
     super(geometry, material, count);
     this.material = FragmentMesh.newMaterialArray(material);
     this.geometry = this.newFragmentGeometry(geometry);
+    this.fragment = fragment;
   }
 
   exportData() {

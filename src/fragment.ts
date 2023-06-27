@@ -4,6 +4,7 @@ import { Items, IFragment } from "./base-types";
 import { FragmentMesh } from "./fragment-mesh";
 import { Blocks } from "./blocks";
 import { BVH } from "./bvh";
+import { FragmentsGroup } from "./fragments-group";
 
 /*
  * Fragments can contain one or multiple Instances of one or multiple Blocks
@@ -37,13 +38,14 @@ export class Fragment implements IFragment {
 
   items: string[] = [];
   hiddenInstances: { [id: string]: Items } = {};
+  group?: FragmentsGroup;
 
   constructor(
     geometry: BufferGeometry,
     material: Material | Material[],
     count: number
   ) {
-    this.mesh = new FragmentMesh(geometry, material, count);
+    this.mesh = new FragmentMesh(geometry, material, count, this);
     this.id = this.mesh.uuid;
     this.capacity = count;
     this.blocks = new Blocks(this);
@@ -52,6 +54,7 @@ export class Fragment implements IFragment {
 
   dispose(disposeResources = true) {
     (this.items as any) = null;
+    this.group = undefined;
 
     if (this.mesh) {
       if (disposeResources) {
@@ -64,6 +67,8 @@ export class Fragment implements IFragment {
 
       this.mesh.removeFromParent();
       this.mesh.dispose();
+
+      (this.mesh.fragment as any) = null;
       (this.mesh as any) = null;
     }
 
@@ -232,7 +237,8 @@ export class Fragment implements IFragment {
     const newMesh = new FragmentMesh(
       this.mesh.geometry,
       this.mesh.material,
-      capacity
+      capacity,
+      this
     );
     newMesh.count = this.mesh.count;
     return newMesh;
