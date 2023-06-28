@@ -11515,7 +11515,7 @@ let FragmentsGroup$1 = class FragmentsGroup {
     }
     ids(index) {
         const offset = this.bb.__offset(this.bb_pos, 8);
-        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+        return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
     idsLength() {
         const offset = this.bb.__offset(this.bb_pos, 8);
@@ -11523,11 +11523,11 @@ let FragmentsGroup$1 = class FragmentsGroup {
     }
     idsArray() {
         const offset = this.bb.__offset(this.bb_pos, 8);
-        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+        return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
     itemsKeys(index) {
         const offset = this.bb.__offset(this.bb_pos, 10);
-        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+        return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
     itemsKeysLength() {
         const offset = this.bb.__offset(this.bb_pos, 10);
@@ -11535,11 +11535,11 @@ let FragmentsGroup$1 = class FragmentsGroup {
     }
     itemsKeysArray() {
         const offset = this.bb.__offset(this.bb_pos, 10);
-        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+        return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
     itemsKeysIndices(index) {
         const offset = this.bb.__offset(this.bb_pos, 12);
-        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+        return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
     itemsKeysIndicesLength() {
         const offset = this.bb.__offset(this.bb_pos, 12);
@@ -11547,11 +11547,11 @@ let FragmentsGroup$1 = class FragmentsGroup {
     }
     itemsKeysIndicesArray() {
         const offset = this.bb.__offset(this.bb_pos, 12);
-        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+        return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
     itemsRels(index) {
         const offset = this.bb.__offset(this.bb_pos, 14);
-        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+        return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
     itemsRelsLength() {
         const offset = this.bb.__offset(this.bb_pos, 14);
@@ -11559,11 +11559,11 @@ let FragmentsGroup$1 = class FragmentsGroup {
     }
     itemsRelsArray() {
         const offset = this.bb.__offset(this.bb_pos, 14);
-        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+        return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
     itemsRelsIndices(index) {
         const offset = this.bb.__offset(this.bb_pos, 16);
-        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+        return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
     itemsRelsIndicesLength() {
         const offset = this.bb.__offset(this.bb_pos, 16);
@@ -11571,7 +11571,7 @@ let FragmentsGroup$1 = class FragmentsGroup {
     }
     itemsRelsIndicesArray() {
         const offset = this.bb.__offset(this.bb_pos, 16);
-        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+        return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
     fragmentKeys(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 18);
@@ -11901,11 +11901,11 @@ class Serializer {
     constructFragmentGroup(group) {
         const fragmentsGroup = new FragmentsGroup();
         const matrixArray = group.matrixArray() || new Float32Array();
-        const ids = group.idsArray() || new Int32Array();
-        const keysIndices = group.itemsKeysIndicesArray() || new Int32Array();
-        const keysArray = group.itemsKeysArray() || new Int32Array();
-        const relsArray = group.itemsRelsArray() || new Int32Array();
-        const relsIndices = group.itemsRelsIndicesArray() || new Int32Array();
+        const ids = group.idsArray() || new Uint32Array();
+        const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();
+        const keysArray = group.itemsKeysArray() || new Uint32Array();
+        const relsArray = group.itemsRelsArray() || new Uint32Array();
+        const relsIndices = group.itemsRelsIndicesArray() || new Uint32Array();
         const keysIdsString = group.fragmentKeys() || "";
         const keysIdsArray = keysIdsString.split(this.fragmentIDSeparator);
         this.setGroupData(fragmentsGroup, ids, keysIndices, keysArray, 0);
@@ -11919,10 +11919,10 @@ class Serializer {
         return fragmentsGroup;
     }
     setGroupData(group, ids, indices, array, index) {
-        for (let i = 0; i < indices.length - 1; i++) {
+        for (let i = 0; i < indices.length; i++) {
             const expressID = ids[i];
             const currentIndex = indices[i];
-            const nextIndex = indices[i + 1];
+            const nextIndex = indices[i + 1] || array.length;
             const keys = [];
             for (let j = currentIndex; j < nextIndex; j++) {
                 keys.push(array[j]);

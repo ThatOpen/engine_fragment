@@ -228,11 +228,11 @@ export class Serializer {
     const fragmentsGroup = new FragmentsGroup();
 
     const matrixArray = group.matrixArray() || new Float32Array();
-    const ids = group.idsArray() || new Int32Array();
-    const keysIndices = group.itemsKeysIndicesArray() || new Int32Array();
-    const keysArray = group.itemsKeysArray() || new Int32Array();
-    const relsArray = group.itemsRelsArray() || new Int32Array();
-    const relsIndices = group.itemsRelsIndicesArray() || new Int32Array();
+    const ids = group.idsArray() || new Uint32Array();
+    const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();
+    const keysArray = group.itemsKeysArray() || new Uint32Array();
+    const relsArray = group.itemsRelsArray() || new Uint32Array();
+    const relsIndices = group.itemsRelsIndicesArray() || new Uint32Array();
     const keysIdsString = group.fragmentKeys() || "";
     const keysIdsArray = keysIdsString.split(this.fragmentIDSeparator);
 
@@ -252,15 +252,15 @@ export class Serializer {
 
   private setGroupData(
     group: FragmentsGroup,
-    ids: Int32Array,
-    indices: Int32Array,
-    array: Int32Array,
+    ids: Uint32Array,
+    indices: Uint32Array,
+    array: Uint32Array,
     index: number
   ) {
-    for (let i = 0; i < indices.length - 1; i++) {
+    for (let i = 0; i < indices.length; i++) {
       const expressID = ids[i];
       const currentIndex = indices[i];
-      const nextIndex = indices[i + 1];
+      const nextIndex = indices[i + 1] || array.length;
 
       const keys: number[] = [];
       for (let j = currentIndex; j < nextIndex; j++) {

@@ -50,7 +50,7 @@ matrixArray():Float32Array|null {
 
 ids(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 8);
-  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 idsLength():number {
@@ -58,14 +58,14 @@ idsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-idsArray():Int32Array|null {
+idsArray():Uint32Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 8);
-  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 itemsKeys(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 10);
-  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 itemsKeysLength():number {
@@ -73,14 +73,14 @@ itemsKeysLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-itemsKeysArray():Int32Array|null {
+itemsKeysArray():Uint32Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 10);
-  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 itemsKeysIndices(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 12);
-  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 itemsKeysIndicesLength():number {
@@ -88,14 +88,14 @@ itemsKeysIndicesLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-itemsKeysIndicesArray():Int32Array|null {
+itemsKeysIndicesArray():Uint32Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 12);
-  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 itemsRels(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 14);
-  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 itemsRelsLength():number {
@@ -103,14 +103,14 @@ itemsRelsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-itemsRelsArray():Int32Array|null {
+itemsRelsArray():Uint32Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 14);
-  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 itemsRelsIndices(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 16);
-  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 itemsRelsIndicesLength():number {
@@ -118,9 +118,9 @@ itemsRelsIndicesLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-itemsRelsIndicesArray():Int32Array|null {
+itemsRelsIndicesArray():Uint32Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 16);
-  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 fragmentKeys():string|null
@@ -175,12 +175,12 @@ static addIds(builder:flatbuffers.Builder, idsOffset:flatbuffers.Offset) {
   builder.addFieldOffset(2, idsOffset, 0);
 }
 
-static createIdsVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+static createIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
 /**
  * @deprecated This Uint8Array overload will be removed in the future.
  */
 static createIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
-static createIdsVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+static createIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
     builder.addInt32(data[i]!);
@@ -196,12 +196,12 @@ static addItemsKeys(builder:flatbuffers.Builder, itemsKeysOffset:flatbuffers.Off
   builder.addFieldOffset(3, itemsKeysOffset, 0);
 }
 
-static createItemsKeysVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+static createItemsKeysVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
 /**
  * @deprecated This Uint8Array overload will be removed in the future.
  */
 static createItemsKeysVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
-static createItemsKeysVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+static createItemsKeysVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
     builder.addInt32(data[i]!);
@@ -217,12 +217,12 @@ static addItemsKeysIndices(builder:flatbuffers.Builder, itemsKeysIndicesOffset:f
   builder.addFieldOffset(4, itemsKeysIndicesOffset, 0);
 }
 
-static createItemsKeysIndicesVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+static createItemsKeysIndicesVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
 /**
  * @deprecated This Uint8Array overload will be removed in the future.
  */
 static createItemsKeysIndicesVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
-static createItemsKeysIndicesVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+static createItemsKeysIndicesVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
     builder.addInt32(data[i]!);
@@ -238,12 +238,12 @@ static addItemsRels(builder:flatbuffers.Builder, itemsRelsOffset:flatbuffers.Off
   builder.addFieldOffset(5, itemsRelsOffset, 0);
 }
 
-static createItemsRelsVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+static createItemsRelsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
 /**
  * @deprecated This Uint8Array overload will be removed in the future.
  */
 static createItemsRelsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
-static createItemsRelsVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+static createItemsRelsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
     builder.addInt32(data[i]!);
@@ -259,12 +259,12 @@ static addItemsRelsIndices(builder:flatbuffers.Builder, itemsRelsIndicesOffset:f
   builder.addFieldOffset(6, itemsRelsIndicesOffset, 0);
 }
 
-static createItemsRelsIndicesVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+static createItemsRelsIndicesVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
 /**
  * @deprecated This Uint8Array overload will be removed in the future.
  */
 static createItemsRelsIndicesVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
-static createItemsRelsIndicesVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+static createItemsRelsIndicesVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
     builder.addInt32(data[i]!);
