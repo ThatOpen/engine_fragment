@@ -11513,36 +11513,72 @@ let FragmentsGroup$1 = class FragmentsGroup {
         const offset = this.bb.__offset(this.bb_pos, 6);
         return offset ? new Float32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
-    itemsData(index) {
+    ids(index) {
         const offset = this.bb.__offset(this.bb_pos, 8);
         return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
-    itemsDataLength() {
+    idsLength() {
         const offset = this.bb.__offset(this.bb_pos, 8);
         return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
     }
-    itemsDataArray() {
+    idsArray() {
         const offset = this.bb.__offset(this.bb_pos, 8);
         return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
-    itemsIndices(index) {
+    itemsKeys(index) {
         const offset = this.bb.__offset(this.bb_pos, 10);
         return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
-    itemsIndicesLength() {
+    itemsKeysLength() {
         const offset = this.bb.__offset(this.bb_pos, 10);
         return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
     }
-    itemsIndicesArray() {
+    itemsKeysArray() {
         const offset = this.bb.__offset(this.bb_pos, 10);
+        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+    }
+    itemsKeysIndices(index) {
+        const offset = this.bb.__offset(this.bb_pos, 12);
+        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+    }
+    itemsKeysIndicesLength() {
+        const offset = this.bb.__offset(this.bb_pos, 12);
+        return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+    }
+    itemsKeysIndicesArray() {
+        const offset = this.bb.__offset(this.bb_pos, 12);
+        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+    }
+    itemsRels(index) {
+        const offset = this.bb.__offset(this.bb_pos, 14);
+        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+    }
+    itemsRelsLength() {
+        const offset = this.bb.__offset(this.bb_pos, 14);
+        return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+    }
+    itemsRelsArray() {
+        const offset = this.bb.__offset(this.bb_pos, 14);
+        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+    }
+    itemsRelsIndices(index) {
+        const offset = this.bb.__offset(this.bb_pos, 16);
+        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+    }
+    itemsRelsIndicesLength() {
+        const offset = this.bb.__offset(this.bb_pos, 16);
+        return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+    }
+    itemsRelsIndicesArray() {
+        const offset = this.bb.__offset(this.bb_pos, 16);
         return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
     fragmentKeys(optionalEncoding) {
-        const offset = this.bb.__offset(this.bb_pos, 12);
+        const offset = this.bb.__offset(this.bb_pos, 18);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
     static startFragmentsGroup(builder) {
-        builder.startObject(5);
+        builder.startObject(8);
     }
     static addItems(builder, itemsOffset) {
         builder.addFieldOffset(0, itemsOffset, 0);
@@ -11570,34 +11606,73 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static startMatrixVector(builder, numElems) {
         builder.startVector(4, numElems, 4);
     }
-    static addItemsData(builder, itemsDataOffset) {
-        builder.addFieldOffset(2, itemsDataOffset, 0);
+    static addIds(builder, idsOffset) {
+        builder.addFieldOffset(2, idsOffset, 0);
     }
-    static createItemsDataVector(builder, data) {
+    static createIdsVector(builder, data) {
         builder.startVector(4, data.length, 4);
         for (let i = data.length - 1; i >= 0; i--) {
             builder.addInt32(data[i]);
         }
         return builder.endVector();
     }
-    static startItemsDataVector(builder, numElems) {
+    static startIdsVector(builder, numElems) {
         builder.startVector(4, numElems, 4);
     }
-    static addItemsIndices(builder, itemsIndicesOffset) {
-        builder.addFieldOffset(3, itemsIndicesOffset, 0);
+    static addItemsKeys(builder, itemsKeysOffset) {
+        builder.addFieldOffset(3, itemsKeysOffset, 0);
     }
-    static createItemsIndicesVector(builder, data) {
+    static createItemsKeysVector(builder, data) {
         builder.startVector(4, data.length, 4);
         for (let i = data.length - 1; i >= 0; i--) {
             builder.addInt32(data[i]);
         }
         return builder.endVector();
     }
-    static startItemsIndicesVector(builder, numElems) {
+    static startItemsKeysVector(builder, numElems) {
+        builder.startVector(4, numElems, 4);
+    }
+    static addItemsKeysIndices(builder, itemsKeysIndicesOffset) {
+        builder.addFieldOffset(4, itemsKeysIndicesOffset, 0);
+    }
+    static createItemsKeysIndicesVector(builder, data) {
+        builder.startVector(4, data.length, 4);
+        for (let i = data.length - 1; i >= 0; i--) {
+            builder.addInt32(data[i]);
+        }
+        return builder.endVector();
+    }
+    static startItemsKeysIndicesVector(builder, numElems) {
+        builder.startVector(4, numElems, 4);
+    }
+    static addItemsRels(builder, itemsRelsOffset) {
+        builder.addFieldOffset(5, itemsRelsOffset, 0);
+    }
+    static createItemsRelsVector(builder, data) {
+        builder.startVector(4, data.length, 4);
+        for (let i = data.length - 1; i >= 0; i--) {
+            builder.addInt32(data[i]);
+        }
+        return builder.endVector();
+    }
+    static startItemsRelsVector(builder, numElems) {
+        builder.startVector(4, numElems, 4);
+    }
+    static addItemsRelsIndices(builder, itemsRelsIndicesOffset) {
+        builder.addFieldOffset(6, itemsRelsIndicesOffset, 0);
+    }
+    static createItemsRelsIndicesVector(builder, data) {
+        builder.startVector(4, data.length, 4);
+        for (let i = data.length - 1; i >= 0; i--) {
+            builder.addInt32(data[i]);
+        }
+        return builder.endVector();
+    }
+    static startItemsRelsIndicesVector(builder, numElems) {
         builder.startVector(4, numElems, 4);
     }
     static addFragmentKeys(builder, fragmentKeysOffset) {
-        builder.addFieldOffset(4, fragmentKeysOffset, 0);
+        builder.addFieldOffset(7, fragmentKeysOffset, 0);
     }
     static endFragmentsGroup(builder) {
         const offset = builder.endObject();
@@ -11609,12 +11684,15 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static finishSizePrefixedFragmentsGroupBuffer(builder, offset) {
         builder.finish(offset, undefined, true);
     }
-    static createFragmentsGroup(builder, itemsOffset, matrixOffset, itemsDataOffset, itemsIndicesOffset, fragmentKeysOffset) {
+    static createFragmentsGroup(builder, itemsOffset, matrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset) {
         FragmentsGroup.startFragmentsGroup(builder);
         FragmentsGroup.addItems(builder, itemsOffset);
         FragmentsGroup.addMatrix(builder, matrixOffset);
-        FragmentsGroup.addItemsData(builder, itemsDataOffset);
-        FragmentsGroup.addItemsIndices(builder, itemsIndicesOffset);
+        FragmentsGroup.addIds(builder, idsOffset);
+        FragmentsGroup.addItemsKeys(builder, itemsKeysOffset);
+        FragmentsGroup.addItemsKeysIndices(builder, itemsKeysIndicesOffset);
+        FragmentsGroup.addItemsRels(builder, itemsRelsOffset);
+        FragmentsGroup.addItemsRelsIndices(builder, itemsRelsIndicesOffset);
         FragmentsGroup.addFragmentKeys(builder, fragmentKeysOffset);
         return FragmentsGroup.endFragmentsGroup(builder);
     }
@@ -11625,7 +11703,8 @@ class FragmentsGroup extends THREE.Group {
         super(...arguments);
         this.items = [];
         this.matrix = new THREE.Matrix4();
-        this.keys = {};
+        this.keyFragments = {};
+        // data: [expressID: number]: [keys, rels]
         this.data = {};
     }
     dispose(disposeResources = true) {
@@ -11633,7 +11712,7 @@ class FragmentsGroup extends THREE.Group {
             fragment.dispose(disposeResources);
         }
         this.matrix = new THREE.Matrix4();
-        this.keys = {};
+        this.keyFragments = {};
         this.data = {};
         this.properties = {};
     }
@@ -11670,63 +11749,80 @@ class Serializer {
     export(group) {
         const builder = new Builder(1024);
         const items = [];
+        const G = FragmentsGroup$1;
+        const F = Fragment;
         for (const fragment of group.items) {
             const result = fragment.exportData();
-            const posVector = Fragment.createPositionVector(builder, result.position);
-            const normalVector = Fragment.createNormalVector(builder, result.normal);
-            const blockVector = Fragment.createBlockIdVector(builder, result.blockID);
-            const indexVector = Fragment.createIndexVector(builder, result.index);
-            const groupsVector = Fragment.createGroupsVector(builder, result.groups);
-            const matsVector = Fragment.createMaterialsVector(builder, result.materials);
-            const matricesVector = Fragment.createMatricesVector(builder, result.matrices);
-            const colorsVector = Fragment.createColorsVector(builder, result.colors);
+            const posVector = F.createPositionVector(builder, result.position);
+            const normalVector = F.createNormalVector(builder, result.normal);
+            const blockVector = F.createBlockIdVector(builder, result.blockID);
+            const indexVector = F.createIndexVector(builder, result.index);
+            const groupsVector = F.createGroupsVector(builder, result.groups);
+            const matsVector = F.createMaterialsVector(builder, result.materials);
+            const matricesVector = F.createMatricesVector(builder, result.matrices);
+            const colorsVector = F.createColorsVector(builder, result.colors);
             const idsStr = builder.createString(result.ids);
             const idStr = builder.createString(result.id);
-            Fragment.startFragment(builder);
-            Fragment.addPosition(builder, posVector);
-            Fragment.addNormal(builder, normalVector);
-            Fragment.addBlockId(builder, blockVector);
-            Fragment.addIndex(builder, indexVector);
-            Fragment.addGroups(builder, groupsVector);
-            Fragment.addMaterials(builder, matsVector);
-            Fragment.addMatrices(builder, matricesVector);
-            Fragment.addColors(builder, colorsVector);
-            Fragment.addIds(builder, idsStr);
-            Fragment.addId(builder, idStr);
+            F.startFragment(builder);
+            F.addPosition(builder, posVector);
+            F.addNormal(builder, normalVector);
+            F.addBlockId(builder, blockVector);
+            F.addIndex(builder, indexVector);
+            F.addGroups(builder, groupsVector);
+            F.addMaterials(builder, matsVector);
+            F.addMatrices(builder, matricesVector);
+            F.addColors(builder, colorsVector);
+            F.addIds(builder, idsStr);
+            F.addId(builder, idStr);
             const exported = Fragment.endFragment(builder);
             items.push(exported);
         }
-        const itemsVector = FragmentsGroup$1.createItemsVector(builder, items);
-        const matrixVector = FragmentsGroup$1.createMatrixVector(builder, group.matrix.elements);
+        const itemsVector = G.createItemsVector(builder, items);
+        const matrixVector = G.createMatrixVector(builder, group.matrix.elements);
         let fragmentKeys = "";
-        for (const key in group.keys) {
-            const fragmentID = group.keys[key];
+        for (const key in group.keyFragments) {
+            const fragmentID = group.keyFragments[key];
             if (fragmentKeys.length)
                 fragmentKeys += this.fragmentIDSeparator;
             fragmentKeys += fragmentID;
         }
         const fragmentKeysRef = builder.createString(fragmentKeys);
-        const indices = [];
-        const itemsData = [];
-        let counter = 0;
+        const keyIndices = [];
+        const itemsKeys = [];
+        const relsIndices = [];
+        const itemsRels = [];
+        const ids = [];
+        let keysCounter = 0;
+        let relsCounter = 0;
         for (const expressID in group.data) {
-            indices.push(counter);
-            const itemData = group.data[expressID];
+            keyIndices.push(keysCounter);
+            relsIndices.push(relsCounter);
+            const [keys, rels] = group.data[expressID];
             const id = parseInt(expressID, 10);
-            itemsData.push(id);
-            for (const data of itemData) {
-                itemsData.push(data);
+            ids.push(id);
+            for (const key of keys) {
+                itemsKeys.push(key);
             }
-            counter += itemData.length + 1;
+            for (const rel of rels) {
+                itemsRels.push(rel);
+            }
+            keysCounter += keys.length;
+            relsCounter += rels.length;
         }
-        const indicesVector = FragmentsGroup$1.createItemsIndicesVector(builder, indices);
-        const dataVector = FragmentsGroup$1.createItemsDataVector(builder, itemsData);
-        FragmentsGroup$1.startFragmentsGroup(builder);
-        FragmentsGroup$1.addItems(builder, itemsVector);
-        FragmentsGroup$1.addFragmentKeys(builder, fragmentKeysRef);
-        FragmentsGroup$1.addItemsIndices(builder, indicesVector);
-        FragmentsGroup$1.addItemsData(builder, dataVector);
-        FragmentsGroup$1.addMatrix(builder, matrixVector);
+        const keysIVector = G.createItemsKeysIndicesVector(builder, keyIndices);
+        const keysVector = G.createItemsKeysVector(builder, itemsKeys);
+        const relsIVector = G.createItemsRelsIndicesVector(builder, relsIndices);
+        const relsVector = G.createItemsRelsVector(builder, itemsRels);
+        const idsVector = G.createIdsVector(builder, ids);
+        G.startFragmentsGroup(builder);
+        G.addItems(builder, itemsVector);
+        G.addFragmentKeys(builder, fragmentKeysRef);
+        G.addIds(builder, idsVector);
+        G.addItemsKeysIndices(builder, keysIVector);
+        G.addItemsKeys(builder, keysVector);
+        G.addItemsRelsIndices(builder, relsIVector);
+        G.addItemsRels(builder, relsVector);
+        G.addMatrix(builder, matrixVector);
         const result = FragmentsGroup$1.endFragmentsGroup(builder);
         builder.finish(result);
         return builder.asUint8Array();
@@ -11805,27 +11901,37 @@ class Serializer {
     constructFragmentGroup(group) {
         const fragmentsGroup = new FragmentsGroup();
         const matrixArray = group.matrixArray() || new Float32Array();
-        const keysIndicesArray = group.itemsIndicesArray() || new Int32Array();
-        const keysArray = group.itemsDataArray() || new Int32Array();
+        const ids = group.idsArray() || new Int32Array();
+        const keysIndices = group.itemsKeysIndicesArray() || new Int32Array();
+        const keysArray = group.itemsKeysArray() || new Int32Array();
+        const relsArray = group.itemsRelsArray() || new Int32Array();
+        const relsIndices = group.itemsRelsIndicesArray() || new Int32Array();
         const keysIdsString = group.fragmentKeys() || "";
         const keysIdsArray = keysIdsString.split(this.fragmentIDSeparator);
-        for (let i = 0; i < keysIndicesArray.length - 1; i++) {
-            const currentIndex = keysIndicesArray[i];
-            const nextIndex = keysIndicesArray[i + 1];
-            const expressID = keysArray[currentIndex];
-            const itemData = [];
-            for (let j = currentIndex + 1; j < nextIndex; j++) {
-                itemData.push(keysArray[j]);
-            }
-            fragmentsGroup.data[expressID] = itemData;
-        }
+        this.setGroupData(fragmentsGroup, ids, keysIndices, keysArray, 0);
+        this.setGroupData(fragmentsGroup, ids, relsIndices, relsArray, 1);
         for (let i = 0; i < keysIdsArray.length; i++) {
-            fragmentsGroup.keys[i] = keysIdsArray[i];
+            fragmentsGroup.keyFragments[i] = keysIdsArray[i];
         }
         if (matrixArray.length === 16) {
             fragmentsGroup.matrix.fromArray(matrixArray);
         }
         return fragmentsGroup;
+    }
+    setGroupData(group, ids, indices, array, index) {
+        for (let i = 0; i < indices.length - 1; i++) {
+            const expressID = ids[i];
+            const currentIndex = indices[i];
+            const nextIndex = indices[i + 1];
+            const keys = [];
+            for (let j = currentIndex; j < nextIndex; j++) {
+                keys.push(array[j]);
+            }
+            if (!group.data[expressID]) {
+                group.data[expressID] = [[], []];
+            }
+            group.data[expressID][index] = keys;
+        }
     }
     constructGeometry(fragment) {
         const position = fragment.positionArray();

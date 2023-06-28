@@ -3,8 +3,11 @@ namespace Fragments.index;
 table FragmentsGroup {
     items: [Fragment];
     matrix: [float];
-    items_data: [int];
-    items_indices: [int];
+    ids: [int];
+    items_keys: [int];
+    items_keys_indices: [int];
+    items_rels: [int];
+    items_rels_indices: [int];
     fragment_keys: string;
 }
 

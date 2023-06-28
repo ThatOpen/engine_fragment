@@ -4,8 +4,9 @@ import { Fragment } from "./fragment";
 export class FragmentsGroup extends THREE.Group {
   items: Fragment[] = [];
   matrix = new THREE.Matrix4();
-  keys: { [key: number]: string } = {};
-  data: { [expressID: number]: number[] } = {};
+  keyFragments: { [key: number]: string } = {};
+  // data: [expressID: number]: [keys, rels]
+  data: { [expressID: number]: [number[], number[]] } = {};
   properties: any;
 
   dispose(disposeResources = true) {
@@ -13,7 +14,7 @@ export class FragmentsGroup extends THREE.Group {
       fragment.dispose(disposeResources);
     }
     this.matrix = new THREE.Matrix4();
-    this.keys = {};
+    this.keyFragments = {};
     this.data = {};
     this.properties = {};
   }
