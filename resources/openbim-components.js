@@ -10179,6 +10179,16 @@ let Fragment$1 = class Fragment {
         this.blocks = new Blocks(this);
         BVH.apply(geometry);
     }
+    get ids() {
+        const ids = new Set();
+        for (const id of this.items) {
+            ids.add(id);
+        }
+        for (const id in this.hiddenInstances) {
+            ids.add(id);
+        }
+        return ids;
+    }
     dispose(disposeResources = true) {
         this.items = null;
         this.group = undefined;
@@ -10278,7 +10288,7 @@ let Fragment$1 = class Fragment {
             this.hiddenInstances = {};
         }
     }
-    setVisibility(itemIDs, visible) {
+    setVisibility(visible, itemIDs = this.ids) {
         if (this.blocks.count > 1) {
             this.toggleBlockVisibility(visible, itemIDs);
             this.mesh.geometry.disposeBoundsTree();
@@ -10427,10 +10437,22 @@ let Fragment$1 = class Fragment {
     }
     filterHiddenItems(itemIDs, hidden) {
         const hiddenItems = Object.keys(this.hiddenInstances);
-        return itemIDs.filter((item) => hidden ? hiddenItems.includes(item) : !hiddenItems.includes(item));
+        const result = [];
+        for (const id of itemIDs) {
+            const isHidden = hidden && hiddenItems.includes(id);
+            const isNotHidden = !hidden && !hiddenItems.includes(id);
+            if (isHidden || isNotHidden) {
+                result.push(id);
+            }
+        }
+        return result;
     }
     toggleBlockVisibility(visible, itemIDs) {
-        const blockIDs = itemIDs.map((id) => this.getInstanceAndBlockID(id).blockID);
+        const blockIDs = [];
+        for (const id of itemIDs) {
+            const blockID = this.getInstanceAndBlockID(id).blockID;
+            blockIDs.push(blockID);
+        }
         if (visible) {
             this.blocks.add(blockIDs, false);
         }
