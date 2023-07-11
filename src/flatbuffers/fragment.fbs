@@ -9,6 +9,7 @@ table FragmentsGroup {
     items_rels: [uint];
     items_rels_indices: [uint];
     fragment_keys: string;
+    id: string;
 }
 
 table Fragment {

@@ -130,8 +130,15 @@ fragmentKeys(optionalEncoding?:any):string|Uint8Array|null {
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
+id():string|null
+id(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+id(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 20);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
 static startFragmentsGroup(builder:flatbuffers.Builder) {
-  builder.startObject(8);
+  builder.startObject(9);
 }
 
 static addItems(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset) {
@@ -280,6 +287,10 @@ static addFragmentKeys(builder:flatbuffers.Builder, fragmentKeysOffset:flatbuffe
   builder.addFieldOffset(7, fragmentKeysOffset, 0);
 }
 
+static addId(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(8, idOffset, 0);
+}
+
 static endFragmentsGroup(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
@@ -293,7 +304,7 @@ static finishSizePrefixedFragmentsGroupBuffer(builder:flatbuffers.Builder, offse
   builder.finish(offset, undefined, true);
 }
 
-static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, matrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, matrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset):flatbuffers.Offset {
   FragmentsGroup.startFragmentsGroup(builder);
   FragmentsGroup.addItems(builder, itemsOffset);
   FragmentsGroup.addMatrix(builder, matrixOffset);
@@ -303,6 +314,7 @@ static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers
   FragmentsGroup.addItemsRels(builder, itemsRelsOffset);
   FragmentsGroup.addItemsRelsIndices(builder, itemsRelsIndicesOffset);
   FragmentsGroup.addFragmentKeys(builder, fragmentKeysOffset);
+  FragmentsGroup.addId(builder, idOffset);
   return FragmentsGroup.endFragmentsGroup(builder);
 }
 }

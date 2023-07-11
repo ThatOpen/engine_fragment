@@ -112,6 +112,8 @@ export class Serializer {
       relsCounter += rels.length;
     }
 
+    const groupID = builder.createString(group.uuid);
+
     const keysIVector = G.createItemsKeysIndicesVector(builder, keyIndices);
     const keysVector = G.createItemsKeysVector(builder, itemsKeys);
     const relsIVector = G.createItemsRelsIndicesVector(builder, relsIndices);
@@ -119,6 +121,7 @@ export class Serializer {
     const idsVector = G.createIdsVector(builder, ids);
 
     G.startFragmentsGroup(builder);
+    G.addId(builder, groupID);
     G.addItems(builder, itemsVector);
     G.addFragmentKeys(builder, fragmentKeysRef);
     G.addIds(builder, idsVector);
@@ -227,6 +230,7 @@ export class Serializer {
   private constructFragmentGroup(group: FB.FragmentsGroup) {
     const fragmentsGroup = new FragmentsGroup();
 
+    fragmentsGroup.uuid = group.id() || fragmentsGroup.uuid;
     const matrixArray = group.matrixArray() || new Float32Array();
     const ids = group.idsArray() || new Uint32Array();
     const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();
