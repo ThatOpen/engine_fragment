@@ -114,6 +114,10 @@ export class Serializer {
 
     const groupID = builder.createString(group.uuid);
 
+    const ifcName = builder.createString(group.ifcMetadata.name);
+    const ifcDescription = builder.createString(group.ifcMetadata.description);
+    const ifcSchema = builder.createString(group.ifcMetadata.schema);
+
     const keysIVector = G.createItemsKeysIndicesVector(builder, keyIndices);
     const keysVector = G.createItemsKeysVector(builder, itemsKeys);
     const relsIVector = G.createItemsRelsIndicesVector(builder, relsIndices);
@@ -122,6 +126,10 @@ export class Serializer {
 
     G.startFragmentsGroup(builder);
     G.addId(builder, groupID);
+    G.addIfcName(builder, ifcName);
+    G.addIfcDescription(builder, ifcDescription);
+    G.addIfcSchema(builder, ifcSchema);
+    G.addMaxExpressId(builder, group.ifcMetadata.maxExpressId);
     G.addItems(builder, itemsVector);
     G.addFragmentKeys(builder, fragmentKeysRef);
     G.addIds(builder, idsVector);
@@ -231,6 +239,14 @@ export class Serializer {
     const fragmentsGroup = new FragmentsGroup();
 
     fragmentsGroup.uuid = group.id() || fragmentsGroup.uuid;
+
+    fragmentsGroup.ifcMetadata = {
+      name: group.ifcName() || "",
+      description: group.ifcDescription() || "",
+      schema: group.ifcSchema() || "",
+      maxExpressId: group.maxExpressId() || 0,
+    };
+
     const matrixArray = group.matrixArray() || new Float32Array();
     const ids = group.idsArray() || new Uint32Array();
     const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();

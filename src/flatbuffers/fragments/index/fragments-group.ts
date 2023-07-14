@@ -137,8 +137,34 @@ id(optionalEncoding?:any):string|Uint8Array|null {
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
+ifcName():string|null
+ifcName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+ifcName(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 22);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+ifcDescription():string|null
+ifcDescription(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+ifcDescription(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+ifcSchema():string|null
+ifcSchema(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+ifcSchema(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 26);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
+maxExpressId():number {
+  const offset = this.bb!.__offset(this.bb_pos, 28);
+  return offset ? this.bb!.readUint32(this.bb_pos + offset) : 0;
+}
+
 static startFragmentsGroup(builder:flatbuffers.Builder) {
-  builder.startObject(9);
+  builder.startObject(13);
 }
 
 static addItems(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset) {
@@ -291,6 +317,22 @@ static addId(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset) {
   builder.addFieldOffset(8, idOffset, 0);
 }
 
+static addIfcName(builder:flatbuffers.Builder, ifcNameOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(9, ifcNameOffset, 0);
+}
+
+static addIfcDescription(builder:flatbuffers.Builder, ifcDescriptionOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(10, ifcDescriptionOffset, 0);
+}
+
+static addIfcSchema(builder:flatbuffers.Builder, ifcSchemaOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(11, ifcSchemaOffset, 0);
+}
+
+static addMaxExpressId(builder:flatbuffers.Builder, maxExpressId:number) {
+  builder.addFieldInt32(12, maxExpressId, 0);
+}
+
 static endFragmentsGroup(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
@@ -304,7 +346,7 @@ static finishSizePrefixedFragmentsGroupBuffer(builder:flatbuffers.Builder, offse
   builder.finish(offset, undefined, true);
 }
 
-static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, matrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, matrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number):flatbuffers.Offset {
   FragmentsGroup.startFragmentsGroup(builder);
   FragmentsGroup.addItems(builder, itemsOffset);
   FragmentsGroup.addMatrix(builder, matrixOffset);
@@ -315,6 +357,10 @@ static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers
   FragmentsGroup.addItemsRelsIndices(builder, itemsRelsIndicesOffset);
   FragmentsGroup.addFragmentKeys(builder, fragmentKeysOffset);
   FragmentsGroup.addId(builder, idOffset);
+  FragmentsGroup.addIfcName(builder, ifcNameOffset);
+  FragmentsGroup.addIfcDescription(builder, ifcDescriptionOffset);
+  FragmentsGroup.addIfcSchema(builder, ifcSchemaOffset);
+  FragmentsGroup.addMaxExpressId(builder, maxExpressId);
   return FragmentsGroup.endFragmentsGroup(builder);
 }
 }

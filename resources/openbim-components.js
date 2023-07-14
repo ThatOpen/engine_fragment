@@ -11603,8 +11603,24 @@ let FragmentsGroup$1 = class FragmentsGroup {
         const offset = this.bb.__offset(this.bb_pos, 20);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
+    ifcName(optionalEncoding) {
+        const offset = this.bb.__offset(this.bb_pos, 22);
+        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+    }
+    ifcDescription(optionalEncoding) {
+        const offset = this.bb.__offset(this.bb_pos, 24);
+        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+    }
+    ifcSchema(optionalEncoding) {
+        const offset = this.bb.__offset(this.bb_pos, 26);
+        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+    }
+    maxExpressId() {
+        const offset = this.bb.__offset(this.bb_pos, 28);
+        return offset ? this.bb.readUint32(this.bb_pos + offset) : 0;
+    }
     static startFragmentsGroup(builder) {
-        builder.startObject(9);
+        builder.startObject(13);
     }
     static addItems(builder, itemsOffset) {
         builder.addFieldOffset(0, itemsOffset, 0);
@@ -11703,6 +11719,18 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static addId(builder, idOffset) {
         builder.addFieldOffset(8, idOffset, 0);
     }
+    static addIfcName(builder, ifcNameOffset) {
+        builder.addFieldOffset(9, ifcNameOffset, 0);
+    }
+    static addIfcDescription(builder, ifcDescriptionOffset) {
+        builder.addFieldOffset(10, ifcDescriptionOffset, 0);
+    }
+    static addIfcSchema(builder, ifcSchemaOffset) {
+        builder.addFieldOffset(11, ifcSchemaOffset, 0);
+    }
+    static addMaxExpressId(builder, maxExpressId) {
+        builder.addFieldInt32(12, maxExpressId, 0);
+    }
     static endFragmentsGroup(builder) {
         const offset = builder.endObject();
         return offset;
@@ -11713,7 +11741,7 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static finishSizePrefixedFragmentsGroupBuffer(builder, offset) {
         builder.finish(offset, undefined, true);
     }
-    static createFragmentsGroup(builder, itemsOffset, matrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset) {
+    static createFragmentsGroup(builder, itemsOffset, matrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset, ifcNameOffset, ifcDescriptionOffset, ifcSchemaOffset, maxExpressId) {
         FragmentsGroup.startFragmentsGroup(builder);
         FragmentsGroup.addItems(builder, itemsOffset);
         FragmentsGroup.addMatrix(builder, matrixOffset);
@@ -11724,10 +11752,15 @@ let FragmentsGroup$1 = class FragmentsGroup {
         FragmentsGroup.addItemsRelsIndices(builder, itemsRelsIndicesOffset);
         FragmentsGroup.addFragmentKeys(builder, fragmentKeysOffset);
         FragmentsGroup.addId(builder, idOffset);
+        FragmentsGroup.addIfcName(builder, ifcNameOffset);
+        FragmentsGroup.addIfcDescription(builder, ifcDescriptionOffset);
+        FragmentsGroup.addIfcSchema(builder, ifcSchemaOffset);
+        FragmentsGroup.addMaxExpressId(builder, maxExpressId);
         return FragmentsGroup.endFragmentsGroup(builder);
     }
 };
 
+// TODO: Document this
 class FragmentsGroup extends THREE.Group {
     constructor() {
         super(...arguments);
@@ -11736,6 +11769,12 @@ class FragmentsGroup extends THREE.Group {
         this.keyFragments = {};
         // data: [expressID: number]: [keys, rels]
         this.data = {};
+        this.ifcMetadata = {
+            name: "",
+            description: "",
+            schema: "",
+            maxExpressId: 0,
+        };
     }
     dispose(disposeResources = true) {
         for (const fragment of this.items) {
@@ -11840,6 +11879,9 @@ class Serializer {
             relsCounter += rels.length;
         }
         const groupID = builder.createString(group.uuid);
+        const ifcName = builder.createString(group.ifcMetadata.name);
+        const ifcDescription = builder.createString(group.ifcMetadata.description);
+        const ifcSchema = builder.createString(group.ifcMetadata.schema);
         const keysIVector = G.createItemsKeysIndicesVector(builder, keyIndices);
         const keysVector = G.createItemsKeysVector(builder, itemsKeys);
         const relsIVector = G.createItemsRelsIndicesVector(builder, relsIndices);
@@ -11847,6 +11889,10 @@ class Serializer {
         const idsVector = G.createIdsVector(builder, ids);
         G.startFragmentsGroup(builder);
         G.addId(builder, groupID);
+        G.addIfcName(builder, ifcName);
+        G.addIfcDescription(builder, ifcDescription);
+        G.addIfcSchema(builder, ifcSchema);
+        G.addMaxExpressId(builder, group.ifcMetadata.maxExpressId);
         G.addItems(builder, itemsVector);
         G.addFragmentKeys(builder, fragmentKeysRef);
         G.addIds(builder, idsVector);
@@ -11933,6 +11979,12 @@ class Serializer {
     constructFragmentGroup(group) {
         const fragmentsGroup = new FragmentsGroup();
         fragmentsGroup.uuid = group.id() || fragmentsGroup.uuid;
+        fragmentsGroup.ifcMetadata = {
+            name: group.ifcName() || "",
+            description: group.ifcDescription() || "",
+            schema: group.ifcSchema() || "",
+            maxExpressId: group.maxExpressId() || 0,
+        };
         const matrixArray = group.matrixArray() || new Float32Array();
         const ids = group.idsArray() || new Uint32Array();
         const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();

@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { Fragment } from "./fragment";
 
+// TODO: Document this
 export class FragmentsGroup extends THREE.Group {
   items: Fragment[] = [];
   matrix = new THREE.Matrix4();
@@ -8,6 +9,12 @@ export class FragmentsGroup extends THREE.Group {
   // data: [expressID: number]: [keys, rels]
   data: { [expressID: number]: [number[], number[]] } = {};
   properties: any;
+  ifcMetadata = {
+    name: "",
+    description: "",
+    schema: "",
+    maxExpressId: 0,
+  };
 
   dispose(disposeResources = true) {
     for (const fragment of this.items) {
