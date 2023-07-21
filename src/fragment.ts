@@ -40,6 +40,14 @@ export class Fragment implements IFragment {
   hiddenInstances: { [id: string]: Items } = {};
   group?: FragmentsGroup;
 
+  // When multiple instances represent the same object
+  // this allows to create a composite ID for each instance
+  // E.g. all the steps in a stair are a single thing
+  // so if the ID of the stair is asdf, then each step could be
+  // asdf.1, asdf.2, asdf.3, etc
+  // the value is the number of instances
+  composites: { [id: string]: number } = {};
+
   get ids() {
     const ids = new Set<string>();
     for (const id of this.items) {

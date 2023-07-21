@@ -10173,6 +10173,13 @@ let Fragment$1 = class Fragment {
         this.fragments = {};
         this.items = [];
         this.hiddenInstances = {};
+        // When multiple instances represent the same object
+        // this allows to create a composite ID for each instance
+        // E.g. all the steps in a stair are a single thing
+        // so if the ID of the stair is asdf, then each step could be
+        // asdf.1, asdf.2, asdf.3, etc
+        // the value is the number of instances
+        this.composites = {};
         this.mesh = new FragmentMesh(geometry, material, count, this);
         this.id = this.mesh.uuid;
         this.capacity = count;
@@ -11364,8 +11371,12 @@ class Fragment {
         const offset = this.bb.__offset(this.bb_pos, 22);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
+    composites(optionalEncoding) {
+        const offset = this.bb.__offset(this.bb_pos, 24);
+        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+    }
     static startFragment(builder) {
-        builder.startObject(10);
+        builder.startObject(11);
     }
     static addPosition(builder, positionOffset) {
         builder.addFieldOffset(0, positionOffset, 0);
@@ -11477,11 +11488,14 @@ class Fragment {
     static addId(builder, idOffset) {
         builder.addFieldOffset(9, idOffset, 0);
     }
+    static addComposites(builder, compositesOffset) {
+        builder.addFieldOffset(10, compositesOffset, 0);
+    }
     static endFragment(builder) {
         const offset = builder.endObject();
         return offset;
     }
-    static createFragment(builder, positionOffset, normalOffset, indexOffset, blockIdOffset, groupsOffset, materialsOffset, matricesOffset, colorsOffset, idsOffset, idOffset) {
+    static createFragment(builder, positionOffset, normalOffset, indexOffset, blockIdOffset, groupsOffset, materialsOffset, matricesOffset, colorsOffset, idsOffset, idOffset, compositesOffset) {
         Fragment.startFragment(builder);
         Fragment.addPosition(builder, positionOffset);
         Fragment.addNormal(builder, normalOffset);
@@ -11493,6 +11507,7 @@ class Fragment {
         Fragment.addColors(builder, colorsOffset);
         Fragment.addIds(builder, idsOffset);
         Fragment.addId(builder, idOffset);
+        Fragment.addComposites(builder, compositesOffset);
         return Fragment.endFragment(builder);
     }
 }
@@ -11808,6 +11823,7 @@ class Serializer {
             const materials = this.constructMaterials(fbFragment);
             const { instances, colors } = this.constructInstances(fbFragment);
             const fragment = new Fragment$1(geometry, materials, instances.length);
+            this.getComposites(fbFragment, fragment);
             this.setInstances(instances, colors, fragment);
             this.setID(fbFragment, fragment);
             fragmentsGroup.items.push(fragment);
@@ -11832,6 +11848,7 @@ class Serializer {
             const colorsVector = F.createColorsVector(builder, result.colors);
             const idsStr = builder.createString(result.ids);
             const idStr = builder.createString(result.id);
+            const compositeStr = builder.createString(JSON.stringify(fragment.composites));
             F.startFragment(builder);
             F.addPosition(builder, posVector);
             F.addNormal(builder, normalVector);
@@ -11843,6 +11860,7 @@ class Serializer {
             F.addColors(builder, colorsVector);
             F.addIds(builder, idsStr);
             F.addId(builder, idStr);
+            F.addComposites(builder, compositeStr);
             const exported = Fragment.endFragment(builder);
             items.push(exported);
         }
@@ -11904,6 +11922,10 @@ class Serializer {
         const result = FragmentsGroup$1.endFragmentsGroup(builder);
         builder.finish(result);
         return builder.asUint8Array();
+    }
+    getComposites(fbFragment, fragment) {
+        const composites = fbFragment.composites() || "{}";
+        fragment.composites = JSON.parse(composites);
     }
     setID(fbFragment, fragment) {
         const id = fbFragment.id();

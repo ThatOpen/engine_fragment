@@ -27,6 +27,7 @@ table Fragment {
     colors: [float];
     ids: string;
     id: string;
+    composites: string;
 }
 
 root_type FragmentsGroup;

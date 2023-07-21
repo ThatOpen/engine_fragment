@@ -26,6 +26,7 @@ export class Serializer {
       const materials = this.constructMaterials(fbFragment);
       const { instances, colors } = this.constructInstances(fbFragment);
       const fragment = new Fragment(geometry, materials, instances.length);
+      this.getComposites(fbFragment, fragment);
       this.setInstances(instances, colors, fragment);
       this.setID(fbFragment, fragment);
       fragmentsGroup.items.push(fragment);
@@ -55,6 +56,9 @@ export class Serializer {
       const colorsVector = F.createColorsVector(builder, result.colors);
       const idsStr = builder.createString(result.ids);
       const idStr = builder.createString(result.id);
+      const compositeStr = builder.createString(
+        JSON.stringify(fragment.composites)
+      );
 
       F.startFragment(builder);
       F.addPosition(builder, posVector);
@@ -67,6 +71,7 @@ export class Serializer {
       F.addColors(builder, colorsVector);
       F.addIds(builder, idsStr);
       F.addId(builder, idStr);
+      F.addComposites(builder, compositeStr);
       const exported = FB.Fragment.endFragment(builder);
       items.push(exported);
     }
@@ -142,6 +147,11 @@ export class Serializer {
     builder.finish(result);
 
     return builder.asUint8Array();
+  }
+
+  private getComposites(fbFragment: FB.Fragment, fragment: Fragment) {
+    const composites = fbFragment.composites() || "{}";
+    fragment.composites = JSON.parse(composites);
   }
 
   private setID(fbFragment: FB.Fragment, fragment: Fragment) {

@@ -154,8 +154,15 @@ id(optionalEncoding?:any):string|Uint8Array|null {
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
+composites():string|null
+composites(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+composites(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
 static startFragment(builder:flatbuffers.Builder) {
-  builder.startObject(10);
+  builder.startObject(11);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
@@ -334,12 +341,16 @@ static addId(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset) {
   builder.addFieldOffset(9, idOffset, 0);
 }
 
+static addComposites(builder:flatbuffers.Builder, compositesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(10, compositesOffset, 0);
+}
+
 static endFragment(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
 }
 
-static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, indexOffset:flatbuffers.Offset, blockIdOffset:flatbuffers.Offset, groupsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, matricesOffset:flatbuffers.Offset, colorsOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, indexOffset:flatbuffers.Offset, blockIdOffset:flatbuffers.Offset, groupsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, matricesOffset:flatbuffers.Offset, colorsOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, compositesOffset:flatbuffers.Offset):flatbuffers.Offset {
   Fragment.startFragment(builder);
   Fragment.addPosition(builder, positionOffset);
   Fragment.addNormal(builder, normalOffset);
@@ -351,6 +362,7 @@ static createFragment(builder:flatbuffers.Builder, positionOffset:flatbuffers.Of
   Fragment.addColors(builder, colorsOffset);
   Fragment.addIds(builder, idsOffset);
   Fragment.addId(builder, idOffset);
+  Fragment.addComposites(builder, compositesOffset);
   return Fragment.endFragment(builder);
 }
 }
