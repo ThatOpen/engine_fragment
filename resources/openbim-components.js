@@ -10437,8 +10437,11 @@ let Fragment$1 = class Fragment {
         const items = [];
         itemIDs = this.filterHiddenItems(itemIDs, true);
         for (const id of itemIDs) {
-            items.push(this.hiddenInstances[id]);
-            delete this.hiddenInstances[id];
+            const found = this.hiddenInstances[id];
+            if (found !== undefined) {
+                items.push(found);
+                delete this.hiddenInstances[id];
+            }
         }
         this.addInstances(items);
     }
