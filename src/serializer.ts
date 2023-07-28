@@ -2,7 +2,7 @@ import * as THREE from "three";
 import * as flatbuffers from "flatbuffers";
 import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
-import { Items } from "./base-types";
+import { IfcSchema, Items } from "./base-types";
 import { FragmentsGroup } from "./fragments-group";
 
 /**
@@ -256,8 +256,8 @@ export class Serializer {
     fragmentsGroup.ifcMetadata = {
       name: group.ifcName() || "",
       description: group.ifcDescription() || "",
-      schema: group.ifcSchema() || "",
-      maxExpressId: group.maxExpressId() || 0,
+      schema: group.ifcSchema() as IfcSchema || "IFC2X3",
+      maxExpressID: group.maxExpressId() || 0,
     };
 
     const matrixArray = group.coordinationMatrixArray() || new Float32Array();
