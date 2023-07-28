@@ -78,7 +78,7 @@ export class Serializer {
 
     const itemsVector = G.createItemsVector(builder, items);
 
-    const matrixVector = G.createMatrixVector(
+    const matrixVector = G.createCoordinationMatrixVector(
       builder,
       group.coordinationMatrix.elements
     );
@@ -145,7 +145,7 @@ export class Serializer {
     G.addItemsKeys(builder, keysVector);
     G.addItemsRelsIndices(builder, relsIVector);
     G.addItemsRels(builder, relsVector);
-    G.addMatrix(builder, matrixVector);
+    G.addCoordinationMatrix(builder, matrixVector);
     const result = FB.FragmentsGroup.endFragmentsGroup(builder);
     builder.finish(result);
 
@@ -260,7 +260,7 @@ export class Serializer {
       maxExpressId: group.maxExpressId() || 0,
     };
 
-    const matrixArray = group.matrixArray() || new Float32Array();
+    const matrixArray = group.coordinationMatrixArray() || new Float32Array();
     const ids = group.idsArray() || new Uint32Array();
     const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();
     const keysArray = group.itemsKeysArray() || new Uint32Array();

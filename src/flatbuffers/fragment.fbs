@@ -2,7 +2,7 @@ namespace Fragments.index;
 
 table FragmentsGroup {
     items: [Fragment];
-    matrix: [float];
+    coordination_matrix: [float];
     ids: [uint];
     items_keys: [uint];
     items_keys_indices: [uint];

@@ -33,17 +33,17 @@ itemsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-matrix(index: number):number|null {
+coordinationMatrix(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
   return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
-matrixLength():number {
+coordinationMatrixLength():number {
   const offset = this.bb!.__offset(this.bb_pos, 6);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-matrixArray():Float32Array|null {
+coordinationMatrixArray():Float32Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
@@ -183,16 +183,16 @@ static startItemsVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
-static addMatrix(builder:flatbuffers.Builder, matrixOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(1, matrixOffset, 0);
+static addCoordinationMatrix(builder:flatbuffers.Builder, coordinationMatrixOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(1, coordinationMatrixOffset, 0);
 }
 
-static createMatrixVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
+static createCoordinationMatrixVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
 /**
  * @deprecated This Uint8Array overload will be removed in the future.
  */
-static createMatrixVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
-static createMatrixVector(builder:flatbuffers.Builder, data:number[]|Float32Array|Uint8Array):flatbuffers.Offset {
+static createCoordinationMatrixVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createCoordinationMatrixVector(builder:flatbuffers.Builder, data:number[]|Float32Array|Uint8Array):flatbuffers.Offset {
   builder.startVector(4, data.length, 4);
   for (let i = data.length - 1; i >= 0; i--) {
     builder.addFloat32(data[i]!);
@@ -200,7 +200,7 @@ static createMatrixVector(builder:flatbuffers.Builder, data:number[]|Float32Arra
   return builder.endVector();
 }
 
-static startMatrixVector(builder:flatbuffers.Builder, numElems:number) {
+static startCoordinationMatrixVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
@@ -346,10 +346,10 @@ static finishSizePrefixedFragmentsGroupBuffer(builder:flatbuffers.Builder, offse
   builder.finish(offset, undefined, true);
 }
 
-static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, matrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number):flatbuffers.Offset {
+static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, coordinationMatrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number):flatbuffers.Offset {
   FragmentsGroup.startFragmentsGroup(builder);
   FragmentsGroup.addItems(builder, itemsOffset);
-  FragmentsGroup.addMatrix(builder, matrixOffset);
+  FragmentsGroup.addCoordinationMatrix(builder, coordinationMatrixOffset);
   FragmentsGroup.addIds(builder, idsOffset);
   FragmentsGroup.addItemsKeys(builder, itemsKeysOffset);
   FragmentsGroup.addItemsKeysIndices(builder, itemsKeysIndicesOffset);

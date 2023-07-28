@@ -11541,15 +11541,15 @@ let FragmentsGroup$1 = class FragmentsGroup {
         const offset = this.bb.__offset(this.bb_pos, 4);
         return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
     }
-    matrix(index) {
+    coordinationMatrix(index) {
         const offset = this.bb.__offset(this.bb_pos, 6);
         return offset ? this.bb.readFloat32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
-    matrixLength() {
+    coordinationMatrixLength() {
         const offset = this.bb.__offset(this.bb_pos, 6);
         return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
     }
-    matrixArray() {
+    coordinationMatrixArray() {
         const offset = this.bb.__offset(this.bb_pos, 6);
         return offset ? new Float32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
@@ -11653,17 +11653,17 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static startItemsVector(builder, numElems) {
         builder.startVector(4, numElems, 4);
     }
-    static addMatrix(builder, matrixOffset) {
-        builder.addFieldOffset(1, matrixOffset, 0);
+    static addCoordinationMatrix(builder, coordinationMatrixOffset) {
+        builder.addFieldOffset(1, coordinationMatrixOffset, 0);
     }
-    static createMatrixVector(builder, data) {
+    static createCoordinationMatrixVector(builder, data) {
         builder.startVector(4, data.length, 4);
         for (let i = data.length - 1; i >= 0; i--) {
             builder.addFloat32(data[i]);
         }
         return builder.endVector();
     }
-    static startMatrixVector(builder, numElems) {
+    static startCoordinationMatrixVector(builder, numElems) {
         builder.startVector(4, numElems, 4);
     }
     static addIds(builder, idsOffset) {
@@ -11759,10 +11759,10 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static finishSizePrefixedFragmentsGroupBuffer(builder, offset) {
         builder.finish(offset, undefined, true);
     }
-    static createFragmentsGroup(builder, itemsOffset, matrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset, ifcNameOffset, ifcDescriptionOffset, ifcSchemaOffset, maxExpressId) {
+    static createFragmentsGroup(builder, itemsOffset, coordinationMatrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset, ifcNameOffset, ifcDescriptionOffset, ifcSchemaOffset, maxExpressId) {
         FragmentsGroup.startFragmentsGroup(builder);
         FragmentsGroup.addItems(builder, itemsOffset);
-        FragmentsGroup.addMatrix(builder, matrixOffset);
+        FragmentsGroup.addCoordinationMatrix(builder, coordinationMatrixOffset);
         FragmentsGroup.addIds(builder, idsOffset);
         FragmentsGroup.addItemsKeys(builder, itemsKeysOffset);
         FragmentsGroup.addItemsKeysIndices(builder, itemsKeysIndicesOffset);
@@ -11868,7 +11868,7 @@ class Serializer {
             items.push(exported);
         }
         const itemsVector = G.createItemsVector(builder, items);
-        const matrixVector = G.createMatrixVector(builder, group.coordinationMatrix.elements);
+        const matrixVector = G.createCoordinationMatrixVector(builder, group.coordinationMatrix.elements);
         let fragmentKeys = "";
         for (const key in group.keyFragments) {
             const fragmentID = group.keyFragments[key];
@@ -11921,7 +11921,7 @@ class Serializer {
         G.addItemsKeys(builder, keysVector);
         G.addItemsRelsIndices(builder, relsIVector);
         G.addItemsRels(builder, relsVector);
-        G.addMatrix(builder, matrixVector);
+        G.addCoordinationMatrix(builder, matrixVector);
         const result = FragmentsGroup$1.endFragmentsGroup(builder);
         builder.finish(result);
         return builder.asUint8Array();
@@ -12010,7 +12010,7 @@ class Serializer {
             schema: group.ifcSchema() || "",
             maxExpressId: group.maxExpressId() || 0,
         };
-        const matrixArray = group.matrixArray() || new Float32Array();
+        const matrixArray = group.coordinationMatrixArray() || new Float32Array();
         const ids = group.idsArray() || new Uint32Array();
         const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();
         const keysArray = group.itemsKeysArray() || new Uint32Array();
