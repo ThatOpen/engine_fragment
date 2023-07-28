@@ -78,7 +78,10 @@ export class Serializer {
 
     const itemsVector = G.createItemsVector(builder, items);
 
-    const matrixVector = G.createMatrixVector(builder, group.matrix.elements);
+    const matrixVector = G.createMatrixVector(
+      builder,
+      group.coordinationMatrix.elements
+    );
 
     let fragmentKeys = "";
     for (const key in group.keyFragments) {
@@ -274,7 +277,7 @@ export class Serializer {
     }
 
     if (matrixArray.length === 16) {
-      fragmentsGroup.matrix.fromArray(matrixArray);
+      fragmentsGroup.coordinationMatrix.fromArray(matrixArray);
     }
 
     return fragmentsGroup;

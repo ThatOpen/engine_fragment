@@ -11783,7 +11783,7 @@ class FragmentsGroup extends THREE.Group {
     constructor() {
         super(...arguments);
         this.items = [];
-        this.matrix = new THREE.Matrix4();
+        this.coordinationMatrix = new THREE.Matrix4();
         this.keyFragments = {};
         // data: [expressID: number]: [keys, rels]
         this.data = {};
@@ -11798,7 +11798,7 @@ class FragmentsGroup extends THREE.Group {
         for (const fragment of this.items) {
             fragment.dispose(disposeResources);
         }
-        this.matrix = new THREE.Matrix4();
+        this.coordinationMatrix = new THREE.Matrix4();
         this.keyFragments = {};
         this.data = {};
         this.properties = {};
@@ -11868,7 +11868,7 @@ class Serializer {
             items.push(exported);
         }
         const itemsVector = G.createItemsVector(builder, items);
-        const matrixVector = G.createMatrixVector(builder, group.matrix.elements);
+        const matrixVector = G.createMatrixVector(builder, group.coordinationMatrix.elements);
         let fragmentKeys = "";
         for (const key in group.keyFragments) {
             const fragmentID = group.keyFragments[key];
@@ -12024,7 +12024,7 @@ class Serializer {
             fragmentsGroup.keyFragments[i] = keysIdsArray[i];
         }
         if (matrixArray.length === 16) {
-            fragmentsGroup.matrix.fromArray(matrixArray);
+            fragmentsGroup.coordinationMatrix.fromArray(matrixArray);
         }
         return fragmentsGroup;
     }

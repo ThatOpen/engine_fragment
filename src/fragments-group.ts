@@ -4,7 +4,7 @@ import { Fragment } from "./fragment";
 // TODO: Document this
 export class FragmentsGroup extends THREE.Group {
   items: Fragment[] = [];
-  matrix = new THREE.Matrix4();
+  coordinationMatrix = new THREE.Matrix4();
   keyFragments: { [key: number]: string } = {};
   // data: [expressID: number]: [keys, rels]
   data: { [expressID: number]: [number[], number[]] } = {};
@@ -20,7 +20,7 @@ export class FragmentsGroup extends THREE.Group {
     for (const fragment of this.items) {
       fragment.dispose(disposeResources);
     }
-    this.matrix = new THREE.Matrix4();
+    this.coordinationMatrix = new THREE.Matrix4();
     this.keyFragments = {};
     this.data = {};
     this.properties = {};
