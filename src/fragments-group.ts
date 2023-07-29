@@ -9,7 +9,7 @@ export class FragmentsGroup extends THREE.Group {
   keyFragments: { [key: number]: string } = {};
   // data: [expressID: number]: [keys, rels]
   data: { [expressID: number]: [number[], number[]] } = {};
-  properties: IfcProperties = {};
+  properties?: IfcProperties;
   ifcMetadata: IfcMetadata = {
     name: "",
     description: "",
