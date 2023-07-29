@@ -11637,8 +11637,20 @@ let FragmentsGroup$1 = class FragmentsGroup {
         const offset = this.bb.__offset(this.bb_pos, 28);
         return offset ? this.bb.readUint32(this.bb_pos + offset) : 0;
     }
+    boundingBox(index) {
+        const offset = this.bb.__offset(this.bb_pos, 30);
+        return offset ? this.bb.readFloat32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+    }
+    boundingBoxLength() {
+        const offset = this.bb.__offset(this.bb_pos, 30);
+        return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+    }
+    boundingBoxArray() {
+        const offset = this.bb.__offset(this.bb_pos, 30);
+        return offset ? new Float32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+    }
     static startFragmentsGroup(builder) {
-        builder.startObject(13);
+        builder.startObject(14);
     }
     static addItems(builder, itemsOffset) {
         builder.addFieldOffset(0, itemsOffset, 0);
@@ -11749,6 +11761,19 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static addMaxExpressId(builder, maxExpressId) {
         builder.addFieldInt32(12, maxExpressId, 0);
     }
+    static addBoundingBox(builder, boundingBoxOffset) {
+        builder.addFieldOffset(13, boundingBoxOffset, 0);
+    }
+    static createBoundingBoxVector(builder, data) {
+        builder.startVector(4, data.length, 4);
+        for (let i = data.length - 1; i >= 0; i--) {
+            builder.addFloat32(data[i]);
+        }
+        return builder.endVector();
+    }
+    static startBoundingBoxVector(builder, numElems) {
+        builder.startVector(4, numElems, 4);
+    }
     static endFragmentsGroup(builder) {
         const offset = builder.endObject();
         return offset;
@@ -11759,7 +11784,7 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static finishSizePrefixedFragmentsGroupBuffer(builder, offset) {
         builder.finish(offset, undefined, true);
     }
-    static createFragmentsGroup(builder, itemsOffset, coordinationMatrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset, ifcNameOffset, ifcDescriptionOffset, ifcSchemaOffset, maxExpressId) {
+    static createFragmentsGroup(builder, itemsOffset, coordinationMatrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset, ifcNameOffset, ifcDescriptionOffset, ifcSchemaOffset, maxExpressId, boundingBoxOffset) {
         FragmentsGroup.startFragmentsGroup(builder);
         FragmentsGroup.addItems(builder, itemsOffset);
         FragmentsGroup.addCoordinationMatrix(builder, coordinationMatrixOffset);
@@ -11774,6 +11799,7 @@ let FragmentsGroup$1 = class FragmentsGroup {
         FragmentsGroup.addIfcDescription(builder, ifcDescriptionOffset);
         FragmentsGroup.addIfcSchema(builder, ifcSchemaOffset);
         FragmentsGroup.addMaxExpressId(builder, maxExpressId);
+        FragmentsGroup.addBoundingBox(builder, boundingBoxOffset);
         return FragmentsGroup.endFragmentsGroup(builder);
     }
 };
@@ -11783,6 +11809,7 @@ class FragmentsGroup extends THREE.Group {
     constructor() {
         super(...arguments);
         this.items = [];
+        this.boundingBox = new THREE.Box3();
         this.coordinationMatrix = new THREE.Matrix4();
         this.keyFragments = {};
         // data: [expressID: number]: [keys, rels]
@@ -11908,6 +11935,9 @@ class Serializer {
         const relsIVector = G.createItemsRelsIndicesVector(builder, relsIndices);
         const relsVector = G.createItemsRelsVector(builder, itemsRels);
         const idsVector = G.createIdsVector(builder, ids);
+        const { min, max } = group.boundingBox;
+        const bbox = [min.x, min.y, min.z, max.x, max.y, max.z];
+        const bboxVector = G.createBoundingBoxVector(builder, bbox);
         G.startFragmentsGroup(builder);
         G.addId(builder, groupID);
         G.addIfcName(builder, ifcName);
@@ -11922,6 +11952,7 @@ class Serializer {
         G.addItemsRelsIndices(builder, relsIVector);
         G.addItemsRels(builder, relsVector);
         G.addCoordinationMatrix(builder, matrixVector);
+        G.addBoundingBox(builder, bboxVector);
         const result = FragmentsGroup$1.endFragmentsGroup(builder);
         builder.finish(result);
         return builder.asUint8Array();
@@ -12010,7 +12041,8 @@ class Serializer {
             schema: group.ifcSchema() || "",
             maxExpressId: group.maxExpressId() || 0,
         };
-        const matrixArray = group.coordinationMatrixArray() || new Float32Array();
+        const defaultMatrix = new THREE.Matrix4().elements;
+        const matrixArray = group.coordinationMatrixArray() || defaultMatrix;
         const ids = group.idsArray() || new Uint32Array();
         const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();
         const keysArray = group.itemsKeysArray() || new Uint32Array();
@@ -12020,6 +12052,10 @@ class Serializer {
         const keysIdsArray = keysIdsString.split(this.fragmentIDSeparator);
         this.setGroupData(fragmentsGroup, ids, keysIndices, keysArray, 0);
         this.setGroupData(fragmentsGroup, ids, relsIndices, relsArray, 1);
+        const bbox = group.boundingBoxArray() || [0, 0, 0, 0, 0, 0];
+        const [minX, minY, minZ, maxX, maxY, maxZ] = bbox;
+        fragmentsGroup.boundingBox.min.set(minX, minY, minZ);
+        fragmentsGroup.boundingBox.max.set(maxX, maxY, maxZ);
         for (let i = 0; i < keysIdsArray.length; i++) {
             fragmentsGroup.keyFragments[i] = keysIdsArray[i];
         }

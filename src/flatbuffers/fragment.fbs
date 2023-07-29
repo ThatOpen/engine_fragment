@@ -14,6 +14,7 @@ table FragmentsGroup {
     ifc_description: string;
     ifc_schema: string;
     max_express_id: uint;
+    bounding_box: [float];
 }
 
 table Fragment {

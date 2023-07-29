@@ -132,6 +132,10 @@ export class Serializer {
     const relsVector = G.createItemsRelsVector(builder, itemsRels);
     const idsVector = G.createIdsVector(builder, ids);
 
+    const { min, max } = group.boundingBox;
+    const bbox = [min.x, min.y, min.z, max.x, max.y, max.z];
+    const bboxVector = G.createBoundingBoxVector(builder, bbox);
+
     G.startFragmentsGroup(builder);
     G.addId(builder, groupID);
     G.addIfcName(builder, ifcName);
@@ -146,6 +150,7 @@ export class Serializer {
     G.addItemsRelsIndices(builder, relsIVector);
     G.addItemsRels(builder, relsVector);
     G.addCoordinationMatrix(builder, matrixVector);
+    G.addBoundingBox(builder, bboxVector);
     const result = FB.FragmentsGroup.endFragmentsGroup(builder);
     builder.finish(result);
 
@@ -260,7 +265,8 @@ export class Serializer {
       maxExpressId: group.maxExpressId() || 0,
     };
 
-    const matrixArray = group.coordinationMatrixArray() || new Float32Array();
+    const defaultMatrix = new THREE.Matrix4().elements;
+    const matrixArray = group.coordinationMatrixArray() || defaultMatrix;
     const ids = group.idsArray() || new Uint32Array();
     const keysIndices = group.itemsKeysIndicesArray() || new Uint32Array();
     const keysArray = group.itemsKeysArray() || new Uint32Array();
@@ -271,6 +277,11 @@ export class Serializer {
 
     this.setGroupData(fragmentsGroup, ids, keysIndices, keysArray, 0);
     this.setGroupData(fragmentsGroup, ids, relsIndices, relsArray, 1);
+
+    const bbox = group.boundingBoxArray() || [0, 0, 0, 0, 0, 0];
+    const [minX, minY, minZ, maxX, maxY, maxZ] = bbox;
+    fragmentsGroup.boundingBox.min.set(minX, minY, minZ);
+    fragmentsGroup.boundingBox.max.set(maxX, maxY, maxZ);
 
     for (let i = 0; i < keysIdsArray.length; i++) {
       fragmentsGroup.keyFragments[i] = keysIdsArray[i];

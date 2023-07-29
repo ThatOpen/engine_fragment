@@ -163,8 +163,23 @@ maxExpressId():number {
   return offset ? this.bb!.readUint32(this.bb_pos + offset) : 0;
 }
 
+boundingBox(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 30);
+  return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+boundingBoxLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 30);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+boundingBoxArray():Float32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 30);
+  return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
 static startFragmentsGroup(builder:flatbuffers.Builder) {
-  builder.startObject(13);
+  builder.startObject(14);
 }
 
 static addItems(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset) {
@@ -333,6 +348,27 @@ static addMaxExpressId(builder:flatbuffers.Builder, maxExpressId:number) {
   builder.addFieldInt32(12, maxExpressId, 0);
 }
 
+static addBoundingBox(builder:flatbuffers.Builder, boundingBoxOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(13, boundingBoxOffset, 0);
+}
+
+static createBoundingBoxVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createBoundingBoxVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createBoundingBoxVector(builder:flatbuffers.Builder, data:number[]|Float32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addFloat32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startBoundingBoxVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
 static endFragmentsGroup(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
@@ -346,7 +382,7 @@ static finishSizePrefixedFragmentsGroupBuffer(builder:flatbuffers.Builder, offse
   builder.finish(offset, undefined, true);
 }
 
-static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, coordinationMatrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number):flatbuffers.Offset {
+static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, coordinationMatrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number, boundingBoxOffset:flatbuffers.Offset):flatbuffers.Offset {
   FragmentsGroup.startFragmentsGroup(builder);
   FragmentsGroup.addItems(builder, itemsOffset);
   FragmentsGroup.addCoordinationMatrix(builder, coordinationMatrixOffset);
@@ -361,6 +397,7 @@ static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers
   FragmentsGroup.addIfcDescription(builder, ifcDescriptionOffset);
   FragmentsGroup.addIfcSchema(builder, ifcSchemaOffset);
   FragmentsGroup.addMaxExpressId(builder, maxExpressId);
+  FragmentsGroup.addBoundingBox(builder, boundingBoxOffset);
   return FragmentsGroup.endFragmentsGroup(builder);
 }
 }

@@ -4,6 +4,8 @@ import { Fragment } from "./fragment";
 // TODO: Document this
 export class FragmentsGroup extends THREE.Group {
   items: Fragment[] = [];
+  boundingBox = new THREE.Box3();
+
   coordinationMatrix = new THREE.Matrix4();
   keyFragments: { [key: number]: string } = {};
   // data: [expressID: number]: [keys, rels]
