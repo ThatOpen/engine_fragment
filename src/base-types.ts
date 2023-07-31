@@ -44,3 +44,20 @@ export interface IFragment {
   fragments: { [id: string]: IFragment };
   id: string;
 }
+
+export interface IfcProperties {
+  [expressID: number]: { [attribute: string]: any }
+};
+
+export type IfcSchema = "IFC2X3" | "IFC4" | "IFC4X3";
+
+export interface IfcMetadata {
+  name: string;
+  description: string;
+  schema: IfcSchema;
+  maxExpressID: number;
+}
+
+export interface FragmentMap {
+  [fragmentID: string]: Set<number>
+};
