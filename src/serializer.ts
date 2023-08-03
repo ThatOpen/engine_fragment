@@ -141,7 +141,7 @@ export class Serializer {
     G.addIfcName(builder, ifcName);
     G.addIfcDescription(builder, ifcDescription);
     G.addIfcSchema(builder, ifcSchema);
-    G.addMaxExpressId(builder, group.ifcMetadata.maxExpressId);
+    G.addMaxExpressId(builder, group.ifcMetadata.maxExpressID);
     G.addItems(builder, itemsVector);
     G.addFragmentKeys(builder, fragmentKeysRef);
     G.addIds(builder, idsVector);
@@ -261,7 +261,7 @@ export class Serializer {
     fragmentsGroup.ifcMetadata = {
       name: group.ifcName() || "",
       description: group.ifcDescription() || "",
-      schema: group.ifcSchema() as IfcSchema || "IFC2X3",
+      schema: (group.ifcSchema() as IfcSchema) || "IFC2X3",
       maxExpressID: group.maxExpressId() || 0,
     };
 

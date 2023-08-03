@@ -11817,9 +11817,24 @@ class FragmentsGroup extends THREE.Group {
         this.ifcMetadata = {
             name: "",
             description: "",
-            schema: "",
-            maxExpressId: 0,
+            schema: "IFC2X3",
+            maxExpressID: 0,
         };
+    }
+    getFragmentMap(expressIDs) {
+        const fragmentMap = {};
+        for (const expressID of expressIDs) {
+            const data = this.data[expressID];
+            if (!data)
+                continue;
+            for (const key of data[0]) {
+                const fragmentID = this.keyFragments[key];
+                if (!fragmentMap[fragmentID])
+                    fragmentMap[fragmentID] = new Set();
+                fragmentMap[fragmentID].add(expressID);
+            }
+        }
+        return fragmentMap;
     }
     dispose(disposeResources = true) {
         for (const fragment of this.items) {
@@ -11943,7 +11958,7 @@ class Serializer {
         G.addIfcName(builder, ifcName);
         G.addIfcDescription(builder, ifcDescription);
         G.addIfcSchema(builder, ifcSchema);
-        G.addMaxExpressId(builder, group.ifcMetadata.maxExpressId);
+        G.addMaxExpressId(builder, group.ifcMetadata.maxExpressID);
         G.addItems(builder, itemsVector);
         G.addFragmentKeys(builder, fragmentKeysRef);
         G.addIds(builder, idsVector);
@@ -12038,8 +12053,8 @@ class Serializer {
         fragmentsGroup.ifcMetadata = {
             name: group.ifcName() || "",
             description: group.ifcDescription() || "",
-            schema: group.ifcSchema() || "",
-            maxExpressId: group.maxExpressId() || 0,
+            schema: group.ifcSchema() || "IFC2X3",
+            maxExpressID: group.maxExpressId() || 0,
         };
         const defaultMatrix = new THREE.Matrix4().elements;
         const matrixArray = group.coordinationMatrixArray() || defaultMatrix;
