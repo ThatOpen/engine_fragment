@@ -10,6 +10,7 @@ table FragmentsGroup {
     items_rels_indices: [uint];
     fragment_keys: string;
     id: string;
+    name: string;
     ifc_name: string;
     ifc_description: string;
     ifc_schema: string;

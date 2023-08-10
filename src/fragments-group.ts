@@ -20,17 +20,17 @@ export class FragmentsGroup extends THREE.Group {
   };
 
   getFragmentMap(expressIDs: Set<number> | number[]) {
-    const fragmentMap: FragmentMap = {}
+    const fragmentMap: FragmentMap = {};
     for (const expressID of expressIDs) {
-        const data = this.data[expressID]
-        if (!data) continue;
-        for (const key of data[0]) {
-          const fragmentID = this.keyFragments[key]
-          if (!fragmentMap[fragmentID]) fragmentMap[fragmentID] = new Set();
-          fragmentMap[fragmentID].add(expressID)
-        }
+      const data = this.data[expressID];
+      if (!data) continue;
+      for (const key of data[0]) {
+        const fragmentID = this.keyFragments[key];
+        if (!fragmentMap[fragmentID]) fragmentMap[fragmentID] = new Set();
+        fragmentMap[fragmentID].add(expressID);
+      }
     }
-    return fragmentMap
+    return fragmentMap;
   }
 
   dispose(disposeResources = true) {

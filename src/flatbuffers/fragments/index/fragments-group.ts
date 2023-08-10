@@ -137,49 +137,56 @@ id(optionalEncoding?:any):string|Uint8Array|null {
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
+name():string|null
+name(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+name(optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 22);
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
+}
+
 ifcName():string|null
 ifcName(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 ifcName(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 22);
+  const offset = this.bb!.__offset(this.bb_pos, 24);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 ifcDescription():string|null
 ifcDescription(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 ifcDescription(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 24);
+  const offset = this.bb!.__offset(this.bb_pos, 26);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 ifcSchema():string|null
 ifcSchema(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
 ifcSchema(optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 26);
+  const offset = this.bb!.__offset(this.bb_pos, 28);
   return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 maxExpressId():number {
-  const offset = this.bb!.__offset(this.bb_pos, 28);
+  const offset = this.bb!.__offset(this.bb_pos, 30);
   return offset ? this.bb!.readUint32(this.bb_pos + offset) : 0;
 }
 
 boundingBox(index: number):number|null {
-  const offset = this.bb!.__offset(this.bb_pos, 30);
+  const offset = this.bb!.__offset(this.bb_pos, 32);
   return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 boundingBoxLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 30);
+  const offset = this.bb!.__offset(this.bb_pos, 32);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 boundingBoxArray():Float32Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 30);
+  const offset = this.bb!.__offset(this.bb_pos, 32);
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 static startFragmentsGroup(builder:flatbuffers.Builder) {
-  builder.startObject(14);
+  builder.startObject(15);
 }
 
 static addItems(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset) {
@@ -332,24 +339,28 @@ static addId(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset) {
   builder.addFieldOffset(8, idOffset, 0);
 }
 
+static addName(builder:flatbuffers.Builder, nameOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(9, nameOffset, 0);
+}
+
 static addIfcName(builder:flatbuffers.Builder, ifcNameOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(9, ifcNameOffset, 0);
+  builder.addFieldOffset(10, ifcNameOffset, 0);
 }
 
 static addIfcDescription(builder:flatbuffers.Builder, ifcDescriptionOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(10, ifcDescriptionOffset, 0);
+  builder.addFieldOffset(11, ifcDescriptionOffset, 0);
 }
 
 static addIfcSchema(builder:flatbuffers.Builder, ifcSchemaOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(11, ifcSchemaOffset, 0);
+  builder.addFieldOffset(12, ifcSchemaOffset, 0);
 }
 
 static addMaxExpressId(builder:flatbuffers.Builder, maxExpressId:number) {
-  builder.addFieldInt32(12, maxExpressId, 0);
+  builder.addFieldInt32(13, maxExpressId, 0);
 }
 
 static addBoundingBox(builder:flatbuffers.Builder, boundingBoxOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(13, boundingBoxOffset, 0);
+  builder.addFieldOffset(14, boundingBoxOffset, 0);
 }
 
 static createBoundingBoxVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
@@ -382,7 +393,7 @@ static finishSizePrefixedFragmentsGroupBuffer(builder:flatbuffers.Builder, offse
   builder.finish(offset, undefined, true);
 }
 
-static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, coordinationMatrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number, boundingBoxOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, coordinationMatrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, nameOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number, boundingBoxOffset:flatbuffers.Offset):flatbuffers.Offset {
   FragmentsGroup.startFragmentsGroup(builder);
   FragmentsGroup.addItems(builder, itemsOffset);
   FragmentsGroup.addCoordinationMatrix(builder, coordinationMatrixOffset);
@@ -393,6 +404,7 @@ static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers
   FragmentsGroup.addItemsRelsIndices(builder, itemsRelsIndicesOffset);
   FragmentsGroup.addFragmentKeys(builder, fragmentKeysOffset);
   FragmentsGroup.addId(builder, idOffset);
+  FragmentsGroup.addName(builder, nameOffset);
   FragmentsGroup.addIfcName(builder, ifcNameOffset);
   FragmentsGroup.addIfcDescription(builder, ifcDescriptionOffset);
   FragmentsGroup.addIfcSchema(builder, ifcSchemaOffset);

@@ -11621,36 +11621,40 @@ let FragmentsGroup$1 = class FragmentsGroup {
         const offset = this.bb.__offset(this.bb_pos, 20);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
-    ifcName(optionalEncoding) {
+    name(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 22);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
-    ifcDescription(optionalEncoding) {
+    ifcName(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 24);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
-    ifcSchema(optionalEncoding) {
+    ifcDescription(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 26);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
-    maxExpressId() {
+    ifcSchema(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 28);
+        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+    }
+    maxExpressId() {
+        const offset = this.bb.__offset(this.bb_pos, 30);
         return offset ? this.bb.readUint32(this.bb_pos + offset) : 0;
     }
     boundingBox(index) {
-        const offset = this.bb.__offset(this.bb_pos, 30);
+        const offset = this.bb.__offset(this.bb_pos, 32);
         return offset ? this.bb.readFloat32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
     }
     boundingBoxLength() {
-        const offset = this.bb.__offset(this.bb_pos, 30);
+        const offset = this.bb.__offset(this.bb_pos, 32);
         return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
     }
     boundingBoxArray() {
-        const offset = this.bb.__offset(this.bb_pos, 30);
+        const offset = this.bb.__offset(this.bb_pos, 32);
         return offset ? new Float32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
     static startFragmentsGroup(builder) {
-        builder.startObject(14);
+        builder.startObject(15);
     }
     static addItems(builder, itemsOffset) {
         builder.addFieldOffset(0, itemsOffset, 0);
@@ -11749,20 +11753,23 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static addId(builder, idOffset) {
         builder.addFieldOffset(8, idOffset, 0);
     }
+    static addName(builder, nameOffset) {
+        builder.addFieldOffset(9, nameOffset, 0);
+    }
     static addIfcName(builder, ifcNameOffset) {
-        builder.addFieldOffset(9, ifcNameOffset, 0);
+        builder.addFieldOffset(10, ifcNameOffset, 0);
     }
     static addIfcDescription(builder, ifcDescriptionOffset) {
-        builder.addFieldOffset(10, ifcDescriptionOffset, 0);
+        builder.addFieldOffset(11, ifcDescriptionOffset, 0);
     }
     static addIfcSchema(builder, ifcSchemaOffset) {
-        builder.addFieldOffset(11, ifcSchemaOffset, 0);
+        builder.addFieldOffset(12, ifcSchemaOffset, 0);
     }
     static addMaxExpressId(builder, maxExpressId) {
-        builder.addFieldInt32(12, maxExpressId, 0);
+        builder.addFieldInt32(13, maxExpressId, 0);
     }
     static addBoundingBox(builder, boundingBoxOffset) {
-        builder.addFieldOffset(13, boundingBoxOffset, 0);
+        builder.addFieldOffset(14, boundingBoxOffset, 0);
     }
     static createBoundingBoxVector(builder, data) {
         builder.startVector(4, data.length, 4);
@@ -11784,7 +11791,7 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static finishSizePrefixedFragmentsGroupBuffer(builder, offset) {
         builder.finish(offset, undefined, true);
     }
-    static createFragmentsGroup(builder, itemsOffset, coordinationMatrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset, ifcNameOffset, ifcDescriptionOffset, ifcSchemaOffset, maxExpressId, boundingBoxOffset) {
+    static createFragmentsGroup(builder, itemsOffset, coordinationMatrixOffset, idsOffset, itemsKeysOffset, itemsKeysIndicesOffset, itemsRelsOffset, itemsRelsIndicesOffset, fragmentKeysOffset, idOffset, nameOffset, ifcNameOffset, ifcDescriptionOffset, ifcSchemaOffset, maxExpressId, boundingBoxOffset) {
         FragmentsGroup.startFragmentsGroup(builder);
         FragmentsGroup.addItems(builder, itemsOffset);
         FragmentsGroup.addCoordinationMatrix(builder, coordinationMatrixOffset);
@@ -11795,6 +11802,7 @@ let FragmentsGroup$1 = class FragmentsGroup {
         FragmentsGroup.addItemsRelsIndices(builder, itemsRelsIndicesOffset);
         FragmentsGroup.addFragmentKeys(builder, fragmentKeysOffset);
         FragmentsGroup.addId(builder, idOffset);
+        FragmentsGroup.addName(builder, nameOffset);
         FragmentsGroup.addIfcName(builder, ifcNameOffset);
         FragmentsGroup.addIfcDescription(builder, ifcDescriptionOffset);
         FragmentsGroup.addIfcSchema(builder, ifcSchemaOffset);
@@ -11942,6 +11950,7 @@ class Serializer {
             relsCounter += rels.length;
         }
         const groupID = builder.createString(group.uuid);
+        const groupName = builder.createString(group.name);
         const ifcName = builder.createString(group.ifcMetadata.name);
         const ifcDescription = builder.createString(group.ifcMetadata.description);
         const ifcSchema = builder.createString(group.ifcMetadata.schema);
@@ -11955,6 +11964,7 @@ class Serializer {
         const bboxVector = G.createBoundingBoxVector(builder, bbox);
         G.startFragmentsGroup(builder);
         G.addId(builder, groupID);
+        G.addName(builder, groupName);
         G.addIfcName(builder, ifcName);
         G.addIfcDescription(builder, ifcDescription);
         G.addIfcSchema(builder, ifcSchema);
@@ -12050,6 +12060,7 @@ class Serializer {
     constructFragmentGroup(group) {
         const fragmentsGroup = new FragmentsGroup();
         fragmentsGroup.uuid = group.id() || fragmentsGroup.uuid;
+        fragmentsGroup.name = group.name() || "";
         fragmentsGroup.ifcMetadata = {
             name: group.ifcName() || "",
             description: group.ifcDescription() || "",

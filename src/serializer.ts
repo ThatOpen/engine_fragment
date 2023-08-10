@@ -121,6 +121,7 @@ export class Serializer {
     }
 
     const groupID = builder.createString(group.uuid);
+    const groupName = builder.createString(group.name);
 
     const ifcName = builder.createString(group.ifcMetadata.name);
     const ifcDescription = builder.createString(group.ifcMetadata.description);
@@ -138,6 +139,7 @@ export class Serializer {
 
     G.startFragmentsGroup(builder);
     G.addId(builder, groupID);
+    G.addName(builder, groupName);
     G.addIfcName(builder, ifcName);
     G.addIfcDescription(builder, ifcDescription);
     G.addIfcSchema(builder, ifcSchema);
@@ -257,6 +259,7 @@ export class Serializer {
     const fragmentsGroup = new FragmentsGroup();
 
     fragmentsGroup.uuid = group.id() || fragmentsGroup.uuid;
+    fragmentsGroup.name = group.name() || "";
 
     fragmentsGroup.ifcMetadata = {
       name: group.ifcName() || "",
