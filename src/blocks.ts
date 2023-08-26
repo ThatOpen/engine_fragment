@@ -1,4 +1,5 @@
-import { IFragment } from "./base-types";
+import * as THREE from "three";
+import { IFragment, IFragmentGeometry } from "./base-types";
 
 /**
  * Contains the logic to get, create and delete geometric subsets of an IFC model. For example,
@@ -12,7 +13,9 @@ export class Blocks {
     return this.ids.size;
   }
 
+  private _visibilityInitialized = false;
   private _originalIndex = new Map<number, number>();
+  private _idIndexIndexMap: { [id: string]: number[] } = {};
 
   constructor(private fragment: IFragment) {
     const rawIds = fragment.mesh.geometry.attributes.blockID.array as number[];
@@ -23,37 +26,61 @@ export class Blocks {
   setVisibility(
     visible: boolean,
     itemIDs = new Set(this.fragment.items),
-    isolate = true
+    isolate = false
   ) {
     const geometry = this.fragment.mesh.geometry;
     const index = geometry.index;
-    if (!this._originalIndex.size) {
-      for (let i = 0; i < index.count; i++) {
-        this._originalIndex.set(i, index.getX(i));
-      }
+
+    if (!this._visibilityInitialized) {
+      this.initializeVisibility(index, geometry);
     }
-    for (let i = 0; i < index.count; i++) {
-      const originalIndex = this._originalIndex.get(i);
-      if (originalIndex === undefined) continue;
-      const blockID = geometry.attributes.blockID.getX(originalIndex);
-      const itemID = this.fragment.items[blockID];
-      if (itemIDs.has(itemID)) {
-        if (visible) {
-          this.visibleIds.add(blockID);
-        } else {
-          this.visibleIds.delete(blockID);
+
+    if (isolate) {
+      (index.array as Uint32Array).fill(0);
+    }
+
+    for (const id of itemIDs) {
+      const indices = this._idIndexIndexMap[id];
+      for (const i of indices) {
+        const originalIndex = this._originalIndex.get(i);
+        if (originalIndex === undefined) continue;
+        const blockID = geometry.attributes.blockID.getX(originalIndex);
+        const itemID = this.fragment.items[blockID];
+        if (itemIDs.has(itemID)) {
+          if (visible) {
+            this.visibleIds.add(blockID);
+          } else {
+            this.visibleIds.delete(blockID);
+          }
+          const newIndex = visible ? originalIndex : 0;
+          index.setX(i, newIndex);
         }
-        const newIndex = visible ? originalIndex : 0;
-        index.setX(i, newIndex);
-      } else if (isolate) {
-        index.setX(i, 0);
       }
     }
+
     index.needsUpdate = true;
+  }
+
+  private initializeVisibility(
+    index: THREE.BufferAttribute,
+    geometry: IFragmentGeometry
+  ) {
+    for (let i = 0; i < index.count; i++) {
+      const foundIndex = index.getX(i);
+      this._originalIndex.set(i, foundIndex);
+      const blockID = geometry.attributes.blockID.getX(foundIndex);
+      const itemID = this.fragment.getItemID(0, blockID);
+      if (!this._idIndexIndexMap[itemID]) {
+        this._idIndexIndexMap[itemID] = [];
+      }
+      this._idIndexIndexMap[itemID].push(i);
+    }
+    this._visibilityInitialized = true;
   }
 
   // Use this only for destroying the current Fragment instance
   dispose() {
+    this._idIndexIndexMap = {};
     this.ids.clear();
     this.visibleIds.clear();
     this._originalIndex.clear();

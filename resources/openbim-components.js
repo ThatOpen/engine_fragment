@@ -5842,7 +5842,9 @@ class FragmentMesh extends InstancedMesh {
 class Blocks {
     constructor(fragment) {
         this.fragment = fragment;
+        this._visibilityInitialized = false;
         this._originalIndex = new Map();
+        this._idIndexIndexMap = {};
         const rawIds = fragment.mesh.geometry.attributes.blockID.array;
         this.ids = new Set(rawIds);
         this.visibleIds = new Set(this.ids);
@@ -5850,38 +5852,53 @@ class Blocks {
     get count() {
         return this.ids.size;
     }
-    setVisibility(visible, itemIDs = new Set(this.fragment.items), isolate = true) {
+    setVisibility(visible, itemIDs = new Set(this.fragment.items), isolate = false) {
         const geometry = this.fragment.mesh.geometry;
         const index = geometry.index;
-        if (!this._originalIndex.size) {
-            for (let i = 0; i < index.count; i++) {
-                this._originalIndex.set(i, index.getX(i));
-            }
+        if (!this._visibilityInitialized) {
+            this.initializeVisibility(index, geometry);
         }
-        for (let i = 0; i < index.count; i++) {
-            const originalIndex = this._originalIndex.get(i);
-            if (originalIndex === undefined)
-                continue;
-            const blockID = geometry.attributes.blockID.getX(originalIndex);
-            const itemID = this.fragment.items[blockID];
-            if (itemIDs.has(itemID)) {
-                if (visible) {
-                    this.visibleIds.add(blockID);
+        if (isolate) {
+            index.array.fill(0);
+        }
+        for (const id of itemIDs) {
+            const indices = this._idIndexIndexMap[id];
+            for (const i of indices) {
+                const originalIndex = this._originalIndex.get(i);
+                if (originalIndex === undefined)
+                    continue;
+                const blockID = geometry.attributes.blockID.getX(originalIndex);
+                const itemID = this.fragment.items[blockID];
+                if (itemIDs.has(itemID)) {
+                    if (visible) {
+                        this.visibleIds.add(blockID);
+                    }
+                    else {
+                        this.visibleIds.delete(blockID);
+                    }
+                    const newIndex = visible ? originalIndex : 0;
+                    index.setX(i, newIndex);
                 }
-                else {
-                    this.visibleIds.delete(blockID);
-                }
-                const newIndex = visible ? originalIndex : 0;
-                index.setX(i, newIndex);
-            }
-            else if (isolate) {
-                index.setX(i, 0);
             }
         }
         index.needsUpdate = true;
     }
+    initializeVisibility(index, geometry) {
+        for (let i = 0; i < index.count; i++) {
+            const foundIndex = index.getX(i);
+            this._originalIndex.set(i, foundIndex);
+            const blockID = geometry.attributes.blockID.getX(foundIndex);
+            const itemID = this.fragment.getItemID(0, blockID);
+            if (!this._idIndexIndexMap[itemID]) {
+                this._idIndexIndexMap[itemID] = [];
+            }
+            this._idIndexIndexMap[itemID].push(i);
+        }
+        this._visibilityInitialized = true;
+    }
     // Use this only for destroying the current Fragment instance
     dispose() {
+        this._idIndexIndexMap = {};
         this.ids.clear();
         this.visibleIds.clear();
         this._originalIndex.clear();
