@@ -43,11 +43,13 @@ export interface IFragment {
   capacity: number;
   fragments: { [id: string]: IFragment };
   id: string;
+  items: string[];
+  getItemID: (instanceID: number, blockID: number) => string;
 }
 
 export interface IfcProperties {
-  [expressID: number]: { [attribute: string]: any }
-};
+  [expressID: number]: { [attribute: string]: any };
+}
 
 export type IfcSchema = "IFC2X3" | "IFC4" | "IFC4X3";
 
@@ -59,5 +61,5 @@ export interface IfcMetadata {
 }
 
 export interface FragmentMap {
-  [fragmentID: string]: Set<number>
-};
+  [fragmentID: string]: Set<number>;
+}

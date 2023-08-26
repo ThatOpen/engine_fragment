@@ -181,7 +181,7 @@ export class Fragment implements IFragment {
 
   resetVisibility() {
     if (this.blocks.count > 1) {
-      this.blocks.reset();
+      this.blocks.setVisibility(true);
     } else {
       const hiddenInstances = Object.keys(this.hiddenInstances);
       this.makeInstancesVisible(hiddenInstances);
@@ -189,11 +189,9 @@ export class Fragment implements IFragment {
     }
   }
 
-  setVisibility(visible: boolean, itemIDs = this.ids as Iterable<string>) {
+  setVisibility(visible: boolean, itemIDs = this.ids) {
     if (this.blocks.count > 1) {
-      this.toggleBlockVisibility(visible, itemIDs);
-      this.mesh.geometry.disposeBoundsTree();
-      BVH.apply(this.mesh.geometry);
+      this.blocks.setVisibility(visible, itemIDs);
     } else {
       this.toggleInstanceVisibility(visible, itemIDs);
     }
@@ -390,18 +388,5 @@ export class Fragment implements IFragment {
       }
     }
     return result;
-  }
-
-  private toggleBlockVisibility(visible: boolean, itemIDs: Iterable<string>) {
-    const blockIDs: number[] = [];
-    for (const id of itemIDs) {
-      const blockID = this.getInstanceAndBlockID(id).blockID;
-      blockIDs.push(blockID);
-    }
-    if (visible) {
-      this.blocks.add(blockIDs, false);
-    } else {
-      this.blocks.remove(blockIDs);
-    }
   }
 }

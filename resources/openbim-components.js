@@ -5835,85 +5835,6 @@ class FragmentMesh extends InstancedMesh {
     }
 }
 
-class BlocksMap {
-    constructor(fragment) {
-        this.indices = BlocksMap.initializeBlocks(fragment);
-        this.generateGeometryIndexMap(fragment);
-    }
-    generateGeometryIndexMap(fragment) {
-        const geometry = fragment.mesh.geometry;
-        for (const group of geometry.groups) {
-            this.fillBlocksMapWithGroupInfo(group, geometry);
-        }
-    }
-    getSubsetID(modelID, material, customID = "DEFAULT") {
-        const baseID = modelID;
-        const materialID = material ? material.uuid : "DEFAULT";
-        return `${baseID} - ${materialID} - ${customID}`;
-    }
-    // Use this only for destroying the current IFCLoader instance
-    dispose() {
-        this.indices = null;
-    }
-    static initializeBlocks(fragment) {
-        const geometry = fragment.mesh.geometry;
-        const startIndices = geometry.index.array;
-        return {
-            indexCache: startIndices.slice(0, geometry.index.array.length),
-            map: new Map(),
-        };
-    }
-    fillBlocksMapWithGroupInfo(group, geometry) {
-        let prevBlockID = -1;
-        const materialIndex = group.materialIndex;
-        const materialStart = group.start;
-        const materialEnd = materialStart + group.count - 1;
-        let objectStart = -1;
-        let objectEnd = -1;
-        for (let i = materialStart; i <= materialEnd; i++) {
-            const index = geometry.index.array[i];
-            const blockID = geometry.attributes.blockID.array[index];
-            // First iteration
-            if (prevBlockID === -1) {
-                prevBlockID = blockID;
-                objectStart = i;
-            }
-            // It's the end of the material, which also means end of the object
-            const isEndOfMaterial = i === materialEnd;
-            if (isEndOfMaterial) {
-                const store = this.getMaterialStore(blockID, materialIndex);
-                store.push(objectStart, materialEnd);
-                break;
-            }
-            // Still going through the same object
-            if (prevBlockID === blockID)
-                continue;
-            // New object starts; save previous object
-            // Store previous object
-            const store = this.getMaterialStore(prevBlockID, materialIndex);
-            objectEnd = i - 1;
-            store.push(objectStart, objectEnd);
-            // Get ready to process next object
-            prevBlockID = blockID;
-            objectStart = i;
-        }
-    }
-    getMaterialStore(id, matIndex) {
-        // If this object wasn't store before, add it to the map
-        if (this.indices.map.get(id) === undefined) {
-            this.indices.map.set(id, {});
-        }
-        const storedIfcItem = this.indices.map.get(id);
-        if (storedIfcItem === undefined)
-            throw new Error("Geometry map generation error");
-        // If this material wasn't stored for this object before, add it to the object
-        if (storedIfcItem[matIndex] === undefined) {
-            storedIfcItem[matIndex] = [];
-        }
-        return storedIfcItem[matIndex];
-    }
-}
-
 /**
  * Contains the logic to get, create and delete geometric subsets of an IFC model. For example,
  * this can extract all the items in a specific IfcBuildingStorey and create a new Mesh.
@@ -5921,121 +5842,52 @@ class BlocksMap {
 class Blocks {
     constructor(fragment) {
         this.fragment = fragment;
-        this.tempIndex = [];
-        this.blocksMap = new BlocksMap(fragment);
-        this.initializeSubsetGroups(fragment);
+        this._originalIndex = new Map();
         const rawIds = fragment.mesh.geometry.attributes.blockID.array;
-        this.visibleIds = new Set(rawIds);
         this.ids = new Set(rawIds);
-        this.add(Array.from(this.ids), true);
+        this.visibleIds = new Set(this.ids);
     }
     get count() {
         return this.ids.size;
     }
-    reset() {
-        this.add(Array.from(this.ids), true);
-    }
-    add(ids, removePrevious = true) {
-        this.filterIndices(removePrevious);
-        const filtered = ids.filter((id) => !this.visibleIds.has(id));
-        this.constructSubsetByMaterial(ids);
-        filtered.forEach((id) => this.visibleIds.add(id));
-        this.fragment.mesh.geometry.setIndex(this.tempIndex);
-        this.tempIndex.length = 0;
-    }
-    remove(ids) {
-        ids.forEach((id) => this.visibleIds.has(id) && this.visibleIds.delete(id));
-        const remainingIDs = Array.from(this.visibleIds);
-        this.add(remainingIDs, true);
+    setVisibility(visible, itemIDs = new Set(this.fragment.items), isolate = true) {
+        const geometry = this.fragment.mesh.geometry;
+        const index = geometry.index;
+        if (!this._originalIndex.size) {
+            for (let i = 0; i < index.count; i++) {
+                this._originalIndex.set(i, index.getX(i));
+            }
+        }
+        for (let i = 0; i < index.count; i++) {
+            const originalIndex = this._originalIndex.get(i);
+            if (originalIndex === undefined)
+                continue;
+            const blockID = geometry.attributes.blockID.getX(originalIndex);
+            const itemID = this.fragment.items[blockID];
+            if (itemIDs.has(itemID)) {
+                if (visible) {
+                    this.visibleIds.add(blockID);
+                }
+                else {
+                    this.visibleIds.delete(blockID);
+                }
+                const newIndex = visible ? originalIndex : 0;
+                index.setX(i, newIndex);
+            }
+            else if (isolate) {
+                index.setX(i, 0);
+            }
+        }
+        index.needsUpdate = true;
     }
     // Use this only for destroying the current Fragment instance
     dispose() {
-        this.blocksMap.dispose();
-        this.tempIndex = [];
-        this.visibleIds.clear();
-        this.visibleIds = null;
         this.ids.clear();
+        this.visibleIds.clear();
+        this._originalIndex.clear();
         this.ids = null;
-    }
-    initializeSubsetGroups(fragment) {
-        const geometry = fragment.mesh.geometry;
-        geometry.groups = JSON.parse(JSON.stringify(geometry.groups));
-        this.resetGroups(geometry);
-    }
-    // Remove previous indices or filter the given ones to avoid repeating items
-    filterIndices(removePrevious) {
-        const geometry = this.fragment.mesh.geometry;
-        if (!removePrevious) {
-            this.tempIndex = Array.from(geometry.index.array);
-            return;
-        }
-        geometry.setIndex([]);
-        this.resetGroups(geometry);
-    }
-    constructSubsetByMaterial(ids) {
-        const length = this.fragment.mesh.geometry.groups.length;
-        const newIndices = { count: 0 };
-        for (let i = 0; i < length; i++) {
-            this.insertNewIndices(ids, i, newIndices);
-        }
-    }
-    // Inserts indices in correct position and update groups
-    insertNewIndices(ids, materialIndex, newIndices) {
-        const indicesOfOneMaterial = this.getAllIndicesOfGroup(ids, materialIndex);
-        this.insertIndicesAtGroup(indicesOfOneMaterial, materialIndex, newIndices);
-    }
-    insertIndicesAtGroup(indicesByGroup, index, newIndices) {
-        const currentGroup = this.getCurrentGroup(index);
-        currentGroup.start += newIndices.count;
-        const newIndicesPosition = currentGroup.start + currentGroup.count;
-        newIndices.count += indicesByGroup.length;
-        if (indicesByGroup.length > 0) {
-            const position = newIndicesPosition;
-            const start = this.tempIndex.slice(0, position);
-            const end = this.tempIndex.slice(position);
-            this.tempIndex = Array.prototype.concat.apply([], [start, indicesByGroup, end]);
-            currentGroup.count += indicesByGroup.length;
-        }
-    }
-    getCurrentGroup(groupIndex) {
-        return this.fragment.mesh.geometry.groups[groupIndex];
-    }
-    resetGroups(geometry) {
-        geometry.groups.forEach((group) => {
-            group.start = 0;
-            group.count = 0;
-        });
-    }
-    // If flatten, all indices are in the same array; otherwise, indices are split in subarrays by material
-    getAllIndicesOfGroup(ids, materialIndex, flatten = true) {
-        const indicesByGroup = [];
-        for (const id of ids) {
-            const entry = this.blocksMap.indices.map.get(id);
-            if (!entry)
-                continue;
-            const value = entry[materialIndex];
-            if (!value)
-                continue;
-            this.getIndexChunk(value, indicesByGroup, materialIndex, flatten);
-        }
-        return indicesByGroup;
-    }
-    getIndexChunk(value, indicesByGroup, materialIndex, flatten) {
-        const pairs = value.length / 2;
-        for (let pair = 0; pair < pairs; pair++) {
-            const pairIndex = pair * 2;
-            const start = value[pairIndex];
-            const end = value[pairIndex + 1];
-            for (let j = start; j <= end; j++) {
-                if (flatten)
-                    indicesByGroup.push(this.blocksMap.indices.indexCache[j]);
-                else {
-                    if (!indicesByGroup[materialIndex])
-                        indicesByGroup[materialIndex] = [];
-                    indicesByGroup[materialIndex].push(this.blocksMap.indices.indexCache[j]);
-                }
-            }
-        }
+        this.visibleIds = null;
+        this._originalIndex = null;
     }
 }
 
@@ -10287,7 +10139,7 @@ let Fragment$1 = class Fragment {
     }
     resetVisibility() {
         if (this.blocks.count > 1) {
-            this.blocks.reset();
+            this.blocks.setVisibility(true);
         }
         else {
             const hiddenInstances = Object.keys(this.hiddenInstances);
@@ -10297,9 +10149,7 @@ let Fragment$1 = class Fragment {
     }
     setVisibility(visible, itemIDs = this.ids) {
         if (this.blocks.count > 1) {
-            this.toggleBlockVisibility(visible, itemIDs);
-            this.mesh.geometry.disposeBoundsTree();
-            BVH.apply(this.mesh.geometry);
+            this.blocks.setVisibility(visible, itemIDs);
         }
         else {
             this.toggleInstanceVisibility(visible, itemIDs);
@@ -10456,19 +10306,6 @@ let Fragment$1 = class Fragment {
             }
         }
         return result;
-    }
-    toggleBlockVisibility(visible, itemIDs) {
-        const blockIDs = [];
-        for (const id of itemIDs) {
-            const blockID = this.getInstanceAndBlockID(id).blockID;
-            blockIDs.push(blockID);
-        }
-        if (visible) {
-            this.blocks.add(blockIDs, false);
-        }
-        else {
-            this.blocks.remove(blockIDs);
-        }
     }
 };
 
