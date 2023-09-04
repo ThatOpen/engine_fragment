@@ -22,6 +22,7 @@ export interface IndicesMap {
 export interface Items {
   ids?: string[];
   transform: THREE.Matrix4;
+  color?: THREE.Color;
 }
 
 export interface IFragmentGeometry extends THREE.BufferGeometry {

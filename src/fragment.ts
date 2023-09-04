@@ -1,5 +1,4 @@
-import { BufferGeometry, Material, Matrix4 } from "three";
-import { BufferAttribute } from "three/src/core/BufferAttribute";
+import * as THREE from "three";
 import { Items, IFragment } from "./base-types";
 import { FragmentMesh } from "./fragment-mesh";
 import { Blocks } from "./blocks";
@@ -60,8 +59,8 @@ export class Fragment implements IFragment {
   }
 
   constructor(
-    geometry: BufferGeometry,
-    material: Material | Material[],
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material | THREE.Material[],
     count: number
   ) {
     this.mesh = new FragmentMesh(geometry, material, count, this);
@@ -106,8 +105,8 @@ export class Fragment implements IFragment {
     return { instanceID, blockID };
   }
 
-  getVertexBlockID(geometry: BufferGeometry, index: number) {
-    const blocks = geometry.attributes.blockID as BufferAttribute;
+  getVertexBlockID(geometry: THREE.BufferGeometry, index: number) {
+    const blocks = geometry.attributes.blockID as THREE.BufferAttribute;
     return blocks.array[index];
   }
 
@@ -118,7 +117,7 @@ export class Fragment implements IFragment {
     return { instanceID, blockID };
   }
 
-  getInstance(instanceID: number, matrix: Matrix4) {
+  getInstance(instanceID: number, matrix: THREE.Matrix4) {
     return this.mesh.getMatrixAt(instanceID, matrix);
   }
 
@@ -126,6 +125,11 @@ export class Fragment implements IFragment {
     this.checkIfInstanceExist(instanceID);
     this.mesh.setMatrixAt(instanceID, items.transform);
     this.mesh.instanceMatrix.needsUpdate = true;
+
+    if (items.color && this.mesh.instanceColor) {
+      this.mesh.setColorAt(instanceID, items.color);
+      this.mesh.instanceColor.needsUpdate = true;
+    }
 
     if (items.ids) {
       this.saveItemsInMap(items.ids, instanceID);
@@ -214,7 +218,7 @@ export class Fragment implements IFragment {
     return { ...geometry, ids, id };
   }
 
-  private copyGroups(newGeometry: BufferGeometry) {
+  private copyGroups(newGeometry: THREE.BufferGeometry) {
     newGeometry.groups = [];
     for (const group of this.mesh.geometry.groups) {
       newGeometry.groups.push({ ...group });
@@ -222,7 +226,7 @@ export class Fragment implements IFragment {
   }
 
   private initializeGeometry() {
-    const newGeometry = new BufferGeometry();
+    const newGeometry = new THREE.BufferGeometry();
     newGeometry.setAttribute(
       "position",
       this.mesh.geometry.attributes.position
@@ -313,18 +317,26 @@ export class Fragment implements IFragment {
     const isLastElement = index === this.mesh.count;
 
     const instanceId = this.getInstanceIDFromIndex(index);
-    const tempMatrix = new Matrix4();
+    const tempMatrix = new THREE.Matrix4();
+    const tempColor = new THREE.Color();
 
-    const transform = new Matrix4();
+    const transform = new THREE.Matrix4();
     this.mesh.getMatrixAt(instanceId, transform);
+
+    const result = { ids: [id], transform } as Items;
+
+    if (this.mesh.instanceColor) {
+      const color = new THREE.Color();
+      this.mesh.getColorAt(instanceId, color);
+      result.color = color;
+    }
 
     if (isLastElement) {
       this.items.pop();
-      return { ids: [id], transform } as Items;
+      return result;
     }
 
     const lastElement = this.mesh.count;
-
     this.items[index] = this.items[lastElement];
     this.items.pop();
 
@@ -332,7 +344,13 @@ export class Fragment implements IFragment {
     this.mesh.setMatrixAt(instanceId, tempMatrix);
     this.mesh.instanceMatrix.needsUpdate = true;
 
-    return { ids: [id], transform } as Items;
+    if (this.mesh.instanceColor) {
+      this.mesh.getColorAt(lastElement, tempColor);
+      this.mesh.setColorAt(instanceId, tempColor);
+      this.mesh.instanceColor.needsUpdate = true;
+    }
+
+    return result;
   }
 
   private getItemIndex(instanceId: number, blockId: number) {

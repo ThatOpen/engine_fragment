@@ -10110,6 +10110,10 @@ let Fragment$1 = class Fragment {
         this.checkIfInstanceExist(instanceID);
         this.mesh.setMatrixAt(instanceID, items.transform);
         this.mesh.instanceMatrix.needsUpdate = true;
+        if (items.color && this.mesh.instanceColor) {
+            this.mesh.setColorAt(instanceID, items.color);
+            this.mesh.instanceColor.needsUpdate = true;
+        }
         if (items.ids) {
             this.saveItemsInMap(items.ids, instanceID);
         }
@@ -10195,7 +10199,7 @@ let Fragment$1 = class Fragment {
         }
     }
     initializeGeometry() {
-        const newGeometry = new BufferGeometry();
+        const newGeometry = new THREE.BufferGeometry();
         newGeometry.setAttribute("position", this.mesh.geometry.attributes.position);
         newGeometry.setAttribute("normal", this.mesh.geometry.attributes.normal);
         newGeometry.setAttribute("blockID", this.mesh.geometry.attributes.blockID);
@@ -10262,12 +10266,19 @@ let Fragment$1 = class Fragment {
         this.mesh.count--;
         const isLastElement = index === this.mesh.count;
         const instanceId = this.getInstanceIDFromIndex(index);
-        const tempMatrix = new Matrix4();
-        const transform = new Matrix4();
+        const tempMatrix = new THREE.Matrix4();
+        const tempColor = new THREE.Color();
+        const transform = new THREE.Matrix4();
         this.mesh.getMatrixAt(instanceId, transform);
+        const result = { ids: [id], transform };
+        if (this.mesh.instanceColor) {
+            const color = new THREE.Color();
+            this.mesh.getColorAt(instanceId, color);
+            result.color = color;
+        }
         if (isLastElement) {
             this.items.pop();
-            return { ids: [id], transform };
+            return result;
         }
         const lastElement = this.mesh.count;
         this.items[index] = this.items[lastElement];
@@ -10275,7 +10286,12 @@ let Fragment$1 = class Fragment {
         this.mesh.getMatrixAt(lastElement, tempMatrix);
         this.mesh.setMatrixAt(instanceId, tempMatrix);
         this.mesh.instanceMatrix.needsUpdate = true;
-        return { ids: [id], transform };
+        if (this.mesh.instanceColor) {
+            this.mesh.getColorAt(lastElement, tempColor);
+            this.mesh.setColorAt(instanceId, tempColor);
+            this.mesh.instanceColor.needsUpdate = true;
+        }
+        return result;
     }
     getItemIndex(instanceId, blockId) {
         return instanceId * this.blocks.count + blockId;
