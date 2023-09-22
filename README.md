@@ -1,40 +1,83 @@
 <p align="center">
-  <a href="https://ifcjs.io/">ifc.js</a>
+  <a href="https://thatopen.com/">TOC</a>
   |
-  <a href="https://ifcjs.github.io/fragment/docs/index.html">documentation</a>
+  <a href="https://platform.thatopen.com/documentation">documentation</a>
   |
-  <a href=https://ifcjs.github.io/fragment/examples/fragment-hello-world.html>demo</a>
+  <a href="https://platform.thatopen.com/app">demo</a>
   |
-  <a href="https://discord.gg/FXfyR4XrKT">discord</a>
+  <a href="https://people.thatopen.com/">community</a>
   |
-  <a href="https://www.npmjs.com/package/bim-fragment">npm package</a>
+  <a href="https://www.npmjs.com/package/openbim-components">npm package</a>
   |
-  <a href="https://airtable.com/shrP82Kgb9Q1LEgbU">roadmap</a>
+  <a href="https://airtable.com/appolsrsBWel2m6wr/shr4ybI6JOeHJEqkG">roadmap</a>
 </p>
 
-![cover](cover.png)
+![cover](resources/cover.png)
 
-<h1>Open BIM Components <img src="https://ifcjs.github.io/info/img/logo.svg" width="32"></h1>
+<h1>BIM Fragment <img src="https://ifcjs.github.io/components/resources/favicon.ico" width="32"></h1>
 
 [![NPM Package][npm]][npm-url]
 [![NPM Package][npm-downloads]][npm-url]
-[![NPM Package][oc-contributors]][oc]
-[![Discord][discord]][discord-url]
-[![Tests](https://github.com/IFCjs/fragment/actions/workflows/tests.yml/badge.svg)](https://github.com/IFCjs/fragment/actions/workflows/tests.yml)
+[![Tests](https://github.com/IFCjs/components/actions/workflows/tests.yml/badge.svg)](https://github.com/IFCjs/components/actions/workflows/tests.yaml)
 
-This library is a geometric API based on [Three.js](https://github.com/mrdoob/three.js/) and other libraries to efficiently display built environment data.
+This library is a geometric system to efficiently display 3D BIM data built on top of [Three.js](https://github.com/mrdoob/three.js/). Specifically, it uses [InstancedMeshes](https://threejs.org/docs/#api/en/objects/InstancedMesh) to draw each set of repeated geometries (which are abundant in BIM models) using a single draw call. It uses [flatbuffers](https://flatbuffers.dev/) to persist data as a binary format efficiently.
+
+You generally won't need to interact with this library direclty. Instead, you can use [components](https://github.com/ifcjs/components), which provides an abstraction layer of tools that use this format and make the creation of BIM tools very easy.
 
 ### Usage
 
-You need to be familiar with [Three.js API](https://github.com/mrdoob/three.js/) to be able to use this library effectively. 
+You need to be familiar with [Three.js API](https://github.com/mrdoob/three.js/) to be able to use this library effectively. In the following example, we will create a cube in a 3D scene that can be navigated with the mouse or touch events. You can see the full example [here](https://github.com/IFCjs/components/blob/main/src/core/SimpleScene/index.html) and the deployed app [here](https://ifcjs.github.io/components/src/core/SimpleScene/index.html).
+
+```js
+import * as FRAGS from 'bim-fragment';
+
+const canvas = document.getElementById('container');
+
+// Simple three.js scene: check the resources folder of this repo
+const threeScene = new SimpleThreeScene(canvas);
+
+let chairs;
+
+const serializer = new FRAGS.Serializer();
+
+async function importChairsBinary() {
+  if (chairs !== undefined) return;
+  const fetched = await fetch("../resources/chairs.frag");
+  const rawData = await fetched.arrayBuffer();
+  const buffer = new Uint8Array(rawData);
+  chairs = serializer.import(buffer);
+
+  for(const frag of chairs) {
+    threeScene.scene.add(frag.mesh);
+  }
+}
+
+function deleteChairs() {
+  if (!chairs) return;
+  for(const frag of chairs) {
+    frag.dispose(true);
+  }
+  chairs = undefined;
+}
+
+async function exportChairsBinary() {
+  if (!chairs) return;
+
+  const buffer = serializer.export(chairs);
+  const file = new File([new Blob([buffer])], "chairs.frag");
+  const link = document.createElement('a');
+  document.body.appendChild(link);
+
+  link.download = 'chairs.frag';
+  link.href = URL.createObjectURL(file);
+  link.click();
+
+  link.remove();
+}
+```
 
 
 
-[ifcjs]: https://ifcjs.io/
-[npm]: https://img.shields.io/npm/v/bim-fragment
+[npm]: https://img.shields.io/npm/v/openbim-components
 [npm-url]: https://www.npmjs.com/package/bim-fragment
 [npm-downloads]: https://img.shields.io/npm/dw/bim-fragment
-[discord]: https://img.shields.io/discord/799990228336115742
-[discord-url]: https://discord.gg/FXfyR4XrKT
-[oc]: https://opencollective.com/ifcjs
-[oc-contributors]: https://opencollective.com/ifcjs/tiers/badge.svg

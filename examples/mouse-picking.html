@@ -5,8 +5,8 @@
   <meta name='viewport'
         content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
   <meta http-equiv='X-UA-Compatible' content='ie=edge'>
-  <link rel='stylesheet' href='resources/styles.css'>
-  <link rel='icon' type='image/x-icon' href='../favicon.ico'>
+  <link rel='stylesheet' href='../resources/styles.css'>
+  <link rel='icon' type='image/x-icon' href='../resources/favicon.ico'>
   <title>Components | Picking</title>
 </head>
 <script type='importmap'>
@@ -27,8 +27,8 @@
 <canvas class='full-screen' id='container'></canvas>
 <script type='module'>
   import * as THREE from 'three';
-  import { SimpleThreeScene } from './resources/simple-three-scene.js';
-  import * as FRAGS from './resources/fragment.js';
+  import { SimpleThreeScene } from '../resources/simple-three-scene.js';
+  import * as FRAGS from '../resources/fragment.js';
 
   const canvas = document.getElementById('container');
   const threeScene = new SimpleThreeScene(canvas);
@@ -37,15 +37,15 @@
 
   // Import the chairs fragment
 
-  const chairsGeometry = './resources/exported/chairs/geometry.gltf';
-  const chairsData = './resources/exported/chairs/data.json';
+  const chairsGeometry = '../resources/exported/chairs/geometry.gltf';
+  const chairsData = '../resources/exported/chairs/data.json';
   const chairs = await loader.load(chairsGeometry, chairsData);
   threeScene.scene.add(chairs.mesh);
 
   // Import the walls fragment
 
-  const wallsGeometry = './resources/exported/walls/geometry.gltf';
-  const wallsData = './resources/exported/walls/data.json';
+  const wallsGeometry = '../resources/exported/walls/geometry.gltf';
+  const wallsData = '../resources/exported/walls/data.json';
   const walls = await loader.load(wallsGeometry, wallsData);
   threeScene.scene.add(walls.mesh);
 

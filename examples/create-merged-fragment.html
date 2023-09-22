@@ -5,8 +5,8 @@
   <meta name='viewport'
         content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
   <meta http-equiv='X-UA-Compatible' content='ie=edge'>
-  <link rel='stylesheet' href='resources/styles.css'>
-  <link rel='icon' type='image/x-icon' href='../favicon.ico'>
+  <link rel='stylesheet' href='../resources/styles.css'>
+  <link rel='icon' type='image/x-icon' href='../resources/favicon.ico'>
   <title>Components | Merged fragment</title>
 </head>
 <body>
@@ -26,8 +26,8 @@
     }
 </script>
 <script type='module'>
-  import { SimpleThreeScene } from './resources/simple-three-scene.js';
-  import * as FRAGS from './resources/fragment.js';
+  import { SimpleThreeScene } from '../resources/simple-three-scene.js';
+  import * as FRAGS from '../resources/fragment.js';
   import * as THREE from 'three';
   import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
@@ -38,10 +38,10 @@
 
   const loader = new GLTFLoader();
 
-  const rawWall1 = await loader.loadAsync('./resources/models/wall_1.glb');
-  const rawWall2 = await loader.loadAsync('./resources/models/wall_2.glb');
-  const rawWall3 = await loader.loadAsync('./resources/models/wall_3.glb');
-  const rawWall4 = await loader.loadAsync('./resources/models/wall_2.glb');
+  const rawWall1 = await loader.loadAsync('../resources/models/wall_1.glb');
+  const rawWall2 = await loader.loadAsync('../resources/models/wall_2.glb');
+  const rawWall3 = await loader.loadAsync('../resources/models/wall_3.glb');
+  const rawWall4 = await loader.loadAsync('../resources/models/wall_2.glb');
 
   const wallsMeshes = [
     rawWall1.scene.children[0],

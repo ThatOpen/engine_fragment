@@ -5,8 +5,8 @@
   <meta name='viewport'
         content='width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0'>
   <meta http-equiv='X-UA-Compatible' content='ie=edge'>
-  <link rel='stylesheet' href='resources/styles.css'>
-  <link rel='icon' type='image/x-icon' href='../favicon.ico'>
+  <link rel='stylesheet' href='../resources/styles.css'>
+  <link rel='icon' type='image/x-icon' href='../resources/favicon.ico'>
   <title>Components | Hello world</title>
 </head>
 <body>
@@ -26,9 +26,9 @@
 
 </script>
 <script type='module'>
-  import { SimpleThreeScene } from './resources/simple-three-scene.js';
+  import { SimpleThreeScene } from '../resources/simple-three-scene.js';
   import * as dat from 'three/examples/jsm/libs/lil-gui.module.min';
-  import * as FRAGS from './resources/fragment.js';
+  import * as FRAGS from '../resources/fragment.js';
 
   const canvas = document.getElementById('container');
   const threeScene = new SimpleThreeScene(canvas);
@@ -39,26 +39,28 @@
 
   async function importChairsBinary() {
     if (chairs !== undefined) return;
-    const fetched = await fetch("./resources/chairs.frag");
+    const fetched = await fetch("../resources/chairs.frag");
     const rawData = await fetched.arrayBuffer();
     const buffer = new Uint8Array(rawData);
-    const result = serializer.import(buffer);
+    chairs = serializer.import(buffer);
 
-    for(const frag of result) {
+    for(const frag of chairs) {
       threeScene.scene.add(frag.mesh);
     }
   }
 
   function deleteChairs() {
     if (!chairs) return;
-    chairs.dispose(true);
+    for(const frag of chairs) {
+      frag.dispose(true);
+    }
     chairs = undefined;
   }
 
   async function exportChairsBinary() {
     if (!chairs) return;
 
-    const buffer = serializer.export([chairs]);
+    const buffer = serializer.export(chairs);
     const file = new File([new Blob([buffer])], "chairs.frag");
     const link = document.createElement('a');
     document.body.appendChild(link);
@@ -87,10 +89,8 @@
   };
 
   const actionsFolder = gui.addFolder('Actions');
-  actionsFolder.add(actions, 'Import chairs');
   actionsFolder.add(actions, 'Import chairs binary');
   actionsFolder.add(actions, 'Delete chairs');
-  actionsFolder.add(actions, 'Export chairs');
   actionsFolder.add(actions, 'Export chairs binary');
 
 </script>
