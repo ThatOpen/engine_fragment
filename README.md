@@ -7,7 +7,7 @@
   |
   <a href="https://people.thatopen.com/">community</a>
   |
-  <a href="https://www.npmjs.com/package/openbim-components">npm package</a>
+  <a href="https://www.npmjs.com/package/bim-fragment">npm package</a>
   |
   <a href="https://airtable.com/appolsrsBWel2m6wr/shr4ybI6JOeHJEqkG">roadmap</a>
 </p>
@@ -20,7 +20,10 @@
 [![NPM Package][npm-downloads]][npm-url]
 [![Tests](https://github.com/IFCjs/components/actions/workflows/tests.yml/badge.svg)](https://github.com/IFCjs/components/actions/workflows/tests.yaml)
 
-This library is a geometric system to efficiently display 3D BIM data built on top of [Three.js](https://github.com/mrdoob/three.js/). Specifically, it uses [InstancedMeshes](https://threejs.org/docs/#api/en/objects/InstancedMesh) to draw each set of repeated geometries (which are abundant in BIM models) using a single draw call. It uses [flatbuffers](https://flatbuffers.dev/) to persist data as a binary format efficiently.
+This library is a geometric system to efficiently display 3D BIM data built on top of [Three.js](https://github.com/mrdoob/three.js/). Specifically, it uses [InstancedMeshes](https://threejs.org/docs/#api/en/objects/InstancedMesh) to draw each set of repeated geometries (which are abundant in BIM models) using a single draw call. 
+
+- It uses [flatbuffers](https://flatbuffers.dev/) to persist data as a binary format efficiently.
+- It prevents [memory leaks](https://threejs.org/docs/#manual/en/introduction/How-to-dispose-of-objects) exposing a `dispose()` method.
 
 You generally won't need to interact with this library direclty. Instead, you can use [components](https://github.com/ifcjs/components), which provides an abstraction layer of tools that use this format and make the creation of BIM tools very easy.
 
@@ -78,6 +81,6 @@ async function exportChairsBinary() {
 
 
 
-[npm]: https://img.shields.io/npm/v/openbim-components
+[npm]: https://img.shields.io/npm/v/bim-fragment
 [npm-url]: https://www.npmjs.com/package/bim-fragment
 [npm-downloads]: https://img.shields.io/npm/dw/bim-fragment
