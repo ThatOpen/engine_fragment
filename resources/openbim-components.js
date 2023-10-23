@@ -5863,6 +5863,8 @@ class Blocks {
         }
         for (const id of itemIDs) {
             const indices = this._idIndexIndexMap[id];
+            if (!indices)
+                continue;
             for (const i of indices) {
                 const originalIndex = this._originalIndex.get(i);
                 if (originalIndex === undefined)
