@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/IFCjs/fragment/compare/v1.0.1...v1.1.0) (2023-10-27)
+
+
+### Features
+
+* **docs:** implement typedoc config ([#13](https://github.com/IFCjs/fragment/issues/13)) ([e5baf19](https://github.com/IFCjs/fragment/commit/e5baf19bd1a70476eb9353c6e050ee49abda6807))
+* **fragments:** new method in FragmentsGroup ([#9](https://github.com/IFCjs/fragment/issues/9)) ([45c1aae](https://github.com/IFCjs/fragment/commit/45c1aae18f7f2093feb765a99a51bf792292a60c))
+
 ## [1.0.1](https://github.com/IFCjs/fragment/compare/v1.0.0...v1.0.1) (2023-06-20)
 
 
