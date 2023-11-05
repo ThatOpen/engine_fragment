@@ -1,11 +1,11 @@
 name: "Bug report 🐛"
-description: Report an issue with IFC.js fragment
+description: Report an issue, bug or unexpected behaviour
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report! <img src="https://ifcjs.github.io/info/img/logo.svg" width="16">
+        Thanks for taking the time to fill out this bug report! 🙏
   - type: textarea
     id: bug-description
     attributes:
@@ -39,7 +39,7 @@ body:
     id: system-info
     attributes:
       label: System Info 💻
-      description: Output of `npx envinfo --system --npmPackages 'bim-fragment' --binaries --browsers`
+      description: Output of `npx envinfo --system --npmPackages 'openbim-components' --binaries --browsers`
       render: shell
       placeholder: System, Binaries, Browsers
     validations:
@@ -78,13 +78,13 @@ body:
       label: Validations ✅
       description: "Before submitting the issue, please make sure that you have:"
       options:
-        - label: Read the [docs](https://ifcjs.github.io/info/docs/Introduction).
+        - label: Read the [docs](https://platform.thatopen.com/documentation).
           required: true
         - label: Check that there isn't [already an issue](https://github.com/IFCjs/fragment/issues) that reports the same bug to avoid creating a duplicate.
           required: true
-        - label: Make sure this is a IFC.js fragment issue and not a framework-specific issue. For example, if it's a THREE.js related bug, it should likely be reported to [mrdoob/threejs](https://github.com/mrdoob/three.js) instead.
+        - label: Make sure this is a repository issue and not a framework-specific issue. For example, if it's a THREE.js related bug, it should likely be reported to [mrdoob/threejs](https://github.com/mrdoob/three.js) instead.
           required: true
-        - label: Check that this is a concrete bug. For Q&A join our [Discord Chat Server](https://discord.gg/FXfyR4XrKT).
+        - label: Check that this is a concrete bug. For Q&A join our [Community](https://people.thatopen.com/).
           required: true
         - label: The provided reproduction is a [minimal reproducible example](https://stackoverflow.com/help/minimal-reproducible-example) of the bug.
           required: true
