@@ -64,3 +64,9 @@ export interface IfcMetadata {
 export interface FragmentMap {
   [fragmentID: string]: Set<number>;
 }
+
+export interface IifcAlignmentData {
+  Coordinates: Float32Array;
+  CurveLenght: number[];
+  SegmentLenght: number[];
+}

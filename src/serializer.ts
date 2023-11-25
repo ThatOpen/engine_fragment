@@ -4,6 +4,7 @@ import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
 import { IfcSchema, Items } from "./base-types";
 import { FragmentsGroup } from "./fragments-group";
+import { IfcAlignmentData } from "./alignment";
 
 /**
  * Object to export and import sets of fragments efficiently using
@@ -39,9 +40,49 @@ export class Serializer {
   export(group: FragmentsGroup) {
     const builder = new flatbuffers.Builder(1024);
     const items: number[] = [];
+    const alignmentItemsH: number[] = [];
+    const alignmentItemsV: number[] = [];
 
     const G = FB.FragmentsGroup;
     const F = FB.Fragment;
+    const C = FB.Civil;
+    if (group.ifcCivil?.horizontalAlignments) {
+      for (const alignment of group.ifcCivil?.horizontalAlignments) {
+        const result = alignment.exportData();
+        const A = FB.Alignment;
+        const posVector = A.createPositionVector(builder, result.coordinates);
+        const segVector = A.createSegmentVector(builder, result.segmentLenght);
+        const crvVector = A.createCurveVector(builder, result.curveLenght);
+        A.startAlignment(builder);
+        A.addPosition(builder, posVector);
+        A.addSegment(builder, segVector);
+        A.addCurve(builder, crvVector);
+        const exported = FB.Alignment.endAlignment(builder);
+        alignmentItemsH.push(exported);
+      }
+      for (const alignment of group.ifcCivil?.verticalAlignments) {
+        const result = alignment.exportData();
+        const A = FB.Alignment;
+        const posVector = A.createPositionVector(builder, result.coordinates);
+        const segVector = A.createSegmentVector(builder, result.segmentLenght);
+        const crvVector = A.createCurveVector(builder, result.curveLenght);
+        A.startAlignment(builder);
+        A.addPosition(builder, posVector);
+        A.addSegment(builder, segVector);
+        A.addCurve(builder, crvVector);
+        const exported = FB.Alignment.endAlignment(builder);
+        alignmentItemsV.push(exported);
+      }
+    }
+    const horVector = C.createAlignmentHorizontalVector(
+      builder,
+      alignmentItemsH
+    );
+    const verVector = C.createAlignmentVerticalVector(builder, alignmentItemsV);
+    C.startCivil(builder);
+    C.addAlignmentHorizontal(builder, horVector);
+    C.addAlignmentVertical(builder, verVector);
+    const exportedCivil = FB.Civil.endCivil(builder);
 
     for (const fragment of group.items) {
       const result = fragment.exportData();
@@ -138,6 +179,7 @@ export class Serializer {
     const bboxVector = G.createBoundingBoxVector(builder, bbox);
 
     G.startFragmentsGroup(builder);
+    G.addCivil(builder, exportedCivil);
     G.addId(builder, groupID);
     G.addName(builder, groupName);
     G.addIfcName(builder, ifcName);
@@ -257,7 +299,48 @@ export class Serializer {
 
   private constructFragmentGroup(group: FB.FragmentsGroup) {
     const fragmentsGroup = new FragmentsGroup();
+    const FBcivil = group.civil();
+    if (FBcivil) {
+      fragmentsGroup.ifcCivil = {
+        horizontalAlignments: [] as IfcAlignmentData[],
+        verticalAlignments: [] as IfcAlignmentData[],
+      };
+      for (let i = 0; i < FBcivil.alignmentHorizontalLength(); i++) {
+        const FBalignmentH = FBcivil.alignmentHorizontal(i);
+        if (FBalignmentH) {
+          const data = new IfcAlignmentData();
+          if (FBalignmentH.positionArray) {
+            data.Coordinates = FBalignmentH.positionArray() as Float32Array;
+            for (let j = 0; j < FBalignmentH.curveLength(); j++) {
+              data.CurveLenght.push(FBalignmentH.curve(j) as number);
+            }
+            for (let j = 0; j < FBalignmentH.segmentLength(); j++) {
+              data.SegmentLenght.push(FBalignmentH.segment(j) as number);
+            }
+          }
+          fragmentsGroup.ifcCivil.horizontalAlignments.push(data);
+        }
+      }
 
+      for (let i = 0; i < FBcivil.alignmentVerticalLength(); i++) {
+        const FBalignmentV = FBcivil.alignmentVertical(i);
+        if (FBalignmentV) {
+          const data = new IfcAlignmentData();
+          if (FBalignmentV.positionArray) {
+            data.Coordinates = FBalignmentV.positionArray() as Float32Array;
+            for (let j = 0; j < FBalignmentV.curveLength(); j++) {
+              data.CurveLenght.push(FBalignmentV.curve(j) as number);
+            }
+            for (let j = 0; j < FBalignmentV.segmentLength(); j++) {
+              data.SegmentLenght.push(FBalignmentV.segment(j) as number);
+            }
+          }
+          fragmentsGroup.ifcCivil.verticalAlignments.push(data);
+        }
+      }
+    }
+
+    // fragmentsGroup.ifcCivil?.horizontalAlignments
     fragmentsGroup.uuid = group.id() || fragmentsGroup.uuid;
     fragmentsGroup.name = group.name() || "";
 

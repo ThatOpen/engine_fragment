@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { Fragment } from "./fragment";
+import { IfcAlignmentData } from "./alignment";
 import { IfcProperties, IfcMetadata, FragmentMap } from "./base-types";
 
 // TODO: Document this
@@ -17,6 +18,10 @@ export class FragmentsGroup extends THREE.Group {
     description: "",
     schema: "IFC2X3",
     maxExpressID: 0,
+  };
+  ifcCivil?: {
+    horizontalAlignments: IfcAlignmentData[];
+    verticalAlignments: IfcAlignmentData[];
   };
 
   // TODO: Force all item IDs to be numbers or strings
