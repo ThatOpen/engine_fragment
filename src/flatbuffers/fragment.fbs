@@ -2,6 +2,7 @@ namespace Fragments.index;
 
 table FragmentsGroup {
     items: [Fragment];
+    civil: Civil;
     coordination_matrix: [float];
     ids: [uint];
     items_keys: [uint];
@@ -30,6 +31,17 @@ table Fragment {
     ids: string;
     id: string;
     composites: string;
+}
+
+table Civil {
+    alignmentHorizontal: [Alignment];
+    alignmentVertical: [Alignment];
+}
+
+table Alignment {
+    position: [float];
+    curve: [int];
+    segment: [int];
 }
 
 root_type FragmentsGroup;
