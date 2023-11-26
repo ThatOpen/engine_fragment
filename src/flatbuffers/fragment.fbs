@@ -34,8 +34,8 @@ table Fragment {
 }
 
 table Civil {
-    alignmentHorizontal: [Alignment];
-    alignmentVertical: [Alignment];
+    alignment_horizontal: Alignment;
+    alignment_vertical: Alignment;
 }
 
 table Alignment {

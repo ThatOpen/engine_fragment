@@ -20,8 +20,8 @@ export class FragmentsGroup extends THREE.Group {
     maxExpressID: 0,
   };
   ifcCivil?: {
-    horizontalAlignments: IfcAlignmentData[];
-    verticalAlignments: IfcAlignmentData[];
+    horizontalAlignments: IfcAlignmentData;
+    verticalAlignments: IfcAlignmentData;
   };
 
   // TODO: Force all item IDs to be numbers or strings

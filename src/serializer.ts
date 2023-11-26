@@ -40,49 +40,41 @@ export class Serializer {
   export(group: FragmentsGroup) {
     const builder = new flatbuffers.Builder(1024);
     const items: number[] = [];
-    const alignmentItemsH: number[] = [];
-    const alignmentItemsV: number[] = [];
 
     const G = FB.FragmentsGroup;
     const F = FB.Fragment;
     const C = FB.Civil;
+
+    let exportedCivil: number | null = null;
+
     if (group.ifcCivil?.horizontalAlignments) {
-      for (const alignment of group.ifcCivil?.horizontalAlignments) {
-        const result = alignment.exportData();
-        const A = FB.Alignment;
-        const posVector = A.createPositionVector(builder, result.coordinates);
-        const segVector = A.createSegmentVector(builder, result.segmentLenght);
-        const crvVector = A.createCurveVector(builder, result.curveLenght);
-        A.startAlignment(builder);
-        A.addPosition(builder, posVector);
-        A.addSegment(builder, segVector);
-        A.addCurve(builder, crvVector);
-        const exported = FB.Alignment.endAlignment(builder);
-        alignmentItemsH.push(exported);
-      }
-      for (const alignment of group.ifcCivil?.verticalAlignments) {
-        const result = alignment.exportData();
-        const A = FB.Alignment;
-        const posVector = A.createPositionVector(builder, result.coordinates);
-        const segVector = A.createSegmentVector(builder, result.segmentLenght);
-        const crvVector = A.createCurveVector(builder, result.curveLenght);
-        A.startAlignment(builder);
-        A.addPosition(builder, posVector);
-        A.addSegment(builder, segVector);
-        A.addCurve(builder, crvVector);
-        const exported = FB.Alignment.endAlignment(builder);
-        alignmentItemsV.push(exported);
-      }
+      const A = FB.Alignment;
+
+      const resultH = group.ifcCivil.horizontalAlignments.exportData();
+      const posVectorH = A.createPositionVector(builder, resultH.coordinates);
+      const curveVector = A.createSegmentVector(builder, resultH.curveIndex);
+      const alignVector = A.createCurveVector(builder, resultH.alignmentIndex);
+      A.startAlignment(builder);
+      A.addPosition(builder, posVectorH);
+      A.addSegment(builder, curveVector);
+      A.addCurve(builder, alignVector);
+      const exportedH = FB.Alignment.endAlignment(builder);
+
+      const resultV = group.ifcCivil.verticalAlignments.exportData();
+      const posVectorV = A.createPositionVector(builder, resultV.coordinates);
+      const segVector = A.createSegmentVector(builder, resultV.curveIndex);
+      const crvVector = A.createCurveVector(builder, resultV.alignmentIndex);
+      A.startAlignment(builder);
+      A.addPosition(builder, posVectorV);
+      A.addSegment(builder, segVector);
+      A.addCurve(builder, crvVector);
+      const exportedV = FB.Alignment.endAlignment(builder);
+
+      C.startCivil(builder);
+      C.addAlignmentHorizontal(builder, exportedH);
+      C.addAlignmentVertical(builder, exportedV);
+      exportedCivil = FB.Civil.endCivil(builder);
     }
-    const horVector = C.createAlignmentHorizontalVector(
-      builder,
-      alignmentItemsH
-    );
-    const verVector = C.createAlignmentVerticalVector(builder, alignmentItemsV);
-    C.startCivil(builder);
-    C.addAlignmentHorizontal(builder, horVector);
-    C.addAlignmentVertical(builder, verVector);
-    const exportedCivil = FB.Civil.endCivil(builder);
 
     for (const fragment of group.items) {
       const result = fragment.exportData();
@@ -179,7 +171,9 @@ export class Serializer {
     const bboxVector = G.createBoundingBoxVector(builder, bbox);
 
     G.startFragmentsGroup(builder);
-    G.addCivil(builder, exportedCivil);
+    if (exportedCivil !== null) {
+      G.addCivil(builder, exportedCivil);
+    }
     G.addId(builder, groupID);
     G.addName(builder, groupName);
     G.addIfcName(builder, ifcName);
@@ -300,44 +294,48 @@ export class Serializer {
   private constructFragmentGroup(group: FB.FragmentsGroup) {
     const fragmentsGroup = new FragmentsGroup();
     const FBcivil = group.civil();
+
+    const horizontalAlignments = new IfcAlignmentData();
+    const verticalAlignments = new IfcAlignmentData();
+
     if (FBcivil) {
-      fragmentsGroup.ifcCivil = {
-        horizontalAlignments: [] as IfcAlignmentData[],
-        verticalAlignments: [] as IfcAlignmentData[],
-      };
-      for (let i = 0; i < FBcivil.alignmentHorizontalLength(); i++) {
-        const FBalignmentH = FBcivil.alignmentHorizontal(i);
-        if (FBalignmentH) {
-          const data = new IfcAlignmentData();
-          if (FBalignmentH.positionArray) {
-            data.Coordinates = FBalignmentH.positionArray() as Float32Array;
-            for (let j = 0; j < FBalignmentH.curveLength(); j++) {
-              data.CurveLenght.push(FBalignmentH.curve(j) as number);
-            }
-            for (let j = 0; j < FBalignmentH.segmentLength(); j++) {
-              data.SegmentLenght.push(FBalignmentH.segment(j) as number);
-            }
+      const FBalignmentH = FBcivil.alignmentHorizontal();
+      if (FBalignmentH) {
+        if (FBalignmentH.positionArray) {
+          horizontalAlignments.coordinates =
+            FBalignmentH.positionArray() as Float32Array;
+          for (let j = 0; j < FBalignmentH.curveLength(); j++) {
+            horizontalAlignments.alignmentIndex.push(
+              FBalignmentH.curve(j) as number
+            );
           }
-          fragmentsGroup.ifcCivil.horizontalAlignments.push(data);
+          for (let j = 0; j < FBalignmentH.segmentLength(); j++) {
+            horizontalAlignments.curveIndex.push(
+              FBalignmentH.segment(j) as number
+            );
+          }
         }
       }
 
-      for (let i = 0; i < FBcivil.alignmentVerticalLength(); i++) {
-        const FBalignmentV = FBcivil.alignmentVertical(i);
-        if (FBalignmentV) {
-          const data = new IfcAlignmentData();
-          if (FBalignmentV.positionArray) {
-            data.Coordinates = FBalignmentV.positionArray() as Float32Array;
-            for (let j = 0; j < FBalignmentV.curveLength(); j++) {
-              data.CurveLenght.push(FBalignmentV.curve(j) as number);
-            }
-            for (let j = 0; j < FBalignmentV.segmentLength(); j++) {
-              data.SegmentLenght.push(FBalignmentV.segment(j) as number);
-            }
+      const FBalignmentV = FBcivil.alignmentVertical();
+      if (FBalignmentV) {
+        if (FBalignmentV.positionArray) {
+          verticalAlignments.coordinates =
+            FBalignmentV.positionArray() as Float32Array;
+          for (let j = 0; j < FBalignmentV.curveLength(); j++) {
+            verticalAlignments.alignmentIndex.push(
+              FBalignmentV.curve(j) as number
+            );
           }
-          fragmentsGroup.ifcCivil.verticalAlignments.push(data);
+          for (let j = 0; j < FBalignmentV.segmentLength(); j++) {
+            verticalAlignments.curveIndex.push(
+              FBalignmentV.segment(j) as number
+            );
+          }
         }
       }
+
+      fragmentsGroup.ifcCivil = { horizontalAlignments, verticalAlignments };
     }
 
     // fragmentsGroup.ifcCivil?.horizontalAlignments

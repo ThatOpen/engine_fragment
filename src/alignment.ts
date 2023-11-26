@@ -1,14 +1,12 @@
 import { IifcAlignmentData } from "./base-types";
 
 export class IfcAlignmentData implements IifcAlignmentData {
-  Coordinates: Float32Array = new Float32Array(0);
-  CurveLenght: number[] = [];
-  SegmentLenght: number[] = [];
+  coordinates: Float32Array = new Float32Array(0);
+  alignmentIndex: number[] = [];
+  curveIndex: number[] = [];
 
   exportData() {
-    const coordinates = this.Coordinates;
-    const curveLenght = this.CurveLenght;
-    const segmentLenght = this.SegmentLenght;
-    return { coordinates, curveLenght, segmentLenght };
+    const { coordinates, alignmentIndex, curveIndex } = this;
+    return { coordinates, alignmentIndex, curveIndex };
   }
 }

@@ -66,7 +66,7 @@ export interface FragmentMap {
 }
 
 export interface IifcAlignmentData {
-  Coordinates: Float32Array;
-  CurveLenght: number[];
-  SegmentLenght: number[];
+  coordinates: Float32Array;
+  alignmentIndex: number[];
+  curveIndex: number[];
 }
