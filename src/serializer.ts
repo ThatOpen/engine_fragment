@@ -8,7 +8,7 @@ import { IfcAlignmentData } from "./alignment";
 import { Alignment } from "./flatbuffers/fragments";
 
 /**
- * Object to export and import sets of fragments efficiently using
+ * Object to export and import sets of fragments efficiently using the library
  * [flatbuffers](https://flatbuffers.dev/).
  */
 export class Serializer {
