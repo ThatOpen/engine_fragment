@@ -36,6 +36,7 @@ table Fragment {
 table Civil {
     alignment_horizontal: Alignment;
     alignment_vertical: Alignment;
+    alignment_3d: Alignment;
 }
 
 table Alignment {

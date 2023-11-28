@@ -33,8 +33,13 @@ alignmentVertical(obj?:Alignment):Alignment|null {
   return offset ? (obj || new Alignment()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+alignment3d(obj?:Alignment):Alignment|null {
+  const offset = this.bb!.__offset(this.bb_pos, 8);
+  return offset ? (obj || new Alignment()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+}
+
 static startCivil(builder:flatbuffers.Builder) {
-  builder.startObject(2);
+  builder.startObject(3);
 }
 
 static addAlignmentHorizontal(builder:flatbuffers.Builder, alignmentHorizontalOffset:flatbuffers.Offset) {
@@ -43,6 +48,10 @@ static addAlignmentHorizontal(builder:flatbuffers.Builder, alignmentHorizontalOf
 
 static addAlignmentVertical(builder:flatbuffers.Builder, alignmentVerticalOffset:flatbuffers.Offset) {
   builder.addFieldOffset(1, alignmentVerticalOffset, 0);
+}
+
+static addAlignment3d(builder:flatbuffers.Builder, alignment3dOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(2, alignment3dOffset, 0);
 }
 
 static endCivil(builder:flatbuffers.Builder):flatbuffers.Offset {

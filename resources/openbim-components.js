@@ -5840,6 +5840,9 @@ class FragmentMesh extends InstancedMesh {
  * this can extract all the items in a specific IfcBuildingStorey and create a new Mesh.
  */
 class Blocks {
+    get count() {
+        return this.ids.size;
+    }
     constructor(fragment) {
         this.fragment = fragment;
         this._visibilityInitialized = false;
@@ -5848,9 +5851,6 @@ class Blocks {
         const rawIds = fragment.mesh.geometry.attributes.blockID.array;
         this.ids = new Set(rawIds);
         this.visibleIds = new Set(this.ids);
-    }
-    get count() {
-        return this.ids.size;
     }
     setVisibility(visible, itemIDs = new Set(this.fragment.items), isolate = false) {
         const geometry = this.fragment.mesh.geometry;
@@ -10040,6 +10040,16 @@ BVH.initialized = false;
  *        B  D  F  H  J  L  N  P
  * */
 let Fragment$1 = class Fragment {
+    get ids() {
+        const ids = new Set();
+        for (const id of this.items) {
+            ids.add(id);
+        }
+        for (const id in this.hiddenInstances) {
+            ids.add(id);
+        }
+        return ids;
+    }
     constructor(geometry, material, count) {
         this.fragments = {};
         this.items = [];
@@ -10056,16 +10066,6 @@ let Fragment$1 = class Fragment {
         this.capacity = count;
         this.blocks = new Blocks(this);
         BVH.apply(geometry);
-    }
-    get ids() {
-        const ids = new Set();
-        for (const id of this.items) {
-            ids.add(id);
-        }
-        for (const id in this.hiddenInstances) {
-            ids.add(id);
-        }
-        return ids;
     }
     dispose(disposeResources = true) {
         this.items = null;
@@ -11259,14 +11259,21 @@ class Civil {
         const offset = this.bb.__offset(this.bb_pos, 6);
         return offset ? (obj || new Alignment()).__init(this.bb.__indirect(this.bb_pos + offset), this.bb) : null;
     }
+    alignment3d(obj) {
+        const offset = this.bb.__offset(this.bb_pos, 8);
+        return offset ? (obj || new Alignment()).__init(this.bb.__indirect(this.bb_pos + offset), this.bb) : null;
+    }
     static startCivil(builder) {
-        builder.startObject(2);
+        builder.startObject(3);
     }
     static addAlignmentHorizontal(builder, alignmentHorizontalOffset) {
         builder.addFieldOffset(0, alignmentHorizontalOffset, 0);
     }
     static addAlignmentVertical(builder, alignmentVerticalOffset) {
         builder.addFieldOffset(1, alignmentVerticalOffset, 0);
+    }
+    static addAlignment3d(builder, alignment3dOffset) {
+        builder.addFieldOffset(2, alignment3dOffset, 0);
     }
     static endCivil(builder) {
         const offset = builder.endObject();
@@ -11919,25 +11926,35 @@ class Serializer {
             const A = Alignment;
             const resultH = group.ifcCivil.horizontalAlignments.exportData();
             const posVectorH = A.createPositionVector(builder, resultH.coordinates);
-            const curveVector = A.createSegmentVector(builder, resultH.curveIndex);
-            const alignVector = A.createCurveVector(builder, resultH.alignmentIndex);
+            const curveVectorH = A.createSegmentVector(builder, resultH.curveIndex);
+            const alignVectorH = A.createCurveVector(builder, resultH.alignmentIndex);
             A.startAlignment(builder);
             A.addPosition(builder, posVectorH);
-            A.addSegment(builder, curveVector);
-            A.addCurve(builder, alignVector);
+            A.addSegment(builder, curveVectorH);
+            A.addCurve(builder, alignVectorH);
             const exportedH = Alignment.endAlignment(builder);
             const resultV = group.ifcCivil.verticalAlignments.exportData();
             const posVectorV = A.createPositionVector(builder, resultV.coordinates);
-            const segVector = A.createSegmentVector(builder, resultV.curveIndex);
-            const crvVector = A.createCurveVector(builder, resultV.alignmentIndex);
+            const curveVectorV = A.createSegmentVector(builder, resultV.curveIndex);
+            const alignVectorV = A.createCurveVector(builder, resultV.alignmentIndex);
             A.startAlignment(builder);
             A.addPosition(builder, posVectorV);
-            A.addSegment(builder, segVector);
-            A.addCurve(builder, crvVector);
+            A.addSegment(builder, curveVectorV);
+            A.addCurve(builder, alignVectorV);
             const exportedV = Alignment.endAlignment(builder);
+            const resultR = group.ifcCivil.realAlignments.exportData();
+            const posVectorR = A.createPositionVector(builder, resultR.coordinates);
+            const curveVectorR = A.createSegmentVector(builder, resultR.curveIndex);
+            const alignVectorR = A.createCurveVector(builder, resultR.alignmentIndex);
+            A.startAlignment(builder);
+            A.addPosition(builder, posVectorR);
+            A.addSegment(builder, curveVectorR);
+            A.addCurve(builder, alignVectorR);
+            const exportedR = Alignment.endAlignment(builder);
             C.startCivil(builder);
             C.addAlignmentHorizontal(builder, exportedH);
             C.addAlignmentVertical(builder, exportedV);
+            C.addAlignment3d(builder, exportedR);
             exportedCivil = Civil.endCivil(builder);
         }
         for (const fragment of group.items) {
@@ -12116,34 +12133,19 @@ class Serializer {
         const FBcivil = group.civil();
         const horizontalAlignments = new IfcAlignmentData();
         const verticalAlignments = new IfcAlignmentData();
+        const realAlignments = new IfcAlignmentData();
         if (FBcivil) {
             const FBalignmentH = FBcivil.alignmentHorizontal();
-            if (FBalignmentH) {
-                if (FBalignmentH.positionArray) {
-                    horizontalAlignments.coordinates =
-                        FBalignmentH.positionArray();
-                    for (let j = 0; j < FBalignmentH.curveLength(); j++) {
-                        horizontalAlignments.alignmentIndex.push(FBalignmentH.curve(j));
-                    }
-                    for (let j = 0; j < FBalignmentH.segmentLength(); j++) {
-                        horizontalAlignments.curveIndex.push(FBalignmentH.segment(j));
-                    }
-                }
-            }
+            this.getAlignmentData(FBalignmentH, horizontalAlignments);
             const FBalignmentV = FBcivil.alignmentVertical();
-            if (FBalignmentV) {
-                if (FBalignmentV.positionArray) {
-                    verticalAlignments.coordinates =
-                        FBalignmentV.positionArray();
-                    for (let j = 0; j < FBalignmentV.curveLength(); j++) {
-                        verticalAlignments.alignmentIndex.push(FBalignmentV.curve(j));
-                    }
-                    for (let j = 0; j < FBalignmentV.segmentLength(); j++) {
-                        verticalAlignments.curveIndex.push(FBalignmentV.segment(j));
-                    }
-                }
-            }
-            fragmentsGroup.ifcCivil = { horizontalAlignments, verticalAlignments };
+            this.getAlignmentData(FBalignmentV, verticalAlignments);
+            const FBalignment3D = FBcivil.alignment3d();
+            this.getAlignmentData(FBalignment3D, realAlignments);
+            fragmentsGroup.ifcCivil = {
+                horizontalAlignments,
+                verticalAlignments,
+                realAlignments,
+            };
         }
         // fragmentsGroup.ifcCivil?.horizontalAlignments
         fragmentsGroup.uuid = group.id() || fragmentsGroup.uuid;
@@ -12176,6 +12178,19 @@ class Serializer {
             fragmentsGroup.coordinationMatrix.fromArray(matrixArray);
         }
         return fragmentsGroup;
+    }
+    getAlignmentData(alignment, result) {
+        if (alignment) {
+            if (alignment.positionArray) {
+                result.coordinates = alignment.positionArray();
+                for (let j = 0; j < alignment.curveLength(); j++) {
+                    result.alignmentIndex.push(alignment.curve(j));
+                }
+                for (let j = 0; j < alignment.segmentLength(); j++) {
+                    result.curveIndex.push(alignment.segment(j));
+                }
+            }
+        }
     }
     setGroupData(group, ids, indices, array, index) {
         for (let i = 0; i < indices.length; i++) {
