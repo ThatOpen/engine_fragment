@@ -11886,7 +11886,7 @@ class IfcAlignmentData {
 }
 
 /**
- * Object to export and import sets of fragments efficiently using
+ * Object to export and import sets of fragments efficiently using the library
  * [flatbuffers](https://flatbuffers.dev/).
  */
 class Serializer {
