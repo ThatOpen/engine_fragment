@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/IFCjs/fragment/compare/v1.1.2...v1.2.0) (2023-12-03)
+
+
+### Miscellaneous Chores
+
+* release 1.2.0 ([eed7f84](https://github.com/IFCjs/fragment/commit/eed7f8466ddf641e13b20824e4af0bc3914c2193))
+
 ## [1.0.1](https://github.com/IFCjs/fragment/compare/v1.0.0...v1.0.1) (2023-06-20)
 
 
