@@ -70,3 +70,11 @@ export interface IifcAlignmentData {
   alignmentIndex: number[];
   curveIndex: number[];
 }
+
+export interface StreamedGeometries {
+  [id: number]: {
+    position: Float32Array;
+    normal: Float32Array;
+    index: Uint32Array;
+  };
+}
