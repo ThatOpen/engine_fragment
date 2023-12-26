@@ -61,8 +61,8 @@ export interface IfcMetadata {
   maxExpressID: number;
 }
 
-export interface FragmentMap {
-  [fragmentID: string]: Set<number>;
+export interface FragmentIdMap {
+  [fragmentID: string]: Set<string>;
 }
 
 export interface IifcAlignmentData {

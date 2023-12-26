@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { Fragment } from "./fragment";
 import { IfcAlignmentData } from "./alignment";
-import { IfcProperties, IfcMetadata, FragmentMap } from "./base-types";
+import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
 
 // TODO: Document this
 export class FragmentsGroup extends THREE.Group {
@@ -11,7 +11,7 @@ export class FragmentsGroup extends THREE.Group {
   coordinationMatrix = new THREE.Matrix4();
   keyFragments: { [key: number]: string } = {};
   // data: [expressID: number]: [keys, rels]
-  data: { [expressID: number]: [number[], number[]] } = {};
+  data: { [expressID: string]: [number[], number[]] } = {};
   properties?: IfcProperties;
   ifcMetadata: IfcMetadata = {
     name: "",
@@ -26,8 +26,8 @@ export class FragmentsGroup extends THREE.Group {
   };
 
   // TODO: Force all item IDs to be numbers or strings
-  getFragmentMap(expressIDs: Set<number> | number[]) {
-    const fragmentMap: FragmentMap = {};
+  getFragmentMap(expressIDs: Set<string> | string[]) {
+    const fragmentMap: FragmentIdMap = {};
     for (const expressID of expressIDs) {
       const data = this.data[expressID];
       if (!data) continue;
