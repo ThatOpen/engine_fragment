@@ -31,8 +31,10 @@
   "homepage": "https://github.com/ifcjs/fragment",
   "dependencies": {
     "flatbuffers": "^23.3.3",
-    "three": "0.152.2",
     "three-mesh-bvh": "0.6.0"
+  },
+  "peerDependencies": {
+    "three": "0.152.2"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "25.0.0",
@@ -51,6 +53,7 @@
     "jest": "^27.0.4",
     "prettier": "^2.3.1",
     "rollup": "^3.2.3",
+    "three": "0.152.2",
     "ts-jest": "^27.0.3",
     "ts-node": "^10.0.0",
     "typescript": "^4.3.2"
