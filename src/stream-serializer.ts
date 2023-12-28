@@ -38,14 +38,14 @@ export class StreamSerializer {
     const G = FB.StreamedGeometry;
 
     for (const geometryID in geometries) {
+      const id = parseInt(geometryID, 10);
       const { index, position, normal } = geometries[geometryID];
-      const idStr = builder.createString(geometryID);
       const indexVector = G.createIndexVector(builder, index);
       const posVector = G.createPositionVector(builder, position);
       const norVector = G.createNormalVector(builder, normal);
 
+      G.addId(builder, id);
       G.startStreamedGeometry(builder);
-      G.addId(builder, idStr);
       G.addIndex(builder, indexVector);
       G.addPosition(builder, posVector);
       G.addNormal(builder, norVector);
