@@ -5,7 +5,7 @@ table StreamedGeometries {
 }
 
 table StreamedGeometry {
-    id: string;
+    geometry_id: string;
     position: [float];
     normal: [float];
     index: [uint];

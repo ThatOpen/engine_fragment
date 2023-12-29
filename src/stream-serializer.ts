@@ -15,7 +15,7 @@ export class StreamSerializer {
       const fbGeom = fbGeoms.geometries(i);
       if (!fbGeom) continue;
 
-      const id = fbGeom.id();
+      const id = fbGeom.geometryId();
 
       if (id === null) {
         throw new Error("Error finding ID!");
@@ -50,7 +50,7 @@ export class StreamSerializer {
       const posVector = G.createPositionVector(builder, position);
       const norVector = G.createNormalVector(builder, normal);
 
-      G.addId(builder, idStr);
+      G.addGeometryId(builder, idStr);
       G.startStreamedGeometry(builder);
       G.addIndex(builder, indexVector);
       G.addPosition(builder, posVector);

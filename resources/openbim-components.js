@@ -12258,7 +12258,7 @@ class StreamedGeometry {
         bb.setPosition(bb.position() + SIZE_PREFIX_LENGTH);
         return (obj || new StreamedGeometry()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
     }
-    id(optionalEncoding) {
+    geometryId(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 4);
         return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
@@ -12301,8 +12301,8 @@ class StreamedGeometry {
     static startStreamedGeometry(builder) {
         builder.startObject(4);
     }
-    static addId(builder, idOffset) {
-        builder.addFieldOffset(0, idOffset, 0);
+    static addGeometryId(builder, geometryIdOffset) {
+        builder.addFieldOffset(0, geometryIdOffset, 0);
     }
     static addPosition(builder, positionOffset) {
         builder.addFieldOffset(1, positionOffset, 0);
@@ -12347,9 +12347,9 @@ class StreamedGeometry {
         const offset = builder.endObject();
         return offset;
     }
-    static createStreamedGeometry(builder, idOffset, positionOffset, normalOffset, indexOffset) {
+    static createStreamedGeometry(builder, geometryIdOffset, positionOffset, normalOffset, indexOffset) {
         StreamedGeometry.startStreamedGeometry(builder);
-        StreamedGeometry.addId(builder, idOffset);
+        StreamedGeometry.addGeometryId(builder, geometryIdOffset);
         StreamedGeometry.addPosition(builder, positionOffset);
         StreamedGeometry.addNormal(builder, normalOffset);
         StreamedGeometry.addIndex(builder, indexOffset);
@@ -12426,7 +12426,7 @@ class StreamSerializer {
             const fbGeom = fbGeoms.geometries(i);
             if (!fbGeom)
                 continue;
-            const id = fbGeom.id();
+            const id = fbGeom.geometryId();
             if (id === null) {
                 throw new Error("Error finding ID!");
             }
@@ -12451,7 +12451,7 @@ class StreamSerializer {
             const indexVector = G.createIndexVector(builder, index);
             const posVector = G.createPositionVector(builder, position);
             const norVector = G.createNormalVector(builder, normal);
-            G.addId(builder, idStr);
+            G.addGeometryId(builder, idStr);
             G.startStreamedGeometry(builder);
             G.addIndex(builder, indexVector);
             G.addPosition(builder, posVector);
