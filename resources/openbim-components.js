@@ -12258,9 +12258,9 @@ class StreamedGeometry {
         bb.setPosition(bb.position() + SIZE_PREFIX_LENGTH);
         return (obj || new StreamedGeometry()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
     }
-    id() {
+    id(optionalEncoding) {
         const offset = this.bb.__offset(this.bb_pos, 4);
-        return offset ? this.bb.readInt32(this.bb_pos + offset) : 0;
+        return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
     }
     position(index) {
         const offset = this.bb.__offset(this.bb_pos, 6);
@@ -12301,8 +12301,8 @@ class StreamedGeometry {
     static startStreamedGeometry(builder) {
         builder.startObject(4);
     }
-    static addId(builder, id) {
-        builder.addFieldInt32(0, id, 0);
+    static addId(builder, idOffset) {
+        builder.addFieldOffset(0, idOffset, 0);
     }
     static addPosition(builder, positionOffset) {
         builder.addFieldOffset(1, positionOffset, 0);
@@ -12347,9 +12347,9 @@ class StreamedGeometry {
         const offset = builder.endObject();
         return offset;
     }
-    static createStreamedGeometry(builder, id, positionOffset, normalOffset, indexOffset) {
+    static createStreamedGeometry(builder, idOffset, positionOffset, normalOffset, indexOffset) {
         StreamedGeometry.startStreamedGeometry(builder);
-        StreamedGeometry.addId(builder, id);
+        StreamedGeometry.addId(builder, idOffset);
         StreamedGeometry.addPosition(builder, positionOffset);
         StreamedGeometry.addNormal(builder, normalOffset);
         StreamedGeometry.addIndex(builder, indexOffset);
@@ -12427,6 +12427,9 @@ class StreamSerializer {
             if (!fbGeom)
                 continue;
             const id = fbGeom.id();
+            if (id === null) {
+                throw new Error("Error finding ID!");
+            }
             const position = fbGeom.positionArray();
             const normal = fbGeom.normalArray();
             const index = fbGeom.indexArray();
@@ -12443,12 +12446,12 @@ class StreamSerializer {
         const Gs = StreamedGeometries;
         const G = StreamedGeometry;
         for (const geometryID in geometries) {
-            const id = parseInt(geometryID, 10);
+            const idStr = builder.createString(geometryID);
             const { index, position, normal } = geometries[geometryID];
             const indexVector = G.createIndexVector(builder, index);
             const posVector = G.createPositionVector(builder, position);
             const norVector = G.createNormalVector(builder, normal);
-            G.addId(builder, id);
+            G.addId(builder, idStr);
             G.startStreamedGeometry(builder);
             G.addIndex(builder, indexVector);
             G.addPosition(builder, posVector);

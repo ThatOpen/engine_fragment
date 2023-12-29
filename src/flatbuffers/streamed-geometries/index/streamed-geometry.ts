@@ -20,9 +20,11 @@ static getSizePrefixedRootAsStreamedGeometry(bb:flatbuffers.ByteBuffer, obj?:Str
   return (obj || new StreamedGeometry()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-id():number {
+id():string|null
+id(optionalEncoding:flatbuffers.Encoding):string|Uint8Array|null
+id(optionalEncoding?:any):string|Uint8Array|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
-  return offset ? this.bb!.readInt32(this.bb_pos + offset) : 0;
+  return offset ? this.bb!.__string(this.bb_pos + offset, optionalEncoding) : null;
 }
 
 position(index: number):number|null {
@@ -74,8 +76,8 @@ static startStreamedGeometry(builder:flatbuffers.Builder) {
   builder.startObject(4);
 }
 
-static addId(builder:flatbuffers.Builder, id:number) {
-  builder.addFieldInt32(0, id, 0);
+static addId(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(0, idOffset, 0);
 }
 
 static addPosition(builder:flatbuffers.Builder, positionOffset:flatbuffers.Offset) {
@@ -146,9 +148,9 @@ static endStreamedGeometry(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createStreamedGeometry(builder:flatbuffers.Builder, id:number, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, indexOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createStreamedGeometry(builder:flatbuffers.Builder, idOffset:flatbuffers.Offset, positionOffset:flatbuffers.Offset, normalOffset:flatbuffers.Offset, indexOffset:flatbuffers.Offset):flatbuffers.Offset {
   StreamedGeometry.startStreamedGeometry(builder);
-  StreamedGeometry.addId(builder, id);
+  StreamedGeometry.addId(builder, idOffset);
   StreamedGeometry.addPosition(builder, positionOffset);
   StreamedGeometry.addNormal(builder, normalOffset);
   StreamedGeometry.addIndex(builder, indexOffset);
