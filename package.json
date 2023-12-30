@@ -1,6 +1,6 @@
 {
   "name": "bim-fragment",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "3D BIM Geometry API",
   "main": "src/index.js",
   "scripts": {

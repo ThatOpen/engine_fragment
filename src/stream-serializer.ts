@@ -50,8 +50,8 @@ export class StreamSerializer {
       const posVector = G.createPositionVector(builder, position);
       const norVector = G.createNormalVector(builder, normal);
 
-      G.addGeometryId(builder, idStr);
       G.startStreamedGeometry(builder);
+      G.addGeometryId(builder, idStr);
       G.addIndex(builder, indexVector);
       G.addPosition(builder, posVector);
       G.addNormal(builder, norVector);
