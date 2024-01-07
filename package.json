@@ -1,13 +1,13 @@
 {
   "name": "bim-fragment",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "3D BIM Geometry API",
   "main": "src/index.js",
   "scripts": {
     "test": "jest",
     "build": "tsc && yarn build-examples",
     "build-examples": "rollup -c resources/rollup.config.mjs",
-    "publish-repo": "cpy package.json dist && cd dist && npm publish",
+    "publish-repo": "tsc && cpy package.json dist && cd dist && npm publish",
     "create-flatbuffers": "cd src/flatbuffers && flatc.exe --ts fragment.fbs",
     "create-stream-flatbuffers": "cd src/flatbuffers && flatc.exe --ts streamed-geometry.fbs",
     "regen-json": "cd src/flatbuffers && flatc.exe --json --raw-binary fragment.fbs -- model.frag"
