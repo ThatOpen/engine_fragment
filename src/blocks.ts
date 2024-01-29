@@ -18,7 +18,8 @@ export class Blocks {
   private _idIndexIndexMap: { [id: string]: number[] } = {};
 
   constructor(private fragment: IFragment) {
-    const rawIds = fragment.mesh.geometry.attributes.blockID.array as number[];
+    const attrs = fragment.mesh.geometry.attributes;
+    const rawIds = attrs.blockID.array as THREE.TypedArray;
     this.ids = new Set<number>(rawIds);
     this.visibleIds = new Set<number>(this.ids);
   }
