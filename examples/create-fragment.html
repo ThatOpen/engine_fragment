@@ -31,45 +31,85 @@
   import * as THREE from 'three';
   import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 
+  import * as dat from 'three/examples/jsm/libs/lil-gui.module.min';
+
   const canvas = document.getElementById('container');
   const threeScene = new SimpleThreeScene(canvas);
 
-  // Get the chair geometry
+  // Get the chair meshes
 
   const loader = new GLTFLoader();
   const rawGltf = await loader.loadAsync('../resources/models/chair.glb');
   const chairMeshes = rawGltf.scene.children[0].children;
-  const chairGeometries = chairMeshes.map((mesh) => [mesh.geometry]);
-  const geometry = FRAGS.GeometryUtils.merge(chairGeometries);
 
-  // Get the chair materials
+  const chairs = new FRAGS.FragmentsGroup();
+  threeScene.scene.add(chairs);
 
-  const materials = chairMeshes.map(mesh => new THREE.MeshLambertMaterial({
-    color: mesh.material.color,
-    transparent: mesh.material.transparent,
-    opacity: mesh.material.opacity
-  }));
 
-  // Create a new fragment and add it to the scene
+  for(const mesh of chairMeshes) {
+    const {geometry, material} = mesh;
+    const frag = new FRAGS.Fragment(geometry, [material], 1000);
+    chairs.items.push(frag);
+    chairs.add(frag.mesh);
 
-  const chairs = new FRAGS.Fragment(geometry, materials, 1000);
-  threeScene.scene.add(chairs.mesh);
+    // Now we need to specify the position of the 1000 instances and its ID
+    // We will create a cube of 10 x 10 x 10 chairs, and each ID will be its position in the matrix
 
-  // Now we need to specify the position of the 1000 instances and its ID
-  // We will create a cube of 10 x 10 x 10 chairs, and each ID will be its position in the matrix
+    const items = [];
 
-  const offset = 0.5;
-  let counter = 0;
-  for (let i = 0; i < 10; i++) {
-    for (let j = 0; j < 10; j++) {
-      for (let k = 0; k < 10; k++) {
-        const matrix = new THREE.Matrix4();
-        matrix.setPosition(i * offset, j * offset, k * offset);
-        const id = `${i}${j}${k}`;
-        chairs.setInstance(counter++, { ids: [id], transform: matrix });
+    const offset = 0.5;
+    let id = 0;
+    for (let i = 0; i < 2; i++) {
+      for (let j = 0; j < 2; j++) {
+        for (let k = 0; k < 2; k++) {
+          const matrix = new THREE.Matrix4();
+          matrix.setPosition(i * offset, j * offset, k * offset);
+          items.push({id, transforms: [matrix]});
+          id++;
+        }
       }
     }
+
+    frag.add(items);
+
   }
+
+  // Set up UI
+
+  const settings = {
+    hide: 7,
+    show: 7,
+  }
+
+  const gui = new dat.GUI();
+
+  gui.add(settings, 'hide').min(0).max(7).step(1).onChange(() => {
+    for(const frag of chairs.items) {
+      frag.setVisibility(false, [settings.hide]);
+    }
+  })
+
+  gui.add(settings, 'show').min(0).max(7).step(1).onChange(() => {
+    for(const frag of chairs.items) {
+      frag.setVisibility(true, [settings.show]);
+    }
+  })
+
+  const serializer = new FRAGS.Serializer();
+
+  window.ondblclick = () => {
+    const buffer = serializer.export(chairs);
+    const file = new File([new Blob([buffer])], "chairs.frag");
+    const link = document.createElement('a');
+    document.body.appendChild(link);
+
+    link.download = 'chairs.frag';
+    link.href = URL.createObjectURL(file);
+    link.click();
+
+    link.remove();
+  }
+
 
 </script>
 </body>

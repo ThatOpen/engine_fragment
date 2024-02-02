@@ -33,86 +33,60 @@
   const canvas = document.getElementById('container');
   const threeScene = new SimpleThreeScene(canvas);
 
-  const loader = new FRAGS.FragmentLoader();
+  const serializer = new FRAGS.Serializer();
 
   // Import the chairs fragment
 
-  const chairsGeometry = '../resources/exported/chairs/geometry.gltf';
-  const chairsData = '../resources/exported/chairs/data.json';
-  const chairs = await loader.load(chairsGeometry, chairsData);
-  threeScene.scene.add(chairs.mesh);
+  const fetched = await fetch("../resources/chairs.frag");
+  const rawData = await fetched.arrayBuffer();
+  const buffer = new Uint8Array(rawData);
+  const chairs = serializer.import(buffer);
+  threeScene.scene.add(chairs);
 
-  // Import the walls fragment
-
-  const wallsGeometry = '../resources/exported/walls/geometry.gltf';
-  const wallsData = '../resources/exported/walls/data.json';
-  const walls = await loader.load(wallsGeometry, wallsData);
-  threeScene.scene.add(walls.mesh);
+  const selectionFrags = [];
 
   // Set up highlight
-
   const selectionMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, depthTest: false });
-  chairs.addFragment('selection', [selectionMaterial]);
-  walls.addFragment('selection', [selectionMaterial]);
+  for(const frag of chairs.items) {
+    const subFrag = frag.addFragment('selection', [selectionMaterial]);
+    selectionFrags.push(subFrag);
+  }
 
-  // Group data together for easier queries
-
-  const meshes = [];
-  meshes.push(chairs.mesh, walls.mesh);
-
-  const fragmentsByID = {
-    [chairs.id]: chairs,
-    [walls.id]: walls
-  };
 
   // Set up raycasting
 
   const caster = new THREE.Raycaster();
   caster.firstHitOnly = true;
   const mouse = new THREE.Vector2();
-  const tempMatrix = new THREE.Matrix4();
-  let previousSelection;
-
-  // Set limits to prevent picking 60 times per frame
-  const pickingLimit = 100;
-  let lastPicked = 0;
 
   window.onmousemove = (event) => {
 
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     caster.setFromCamera(mouse, threeScene.camera);
-    const results = caster.intersectObjects(meshes);
+    const results = caster.intersectObjects(chairs.children);
     const result = results[0];
 
     // If the raycaster found an object
     if (result) {
 
-      // Reset previous selection (if any)
-      if (previousSelection) previousSelection.mesh.removeFromParent();
-
       // Get found fragment selection
-      const fragment = fragmentsByID[result.object.uuid];
-      previousSelection = fragment.fragments['selection'];
+      const fragment = result.object.fragment;
+      const itemID = fragment.getItemID(result.instanceId);
+      if(itemID === null) return;
 
-      // Select instance
-      threeScene.scene.add(previousSelection.mesh);
-      fragment.getInstance(result.instanceId, tempMatrix);
-      previousSelection.setInstance(0, { transform: tempMatrix });
-      previousSelection.mesh.instanceMatrix.needsUpdate = true;
-
-      // Select block
-      const blockID = previousSelection.getVertexBlockID(result.object.geometry, result.face.a);
-      if (blockID !== null) {
-        previousSelection.blocks.add([blockID], true);
-        // You can get the ID of the selected item like this
-        // const itemID = fragment.getItemID(result.instanceId, blockID);
-        // console.log(itemID);
+      for(const frag of selectionFrags) {
+        threeScene.scene.add(frag.mesh);
+        frag.setVisibility(false);
+        frag.setVisibility(true, [itemID]);
       }
+
       // If the raycaster didn't find anything
     } else {
       // Reset previous selection (if any)
-      if (previousSelection) previousSelection.mesh.removeFromParent();
+      for(const frag of selectionFrags) {
+        frag.mesh.removeFromParent();
+      }
     }
   };
 </script>
