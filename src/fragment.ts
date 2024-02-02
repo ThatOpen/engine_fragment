@@ -1,62 +1,35 @@
 import * as THREE from "three";
-import { Items, IFragment } from "./base-types";
+import { Item } from "./base-types";
 import { FragmentMesh } from "./fragment-mesh";
-import { Blocks } from "./blocks";
-import { BVH } from "./bvh";
 import { FragmentsGroup } from "./fragments-group";
 
 /*
- * Fragments can contain one or multiple Instances of one or multiple Blocks
- * Each Instance is identified by an instanceID (property of THREE.InstancedMesh)
- * Each Block identified by a blockID (custom bufferAttribute per vertex)
- * Both instanceId and blockId are unsigned integers starting at 0 and going up sequentially
- * A specific Block of a specific Instance is an Item, identified by an itemID
+ * Fragments are just a simple wrapper around THREE.InstancedMesh.
+ * Each fragments can contain Items (identified by ItemID) which
+ * are mapped to one or many instances inside this THREE.InstancedMesh.
  *
- * For example:
- * Imagine a fragment mesh with 8 instances and 2 elements (16 items, identified from A to P)
- * It will have instanceIds from 0 to 8, and blockIds from 0 to 2
- * If we raycast it, we will get an instanceId and the index of the found triangle
- * We can use the index to get the blockId for that triangle
- * Combining instanceId and blockId using the elementMap will give us the itemId
- * The items will look like this:
- *
- *    [ A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P ]
- *
- *  Where the criteria to sort the items is the following (Y-axis is instance, X-axis is block):
- *
- *        A  C  E  G  I  K  M  O
- *        B  D  F  H  J  L  N  P
+ * Fragments also implement features like instance buffer resizing and
+ * hiding out of the box.
  * */
+export class Fragment {
+  ids = new Set<number>();
 
-export class Fragment implements IFragment {
-  mesh: FragmentMesh;
-  capacity: number;
-  fragments: { [id: string]: Fragment } = {};
+  itemToInstances = new Map<number, Set<number>>();
+  instanceToItem = new Map<number, number>();
+  hiddenItems = new Set<number>();
+
   id: string;
-  blocks: Blocks;
 
-  items: string[] = [];
-  hiddenInstances: { [id: string]: Items } = {};
+  mesh: FragmentMesh;
+
+  capacity = 0;
+  capacityOffset = 10;
+
+  fragments: { [id: string]: Fragment } = {};
+
   group?: FragmentsGroup;
 
-  // When multiple instances represent the same object
-  // this allows to create a composite ID for each instance
-  // E.g. all the steps in a stair are a single thing
-  // so if the ID of the stair is asdf, then each step could be
-  // asdf.1, asdf.2, asdf.3, etc
-  // the value is the number of instances
-  composites: { [id: string]: number } = {};
-
-  get ids() {
-    const ids = new Set<string>();
-    for (const id of this.items) {
-      ids.add(id);
-    }
-    for (const id in this.hiddenInstances) {
-      ids.add(id);
-    }
-    return ids;
-  }
+  private _settingVisibility = false;
 
   constructor(
     geometry: THREE.BufferGeometry,
@@ -66,19 +39,23 @@ export class Fragment implements IFragment {
     this.mesh = new FragmentMesh(geometry, material, count, this);
     this.id = this.mesh.uuid;
     this.capacity = count;
-    this.blocks = new Blocks(this);
-    BVH.apply(geometry);
+    this.mesh.count = 0;
+    // Maybe not necessary, because most fragments are super small
+    // BVH.apply(geometry);
   }
 
   dispose(disposeResources = true) {
-    (this.items as any) = null;
+    this.clear();
+
     this.group = undefined;
 
     if (this.mesh) {
       if (disposeResources) {
-        this.mesh.material.forEach((mat) => mat.dispose());
+        for (const mat of this.mesh.material) {
+          mat.dispose();
+        }
         this.mesh.material = [];
-        BVH.dispose(this.mesh.geometry);
+        // BVH.dispose(this.mesh.geometry);
         this.mesh.geometry.dispose();
         (this.mesh.geometry as any) = null;
       }
@@ -90,85 +67,153 @@ export class Fragment implements IFragment {
       (this.mesh as any) = null;
     }
 
-    this.disposeNestedFragments();
+    for (const key in this.fragments) {
+      const frag = this.fragments[key];
+      frag.dispose(disposeResources);
+    }
+
+    this.fragments = {};
   }
 
-  getItemID(instanceID: number, blockID: number) {
-    const index = this.getItemIndex(instanceID, blockID);
-    return this.items[index];
+  get(itemID: number) {
+    const instanceIDs = this.getInstancesIDs(itemID);
+    if (!instanceIDs) {
+      throw new Error("Item not found!");
+    }
+    const transforms: THREE.Matrix4[] = [];
+    const colorsArray: THREE.Color[] = [];
+    for (const id of instanceIDs) {
+      const matrix = new THREE.Matrix4();
+      this.mesh.getMatrixAt(id, matrix);
+      transforms.push(matrix);
+      if (this.mesh.instanceColor) {
+        const color = new THREE.Color();
+        this.mesh.getColorAt(id, color);
+      }
+    }
+    const colors = colorsArray.length ? colorsArray : undefined;
+    return { id: itemID, transforms, colors } as Item;
   }
 
-  getInstanceAndBlockID(itemID: string) {
-    const index = this.items.indexOf(itemID);
-    const instanceID = this.getInstanceIDFromIndex(index);
-    const blockID = index % this.blocks.count;
-    return { instanceID, blockID };
+  getItemID(instanceID: number) {
+    return this.instanceToItem.get(instanceID) || null;
   }
 
-  getVertexBlockID(geometry: THREE.BufferGeometry, index: number) {
-    const blocks = geometry.attributes.blockID as THREE.BufferAttribute;
-    return blocks.array[index];
+  getInstancesIDs(itemID: number) {
+    return this.itemToInstances.get(itemID) || null;
   }
 
-  getItemData(itemID: string) {
-    const index = this.items.indexOf(itemID);
-    const instanceID = Math.ceil(index / this.blocks.count);
-    const blockID = index % this.blocks.count;
-    return { instanceID, blockID };
-  }
-
-  getInstance(instanceID: number, matrix: THREE.Matrix4) {
-    return this.mesh.getMatrixAt(instanceID, matrix);
-  }
-
-  setInstance(instanceID: number, items: Items) {
-    this.checkIfInstanceExist(instanceID);
-    this.mesh.setMatrixAt(instanceID, items.transform);
-    this.mesh.instanceMatrix.needsUpdate = true;
-
-    if (items.color && this.mesh.instanceColor) {
-      this.mesh.setColorAt(instanceID, items.color);
+  update() {
+    if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
     }
-
-    if (items.ids) {
-      this.saveItemsInMap(items.ids, instanceID);
-    }
+    this.mesh.instanceMatrix.needsUpdate = true;
   }
 
-  addInstances(items: Items[]) {
-    this.resizeCapacityIfNeeded(items.length);
-    const start = this.mesh.count;
-    this.mesh.count += items.length;
+  add(items: Item[]) {
+    let size = 0;
+    for (const item of items) {
+      size += item.transforms.length;
+    }
+
+    const necessaryCapacity = this.mesh.count + size;
+
+    if (necessaryCapacity > this.capacity) {
+      const newMesh = new FragmentMesh(
+        this.mesh.geometry,
+        this.mesh.material,
+        necessaryCapacity + this.capacityOffset,
+        this
+      );
+
+      newMesh.count = this.mesh.count;
+
+      this.capacity = size;
+      const oldMesh = this.mesh;
+      oldMesh.parent?.add(newMesh);
+      oldMesh.removeFromParent();
+      this.mesh = newMesh;
+      oldMesh.dispose();
+    }
+
     for (let i = 0; i < items.length; i++) {
-      this.setInstance(start + i, items[i]);
+      const { transforms, colors, id } = items[i];
+      const instances = new Set<number>();
+
+      this.ids.add(id);
+
+      for (let j = 0; j < transforms.length; j++) {
+        const transform = transforms[j];
+        const newInstanceID = this.mesh.count;
+        this.mesh.setMatrixAt(newInstanceID, transform);
+
+        if (colors) {
+          const color = colors[j];
+          this.mesh.setColorAt(newInstanceID, color);
+        }
+
+        instances.add(newInstanceID);
+        this.instanceToItem.set(newInstanceID, id);
+
+        this.mesh.count++;
+      }
+
+      this.itemToInstances.set(id, instances);
     }
+
+    this.update();
   }
 
-  removeInstances(itemsIDs: string[]) {
-    if (this.mesh.count <= 1) {
-      this.clear();
+  remove(itemsIDs: Iterable<number>) {
+    if (this.mesh.count === 0) {
       return;
     }
 
-    this.deleteAndRearrangeInstances(itemsIDs);
-    this.mesh.count -= itemsIDs.length;
-    this.mesh.instanceMatrix.needsUpdate = true;
+    for (const itemID of itemsIDs) {
+      const instancesToDelete = this.itemToInstances.get(itemID);
+      if (instancesToDelete === undefined) {
+        throw new Error("Instances not found!");
+      }
+
+      for (const instanceID of instancesToDelete) {
+        if (this.mesh.count === 0) throw new Error("Errow with mesh count!");
+        this.putLast(instanceID);
+        this.instanceToItem.delete(instanceID);
+        this.mesh.count--;
+      }
+
+      this.itemToInstances.delete(itemID);
+      this.ids.delete(itemID);
+    }
+
+    this.update();
   }
 
   clear() {
-    this.mesh.clear();
+    this.hiddenItems.clear();
+    this.ids.clear();
+    this.instanceToItem.clear();
+    this.itemToInstances.clear();
     this.mesh.count = 0;
-    this.items = [];
   }
 
   addFragment(id: string, material = this.mesh.material) {
-    const newGeometry = this.initializeGeometry();
-    if (material === this.mesh.material) {
-      this.copyGroups(newGeometry);
-    }
+    const newGeometry = new THREE.BufferGeometry();
+    const attrs = this.mesh.geometry.attributes;
+
+    newGeometry.setAttribute("position", attrs.position);
+    newGeometry.setAttribute("normal", attrs.normal);
+    newGeometry.setIndex(Array.from(this.mesh.geometry.index.array));
 
     const newFragment = new Fragment(newGeometry, material, this.capacity);
+
+    const items: Item[] = [];
+    for (const id of this.ids) {
+      const item = this.get(id);
+      items.push(item);
+    }
+    newFragment.add(items);
+
     newFragment.mesh.applyMatrix4(this.mesh.matrix);
     newFragment.mesh.updateMatrix();
     this.fragments[id] = newFragment;
@@ -183,228 +228,98 @@ export class Fragment implements IFragment {
     }
   }
 
-  resetVisibility() {
-    if (this.blocks.count > 1) {
-      this.blocks.setVisibility(true);
-    } else {
-      const hiddenInstances = Object.keys(this.hiddenInstances);
-      this.makeInstancesVisible(hiddenInstances);
-      this.hiddenInstances = {};
-    }
-  }
-
   setVisibility(visible: boolean, itemIDs = this.ids) {
-    if (this.blocks.count > 1) {
-      this.blocks.setVisibility(visible, itemIDs);
+    if (this._settingVisibility) return;
+    this._settingVisibility = true;
+    if (visible) {
+      for (const itemID of itemIDs) {
+        if (!this.hiddenItems.has(itemID)) {
+          continue;
+        }
+        const instances = this.itemToInstances.get(itemID);
+        if (!instances) throw new Error("Instances not found!");
+        for (const instance of new Set(instances)) {
+          this.mesh.count++;
+          this.putLast(instance);
+        }
+        this.hiddenItems.delete(itemID);
+      }
     } else {
-      this.toggleInstanceVisibility(visible, itemIDs);
+      for (const itemID of itemIDs) {
+        if (this.hiddenItems.has(itemID)) {
+          continue;
+        }
+        const instances = this.itemToInstances.get(itemID);
+        if (!instances) throw new Error("Instances not found!");
+        for (const instance of new Set(instances)) {
+          this.putLast(instance);
+          this.mesh.count--;
+        }
+        this.hiddenItems.add(itemID);
+      }
     }
-  }
-
-  resize(size: number) {
-    const newMesh = this.createFragmentMeshWithNewSize(size);
-    this.capacity = size;
-    const oldMesh = this.mesh;
-    oldMesh.parent?.add(newMesh);
-    oldMesh.removeFromParent();
-    this.mesh = newMesh;
-    oldMesh.dispose();
+    this.update();
+    this._settingVisibility = false;
   }
 
   exportData() {
     const geometry = this.mesh.exportData();
-    const ids = this.items.join("|");
+    const ids = Array.from(this.ids);
     const id = this.id;
     return { ...geometry, ids, id };
   }
 
-  private copyGroups(newGeometry: THREE.BufferGeometry) {
-    newGeometry.groups = [];
-    for (const group of this.mesh.geometry.groups) {
-      newGeometry.groups.push({ ...group });
-    }
-  }
+  private putLast(instanceID: number) {
+    if (this.mesh.count === 0) return;
 
-  private initializeGeometry() {
-    const newGeometry = new THREE.BufferGeometry();
-    newGeometry.setAttribute(
-      "position",
-      this.mesh.geometry.attributes.position
-    );
-    newGeometry.setAttribute("normal", this.mesh.geometry.attributes.normal);
-    newGeometry.setAttribute("blockID", this.mesh.geometry.attributes.blockID);
-    newGeometry.setIndex(Array.from(this.mesh.geometry.index.array));
-    return newGeometry;
-  }
+    const id1 = this.instanceToItem.get(instanceID);
 
-  private saveItemsInMap(ids: string[], instanceId: number) {
-    this.checkBlockNumberValid(ids);
-    let counter = 0;
-    for (const id of ids) {
-      const index = this.getItemIndex(instanceId, counter);
-      this.items[index] = id;
-      counter++;
-    }
-  }
-
-  private resizeCapacityIfNeeded(newSize: number) {
-    const necessaryCapacity = newSize + this.mesh.count;
-    if (necessaryCapacity > this.capacity) {
-      this.resize(necessaryCapacity);
-    }
-  }
-
-  private createFragmentMeshWithNewSize(capacity: number) {
-    const newMesh = new FragmentMesh(
-      this.mesh.geometry,
-      this.mesh.material,
-      capacity,
-      this
-    );
-    newMesh.count = this.mesh.count;
-    return newMesh;
-  }
-
-  private disposeNestedFragments() {
-    const fragments = Object.values(this.fragments);
-    for (let i = 0; i < fragments.length; i++) {
-      fragments[i].dispose();
-    }
-    this.fragments = {};
-  }
-
-  private checkBlockNumberValid(ids: string[]) {
-    if (ids.length > this.blocks.count) {
-      throw new Error(
-        `You passed more items (${ids.length}) than blocks in this instance (${this.blocks.count})`
-      );
-    }
-  }
-
-  private checkIfInstanceExist(index: number) {
-    if (index > this.mesh.count) {
-      throw new Error(
-        `The given index (${index}) exceeds the instances in this fragment (${this.mesh.count})`
-      );
-    }
-  }
-
-  // Assigns the index of the removed instance to the last instance
-  // F.e. let there be 6 instances: (A) (B) (C) (D) (E) (F)
-  // If instance (C) is removed: -> (A) (B) (F) (D) (E)
-  private deleteAndRearrangeInstances(ids: Iterable<string>) {
-    const deletedItems: Items[] = [];
-
-    for (const id of ids) {
-      const deleted = this.deleteAndRearrange(id);
-      if (deleted) {
-        deletedItems.push(deleted);
-      }
+    const instanceID2 = this.mesh.count - 1;
+    if (instanceID2 === instanceID) {
+      return;
     }
 
-    for (const id of ids) {
-      delete this.hiddenInstances[id];
+    const id2 = this.instanceToItem.get(instanceID2);
+
+    if (id1 === undefined || id2 === undefined) {
+      throw new Error("Keys not found");
     }
 
-    return deletedItems;
-  }
+    const instances1 = this.itemToInstances.get(id1);
+    const instances2 = this.itemToInstances.get(id2);
 
-  private deleteAndRearrange(id: string) {
-    const index = this.items.indexOf(id);
-    if (index === -1) return null;
-
-    this.mesh.count--;
-    const isLastElement = index === this.mesh.count;
-
-    const instanceId = this.getInstanceIDFromIndex(index);
-    const tempMatrix = new THREE.Matrix4();
-    const tempColor = new THREE.Color();
-
-    const transform = new THREE.Matrix4();
-    this.mesh.getMatrixAt(instanceId, transform);
-
-    const result = { ids: [id], transform } as Items;
-
-    if (this.mesh.instanceColor) {
-      const color = new THREE.Color();
-      this.mesh.getColorAt(instanceId, color);
-      result.color = color;
+    if (!instances1 || !instances2) {
+      throw new Error("Instances not found");
     }
 
-    if (isLastElement) {
-      this.items.pop();
-      return result;
+    if (!instances1.has(instanceID) || !instances2.has(instanceID2)) {
+      throw new Error("Malformed fragment structure");
     }
 
-    const lastElement = this.mesh.count;
-    this.items[index] = this.items[lastElement];
-    this.items.pop();
+    instances1.delete(instanceID);
+    instances2.delete(instanceID2);
 
-    this.mesh.getMatrixAt(lastElement, tempMatrix);
-    this.mesh.setMatrixAt(instanceId, tempMatrix);
-    this.mesh.instanceMatrix.needsUpdate = true;
+    instances1.add(instanceID2);
+    instances2.add(instanceID);
 
-    if (this.mesh.instanceColor) {
-      this.mesh.getColorAt(lastElement, tempColor);
-      this.mesh.setColorAt(instanceId, tempColor);
-      this.mesh.instanceColor.needsUpdate = true;
+    this.instanceToItem.set(instanceID, id2);
+    this.instanceToItem.set(instanceID2, id1);
+
+    const transform1 = new THREE.Matrix4();
+    const transform2 = new THREE.Matrix4();
+
+    this.mesh.getMatrixAt(instanceID, transform1);
+    this.mesh.getMatrixAt(instanceID2, transform2);
+    this.mesh.setMatrixAt(instanceID, transform2);
+    this.mesh.setMatrixAt(instanceID2, transform1);
+
+    if (this.mesh.instanceColor !== null) {
+      const color1 = new THREE.Color();
+      const color2 = new THREE.Color();
+      this.mesh.getColorAt(instanceID, color1);
+      this.mesh.getColorAt(instanceID2, color2);
+      this.mesh.setColorAt(instanceID, color2);
+      this.mesh.setColorAt(instanceID2, color1);
     }
-
-    return result;
-  }
-
-  private getItemIndex(instanceId: number, blockId: number) {
-    return instanceId * this.blocks.count + blockId;
-  }
-
-  private getInstanceIDFromIndex(itemIndex: number) {
-    return Math.trunc(itemIndex / this.blocks.count);
-  }
-
-  private toggleInstanceVisibility(
-    visible: boolean,
-    itemIDs: Iterable<string>
-  ) {
-    if (visible) {
-      this.makeInstancesVisible(itemIDs);
-    } else {
-      this.makeInstancesInvisible(itemIDs);
-    }
-  }
-
-  private makeInstancesInvisible(itemIDs: Iterable<string>) {
-    itemIDs = this.filterHiddenItems(itemIDs, false);
-    const deletedItems = this.deleteAndRearrangeInstances(itemIDs);
-    for (const item of deletedItems) {
-      if (item.ids) {
-        this.hiddenInstances[item.ids[0]] = item;
-      }
-    }
-  }
-
-  private makeInstancesVisible(itemIDs: Iterable<string>) {
-    const items: Items[] = [];
-    itemIDs = this.filterHiddenItems(itemIDs, true);
-    for (const id of itemIDs) {
-      const found = this.hiddenInstances[id];
-      if (found !== undefined) {
-        items.push(found);
-        delete this.hiddenInstances[id];
-      }
-    }
-    this.addInstances(items);
-  }
-
-  private filterHiddenItems(itemIDs: Iterable<string>, hidden: boolean) {
-    const hiddenItems = Object.keys(this.hiddenInstances);
-    const result: string[] = [];
-    for (const id of itemIDs) {
-      const isHidden = hidden && hiddenItems.includes(id);
-      const isNotHidden = !hidden && !hiddenItems.includes(id);
-      if (isHidden || isNotHidden) {
-        result.push(id);
-      }
-    }
-    return result;
   }
 }

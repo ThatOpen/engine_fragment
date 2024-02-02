@@ -22,15 +22,16 @@ table FragmentsGroup {
 table Fragment {
     position: [float];
     normal: [float];
-    index: [int];
-    block_id: [int];
+    index: [uint];
     groups: [float];
     materials: [float];
     matrices: [float];
     colors: [float];
-    ids: string;
+    itemsSize: [uint];
+    ids: [uint];
     id: string;
-    composites: string;
+    capacity: uint;
+    capacity_offset: uint;
 }
 
 table Civil {

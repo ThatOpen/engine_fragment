@@ -1,6 +1,4 @@
-import { IifcAlignmentData } from "./base-types";
-
-export class IfcAlignmentData implements IifcAlignmentData {
+export class IfcAlignmentData {
   coordinates: Float32Array = new Float32Array(0);
   alignmentIndex: number[] = [];
   curveIndex: number[] = [];

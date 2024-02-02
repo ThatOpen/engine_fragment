@@ -1,51 +1,12 @@
 import * as THREE from "three";
 import { BufferAttribute } from "three/src/core/BufferAttribute";
-import { InterleavedBufferAttribute } from "three/src/core/InterleavedBufferAttribute";
-import { FragmentMesh } from "./fragment-mesh";
 
 // The number array has the meaning: [start, end, start, end, start, end...]
-export interface Indices {
-  [materialID: number]: number[];
-}
 
-export interface VertexGroup {
-  start: number;
-  count: number;
-  materialIndex?: number;
-}
-
-export interface IndicesMap {
-  indexCache: Uint32Array;
-  map: Map<number, Indices>;
-}
-
-export interface Items {
-  ids?: string[];
-  transform: THREE.Matrix4;
-  color?: THREE.Color;
-}
-
-export interface IFragmentGeometry extends THREE.BufferGeometry {
-  attributes: {
-    [name: string]: BufferAttribute | InterleavedBufferAttribute;
-    blockID: BufferAttribute;
-  };
-  index: BufferAttribute;
-}
-
-export interface IFragmentMesh {
-  material: THREE.Material[];
-  geometry: IFragmentGeometry;
-  elementCount: number;
-}
-
-export interface IFragment {
-  mesh: FragmentMesh;
-  capacity: number;
-  fragments: { [id: string]: IFragment };
-  id: string;
-  items: string[];
-  getItemID: (instanceID: number, blockID: number) => string;
+export interface Item {
+  id: number;
+  transforms: THREE.Matrix4[];
+  colors?: THREE.Color[];
 }
 
 export interface IfcProperties {
@@ -62,13 +23,7 @@ export interface IfcMetadata {
 }
 
 export interface FragmentIdMap {
-  [fragmentID: string]: Set<string>;
-}
-
-export interface IifcAlignmentData {
-  coordinates: Float32Array;
-  alignmentIndex: number[];
-  curveIndex: number[];
+  [fragmentID: string]: Set<number>;
 }
 
 export interface StreamedGeometries {
@@ -77,4 +32,8 @@ export interface StreamedGeometries {
     normal: Float32Array;
     index: Uint32Array;
   };
+}
+
+export interface IndexedGeometry extends THREE.BufferGeometry {
+  index: BufferAttribute;
 }

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import * as flatbuffers from "flatbuffers";
 import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
-import { IfcSchema, Items } from "./base-types";
+import { IfcSchema, Item } from "./base-types";
 import { FragmentsGroup } from "./fragments-group";
 import { IfcAlignmentData } from "./alignment";
 import { Alignment } from "./flatbuffers/fragments";
@@ -26,10 +26,13 @@ export class Serializer {
       if (!fbFragment) continue;
       const geometry = this.constructGeometry(fbFragment);
       const materials = this.constructMaterials(fbFragment);
-      const { instances, colors } = this.constructInstances(fbFragment);
-      const fragment = new Fragment(geometry, materials, instances.length);
-      this.getComposites(fbFragment, fragment);
-      this.setInstances(instances, colors, fragment);
+
+      const capacity = fbFragment.capacity();
+
+      const fragment = new Fragment(geometry, materials, capacity);
+      fragment.capacityOffset = fbFragment.capacityOffset();
+
+      this.setInstances(fbFragment, fragment);
       this.setID(fbFragment, fragment);
       fragmentsGroup.items.push(fragment);
       fragmentsGroup.add(fragment.mesh);
@@ -48,7 +51,7 @@ export class Serializer {
 
     let exportedCivil: number | null = null;
 
-    if (group.ifcCivil?.horizontalAlignments) {
+    if (group.ifcCivil) {
       const A = FB.Alignment;
 
       const resultH = group.ifcCivil.horizontalAlignments.exportData();
@@ -90,33 +93,41 @@ export class Serializer {
 
     for (const fragment of group.items) {
       const result = fragment.exportData();
+
+      const itemsSize: number[] = [];
+      for (const itemID of fragment.ids) {
+        const instances = fragment.getInstancesIDs(itemID);
+        if (!instances) {
+          throw new Error("Instances not found!");
+        }
+        itemsSize.push(instances.size);
+      }
+
       const posVector = F.createPositionVector(builder, result.position);
       const normalVector = F.createNormalVector(builder, result.normal);
-      const blockVector = F.createBlockIdVector(builder, result.blockID);
       const indexVector = F.createIndexVector(builder, result.index);
       const groupsVector = F.createGroupsVector(builder, result.groups);
       const matsVector = F.createMaterialsVector(builder, result.materials);
       const matricesVector = F.createMatricesVector(builder, result.matrices);
 
       const colorsVector = F.createColorsVector(builder, result.colors);
-      const idsStr = builder.createString(result.ids);
+      const idsVector = F.createIdsVector(builder, result.ids);
+      const itemsSizeVector = F.createItemsSizeVector(builder, itemsSize);
       const idStr = builder.createString(result.id);
-      const compositeStr = builder.createString(
-        JSON.stringify(fragment.composites)
-      );
 
       F.startFragment(builder);
       F.addPosition(builder, posVector);
       F.addNormal(builder, normalVector);
-      F.addBlockId(builder, blockVector);
       F.addIndex(builder, indexVector);
       F.addGroups(builder, groupsVector);
       F.addMaterials(builder, matsVector);
       F.addMatrices(builder, matricesVector);
       F.addColors(builder, colorsVector);
-      F.addIds(builder, idsStr);
+      F.addIds(builder, idsVector);
+      F.addItemsSize(builder, itemsSizeVector);
       F.addId(builder, idStr);
-      F.addComposites(builder, compositeStr);
+      F.addCapacity(builder, fragment.capacity);
+      F.addCapacityOffset(builder, fragment.capacityOffset);
       const exported = FB.Fragment.endFragment(builder);
       items.push(exported);
     }
@@ -186,6 +197,7 @@ export class Serializer {
     if (exportedCivil !== null) {
       G.addCivil(builder, exportedCivil);
     }
+
     G.addId(builder, groupID);
     G.addName(builder, groupName);
     G.addIfcName(builder, ifcName);
@@ -201,15 +213,11 @@ export class Serializer {
     G.addItemsRels(builder, relsVector);
     G.addCoordinationMatrix(builder, matrixVector);
     G.addBoundingBox(builder, bboxVector);
+
     const result = FB.FragmentsGroup.endFragmentsGroup(builder);
     builder.finish(result);
 
     return builder.asUint8Array();
-  }
-
-  private getComposites(fbFragment: FB.Fragment, fragment: Fragment) {
-    const composites = fbFragment.composites() || "{}";
-    fragment.composites = JSON.parse(composites);
   }
 
   private setID(fbFragment: FB.Fragment, fragment: Fragment) {
@@ -220,61 +228,47 @@ export class Serializer {
     }
   }
 
-  private setInstances(
-    instances: Items[],
-    colors: THREE.Color[],
-    fragment: Fragment
-  ) {
-    for (let i = 0; i < instances.length; i++) {
-      fragment.setInstance(i, instances[i]);
-      if (colors.length) {
-        fragment.mesh.setColorAt(i, colors[i]);
+  private setInstances(fbFragment: FB.Fragment, fragment: Fragment) {
+    const matricesData = fbFragment.matricesArray();
+    const colorData = fbFragment.colorsArray();
+
+    const ids = fbFragment.idsArray();
+    const itemsSize = fbFragment.itemsSizeArray();
+
+    if (!matricesData || !ids || !itemsSize) {
+      throw new Error(`Error: Can't load empty fragment!`);
+    }
+
+    const items: Item[] = [];
+
+    let offset = 0;
+    for (let i = 0; i < itemsSize.length; i++) {
+      const id = ids[i];
+      const size = itemsSize[i];
+      const transforms: THREE.Matrix4[] = [];
+      const colorsArray: THREE.Color[] = [];
+
+      for (let j = 0; j < size; j++) {
+        const mStart = offset * 16;
+        const matrixArray = matricesData.subarray(mStart, mStart + 17);
+        const transform = new THREE.Matrix4().fromArray(matrixArray);
+        transforms.push(transform);
+
+        if (colorData) {
+          const cStart = offset * 3;
+          const [r, g, b] = colorData.subarray(cStart, cStart + 4);
+          const color = new THREE.Color(r, g, b);
+          colorsArray.push(color);
+        }
+
+        offset++;
       }
-    }
-  }
 
-  private constructInstances(fragment: FB.Fragment) {
-    const matricesData = fragment.matricesArray();
-    const colorData = fragment.colorsArray();
-    const colors: THREE.Color[] = [];
-
-    const idsString = fragment.ids();
-    const id = fragment.id();
-
-    if (!matricesData || !idsString) {
-      throw new Error(`Error: Can't load empty fragment: ${id}`);
+      const colors = colorsArray.length ? colorsArray : undefined;
+      items.push({ id, transforms, colors });
     }
 
-    const ids = idsString.split("|");
-
-    const singleInstance = matricesData.length === 16;
-    const manyItems = ids.length > 1;
-
-    const isMergedFragment = singleInstance && manyItems;
-    if (isMergedFragment) {
-      const transform = new THREE.Matrix4().fromArray(matricesData);
-      const instances = [{ ids, transform }];
-      return { instances, colors };
-    }
-
-    // Instanced fragment
-    const instances: { ids: string[]; transform: THREE.Matrix4 }[] = [];
-    for (let i = 0; i < matricesData.length; i += 16) {
-      const matrixArray = matricesData.subarray(i, i + 17);
-      const transform = new THREE.Matrix4().fromArray(matrixArray);
-      const id = ids[i / 16];
-      instances.push({ ids: [id], transform });
-    }
-
-    if (colorData && colorData.length === instances.length * 3) {
-      for (let i = 0; i < colorData.length; i += 3) {
-        const [r, g, b] = colorData.subarray(i, i + 4);
-        const color = new THREE.Color(r, g, b);
-        colors.push(color);
-      }
-    }
-
-    return { instances, colors };
+    fragment.add(items);
   }
 
   private constructMaterials(fragment: FB.Fragment) {
@@ -410,40 +404,26 @@ export class Serializer {
   }
 
   private constructGeometry(fragment: FB.Fragment) {
-    const position = fragment.positionArray();
-    const normal = fragment.normalArray();
-    const blockID = fragment.blockIdArray();
+    const position = fragment.positionArray() || new Float32Array();
+    const normal = fragment.normalArray() || new Float32Array();
     const index = fragment.indexArray();
     const groups = fragment.groupsArray();
     if (!index) throw new Error("Index not found!");
 
     const geometry = new THREE.BufferGeometry();
     geometry.setIndex(Array.from(index));
-    this.loadAttribute(geometry, "position", position, 3);
-    this.loadAttribute(geometry, "normal", normal, 3);
-    this.loadAttribute(geometry, "blockID", blockID, 1);
-    this.loadGeometryGroups(groups, geometry);
+    geometry.setAttribute("position", new THREE.BufferAttribute(position, 3));
+    geometry.setAttribute("normal", new THREE.BufferAttribute(normal, 3));
+
+    if (groups) {
+      for (let i = 0; i < groups.length; i += 3) {
+        const start = groups[i];
+        const count = groups[i + 1];
+        const materialIndex = groups[i + 2];
+        geometry.addGroup(start, count, materialIndex);
+      }
+    }
 
     return geometry;
-  }
-
-  private loadGeometryGroups(groups: Float32Array | null, geometry: any) {
-    if (!groups) return;
-    for (let i = 0; i < groups.length; i += 3) {
-      const start = groups[i];
-      const count = groups[i + 1];
-      const materialIndex = groups[i + 2];
-      geometry.addGroup(start, count, materialIndex);
-    }
-  }
-
-  private loadAttribute(
-    geometry: THREE.BufferGeometry,
-    name: string,
-    data: any | null,
-    size: number
-  ) {
-    if (!data) return;
-    geometry.setAttribute(name, new THREE.BufferAttribute(data, size));
   }
 }
