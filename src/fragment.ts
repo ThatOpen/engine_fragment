@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Item } from "./base-types";
 import { FragmentMesh } from "./fragment-mesh";
 import { FragmentsGroup } from "./fragments-group";
+import { BVH } from "./bvh";
 
 /*
  * Fragments are just a simple wrapper around THREE.InstancedMesh.
@@ -40,8 +41,7 @@ export class Fragment {
     this.id = this.mesh.uuid;
     this.capacity = count;
     this.mesh.count = 0;
-    // Maybe not necessary, because most fragments are super small
-    // BVH.apply(geometry);
+    BVH.apply(geometry);
   }
 
   dispose(disposeResources = true) {
@@ -55,7 +55,7 @@ export class Fragment {
           mat.dispose();
         }
         this.mesh.material = [];
-        // BVH.dispose(this.mesh.geometry);
+        BVH.dispose(this.mesh.geometry);
         this.mesh.geometry.dispose();
         (this.mesh.geometry as any) = null;
       }
