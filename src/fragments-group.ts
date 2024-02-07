@@ -12,12 +12,12 @@ export class FragmentsGroup extends THREE.Group {
   coordinationMatrix = new THREE.Matrix4();
 
   // Keys are uints mapped with fragmentIDs to save memory
-  keyFragments: { [key: number]: string } = {};
+  keyFragments = new Map<number, string>();
 
-  // data: [expressID: number]: [keys, rels]
+  // Map<expressID, [keys, rels]>
   // keys = fragmentKeys to which this asset belongs
   // rels = [floor, categoryid]
-  data: { [expressID: number]: [number[], number[]] } = {};
+  data = new Map<number, [number[], number[]]>();
 
   properties?: IfcProperties;
 
@@ -37,10 +37,11 @@ export class FragmentsGroup extends THREE.Group {
   getFragmentMap(expressIDs: Iterable<number>) {
     const fragmentMap: FragmentIdMap = {};
     for (const expressID of expressIDs) {
-      const data = this.data[expressID];
+      const data = this.data.get(expressID);
       if (!data) continue;
       for (const key of data[0]) {
-        const fragmentID = this.keyFragments[key];
+        const fragmentID = this.keyFragments.get(key);
+        if (fragmentID === undefined) continue;
         if (!fragmentMap[fragmentID]) {
           fragmentMap[fragmentID] = new Set();
         }
@@ -55,8 +56,8 @@ export class FragmentsGroup extends THREE.Group {
       fragment.dispose(disposeResources);
     }
     this.coordinationMatrix = new THREE.Matrix4();
-    this.keyFragments = {};
-    this.data = {};
+    this.keyFragments.clear();
+    this.data.clear();
     this.properties = {};
   }
 }

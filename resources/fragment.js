@@ -4374,6 +4374,20 @@ let Fragment$1 = class Fragment {
         this.update();
         this._settingVisibility = false;
     }
+    applyTransform(itemIDs, transform) {
+        const tempMatrix = new THREE.Matrix4();
+        for (const itemID of itemIDs) {
+            const instances = this.getInstancesIDs(itemID);
+            if (instances === null) {
+                continue;
+            }
+            for (const instanceID of instances) {
+                this.mesh.getMatrixAt(instanceID, tempMatrix);
+                tempMatrix.premultiply(transform);
+                this.mesh.setMatrixAt(instanceID, tempMatrix);
+            }
+        }
+    }
     exportData() {
         const geometry = this.mesh.exportData();
         const ids = Array.from(this.ids);
@@ -5942,11 +5956,11 @@ class FragmentsGroup extends THREE.Group {
         this.boundingBox = new THREE.Box3();
         this.coordinationMatrix = new THREE.Matrix4();
         // Keys are uints mapped with fragmentIDs to save memory
-        this.keyFragments = {};
-        // data: [expressID: number]: [keys, rels]
+        this.keyFragments = new Map();
+        // Map<expressID, [keys, rels]>
         // keys = fragmentKeys to which this asset belongs
         // rels = [floor, categoryid]
-        this.data = {};
+        this.data = new Map();
         this.ifcMetadata = {
             name: "",
             description: "",
@@ -5957,11 +5971,13 @@ class FragmentsGroup extends THREE.Group {
     getFragmentMap(expressIDs) {
         const fragmentMap = {};
         for (const expressID of expressIDs) {
-            const data = this.data[expressID];
+            const data = this.data.get(expressID);
             if (!data)
                 continue;
             for (const key of data[0]) {
-                const fragmentID = this.keyFragments[key];
+                const fragmentID = this.keyFragments.get(key);
+                if (fragmentID === undefined)
+                    continue;
                 if (!fragmentMap[fragmentID]) {
                     fragmentMap[fragmentID] = new Set();
                 }
@@ -5975,8 +5991,8 @@ class FragmentsGroup extends THREE.Group {
             fragment.dispose(disposeResources);
         }
         this.coordinationMatrix = new THREE.Matrix4();
-        this.keyFragments = {};
-        this.data = {};
+        this.keyFragments.clear();
+        this.data.clear();
         this.properties = {};
     }
 }
@@ -6103,10 +6119,10 @@ class Serializer {
         const itemsVector = G.createItemsVector(builder, items);
         const matrixVector = G.createCoordinationMatrixVector(builder, group.coordinationMatrix.elements);
         let fragmentKeys = "";
-        for (const key in group.keyFragments) {
-            const fragmentID = group.keyFragments[key];
-            if (fragmentKeys.length)
+        for (const fragmentID of group.keyFragments.values()) {
+            if (fragmentKeys.length) {
                 fragmentKeys += this.fragmentIDSeparator;
+            }
             fragmentKeys += fragmentID;
         }
         const fragmentKeysRef = builder.createString(fragmentKeys);
@@ -6117,12 +6133,10 @@ class Serializer {
         const ids = [];
         let keysCounter = 0;
         let relsCounter = 0;
-        for (const expressID in group.data) {
+        for (const [expressID, [keys, rels]] of group.data) {
             keyIndices.push(keysCounter);
             relsIndices.push(relsCounter);
-            const [keys, rels] = group.data[expressID];
-            const id = parseInt(expressID, 10);
-            ids.push(id);
+            ids.push(expressID);
             for (const key of keys) {
                 itemsKeys.push(key);
             }
@@ -6273,7 +6287,7 @@ class Serializer {
         fragmentsGroup.boundingBox.min.set(minX, minY, minZ);
         fragmentsGroup.boundingBox.max.set(maxX, maxY, maxZ);
         for (let i = 0; i < keysIdsArray.length; i++) {
-            fragmentsGroup.keyFragments[i] = keysIdsArray[i];
+            fragmentsGroup.keyFragments.set(i, keysIdsArray[i]);
         }
         if (matrixArray.length === 16) {
             fragmentsGroup.coordinationMatrix.fromArray(matrixArray);
@@ -6302,10 +6316,13 @@ class Serializer {
             for (let j = currentIndex; j < nextIndex; j++) {
                 keys.push(array[j]);
             }
-            if (!group.data[expressID]) {
-                group.data[expressID] = [[], []];
+            if (!group.data.has(expressID)) {
+                group.data.set(expressID, [[], []]);
             }
-            group.data[expressID][index] = keys;
+            const data = group.data.get(expressID);
+            if (!data)
+                continue;
+            data[index] = keys;
         }
     }
     constructGeometry(fragment) {

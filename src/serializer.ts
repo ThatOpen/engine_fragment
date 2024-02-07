@@ -140,9 +140,10 @@ export class Serializer {
     );
 
     let fragmentKeys = "";
-    for (const key in group.keyFragments) {
-      const fragmentID = group.keyFragments[key];
-      if (fragmentKeys.length) fragmentKeys += this.fragmentIDSeparator;
+    for (const fragmentID of group.keyFragments.values()) {
+      if (fragmentKeys.length) {
+        fragmentKeys += this.fragmentIDSeparator;
+      }
       fragmentKeys += fragmentID;
     }
 
@@ -156,13 +157,11 @@ export class Serializer {
 
     let keysCounter = 0;
     let relsCounter = 0;
-    for (const expressID in group.data) {
+    for (const [expressID, [keys, rels]] of group.data) {
       keyIndices.push(keysCounter);
       relsIndices.push(relsCounter);
-      const [keys, rels] = group.data[expressID];
 
-      const id = parseInt(expressID, 10);
-      ids.push(id);
+      ids.push(expressID);
 
       for (const key of keys) {
         itemsKeys.push(key);
@@ -352,7 +351,7 @@ export class Serializer {
     fragmentsGroup.boundingBox.max.set(maxX, maxY, maxZ);
 
     for (let i = 0; i < keysIdsArray.length; i++) {
-      fragmentsGroup.keyFragments[i] = keysIdsArray[i];
+      fragmentsGroup.keyFragments.set(i, keysIdsArray[i]);
     }
 
     if (matrixArray.length === 16) {
@@ -396,10 +395,12 @@ export class Serializer {
         keys.push(array[j]);
       }
 
-      if (!group.data[expressID]) {
-        group.data[expressID] = [[], []];
+      if (!group.data.has(expressID)) {
+        group.data.set(expressID, [[], []]);
       }
-      group.data[expressID][index] = keys;
+      const data = group.data.get(expressID);
+      if (!data) continue;
+      data[index] = keys;
     }
   }
 

@@ -262,6 +262,21 @@ export class Fragment {
     this._settingVisibility = false;
   }
 
+  applyTransform(itemIDs: Iterable<number>, transform: THREE.Matrix4) {
+    const tempMatrix = new THREE.Matrix4();
+    for (const itemID of itemIDs) {
+      const instances = this.getInstancesIDs(itemID);
+      if (instances === null) {
+        continue;
+      }
+      for (const instanceID of instances) {
+        this.mesh.getMatrixAt(instanceID, tempMatrix);
+        tempMatrix.premultiply(transform);
+        this.mesh.setMatrixAt(instanceID, tempMatrix);
+      }
+    }
+  }
+
   exportData() {
     const geometry = this.mesh.exportData();
     const ids = Array.from(this.ids);
