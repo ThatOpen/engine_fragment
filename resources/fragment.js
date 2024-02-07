@@ -5994,6 +5994,9 @@ class FragmentsGroup extends THREE.Group {
         this.keyFragments.clear();
         this.data.clear();
         this.properties = {};
+        this.removeFromParent();
+        this.items = [];
+        this.ifcCivil = undefined;
     }
 }
 
