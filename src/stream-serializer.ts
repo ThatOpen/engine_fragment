@@ -8,7 +8,7 @@ export class StreamSerializer {
 
     const fbGeoms = FB.StreamedGeometries.getRootAsStreamedGeometries(buffer);
 
-    const geometries: StreamedGeometries = {};
+    const geometries: StreamedGeometries = new Map();
 
     const length = fbGeoms.geometriesLength();
     for (let i = 0; i < length; i++) {
@@ -29,7 +29,7 @@ export class StreamSerializer {
         continue;
       }
 
-      geometries[id] = { position, normal, index };
+      geometries.set(id, { position, normal, index });
     }
 
     return geometries;
@@ -42,16 +42,13 @@ export class StreamSerializer {
     const Gs = FB.StreamedGeometries;
     const G = FB.StreamedGeometry;
 
-    for (const geometryID in geometries) {
-      const idStr = builder.createString(geometryID);
-
-      const { index, position, normal } = geometries[geometryID];
+    for (const [id, { index, position, normal }] of geometries) {
       const indexVector = G.createIndexVector(builder, index);
       const posVector = G.createPositionVector(builder, position);
       const norVector = G.createNormalVector(builder, normal);
 
       G.startStreamedGeometry(builder);
-      G.addGeometryId(builder, idStr);
+      G.addGeometryId(builder, id);
       G.addIndex(builder, indexVector);
       G.addPosition(builder, posVector);
       G.addNormal(builder, norVector);

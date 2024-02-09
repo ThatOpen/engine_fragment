@@ -26,13 +26,10 @@ export interface FragmentIdMap {
   [fragmentID: string]: Set<number>;
 }
 
-export interface StreamedGeometries {
-  [id: string]: {
-    position: Float32Array;
-    normal: Float32Array;
-    index: Uint32Array;
-  };
-}
+export type StreamedGeometries = Map<
+  number,
+  { position: Float32Array; normal: Float32Array; index: Uint32Array }
+>;
 
 export interface IndexedGeometry extends THREE.BufferGeometry {
   index: BufferAttribute;

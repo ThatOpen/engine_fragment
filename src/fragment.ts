@@ -275,6 +275,7 @@ export class Fragment {
         this.mesh.setMatrixAt(instanceID, tempMatrix);
       }
     }
+    this.update();
   }
 
   exportData() {
