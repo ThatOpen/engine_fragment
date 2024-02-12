@@ -228,7 +228,7 @@ export class Fragment {
     }
   }
 
-  setVisibility(visible: boolean, itemIDs = this.ids) {
+  setVisibility(visible: boolean, itemIDs = this.ids as Iterable<number>) {
     if (this._settingVisibility) return;
     this._settingVisibility = true;
     if (visible) {
