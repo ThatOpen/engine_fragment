@@ -4256,13 +4256,18 @@ let Fragment$1 = class Fragment {
         }
         const necessaryCapacity = this.mesh.count + size;
         if (necessaryCapacity > this.capacity) {
-            const newMesh = new FragmentMesh(this.mesh.geometry, this.mesh.material, necessaryCapacity + this.capacityOffset, this);
+            const newCapacity = necessaryCapacity + this.capacityOffset;
+            const newMesh = new FragmentMesh(this.mesh.geometry, this.mesh.material, newCapacity, this);
             newMesh.count = this.mesh.count;
-            this.capacity = size;
+            this.capacity = newCapacity;
             const oldMesh = this.mesh;
             (_a = oldMesh.parent) === null || _a === void 0 ? void 0 : _a.add(newMesh);
             oldMesh.removeFromParent();
             this.mesh = newMesh;
+            newMesh.instanceMatrix = oldMesh.instanceMatrix;
+            newMesh.instanceColor = oldMesh.instanceColor;
+            oldMesh.instanceMatrix = undefined;
+            oldMesh.instanceColor = null;
             oldMesh.dispose();
         }
         for (let i = 0; i < items.length; i++) {

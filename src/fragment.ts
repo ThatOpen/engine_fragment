@@ -120,20 +120,27 @@ export class Fragment {
     const necessaryCapacity = this.mesh.count + size;
 
     if (necessaryCapacity > this.capacity) {
+      const newCapacity = necessaryCapacity + this.capacityOffset;
       const newMesh = new FragmentMesh(
         this.mesh.geometry,
         this.mesh.material,
-        necessaryCapacity + this.capacityOffset,
+        newCapacity,
         this
       );
 
       newMesh.count = this.mesh.count;
 
-      this.capacity = size;
+      this.capacity = newCapacity;
       const oldMesh = this.mesh;
       oldMesh.parent?.add(newMesh);
       oldMesh.removeFromParent();
       this.mesh = newMesh;
+
+      newMesh.instanceMatrix = oldMesh.instanceMatrix;
+      newMesh.instanceColor = oldMesh.instanceColor;
+
+      oldMesh.instanceMatrix = undefined as any;
+      oldMesh.instanceColor = null;
       oldMesh.dispose();
     }
 
