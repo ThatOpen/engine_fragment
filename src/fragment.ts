@@ -89,6 +89,7 @@ export class Fragment {
       if (this.mesh.instanceColor) {
         const color = new THREE.Color();
         this.mesh.getColorAt(id, color);
+        colorsArray.push(color);
       }
     }
     const colors = colorsArray.length ? colorsArray : undefined;
