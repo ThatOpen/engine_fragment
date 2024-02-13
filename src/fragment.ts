@@ -136,8 +136,19 @@ export class Fragment {
       oldMesh.removeFromParent();
       this.mesh = newMesh;
 
-      newMesh.instanceMatrix = oldMesh.instanceMatrix;
-      newMesh.instanceColor = oldMesh.instanceColor;
+      const tempMatrix = new THREE.Matrix4();
+      for (let i = 0; i < oldMesh.instanceMatrix.count; i++) {
+        oldMesh.setMatrixAt(i, tempMatrix);
+        newMesh.setMatrixAt(i, tempMatrix);
+      }
+
+      if (oldMesh.instanceColor) {
+        const tempColor = new THREE.Color();
+        for (let i = 0; i < oldMesh.instanceColor.count; i++) {
+          oldMesh.getColorAt(i, tempColor);
+          newMesh.setColorAt(i, tempColor);
+        }
+      }
 
       oldMesh.instanceMatrix = undefined as any;
       oldMesh.instanceColor = null;
