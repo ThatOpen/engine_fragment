@@ -5708,8 +5708,6 @@ let Fragment$1 = class Fragment {
                     newMesh.setColorAt(i, tempColor);
                 }
             }
-            oldMesh.instanceMatrix = undefined;
-            oldMesh.instanceColor = null;
             oldMesh.dispose();
         }
         for (let i = 0; i < items.length; i++) {

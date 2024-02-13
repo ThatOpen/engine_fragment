@@ -150,8 +150,6 @@ export class Fragment {
         }
       }
 
-      oldMesh.instanceMatrix = undefined as any;
-      oldMesh.instanceColor = null;
       oldMesh.dispose();
     }
 
