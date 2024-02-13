@@ -138,7 +138,7 @@ export class Fragment {
 
       const tempMatrix = new THREE.Matrix4();
       for (let i = 0; i < oldMesh.instanceMatrix.count; i++) {
-        oldMesh.setMatrixAt(i, tempMatrix);
+        oldMesh.getMatrixAt(i, tempMatrix);
         newMesh.setMatrixAt(i, tempMatrix);
       }
 

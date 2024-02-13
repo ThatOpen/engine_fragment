@@ -1765,7 +1765,7 @@ __metadata:
     prettier: ^2.3.1
     rollup: ^3.2.3
     three: ^0.160.1
-    three-mesh-bvh: 0.6.0
+    three-mesh-bvh: 0.7.0
     ts-jest: ^27.0.3
     ts-node: ^10.0.0
     typescript: ^4.3.2
@@ -6767,12 +6767,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"three-mesh-bvh@npm:0.6.0":
-  version: 0.6.0
-  resolution: "three-mesh-bvh@npm:0.6.0"
+"three-mesh-bvh@npm:0.7.0":
+  version: 0.7.0
+  resolution: "three-mesh-bvh@npm:0.7.0"
   peerDependencies:
     three: ">= 0.151.0"
-  checksum: bafa9c912be4137ae5bb440584deff5953abd3196f7e4c38ecfb279ed16abc7a570d9e89a0d998d1e77dc0f532f8524f393b4bc0a0755e3debd1968ee05f97fe
+  checksum: 888259676dfc975d184a8536fd42a870d02704309348677fbcd94a8b710e16749af8806a9e52801992bd00f39feb971863165cdcab4853fa6a3b67447443dfba
   languageName: node
   linkType: hard
 

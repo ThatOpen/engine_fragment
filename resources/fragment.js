@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BufferAttribute, Vector3, Vector2, Plane, Line3, Triangle, Sphere, Matrix4, BackSide, DoubleSide, Box3, FrontSide, Mesh, Ray, BufferGeometry } from 'three';
+import { BufferAttribute, Vector3, Vector2, Plane, Line3, Triangle, Sphere, Matrix4, Box3, BackSide, DoubleSide, FrontSide, Mesh, Ray, BufferGeometry } from 'three';
 
 class FragmentMesh extends THREE.InstancedMesh {
     constructor(geometry, material, count, fragment) {
@@ -83,14 +83,141 @@ const IS_LEAFNODE_FLAG = 0xFFFF;
 // https://en.wikipedia.org/wiki/Machine_epsilon#Values_for_standard_hardware_floating_point_arithmetics
 const FLOAT32_EPSILON = Math.pow( 2, - 24 );
 
-class MeshBVHNode {
+const SKIP_GENERATION = Symbol( 'SKIP_GENERATION' );
 
-	constructor() {
+function getVertexCount( geo ) {
 
-		// internal nodes have boundingData, left, right, and splitAxis
-		// leaf nodes have offset and count (referring to primitives in the mesh geometry)
+	return geo.index ? geo.index.count : geo.attributes.position.count;
+
+}
+
+function getTriCount( geo ) {
+
+	return getVertexCount( geo ) / 3;
+
+}
+
+function getIndexArray( vertexCount, BufferConstructor = ArrayBuffer ) {
+
+	if ( vertexCount > 65535 ) {
+
+		return new Uint32Array( new BufferConstructor( 4 * vertexCount ) );
+
+	} else {
+
+		return new Uint16Array( new BufferConstructor( 2 * vertexCount ) );
 
 	}
+
+}
+
+// ensures that an index is present on the geometry
+function ensureIndex( geo, options ) {
+
+	if ( ! geo.index ) {
+
+		const vertexCount = geo.attributes.position.count;
+		const BufferConstructor = options.useSharedArrayBuffer ? SharedArrayBuffer : ArrayBuffer;
+		const index = getIndexArray( vertexCount, BufferConstructor );
+		geo.setIndex( new BufferAttribute( index, 1 ) );
+
+		for ( let i = 0; i < vertexCount; i ++ ) {
+
+			index[ i ] = i;
+
+		}
+
+	}
+
+}
+
+// Computes the set of { offset, count } ranges which need independent BVH roots. Each
+// region in the geometry index that belongs to a different set of material groups requires
+// a separate BVH root, so that triangles indices belonging to one group never get swapped
+// with triangle indices belongs to another group. For example, if the groups were like this:
+//
+// [-------------------------------------------------------------]
+// |__________________|
+//   g0 = [0, 20]  |______________________||_____________________|
+//                      g1 = [16, 40]           g2 = [41, 60]
+//
+// we would need four BVH roots: [0, 15], [16, 20], [21, 40], [41, 60].
+function getFullGeometryRange( geo ) {
+
+	const triCount = getTriCount( geo );
+	const drawRange = geo.drawRange;
+	const start = drawRange.start / 3;
+	const end = ( drawRange.start + drawRange.count ) / 3;
+
+	const offset = Math.max( 0, start );
+	const count = Math.min( triCount, end ) - offset;
+	return [ {
+		offset: Math.floor( offset ),
+		count: Math.floor( count ),
+	} ];
+
+}
+
+function getRootIndexRanges( geo ) {
+
+	if ( ! geo.groups || ! geo.groups.length ) {
+
+		return getFullGeometryRange( geo );
+
+	}
+
+	const ranges = [];
+	const rangeBoundaries = new Set();
+
+	const drawRange = geo.drawRange;
+	const drawRangeStart = drawRange.start / 3;
+	const drawRangeEnd = ( drawRange.start + drawRange.count ) / 3;
+	for ( const group of geo.groups ) {
+
+		const groupStart = group.start / 3;
+		const groupEnd = ( group.start + group.count ) / 3;
+		rangeBoundaries.add( Math.max( drawRangeStart, groupStart ) );
+		rangeBoundaries.add( Math.min( drawRangeEnd, groupEnd ) );
+
+	}
+
+
+	// note that if you don't pass in a comparator, it sorts them lexicographically as strings :-(
+	const sortedBoundaries = Array.from( rangeBoundaries.values() ).sort( ( a, b ) => a - b );
+	for ( let i = 0; i < sortedBoundaries.length - 1; i ++ ) {
+
+		const start = sortedBoundaries[ i ];
+		const end = sortedBoundaries[ i + 1 ];
+
+		ranges.push( {
+			offset: Math.floor( start ),
+			count: Math.floor( end - start ),
+		} );
+
+	}
+
+	return ranges;
+
+}
+
+function hasGroupGaps( geometry ) {
+
+	if ( geometry.groups.length === 0 ) {
+
+		return false;
+
+	}
+
+	const vertexCount = getTriCount( geometry );
+	const groups = getRootIndexRanges( geometry )
+		.sort( ( a, b ) => a.offset - b.offset );
+
+	const finalGroup = groups[ groups.length - 1 ];
+	finalGroup.count = Math.min( vertexCount - finalGroup.offset, finalGroup.count );
+
+	let total = 0;
+	groups.forEach( ( { count } ) => total += count );
+	return vertexCount !== total;
 
 }
 
@@ -105,6 +232,13 @@ function arrayToBox( nodeIndex32, array, target ) {
 	target.max.z = array[ nodeIndex32 + 5 ];
 
 	return target;
+
+}
+
+function makeEmptyBounds( target ) {
+
+	target[ 0 ] = target[ 1 ] = target[ 2 ] = Infinity;
+	target[ 3 ] = target[ 4 ] = target[ 5 ] = - Infinity;
 
 }
 
@@ -193,76 +327,6 @@ function computeSurfaceArea( bounds ) {
 	const d2 = bounds[ 5 ] - bounds[ 2 ];
 
 	return 2 * ( d0 * d1 + d1 * d2 + d2 * d0 );
-
-}
-
-function ensureIndex( geo, options ) {
-
-	if ( ! geo.index ) {
-
-		const vertexCount = geo.attributes.position.count;
-		const BufferConstructor = options.useSharedArrayBuffer ? SharedArrayBuffer : ArrayBuffer;
-		let index;
-		if ( vertexCount > 65535 ) {
-
-			index = new Uint32Array( new BufferConstructor( 4 * vertexCount ) );
-
-		} else {
-
-			index = new Uint16Array( new BufferConstructor( 2 * vertexCount ) );
-
-		}
-
-		geo.setIndex( new BufferAttribute( index, 1 ) );
-
-		for ( let i = 0; i < vertexCount; i ++ ) {
-
-			index[ i ] = i;
-
-		}
-
-	}
-
-}
-
-// Computes the set of { offset, count } ranges which need independent BVH roots. Each
-// region in the geometry index that belongs to a different set of material groups requires
-// a separate BVH root, so that triangles indices belonging to one group never get swapped
-// with triangle indices belongs to another group. For example, if the groups were like this:
-//
-// [-------------------------------------------------------------]
-// |__________________|
-//   g0 = [0, 20]  |______________________||_____________________|
-//                      g1 = [16, 40]           g2 = [41, 60]
-//
-// we would need four BVH roots: [0, 15], [16, 20], [21, 40], [41, 60].
-function getRootIndexRanges( geo ) {
-
-	if ( ! geo.groups || ! geo.groups.length ) {
-
-		return [ { offset: 0, count: geo.index.count / 3 } ];
-
-	}
-
-	const ranges = [];
-	const rangeBoundaries = new Set();
-	for ( const group of geo.groups ) {
-
-		rangeBoundaries.add( group.start );
-		rangeBoundaries.add( group.start + group.count );
-
-	}
-
-	// note that if you don't pass in a comparator, it sorts them lexicographically as strings :-(
-	const sortedBoundaries = Array.from( rangeBoundaries.values() ).sort( ( a, b ) => a - b );
-	for ( let i = 0; i < sortedBoundaries.length - 1; i ++ ) {
-
-		const start = sortedBoundaries[ i ], end = sortedBoundaries[ i + 1 ];
-		ranges.push( { offset: ( start / 3 ), count: ( end - start ) / 3 } );
-
-	}
-
-	return ranges;
 
 }
 
@@ -376,65 +440,105 @@ function getCentroidBounds( triangleBounds, offset, count, centroidTarget ) {
 }
 
 
-// reorders `tris` such that for `count` elements after `offset`, elements on the left side of the split
-// will be on the left and elements on the right side of the split will be on the right. returns the index
-// of the first element on the right side, or offset + count if there are no elements on the right side.
-function partition( index, triangleBounds, offset, count, split ) {
+// precomputes the bounding box for each triangle; required for quickly calculating tree splits.
+// result is an array of size tris.length * 6 where triangle i maps to a
+// [x_center, x_delta, y_center, y_delta, z_center, z_delta] tuple starting at index i * 6,
+// representing the center and half-extent in each dimension of triangle i
+function computeTriangleBounds( geo, fullBounds ) {
 
-	let left = offset;
-	let right = offset + count - 1;
-	const pos = split.pos;
-	const axisOffset = split.axis * 2;
+	// clear the bounds to empty
+	makeEmptyBounds( fullBounds );
 
-	// hoare partitioning, see e.g. https://en.wikipedia.org/wiki/Quicksort#Hoare_partition_scheme
-	while ( true ) {
+	const posAttr = geo.attributes.position;
+	const index = geo.index ? geo.index.array : null;
+	const triCount = getTriCount( geo );
+	const triangleBounds = new Float32Array( triCount * 6 );
+	const normalized = posAttr.normalized;
 
-		while ( left <= right && triangleBounds[ left * 6 + axisOffset ] < pos ) {
+	// used for non-normalized positions
+	const posArr = posAttr.array;
 
-			left ++;
+	// support for an interleaved position buffer
+	const bufferOffset = posAttr.offset || 0;
+	let stride = 3;
+	if ( posAttr.isInterleavedBufferAttribute ) {
+
+		stride = posAttr.data.stride;
+
+	}
+
+	// used for normalized positions
+	const getters = [ 'getX', 'getY', 'getZ' ];
+
+	for ( let tri = 0; tri < triCount; tri ++ ) {
+
+		const tri3 = tri * 3;
+		const tri6 = tri * 6;
+
+		let ai = tri3 + 0;
+		let bi = tri3 + 1;
+		let ci = tri3 + 2;
+
+		if ( index ) {
+
+			ai = index[ ai ];
+			bi = index[ bi ];
+			ci = index[ ci ];
 
 		}
 
+		// we add the stride and offset here since we access the array directly
+		// below for the sake of performance
+		if ( ! normalized ) {
 
-		// if a triangle center lies on the partition plane it is considered to be on the right side
-		while ( left <= right && triangleBounds[ right * 6 + axisOffset ] >= pos ) {
-
-			right --;
+			ai = ai * stride + bufferOffset;
+			bi = bi * stride + bufferOffset;
+			ci = ci * stride + bufferOffset;
 
 		}
 
-		if ( left < right ) {
+		for ( let el = 0; el < 3; el ++ ) {
 
-			// we need to swap all of the information associated with the triangles at index
-			// left and right; that's the verts in the geometry index, the bounds,
-			// and perhaps the SAH planes
+			let a, b, c;
 
-			for ( let i = 0; i < 3; i ++ ) {
+			if ( normalized ) {
 
-				let t0 = index[ left * 3 + i ];
-				index[ left * 3 + i ] = index[ right * 3 + i ];
-				index[ right * 3 + i ] = t0;
+				a = posAttr[ getters[ el ] ]( ai );
+				b = posAttr[ getters[ el ] ]( bi );
+				c = posAttr[ getters[ el ] ]( ci );
 
-				let t1 = triangleBounds[ left * 6 + i * 2 + 0 ];
-				triangleBounds[ left * 6 + i * 2 + 0 ] = triangleBounds[ right * 6 + i * 2 + 0 ];
-				triangleBounds[ right * 6 + i * 2 + 0 ] = t1;
+			} else {
 
-				let t2 = triangleBounds[ left * 6 + i * 2 + 1 ];
-				triangleBounds[ left * 6 + i * 2 + 1 ] = triangleBounds[ right * 6 + i * 2 + 1 ];
-				triangleBounds[ right * 6 + i * 2 + 1 ] = t2;
+				a = posArr[ ai + el ];
+				b = posArr[ bi + el ];
+				c = posArr[ ci + el ];
 
 			}
 
-			left ++;
-			right --;
+			let min = a;
+			if ( b < min ) min = b;
+			if ( c < min ) min = c;
 
-		} else {
+			let max = a;
+			if ( b > max ) max = b;
+			if ( c > max ) max = c;
 
-			return left;
+			// Increase the bounds size by float32 epsilon to avoid precision errors when
+			// converting to 32 bit float. Scale the epsilon by the size of the numbers being
+			// worked with.
+			const halfExtents = ( max - min ) / 2;
+			const el2 = el * 2;
+			triangleBounds[ tri6 + el2 + 0 ] = min + halfExtents;
+			triangleBounds[ tri6 + el2 + 1 ] = halfExtents + ( Math.abs( min ) + halfExtents ) * FLOAT32_EPSILON;
+
+			if ( min < fullBounds[ el ] ) fullBounds[ el ] = min;
+			if ( max > fullBounds[ el + 3 ] ) fullBounds[ el + 3 ] = max;
 
 		}
 
 	}
+
+	return triangleBounds;
 
 }
 
@@ -743,100 +847,212 @@ function getAverage( triangleBounds, offset, count, axis ) {
 
 }
 
-// precomputes the bounding box for each triangle; required for quickly calculating tree splits.
-// result is an array of size tris.length * 6 where triangle i maps to a
-// [x_center, x_delta, y_center, y_delta, z_center, z_delta] tuple starting at index i * 6,
-// representing the center and half-extent in each dimension of triangle i
-function computeTriangleBounds( geo, fullBounds ) {
+class MeshBVHNode {
 
-	const posAttr = geo.attributes.position;
-	const index = geo.index.array;
-	const triCount = index.length / 3;
-	const triangleBounds = new Float32Array( triCount * 6 );
-	const normalized = posAttr.normalized;
+	constructor() {
 
-	// used for non-normalized positions
-	const posArr = posAttr.array;
-
-	// support for an interleaved position buffer
-	const bufferOffset = posAttr.offset || 0;
-	let stride = 3;
-	if ( posAttr.isInterleavedBufferAttribute ) {
-
-		stride = posAttr.data.stride;
+		// internal nodes have boundingData, left, right, and splitAxis
+		// leaf nodes have offset and count (referring to primitives in the mesh geometry)
 
 	}
-
-	// used for normalized positions
-	const getters = [ 'getX', 'getY', 'getZ' ];
-
-	for ( let tri = 0; tri < triCount; tri ++ ) {
-
-		const tri3 = tri * 3;
-		const tri6 = tri * 6;
-
-		let ai, bi, ci;
-
-		if ( normalized ) {
-
-			ai = index[ tri3 + 0 ];
-			bi = index[ tri3 + 1 ];
-			ci = index[ tri3 + 2 ];
-
-		} else {
-
-			ai = index[ tri3 + 0 ] * stride + bufferOffset;
-			bi = index[ tri3 + 1 ] * stride + bufferOffset;
-			ci = index[ tri3 + 2 ] * stride + bufferOffset;
-
-		}
-
-		for ( let el = 0; el < 3; el ++ ) {
-
-			let a, b, c;
-
-			if ( normalized ) {
-
-				a = posAttr[ getters[ el ] ]( ai );
-				b = posAttr[ getters[ el ] ]( bi );
-				c = posAttr[ getters[ el ] ]( ci );
-
-			} else {
-
-				a = posArr[ ai + el ];
-				b = posArr[ bi + el ];
-				c = posArr[ ci + el ];
-
-			}
-
-			let min = a;
-			if ( b < min ) min = b;
-			if ( c < min ) min = c;
-
-			let max = a;
-			if ( b > max ) max = b;
-			if ( c > max ) max = c;
-
-			// Increase the bounds size by float32 epsilon to avoid precision errors when
-			// converting to 32 bit float. Scale the epsilon by the size of the numbers being
-			// worked with.
-			const halfExtents = ( max - min ) / 2;
-			const el2 = el * 2;
-			triangleBounds[ tri6 + el2 + 0 ] = min + halfExtents;
-			triangleBounds[ tri6 + el2 + 1 ] = halfExtents + ( Math.abs( min ) + halfExtents ) * FLOAT32_EPSILON;
-
-			if ( min < fullBounds[ el ] ) fullBounds[ el ] = min;
-			if ( max > fullBounds[ el + 3 ] ) fullBounds[ el + 3 ] = max;
-
-		}
-
-	}
-
-	return triangleBounds;
 
 }
 
-function buildTree( geo, options ) {
+/********************************************************/
+/* This file is generated from "sortUtils.template.js". */
+/********************************************************/
+// reorders `tris` such that for `count` elements after `offset`, elements on the left side of the split
+// will be on the left and elements on the right side of the split will be on the right. returns the index
+// of the first element on the right side, or offset + count if there are no elements on the right side.
+function partition( indirectBuffer, index, triangleBounds, offset, count, split ) {
+
+	let left = offset;
+	let right = offset + count - 1;
+	const pos = split.pos;
+	const axisOffset = split.axis * 2;
+
+	// hoare partitioning, see e.g. https://en.wikipedia.org/wiki/Quicksort#Hoare_partition_scheme
+	while ( true ) {
+
+		while ( left <= right && triangleBounds[ left * 6 + axisOffset ] < pos ) {
+
+			left ++;
+
+		}
+
+		// if a triangle center lies on the partition plane it is considered to be on the right side
+		while ( left <= right && triangleBounds[ right * 6 + axisOffset ] >= pos ) {
+
+			right --;
+
+		}
+
+		if ( left < right ) {
+
+			// we need to swap all of the information associated with the triangles at index
+			// left and right; that's the verts in the geometry index, the bounds,
+			// and perhaps the SAH planes
+
+			for ( let i = 0; i < 3; i ++ ) {
+
+				let t0 = index[ left * 3 + i ];
+				index[ left * 3 + i ] = index[ right * 3 + i ];
+				index[ right * 3 + i ] = t0;
+
+			}
+
+
+			// swap bounds
+			for ( let i = 0; i < 6; i ++ ) {
+
+				let tb = triangleBounds[ left * 6 + i ];
+				triangleBounds[ left * 6 + i ] = triangleBounds[ right * 6 + i ];
+				triangleBounds[ right * 6 + i ] = tb;
+
+			}
+
+			left ++;
+			right --;
+
+		} else {
+
+			return left;
+
+		}
+
+	}
+
+}
+
+/********************************************************/
+/* This file is generated from "sortUtils.template.js". */
+/********************************************************/
+// reorders `tris` such that for `count` elements after `offset`, elements on the left side of the split
+// will be on the left and elements on the right side of the split will be on the right. returns the index
+// of the first element on the right side, or offset + count if there are no elements on the right side.
+function partition_indirect( indirectBuffer, index, triangleBounds, offset, count, split ) {
+
+	let left = offset;
+	let right = offset + count - 1;
+	const pos = split.pos;
+	const axisOffset = split.axis * 2;
+
+	// hoare partitioning, see e.g. https://en.wikipedia.org/wiki/Quicksort#Hoare_partition_scheme
+	while ( true ) {
+
+		while ( left <= right && triangleBounds[ left * 6 + axisOffset ] < pos ) {
+
+			left ++;
+
+		}
+
+		// if a triangle center lies on the partition plane it is considered to be on the right side
+		while ( left <= right && triangleBounds[ right * 6 + axisOffset ] >= pos ) {
+
+			right --;
+
+		}
+
+		if ( left < right ) {
+
+			// we need to swap all of the information associated with the triangles at index
+			// left and right; that's the verts in the geometry index, the bounds,
+			// and perhaps the SAH planes
+			let t = indirectBuffer[ left ];
+			indirectBuffer[ left ] = indirectBuffer[ right ];
+			indirectBuffer[ right ] = t;
+
+
+			// swap bounds
+			for ( let i = 0; i < 6; i ++ ) {
+
+				let tb = triangleBounds[ left * 6 + i ];
+				triangleBounds[ left * 6 + i ] = triangleBounds[ right * 6 + i ];
+				triangleBounds[ right * 6 + i ] = tb;
+
+			}
+
+			left ++;
+			right --;
+
+		} else {
+
+			return left;
+
+		}
+
+	}
+
+}
+
+function generateIndirectBuffer( geometry, useSharedArrayBuffer ) {
+
+	const triCount = ( geometry.index ? geometry.index.count : geometry.attributes.position.count ) / 3;
+	const useUint32 = triCount > 2 ** 16;
+	const byteCount = useUint32 ? 4 : 2;
+
+	const buffer = useSharedArrayBuffer ? new SharedArrayBuffer( triCount * byteCount ) : new ArrayBuffer( triCount * byteCount );
+	const indirectBuffer = useUint32 ? new Uint32Array( buffer ) : new Uint16Array( buffer );
+	for ( let i = 0, l = indirectBuffer.length; i < l; i ++ ) {
+
+		indirectBuffer[ i ] = i;
+
+	}
+
+	return indirectBuffer;
+
+}
+
+function buildTree( bvh, options ) {
+
+	// Compute the full bounds of the geometry at the same time as triangle bounds because
+	// we'll need it for the root bounds in the case with no groups and it should be fast here.
+	// We can't use the geometry bounding box if it's available because it may be out of date.
+	const geometry = bvh.geometry;
+	const indexArray = geometry.index ? geometry.index.array : null;
+	const maxDepth = options.maxDepth;
+	const verbose = options.verbose;
+	const maxLeafTris = options.maxLeafTris;
+	const strategy = options.strategy;
+	const onProgress = options.onProgress;
+	const totalTriangles = getTriCount( geometry );
+	const indirectBuffer = bvh._indirectBuffer;
+	let reachedMaxDepth = false;
+
+	const fullBounds = new Float32Array( 6 );
+	const cacheCentroidBoundingData = new Float32Array( 6 );
+	const triangleBounds = computeTriangleBounds( geometry, fullBounds );
+	const partionFunc = options.indirect ? partition_indirect : partition;
+
+	const roots = [];
+	const ranges = options.indirect ? getFullGeometryRange( geometry ) : getRootIndexRanges( geometry );
+
+	if ( ranges.length === 1 ) {
+
+		const range = ranges[ 0 ];
+		const root = new MeshBVHNode();
+		root.boundingData = fullBounds;
+		getCentroidBounds( triangleBounds, range.offset, range.count, cacheCentroidBoundingData );
+
+		splitNode( root, range.offset, range.count, cacheCentroidBoundingData );
+		roots.push( root );
+
+	} else {
+
+		for ( let range of ranges ) {
+
+			const root = new MeshBVHNode();
+			root.boundingData = new Float32Array( 6 );
+			getBounds( triangleBounds, range.offset, range.count, root.boundingData, cacheCentroidBoundingData );
+
+			splitNode( root, range.offset, range.count, cacheCentroidBoundingData );
+			roots.push( root );
+
+		}
+
+	}
+
+	return roots;
 
 	function triggerProgress( trianglesProcessed ) {
 
@@ -858,7 +1074,7 @@ function buildTree( geo, options ) {
 			if ( verbose ) {
 
 				console.warn( `MeshBVH: Max depth of ${ maxDepth } reached when generating BVH. Consider increasing maxDepth.` );
-				console.warn( geo );
+				console.warn( geometry );
 
 			}
 
@@ -885,7 +1101,7 @@ function buildTree( geo, options ) {
 
 		}
 
-		const splitOffset = partition( indexArray, triangleBounds, offset, count, split );
+		const splitOffset = partionFunc( indirectBuffer, indexArray, triangleBounds, offset, count, split );
 
 		// create the two new child nodes
 		if ( splitOffset === offset || splitOffset === offset + count ) {
@@ -924,61 +1140,36 @@ function buildTree( geo, options ) {
 
 	}
 
-	ensureIndex( geo, options );
+}
 
-	// Compute the full bounds of the geometry at the same time as triangle bounds because
-	// we'll need it for the root bounds in the case with no groups and it should be fast here.
-	// We can't use the geometrying bounding box if it's available because it may be out of date.
-	const fullBounds = new Float32Array( 6 );
-	const cacheCentroidBoundingData = new Float32Array( 6 );
-	const triangleBounds = computeTriangleBounds( geo, fullBounds );
-	const indexArray = geo.index.array;
-	const maxDepth = options.maxDepth;
-	const verbose = options.verbose;
-	const maxLeafTris = options.maxLeafTris;
-	const strategy = options.strategy;
-	const onProgress = options.onProgress;
-	const totalTriangles = geo.index.count / 3;
-	let reachedMaxDepth = false;
+function buildPackedTree( bvh, options ) {
 
-	const roots = [];
-	const ranges = getRootIndexRanges( geo );
+	const geometry = bvh.geometry;
+	if ( options.indirect ) {
 
-	if ( ranges.length === 1 ) {
+		bvh._indirectBuffer = generateIndirectBuffer( geometry, options.useSharedArrayBuffer );
 
-		const range = ranges[ 0 ];
-		const root = new MeshBVHNode();
-		root.boundingData = fullBounds;
-		getCentroidBounds( triangleBounds, range.offset, range.count, cacheCentroidBoundingData );
+		if ( hasGroupGaps( geometry ) && ! options.verbose ) {
 
-		splitNode( root, range.offset, range.count, cacheCentroidBoundingData );
-		roots.push( root );
-
-	} else {
-
-		for ( let range of ranges ) {
-
-			const root = new MeshBVHNode();
-			root.boundingData = new Float32Array( 6 );
-			getBounds( triangleBounds, range.offset, range.count, root.boundingData, cacheCentroidBoundingData );
-
-			splitNode( root, range.offset, range.count, cacheCentroidBoundingData );
-			roots.push( root );
+			console.warn(
+				'MeshBVH: Provided geometry contains groups that do not fully span the vertex contents while using the "indirect" option. ' +
+				'BVH may incorrectly report intersections on unrendered portions of the geometry.'
+			);
 
 		}
 
 	}
 
-	return roots;
+	if ( ! bvh._indirectBuffer ) {
 
-}
+		ensureIndex( geometry, options );
 
-function buildPackedTree( geo, options ) {
+	}
 
 	// boundingData  				: 6 float32
 	// right / offset 				: 1 uint32
 	// splitAxis / isLeaf + count 	: 1 uint32 / 2 uint16
-	const roots = buildTree( geo, options );
+	const roots = buildTree( bvh, options );
 
 	let float32Array;
 	let uint32Array;
@@ -999,7 +1190,8 @@ function buildPackedTree( geo, options ) {
 
 	}
 
-	return packedRoots;
+	bvh._roots = packedRoots;
+	return;
 
 	function countNodes( node ) {
 
@@ -1354,10 +1546,10 @@ const sphereIntersectTriangle = ( function () {
 
 } )();
 
-const DIST_EPSILON = 1e-15;
+const ZERO_EPSILON = 1e-15;
 function isNearZero( value ) {
 
-	return Math.abs( value ) < DIST_EPSILON;
+	return Math.abs( value ) < ZERO_EPSILON;
 
 }
 
@@ -1489,12 +1681,86 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 	const cachedSatBounds = new SeparatingAxisBounds();
 	const cachedSatBounds2 = new SeparatingAxisBounds();
 	const cachedAxis = new Vector3();
+	const dir = new Vector3();
 	const dir1 = new Vector3();
 	const dir2 = new Vector3();
 	const tempDir = new Vector3();
 	const edge = new Line3();
 	const edge1 = new Line3();
 	const edge2 = new Line3();
+	const tempPoint = new Vector3();
+
+	function triIntersectPlane( tri, plane, targetEdge ) {
+
+		// find the edge that intersects the other triangle plane
+		const points = tri.points;
+		let count = 0;
+		let startPointIntersection = - 1;
+		for ( let i = 0; i < 3; i ++ ) {
+
+			const { start, end } = edge;
+			start.copy( points[ i ] );
+			end.copy( points[ ( i + 1 ) % 3 ] );
+			edge.delta( dir );
+
+			const startIntersects = isNearZero( plane.distanceToPoint( start ) );
+			if ( isNearZero( plane.normal.dot( dir ) ) && startIntersects ) {
+
+				// if the edge lies on the plane then take the line
+				targetEdge.copy( edge );
+				count = 2;
+				break;
+
+			}
+
+			// check if the start point is near the plane because "intersectLine" is not robust to that case
+			const doesIntersect = plane.intersectLine( edge, tempPoint );
+			if ( ! doesIntersect && startIntersects ) {
+
+				tempPoint.copy( start );
+
+			}
+
+			// ignore the end point
+			if ( ( doesIntersect || startIntersects ) && ! isNearZero( tempPoint.distanceTo( end ) ) ) {
+
+				if ( count <= 1 ) {
+
+					// assign to the start or end point and save which index was snapped to
+					// the start point if necessary
+					const point = count === 1 ? targetEdge.start : targetEdge.end;
+					point.copy( tempPoint );
+					if ( startIntersects ) {
+
+						startPointIntersection = count;
+
+					}
+
+				} else if ( count >= 2 ) {
+
+					// if we're here that means that there must have been one point that had
+					// snapped to the start point so replace it here
+					const point = startPointIntersection === 1 ? targetEdge.start : targetEdge.end;
+					point.copy( tempPoint );
+					count = 2;
+					break;
+
+				}
+
+				count ++;
+				if ( count === 2 && startPointIntersection === - 1 ) {
+
+					break;
+
+				}
+
+			}
+
+		}
+
+		return count;
+
+	}
 
 	// TODO: If the triangles are coplanar and intersecting the target is nonsensical. It should at least
 	// be a line contained by both triangles if not a different special case somehow represented in the return result.
@@ -1587,46 +1853,7 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 		} else {
 
 			// find the edge that intersects the other triangle plane
-			const points1 = this.points;
-			let found1 = false;
-			let count1 = 0;
-			for ( let i = 0; i < 3; i ++ ) {
-
-				const p = points1[ i ];
-				const pNext = points1[ ( i + 1 ) % 3 ];
-
-				edge.start.copy( p );
-				edge.end.copy( pNext );
-				edge.delta( dir1 );
-
-				const targetPoint = found1 ? edge1.start : edge1.end;
-				const startIntersects = isNearZero( plane2.distanceToPoint( p ) );
-				if ( isNearZero( plane2.normal.dot( dir1 ) ) && startIntersects ) {
-
-					// if the edge lies on the plane then take the line
-					edge1.copy( edge );
-					count1 = 2;
-					break;
-
-				}
-
-				// check if the start point is near the plane because "intersectLine" is not robust to that case
-				const doesIntersect = plane2.intersectLine( edge, targetPoint ) || startIntersects;
-				if ( doesIntersect && ! isNearZero( targetPoint.distanceTo( pNext ) ) ) {
-
-					count1 ++;
-					if ( found1 ) {
-
-						break;
-
-					}
-
-					found1 = true;
-
-				}
-
-			}
-
+			const count1 = triIntersectPlane( this, plane2, edge1 );
 			if ( count1 === 1 && other.containsPoint( edge1.end ) ) {
 
 				if ( target ) {
@@ -1645,46 +1872,7 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 			}
 
 			// find the other triangles edge that intersects this plane
-			const points2 = other.points;
-			let found2 = false;
-			let count2 = 0;
-			for ( let i = 0; i < 3; i ++ ) {
-
-				const p = points2[ i ];
-				const pNext = points2[ ( i + 1 ) % 3 ];
-
-				edge.start.copy( p );
-				edge.end.copy( pNext );
-				edge.delta( dir2 );
-
-				const targetPoint = found2 ? edge2.start : edge2.end;
-				const startIntersects = isNearZero( plane1.distanceToPoint( p ) );
-				if ( isNearZero( plane1.normal.dot( dir2 ) ) && startIntersects ) {
-
-					// if the edge lies on the plane then take the line
-					edge2.copy( edge );
-					count2 = 2;
-					break;
-
-				}
-
-				// check if the start point is near the plane because "intersectLine" is not robust to that case
-				const doesIntersect = plane1.intersectLine( edge, targetPoint ) || startIntersects;
-				if ( doesIntersect && ! isNearZero( targetPoint.distanceTo( pNext ) ) ) {
-
-					count2 ++;
-					if ( found2 ) {
-
-						break;
-
-					}
-
-					found2 = true;
-
-				}
-
-			}
-
+			const count2 = triIntersectPlane( other, plane1, edge2 );
 			if ( count2 === 1 && this.containsPoint( edge2.end ) ) {
 
 				if ( target ) {
@@ -2286,6 +2474,423 @@ OrientedBox.prototype.distanceToBox = ( function () {
 
 } )();
 
+class PrimitivePool {
+
+	constructor( getNewPrimitive ) {
+
+		this._getNewPrimitive = getNewPrimitive;
+		this._primitives = [];
+
+	}
+
+	getPrimitive() {
+
+		const primitives = this._primitives;
+		if ( primitives.length === 0 ) {
+
+			return this._getNewPrimitive();
+
+		} else {
+
+			return primitives.pop();
+
+		}
+
+	}
+
+	releasePrimitive( primitive ) {
+
+		this._primitives.push( primitive );
+
+	}
+
+}
+
+class ExtendedTrianglePoolBase extends PrimitivePool {
+
+	constructor() {
+
+		super( () => new ExtendedTriangle() );
+
+	}
+
+}
+
+const ExtendedTrianglePool = /* @__PURE__ */ new ExtendedTrianglePoolBase();
+
+function IS_LEAF( n16, uint16Array ) {
+
+	return uint16Array[ n16 + 15 ] === 0xFFFF;
+
+}
+
+function OFFSET( n32, uint32Array ) {
+
+	return uint32Array[ n32 + 6 ];
+
+}
+
+function COUNT( n16, uint16Array ) {
+
+	return uint16Array[ n16 + 14 ];
+
+}
+
+function LEFT_NODE( n32 ) {
+
+	return n32 + 8;
+
+}
+
+function RIGHT_NODE( n32, uint32Array ) {
+
+	return uint32Array[ n32 + 6 ];
+
+}
+
+function SPLIT_AXIS( n32, uint32Array ) {
+
+	return uint32Array[ n32 + 7 ];
+
+}
+
+function BOUNDING_DATA_INDEX( n32 ) {
+
+	return n32;
+
+}
+
+class _BufferStack {
+
+	constructor() {
+
+		this.float32Array = null;
+		this.uint16Array = null;
+		this.uint32Array = null;
+
+		const stack = [];
+		let prevBuffer = null;
+		this.setBuffer = buffer => {
+
+			if ( prevBuffer ) {
+
+				stack.push( prevBuffer );
+
+			}
+
+			prevBuffer = buffer;
+			this.float32Array = new Float32Array( buffer );
+			this.uint16Array = new Uint16Array( buffer );
+			this.uint32Array = new Uint32Array( buffer );
+
+		};
+
+		this.clearBuffer = () => {
+
+			prevBuffer = null;
+			this.float32Array = null;
+			this.uint16Array = null;
+			this.uint32Array = null;
+
+			if ( stack.length !== 0 ) {
+
+				this.setBuffer( stack.pop() );
+
+			}
+
+		};
+
+	}
+
+}
+
+const BufferStack = new _BufferStack();
+
+let _box1, _box2;
+const boxStack = [];
+const boxPool = /* @__PURE__ */ new PrimitivePool( () => new Box3() );
+
+function shapecast( bvh, root, intersectsBounds, intersectsRange, boundsTraverseOrder, byteOffset ) {
+
+	// setup
+	_box1 = boxPool.getPrimitive();
+	_box2 = boxPool.getPrimitive();
+	boxStack.push( _box1, _box2 );
+	BufferStack.setBuffer( bvh._roots[ root ] );
+
+	const result = shapecastTraverse( 0, bvh.geometry, intersectsBounds, intersectsRange, boundsTraverseOrder, byteOffset );
+
+	// cleanup
+	BufferStack.clearBuffer();
+	boxPool.releasePrimitive( _box1 );
+	boxPool.releasePrimitive( _box2 );
+	boxStack.pop();
+	boxStack.pop();
+
+	const length = boxStack.length;
+	if ( length > 0 ) {
+
+		_box2 = boxStack[ length - 1 ];
+		_box1 = boxStack[ length - 2 ];
+
+	}
+
+	return result;
+
+}
+
+function shapecastTraverse(
+	nodeIndex32,
+	geometry,
+	intersectsBoundsFunc,
+	intersectsRangeFunc,
+	nodeScoreFunc = null,
+	nodeIndexByteOffset = 0, // offset for unique node identifier
+	depth = 0
+) {
+
+	const { float32Array, uint16Array, uint32Array } = BufferStack;
+	let nodeIndex16 = nodeIndex32 * 2;
+
+	const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
+	if ( isLeaf ) {
+
+		const offset = OFFSET( nodeIndex32, uint32Array );
+		const count = COUNT( nodeIndex16, uint16Array );
+		arrayToBox( BOUNDING_DATA_INDEX( nodeIndex32 ), float32Array, _box1 );
+		return intersectsRangeFunc( offset, count, false, depth, nodeIndexByteOffset + nodeIndex32, _box1 );
+
+	} else {
+
+		const left = LEFT_NODE( nodeIndex32 );
+		const right = RIGHT_NODE( nodeIndex32, uint32Array );
+		let c1 = left;
+		let c2 = right;
+
+		let score1, score2;
+		let box1, box2;
+		if ( nodeScoreFunc ) {
+
+			box1 = _box1;
+			box2 = _box2;
+
+			// bounding data is not offset
+			arrayToBox( BOUNDING_DATA_INDEX( c1 ), float32Array, box1 );
+			arrayToBox( BOUNDING_DATA_INDEX( c2 ), float32Array, box2 );
+
+			score1 = nodeScoreFunc( box1 );
+			score2 = nodeScoreFunc( box2 );
+
+			if ( score2 < score1 ) {
+
+				c1 = right;
+				c2 = left;
+
+				const temp = score1;
+				score1 = score2;
+				score2 = temp;
+
+				box1 = box2;
+				// box2 is always set before use below
+
+			}
+
+		}
+
+		// Check box 1 intersection
+		if ( ! box1 ) {
+
+			box1 = _box1;
+			arrayToBox( BOUNDING_DATA_INDEX( c1 ), float32Array, box1 );
+
+		}
+
+		const isC1Leaf = IS_LEAF( c1 * 2, uint16Array );
+		const c1Intersection = intersectsBoundsFunc( box1, isC1Leaf, score1, depth + 1, nodeIndexByteOffset + c1 );
+
+		let c1StopTraversal;
+		if ( c1Intersection === CONTAINED ) {
+
+			const offset = getLeftOffset( c1 );
+			const end = getRightEndOffset( c1 );
+			const count = end - offset;
+
+			c1StopTraversal = intersectsRangeFunc( offset, count, true, depth + 1, nodeIndexByteOffset + c1, box1 );
+
+		} else {
+
+			c1StopTraversal =
+				c1Intersection &&
+				shapecastTraverse(
+					c1,
+					geometry,
+					intersectsBoundsFunc,
+					intersectsRangeFunc,
+					nodeScoreFunc,
+					nodeIndexByteOffset,
+					depth + 1
+				);
+
+		}
+
+		if ( c1StopTraversal ) return true;
+
+		// Check box 2 intersection
+		// cached box2 will have been overwritten by previous traversal
+		box2 = _box2;
+		arrayToBox( BOUNDING_DATA_INDEX( c2 ), float32Array, box2 );
+
+		const isC2Leaf = IS_LEAF( c2 * 2, uint16Array );
+		const c2Intersection = intersectsBoundsFunc( box2, isC2Leaf, score2, depth + 1, nodeIndexByteOffset + c2 );
+
+		let c2StopTraversal;
+		if ( c2Intersection === CONTAINED ) {
+
+			const offset = getLeftOffset( c2 );
+			const end = getRightEndOffset( c2 );
+			const count = end - offset;
+
+			c2StopTraversal = intersectsRangeFunc( offset, count, true, depth + 1, nodeIndexByteOffset + c2, box2 );
+
+		} else {
+
+			c2StopTraversal =
+				c2Intersection &&
+				shapecastTraverse(
+					c2,
+					geometry,
+					intersectsBoundsFunc,
+					intersectsRangeFunc,
+					nodeScoreFunc,
+					nodeIndexByteOffset,
+					depth + 1
+				);
+
+		}
+
+		if ( c2StopTraversal ) return true;
+
+		return false;
+
+		// Define these inside the function so it has access to the local variables needed
+		// when converting to the buffer equivalents
+		function getLeftOffset( nodeIndex32 ) {
+
+			const { uint16Array, uint32Array } = BufferStack;
+			let nodeIndex16 = nodeIndex32 * 2;
+
+			// traverse until we find a leaf
+			while ( ! IS_LEAF( nodeIndex16, uint16Array ) ) {
+
+				nodeIndex32 = LEFT_NODE( nodeIndex32 );
+				nodeIndex16 = nodeIndex32 * 2;
+
+			}
+
+			return OFFSET( nodeIndex32, uint32Array );
+
+		}
+
+		function getRightEndOffset( nodeIndex32 ) {
+
+			const { uint16Array, uint32Array } = BufferStack;
+			let nodeIndex16 = nodeIndex32 * 2;
+
+			// traverse until we find a leaf
+			while ( ! IS_LEAF( nodeIndex16, uint16Array ) ) {
+
+				// adjust offset to point to the right node
+				nodeIndex32 = RIGHT_NODE( nodeIndex32, uint32Array );
+				nodeIndex16 = nodeIndex32 * 2;
+
+			}
+
+			// return the end offset of the triangle range
+			return OFFSET( nodeIndex32, uint32Array ) + COUNT( nodeIndex16, uint16Array );
+
+		}
+
+	}
+
+}
+
+const temp = /* @__PURE__ */ new Vector3();
+const temp1$2 = /* @__PURE__ */ new Vector3();
+
+function closestPointToPoint(
+	bvh,
+	point,
+	target = { },
+	minThreshold = 0,
+	maxThreshold = Infinity,
+) {
+
+	// early out if under minThreshold
+	// skip checking if over maxThreshold
+	// set minThreshold = maxThreshold to quickly check if a point is within a threshold
+	// returns Infinity if no value found
+	const minThresholdSq = minThreshold * minThreshold;
+	const maxThresholdSq = maxThreshold * maxThreshold;
+	let closestDistanceSq = Infinity;
+	let closestDistanceTriIndex = null;
+	bvh.shapecast(
+
+		{
+
+			boundsTraverseOrder: box => {
+
+				temp.copy( point ).clamp( box.min, box.max );
+				return temp.distanceToSquared( point );
+
+			},
+
+			intersectsBounds: ( box, isLeaf, score ) => {
+
+				return score < closestDistanceSq && score < maxThresholdSq;
+
+			},
+
+			intersectsTriangle: ( tri, triIndex ) => {
+
+				tri.closestPointToPoint( point, temp );
+				const distSq = point.distanceToSquared( temp );
+				if ( distSq < closestDistanceSq ) {
+
+					temp1$2.copy( temp );
+					closestDistanceSq = distSq;
+					closestDistanceTriIndex = triIndex;
+
+				}
+
+				if ( distSq < minThresholdSq ) {
+
+					return true;
+
+				} else {
+
+					return false;
+
+				}
+
+			},
+
+		}
+
+	);
+
+	if ( closestDistanceSq === Infinity ) return null;
+
+	const closestDistance = Math.sqrt( closestDistanceSq );
+
+	if ( ! target.point ) target.point = temp1$2.clone();
+	else target.point.copy( temp1$2 );
+	target.distance = closestDistance,
+	target.faceIndex = closestDistanceTriIndex;
+
+	return target;
+
+}
+
 // Ripped and modified From THREE.js Mesh raycast
 // https://github.com/mrdoob/three.js/blob/0aa87c999fe61e216c1133fba7a95772b503eddf/src/objects/Mesh.js#L115
 const _vA = /* @__PURE__ */ new Vector3();
@@ -2395,9 +3000,18 @@ function checkBufferGeometryIntersection( ray, position, normal, uv, uv1, a, b, 
 function intersectTri( geo, side, ray, tri, intersections ) {
 
 	const triOffset = tri * 3;
-	const a = geo.index.getX( triOffset );
-	const b = geo.index.getX( triOffset + 1 );
-	const c = geo.index.getX( triOffset + 2 );
+	let a = triOffset + 0;
+	let b = triOffset + 1;
+	let c = triOffset + 2;
+
+	const index = geo.index;
+	if ( geo.index ) {
+
+		a = index.getX( a );
+		b = index.getX( b );
+		c = index.getX( c );
+
+	}
 
 	const { position, normal, uv, uv1 } = geo.attributes;
 	const intersection = checkBufferGeometryIntersection( ray, position, normal, uv, uv1, a, b, c, side );
@@ -2414,62 +3028,6 @@ function intersectTri( geo, side, ray, tri, intersections ) {
 
 }
 
-function intersectTris( geo, side, ray, offset, count, intersections ) {
-
-	for ( let i = offset, end = offset + count; i < end; i ++ ) {
-
-		intersectTri( geo, side, ray, i, intersections );
-
-	}
-
-}
-
-function intersectClosestTri( geo, side, ray, offset, count ) {
-
-	let dist = Infinity;
-	let res = null;
-	for ( let i = offset, end = offset + count; i < end; i ++ ) {
-
-		const intersection = intersectTri( geo, side, ray, i );
-		if ( intersection && intersection.distance < dist ) {
-
-			res = intersection;
-			dist = intersection.distance;
-
-		}
-
-	}
-
-	return res;
-
-}
-
-// converts the given BVH raycast intersection to align with the three.js raycast
-// structure (include object, world space distance and point).
-function convertRaycastIntersect( hit, object, raycaster ) {
-
-	if ( hit === null ) {
-
-		return null;
-
-	}
-
-	hit.point.applyMatrix4( object.matrixWorld );
-	hit.distance = hit.point.distanceTo( raycaster.ray.origin );
-	hit.object = object;
-
-	if ( hit.distance < raycaster.near || hit.distance > raycaster.far ) {
-
-		return null;
-
-	} else {
-
-		return hit;
-
-	}
-
-}
-
 // sets the vertices of triangle `tri` with the 3 vertices after i
 function setTriangle( tri, i, index, pos ) {
 
@@ -2482,9 +3040,9 @@ function setTriangle( tri, i, index, pos ) {
 	let i2 = i + 2;
 	if ( index ) {
 
-		i0 = index.getX( i );
-		i1 = index.getX( i + 1 );
-		i2 = index.getX( i + 2 );
+		i0 = index.getX( i0 );
+		i1 = index.getX( i1 );
+		i2 = index.getX( i2 );
 
 	}
 
@@ -2502,24 +3060,72 @@ function setTriangle( tri, i, index, pos ) {
 
 }
 
+/*************************************************************/
+/* This file is generated from "iterationUtils.template.js". */
+/*************************************************************/
+/* eslint-disable indent */
+
+function intersectTris( bvh, side, ray, offset, count, intersections ) {
+
+	const { geometry, _indirectBuffer } = bvh;
+	for ( let i = offset, end = offset + count; i < end; i ++ ) {
+
+
+		intersectTri( geometry, side, ray, i, intersections );
+
+
+	}
+
+}
+
+function intersectClosestTri( bvh, side, ray, offset, count ) {
+
+	const { geometry, _indirectBuffer } = bvh;
+	let dist = Infinity;
+	let res = null;
+	for ( let i = offset, end = offset + count; i < end; i ++ ) {
+
+		let intersection;
+
+		intersection = intersectTri( geometry, side, ray, i );
+
+
+		if ( intersection && intersection.distance < dist ) {
+
+			res = intersection;
+			dist = intersection.distance;
+
+		}
+
+	}
+
+	return res;
+
+}
+
 function iterateOverTriangles(
 	offset,
 	count,
-	geometry,
+	bvh,
 	intersectsTriangleFunc,
 	contained,
 	depth,
 	triangle
 ) {
 
-	const index = geometry.index;
+	const { geometry } = bvh;
+	const { index } = geometry;
 	const pos = geometry.attributes.position;
 	for ( let i = offset, l = count + offset; i < l; i ++ ) {
 
-		setTriangle( triangle, i * 3, index, pos );
+		let tri;
+
+		tri = i;
+
+		setTriangle( triangle, tri * 3, index, pos );
 		triangle.needsUpdate = true;
 
-		if ( intersectsTriangleFunc( triangle, i, contained, depth ) ) {
+		if ( intersectsTriangleFunc( triangle, tri, contained, depth ) ) {
 
 			return true;
 
@@ -2531,109 +3137,298 @@ function iterateOverTriangles(
 
 }
 
-class PrimitivePool {
+/****************************************************/
+/* This file is generated from "refit.template.js". */
+/****************************************************/
 
-	constructor( getNewPrimitive ) {
+function refit( bvh, nodeIndices = null ) {
 
-		this._getNewPrimitive = getNewPrimitive;
-		this._primitives = [];
+	if ( nodeIndices && Array.isArray( nodeIndices ) ) {
+
+		nodeIndices = new Set( nodeIndices );
 
 	}
 
-	getPrimitive() {
+	const geometry = bvh.geometry;
+	const indexArr = geometry.index ? geometry.index.array : null;
+	const posAttr = geometry.attributes.position;
 
-		const primitives = this._primitives;
-		if ( primitives.length === 0 ) {
+	let buffer, uint32Array, uint16Array, float32Array;
+	let byteOffset = 0;
+	const roots = bvh._roots;
+	for ( let i = 0, l = roots.length; i < l; i ++ ) {
 
-			return this._getNewPrimitive();
+		buffer = roots[ i ];
+		uint32Array = new Uint32Array( buffer );
+		uint16Array = new Uint16Array( buffer );
+		float32Array = new Float32Array( buffer );
+
+		_traverse( 0, byteOffset );
+		byteOffset += buffer.byteLength;
+
+	}
+
+	function _traverse( node32Index, byteOffset, force = false ) {
+
+		const node16Index = node32Index * 2;
+		const isLeaf = uint16Array[ node16Index + 15 ] === IS_LEAFNODE_FLAG;
+		if ( isLeaf ) {
+
+			const offset = uint32Array[ node32Index + 6 ];
+			const count = uint16Array[ node16Index + 14 ];
+
+			let minx = Infinity;
+			let miny = Infinity;
+			let minz = Infinity;
+			let maxx = - Infinity;
+			let maxy = - Infinity;
+			let maxz = - Infinity;
+
+
+			for ( let i = 3 * offset, l = 3 * ( offset + count ); i < l; i ++ ) {
+
+				let index = indexArr[ i ];
+				const x = posAttr.getX( index );
+				const y = posAttr.getY( index );
+				const z = posAttr.getZ( index );
+
+				if ( x < minx ) minx = x;
+				if ( x > maxx ) maxx = x;
+
+				if ( y < miny ) miny = y;
+				if ( y > maxy ) maxy = y;
+
+				if ( z < minz ) minz = z;
+				if ( z > maxz ) maxz = z;
+
+			}
+
+
+			if (
+				float32Array[ node32Index + 0 ] !== minx ||
+				float32Array[ node32Index + 1 ] !== miny ||
+				float32Array[ node32Index + 2 ] !== minz ||
+
+				float32Array[ node32Index + 3 ] !== maxx ||
+				float32Array[ node32Index + 4 ] !== maxy ||
+				float32Array[ node32Index + 5 ] !== maxz
+			) {
+
+				float32Array[ node32Index + 0 ] = minx;
+				float32Array[ node32Index + 1 ] = miny;
+				float32Array[ node32Index + 2 ] = minz;
+
+				float32Array[ node32Index + 3 ] = maxx;
+				float32Array[ node32Index + 4 ] = maxy;
+				float32Array[ node32Index + 5 ] = maxz;
+
+				return true;
+
+			} else {
+
+				return false;
+
+			}
 
 		} else {
 
-			return primitives.pop();
+			const left = node32Index + 8;
+			const right = uint32Array[ node32Index + 6 ];
+
+			// the identifying node indices provided by the shapecast function include offsets of all
+			// root buffers to guarantee they're unique between roots so offset left and right indices here.
+			const offsetLeft = left + byteOffset;
+			const offsetRight = right + byteOffset;
+			let forceChildren = force;
+			let includesLeft = false;
+			let includesRight = false;
+
+			if ( nodeIndices ) {
+
+				// if we see that neither the left or right child are included in the set that need to be updated
+				// then we assume that all children need to be updated.
+				if ( ! forceChildren ) {
+
+					includesLeft = nodeIndices.has( offsetLeft );
+					includesRight = nodeIndices.has( offsetRight );
+					forceChildren = ! includesLeft && ! includesRight;
+
+				}
+
+			} else {
+
+				includesLeft = true;
+				includesRight = true;
+
+			}
+
+			const traverseLeft = forceChildren || includesLeft;
+			const traverseRight = forceChildren || includesRight;
+
+			let leftChange = false;
+			if ( traverseLeft ) {
+
+				leftChange = _traverse( left, byteOffset, forceChildren );
+
+			}
+
+			let rightChange = false;
+			if ( traverseRight ) {
+
+				rightChange = _traverse( right, byteOffset, forceChildren );
+
+			}
+
+			const didChange = leftChange || rightChange;
+			if ( didChange ) {
+
+				for ( let i = 0; i < 3; i ++ ) {
+
+					const lefti = left + i;
+					const righti = right + i;
+					const minLeftValue = float32Array[ lefti ];
+					const maxLeftValue = float32Array[ lefti + 3 ];
+					const minRightValue = float32Array[ righti ];
+					const maxRightValue = float32Array[ righti + 3 ];
+
+					float32Array[ node32Index + i ] = minLeftValue < minRightValue ? minLeftValue : minRightValue;
+					float32Array[ node32Index + i + 3 ] = maxLeftValue > maxRightValue ? maxLeftValue : maxRightValue;
+
+				}
+
+			}
+
+			return didChange;
 
 		}
 
 	}
 
-	releasePrimitive( primitive ) {
+}
 
-		this._primitives.push( primitive );
+const _boundingBox = /* @__PURE__ */ new Box3();
+function intersectRay( nodeIndex32, array, ray, target ) {
+
+	arrayToBox( nodeIndex32, array, _boundingBox );
+	return ray.intersectBox( _boundingBox, target );
+
+}
+
+/*************************************************************/
+/* This file is generated from "iterationUtils.template.js". */
+/*************************************************************/
+/* eslint-disable indent */
+
+function intersectTris_indirect( bvh, side, ray, offset, count, intersections ) {
+
+	const { geometry, _indirectBuffer } = bvh;
+	for ( let i = offset, end = offset + count; i < end; i ++ ) {
+
+		let vi = _indirectBuffer ? _indirectBuffer[ i ] : i;
+		intersectTri( geometry, side, ray, vi, intersections );
+
 
 	}
 
 }
 
-function IS_LEAF( n16, uint16Array ) {
+function intersectClosestTri_indirect( bvh, side, ray, offset, count ) {
 
-	return uint16Array[ n16 + 15 ] === 0xFFFF;
+	const { geometry, _indirectBuffer } = bvh;
+	let dist = Infinity;
+	let res = null;
+	for ( let i = offset, end = offset + count; i < end; i ++ ) {
 
-}
+		let intersection;
+		intersection = intersectTri( geometry, side, ray, _indirectBuffer ? _indirectBuffer[ i ] : i );
 
-function OFFSET( n32, uint32Array ) {
 
-	return uint32Array[ n32 + 6 ];
+		if ( intersection && intersection.distance < dist ) {
 
-}
+			res = intersection;
+			dist = intersection.distance;
 
-function COUNT( n16, uint16Array ) {
+		}
 
-	return uint16Array[ n16 + 14 ];
+	}
 
-}
-
-function LEFT_NODE( n32 ) {
-
-	return n32 + 8;
-
-}
-
-function RIGHT_NODE( n32, uint32Array ) {
-
-	return uint32Array[ n32 + 6 ];
+	return res;
 
 }
 
-function SPLIT_AXIS( n32, uint32Array ) {
+function iterateOverTriangles_indirect(
+	offset,
+	count,
+	bvh,
+	intersectsTriangleFunc,
+	contained,
+	depth,
+	triangle
+) {
 
-	return uint32Array[ n32 + 7 ];
+	const { geometry } = bvh;
+	const { index } = geometry;
+	const pos = geometry.attributes.position;
+	for ( let i = offset, l = count + offset; i < l; i ++ ) {
+
+		let tri;
+		tri = bvh.resolveTriangleIndex( i );
+
+		setTriangle( triangle, tri * 3, index, pos );
+		triangle.needsUpdate = true;
+
+		if ( intersectsTriangleFunc( triangle, tri, contained, depth ) ) {
+
+			return true;
+
+		}
+
+	}
+
+	return false;
 
 }
 
-function BOUNDING_DATA_INDEX( n32 ) {
+/******************************************************/
+/* This file is generated from "raycast.template.js". */
+/******************************************************/
 
-	return n32;
+const _boxIntersection$3 = /* @__PURE__ */ new Vector3();
+function raycast( bvh, root, side, ray, intersects ) {
+
+	BufferStack.setBuffer( bvh._roots[ root ] );
+	_raycast$1( 0, bvh, side, ray, intersects );
+	BufferStack.clearBuffer();
 
 }
 
-const boundingBox = new Box3();
-const boxIntersection = new Vector3();
-const xyzFields = [ 'x', 'y', 'z' ];
+function _raycast$1( nodeIndex32, bvh, side, ray, intersects ) {
 
-function raycast( nodeIndex32, geometry, side, ray, intersects ) {
-
-	let nodeIndex16 = nodeIndex32 * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
+	const { float32Array, uint16Array, uint32Array } = BufferStack;
+	const nodeIndex16 = nodeIndex32 * 2;
 	const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
 	if ( isLeaf ) {
 
 		const offset = OFFSET( nodeIndex32, uint32Array );
 		const count = COUNT( nodeIndex16, uint16Array );
 
-		intersectTris( geometry, side, ray, offset, count, intersects );
+
+		intersectTris( bvh, side, ray, offset, count, intersects );
+
 
 	} else {
 
 		const leftIndex = LEFT_NODE( nodeIndex32 );
-		if ( intersectRay( leftIndex, float32Array, ray, boxIntersection ) ) {
+		if ( intersectRay( leftIndex, float32Array, ray, _boxIntersection$3 ) ) {
 
-			raycast( leftIndex, geometry, side, ray, intersects );
+			_raycast$1( leftIndex, bvh, side, ray, intersects );
 
 		}
 
 		const rightIndex = RIGHT_NODE( nodeIndex32, uint32Array );
-		if ( intersectRay( rightIndex, float32Array, ray, boxIntersection ) ) {
+		if ( intersectRay( rightIndex, float32Array, ray, _boxIntersection$3 ) ) {
 
-			raycast( rightIndex, geometry, side, ray, intersects );
+			_raycast$1( rightIndex, bvh, side, ray, intersects );
 
 		}
 
@@ -2641,23 +3436,42 @@ function raycast( nodeIndex32, geometry, side, ray, intersects ) {
 
 }
 
-function raycastFirst( nodeIndex32, geometry, side, ray ) {
+/***********************************************************/
+/* This file is generated from "raycastFirst.template.js". */
+/***********************************************************/
+const _boxIntersection$2 = /* @__PURE__ */ new Vector3();
+const _xyzFields$1 = [ 'x', 'y', 'z' ];
+function raycastFirst( bvh, root, side, ray ) {
 
-	let nodeIndex16 = nodeIndex32 * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
+	BufferStack.setBuffer( bvh._roots[ root ] );
+	const result = _raycastFirst$1( 0, bvh, side, ray );
+	BufferStack.clearBuffer();
+
+	return result;
+
+}
+
+function _raycastFirst$1( nodeIndex32, bvh, side, ray ) {
+
+	const { float32Array, uint16Array, uint32Array } = BufferStack;
+	let nodeIndex16 = nodeIndex32 * 2;
 
 	const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
 	if ( isLeaf ) {
 
 		const offset = OFFSET( nodeIndex32, uint32Array );
 		const count = COUNT( nodeIndex16, uint16Array );
-		return intersectClosestTri( geometry, side, ray, offset, count );
+
+
+		return intersectClosestTri( bvh, side, ray, offset, count );
+
 
 	} else {
 
 		// consider the position of the split plane with respect to the oncoming ray; whichever direction
 		// the ray is coming from, look for an intersection among that side of the tree first
 		const splitAxis = SPLIT_AXIS( nodeIndex32, uint32Array );
-		const xyzAxis = xyzFields[ splitAxis ];
+		const xyzAxis = _xyzFields$1[ splitAxis ];
 		const rayDir = ray.direction[ xyzAxis ];
 		const leftToRight = rayDir >= 0;
 
@@ -2675,8 +3489,8 @@ function raycastFirst( nodeIndex32, geometry, side, ray ) {
 
 		}
 
-		const c1Intersection = intersectRay( c1, float32Array, ray, boxIntersection );
-		const c1Result = c1Intersection ? raycastFirst( c1, geometry, side, ray ) : null;
+		const c1Intersection = intersectRay( c1, float32Array, ray, _boxIntersection$2 );
+		const c1Result = c1Intersection ? _raycastFirst$1( c1, bvh, side, ray ) : null;
 
 		// if we got an intersection in the first node and it's closer than the second node's bounding
 		// box, we don't need to consider the second node because it couldn't possibly be a better result
@@ -2699,8 +3513,8 @@ function raycastFirst( nodeIndex32, geometry, side, ray ) {
 
 		// either there was no intersection in the first node, or there could still be a closer
 		// intersection in the second, so check the second node and then take the better of the two
-		const c2Intersection = intersectRay( c2, float32Array, ray, boxIntersection );
-		const c2Result = c2Intersection ? raycastFirst( c2, geometry, side, ray ) : null;
+		const c2Intersection = intersectRay( c2, float32Array, ray, _boxIntersection$2 );
+		const c2Result = c2Intersection ? _raycastFirst$1( c2, bvh, side, ray ) : null;
 
 		if ( c1Result && c2Result ) {
 
@@ -2716,310 +3530,91 @@ function raycastFirst( nodeIndex32, geometry, side, ray ) {
 
 }
 
-const shapecast = ( function () {
+/*****************************************************************/
+/* This file is generated from "intersectsGeometry.template.js". */
+/*****************************************************************/
+/* eslint-disable indent */
 
-	let _box1, _box2;
-	const boxStack = [];
-	const boxPool = new PrimitivePool( () => new Box3() );
+const boundingBox$1 = /* @__PURE__ */ new Box3();
+const triangle$1 = /* @__PURE__ */ new ExtendedTriangle();
+const triangle2$1 = /* @__PURE__ */ new ExtendedTriangle();
+const invertedMat$1 = /* @__PURE__ */ new Matrix4();
 
-	return function shapecast( ...args ) {
+const obb$4 = /* @__PURE__ */ new OrientedBox();
+const obb2$3 = /* @__PURE__ */ new OrientedBox();
 
-		_box1 = boxPool.getPrimitive();
-		_box2 = boxPool.getPrimitive();
-		boxStack.push( _box1, _box2 );
+function intersectsGeometry( bvh, root, otherGeometry, geometryToBvh ) {
 
-		const result = shapecastTraverse( ...args );
+	BufferStack.setBuffer( bvh._roots[ root ] );
+	const result = _intersectsGeometry$1( 0, bvh, otherGeometry, geometryToBvh );
+	BufferStack.clearBuffer();
 
-		boxPool.releasePrimitive( _box1 );
-		boxPool.releasePrimitive( _box2 );
-		boxStack.pop();
-		boxStack.pop();
+	return result;
 
-		const length = boxStack.length;
-		if ( length > 0 ) {
+}
 
-			_box2 = boxStack[ length - 1 ];
-			_box1 = boxStack[ length - 2 ];
+function _intersectsGeometry$1( nodeIndex32, bvh, otherGeometry, geometryToBvh, cachedObb = null ) {
 
-		}
+	const { float32Array, uint16Array, uint32Array } = BufferStack;
+	let nodeIndex16 = nodeIndex32 * 2;
 
-		return result;
+	if ( cachedObb === null ) {
 
-	};
+		if ( ! otherGeometry.boundingBox ) {
 
-	function shapecastTraverse(
-		nodeIndex32,
-		geometry,
-		intersectsBoundsFunc,
-		intersectsRangeFunc,
-		nodeScoreFunc = null,
-		nodeIndexByteOffset = 0, // offset for unique node identifier
-		depth = 0
-	) {
-
-		// Define these inside the function so it has access to the local variables needed
-		// when converting to the buffer equivalents
-		function getLeftOffset( nodeIndex32 ) {
-
-			let nodeIndex16 = nodeIndex32 * 2, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
-			// traverse until we find a leaf
-			while ( ! IS_LEAF( nodeIndex16, uint16Array ) ) {
-
-				nodeIndex32 = LEFT_NODE( nodeIndex32 );
-				nodeIndex16 = nodeIndex32 * 2;
-
-			}
-
-			return OFFSET( nodeIndex32, uint32Array );
+			otherGeometry.computeBoundingBox();
 
 		}
 
-		function getRightEndOffset( nodeIndex32 ) {
-
-			let nodeIndex16 = nodeIndex32 * 2, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
-			// traverse until we find a leaf
-			while ( ! IS_LEAF( nodeIndex16, uint16Array ) ) {
-
-				// adjust offset to point to the right node
-				nodeIndex32 = RIGHT_NODE( nodeIndex32, uint32Array );
-				nodeIndex16 = nodeIndex32 * 2;
-
-			}
-
-			// return the end offset of the triangle range
-			return OFFSET( nodeIndex32, uint32Array ) + COUNT( nodeIndex16, uint16Array );
-
-		}
-
-		let nodeIndex16 = nodeIndex32 * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
-
-		const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
-		if ( isLeaf ) {
-
-			const offset = OFFSET( nodeIndex32, uint32Array );
-			const count = COUNT( nodeIndex16, uint16Array );
-			arrayToBox( BOUNDING_DATA_INDEX( nodeIndex32 ), float32Array, _box1 );
-			return intersectsRangeFunc( offset, count, false, depth, nodeIndexByteOffset + nodeIndex32, _box1 );
-
-		} else {
-
-			const left = LEFT_NODE( nodeIndex32 );
-			const right = RIGHT_NODE( nodeIndex32, uint32Array );
-			let c1 = left;
-			let c2 = right;
-
-			let score1, score2;
-			let box1, box2;
-			if ( nodeScoreFunc ) {
-
-				box1 = _box1;
-				box2 = _box2;
-
-				// bounding data is not offset
-				arrayToBox( BOUNDING_DATA_INDEX( c1 ), float32Array, box1 );
-				arrayToBox( BOUNDING_DATA_INDEX( c2 ), float32Array, box2 );
-
-				score1 = nodeScoreFunc( box1 );
-				score2 = nodeScoreFunc( box2 );
-
-				if ( score2 < score1 ) {
-
-					c1 = right;
-					c2 = left;
-
-					const temp = score1;
-					score1 = score2;
-					score2 = temp;
-
-					box1 = box2;
-					// box2 is always set before use below
-
-				}
-
-			}
-
-			// Check box 1 intersection
-			if ( ! box1 ) {
-
-				box1 = _box1;
-				arrayToBox( BOUNDING_DATA_INDEX( c1 ), float32Array, box1 );
-
-			}
-
-			const isC1Leaf = IS_LEAF( c1 * 2, uint16Array );
-			const c1Intersection = intersectsBoundsFunc( box1, isC1Leaf, score1, depth + 1, nodeIndexByteOffset + c1 );
-
-			let c1StopTraversal;
-			if ( c1Intersection === CONTAINED ) {
-
-				const offset = getLeftOffset( c1 );
-				const end = getRightEndOffset( c1 );
-				const count = end - offset;
-
-				c1StopTraversal = intersectsRangeFunc( offset, count, true, depth + 1, nodeIndexByteOffset + c1, box1 );
-
-			} else {
-
-				c1StopTraversal =
-					c1Intersection &&
-					shapecastTraverse(
-						c1,
-						geometry,
-						intersectsBoundsFunc,
-						intersectsRangeFunc,
-						nodeScoreFunc,
-						nodeIndexByteOffset,
-						depth + 1
-					);
-
-			}
-
-			if ( c1StopTraversal ) return true;
-
-			// Check box 2 intersection
-			// cached box2 will have been overwritten by previous traversal
-			box2 = _box2;
-			arrayToBox( BOUNDING_DATA_INDEX( c2 ), float32Array, box2 );
-
-			const isC2Leaf = IS_LEAF( c2 * 2, uint16Array );
-			const c2Intersection = intersectsBoundsFunc( box2, isC2Leaf, score2, depth + 1, nodeIndexByteOffset + c2 );
-
-			let c2StopTraversal;
-			if ( c2Intersection === CONTAINED ) {
-
-				const offset = getLeftOffset( c2 );
-				const end = getRightEndOffset( c2 );
-				const count = end - offset;
-
-				c2StopTraversal = intersectsRangeFunc( offset, count, true, depth + 1, nodeIndexByteOffset + c2, box2 );
-
-			} else {
-
-				c2StopTraversal =
-					c2Intersection &&
-					shapecastTraverse(
-						c2,
-						geometry,
-						intersectsBoundsFunc,
-						intersectsRangeFunc,
-						nodeScoreFunc,
-						nodeIndexByteOffset,
-						depth + 1
-					);
-
-			}
-
-			if ( c2StopTraversal ) return true;
-
-			return false;
-
-		}
+		obb$4.set( otherGeometry.boundingBox.min, otherGeometry.boundingBox.max, geometryToBvh );
+		cachedObb = obb$4;
 
 	}
 
-} )();
+	const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
+	if ( isLeaf ) {
 
-const intersectsGeometry = ( function () {
+		const thisGeometry = bvh.geometry;
+		const thisIndex = thisGeometry.index;
+		const thisPos = thisGeometry.attributes.position;
 
-	const triangle = new ExtendedTriangle();
-	const triangle2 = new ExtendedTriangle();
-	const invertedMat = new Matrix4();
+		const index = otherGeometry.index;
+		const pos = otherGeometry.attributes.position;
 
-	const obb = new OrientedBox();
-	const obb2 = new OrientedBox();
+		const offset = OFFSET( nodeIndex32, uint32Array );
+		const count = COUNT( nodeIndex16, uint16Array );
 
-	return function intersectsGeometry( nodeIndex32, geometry, otherGeometry, geometryToBvh, cachedObb = null ) {
+		// get the inverse of the geometry matrix so we can transform our triangles into the
+		// geometry space we're trying to test. We assume there are fewer triangles being checked
+		// here.
+		invertedMat$1.copy( geometryToBvh ).invert();
 
-		let nodeIndex16 = nodeIndex32 * 2, float32Array = _float32Array, uint16Array = _uint16Array, uint32Array = _uint32Array;
+		if ( otherGeometry.boundsTree ) {
 
-		if ( cachedObb === null ) {
+			// if there's a bounds tree
+			arrayToBox( BOUNDING_DATA_INDEX( nodeIndex32 ), float32Array, obb2$3 );
+			obb2$3.matrix.copy( invertedMat$1 );
+			obb2$3.needsUpdate = true;
 
-			if ( ! otherGeometry.boundingBox ) {
+			// TODO: use a triangle iteration function here
+			const res = otherGeometry.boundsTree.shapecast( {
 
-				otherGeometry.computeBoundingBox();
+				intersectsBounds: box => obb2$3.intersectsBox( box ),
 
-			}
+				intersectsTriangle: tri => {
 
-			obb.set( otherGeometry.boundingBox.min, otherGeometry.boundingBox.max, geometryToBvh );
-			cachedObb = obb;
+					tri.a.applyMatrix4( geometryToBvh );
+					tri.b.applyMatrix4( geometryToBvh );
+					tri.c.applyMatrix4( geometryToBvh );
+					tri.needsUpdate = true;
 
-		}
 
-		const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
-		if ( isLeaf ) {
+					for ( let i = offset * 3, l = ( count + offset ) * 3; i < l; i += 3 ) {
 
-			const thisGeometry = geometry;
-			const thisIndex = thisGeometry.index;
-			const thisPos = thisGeometry.attributes.position;
-
-			const index = otherGeometry.index;
-			const pos = otherGeometry.attributes.position;
-
-			const offset = OFFSET( nodeIndex32, uint32Array );
-			const count = COUNT( nodeIndex16, uint16Array );
-
-			// get the inverse of the geometry matrix so we can transform our triangles into the
-			// geometry space we're trying to test. We assume there are fewer triangles being checked
-			// here.
-			invertedMat.copy( geometryToBvh ).invert();
-
-			if ( otherGeometry.boundsTree ) {
-
-				arrayToBox( BOUNDING_DATA_INDEX( nodeIndex32 ), float32Array, obb2 );
-				obb2.matrix.copy( invertedMat );
-				obb2.needsUpdate = true;
-
-				const res = otherGeometry.boundsTree.shapecast( {
-
-					intersectsBounds: box => obb2.intersectsBox( box ),
-
-					intersectsTriangle: tri => {
-
-						tri.a.applyMatrix4( geometryToBvh );
-						tri.b.applyMatrix4( geometryToBvh );
-						tri.c.applyMatrix4( geometryToBvh );
-						tri.needsUpdate = true;
-
-						for ( let i = offset * 3, l = ( count + offset ) * 3; i < l; i += 3 ) {
-
-							// this triangle needs to be transformed into the current BVH coordinate frame
-							setTriangle( triangle2, i, thisIndex, thisPos );
-							triangle2.needsUpdate = true;
-							if ( tri.intersectsTriangle( triangle2 ) ) {
-
-								return true;
-
-							}
-
-						}
-
-						return false;
-
-					}
-
-				} );
-
-				return res;
-
-			} else {
-
-				for ( let i = offset * 3, l = ( count + offset * 3 ); i < l; i += 3 ) {
-
-					// this triangle needs to be transformed into the current BVH coordinate frame
-					setTriangle( triangle, i, thisIndex, thisPos );
-					triangle.a.applyMatrix4( invertedMat );
-					triangle.b.applyMatrix4( invertedMat );
-					triangle.c.applyMatrix4( invertedMat );
-					triangle.needsUpdate = true;
-
-					for ( let i2 = 0, l2 = index.count; i2 < l2; i2 += 3 ) {
-
-						setTriangle( triangle2, i2, index, pos );
-						triangle2.needsUpdate = true;
-
-						if ( triangle.intersectsTriangle( triangle2 ) ) {
+						// this triangle needs to be transformed into the current BVH coordinate frame
+						setTriangle( triangle2$1, i, thisIndex, thisPos );
+						triangle2$1.needsUpdate = true;
+						if ( tri.intersectsTriangle( triangle2$1 ) ) {
 
 							return true;
 
@@ -3027,110 +3622,1365 @@ const intersectsGeometry = ( function () {
 
 					}
 
+
+					return false;
+
 				}
+
+			} );
+
+			return res;
+
+		} else {
+
+			// if we're just dealing with raw geometry
+
+			for ( let i = offset * 3, l = ( count + offset ) * 3; i < l; i += 3 ) {
+
+				// this triangle needs to be transformed into the current BVH coordinate frame
+				setTriangle( triangle$1, i, thisIndex, thisPos );
+
+
+				triangle$1.a.applyMatrix4( invertedMat$1 );
+				triangle$1.b.applyMatrix4( invertedMat$1 );
+				triangle$1.c.applyMatrix4( invertedMat$1 );
+				triangle$1.needsUpdate = true;
+
+				for ( let i2 = 0, l2 = index.count; i2 < l2; i2 += 3 ) {
+
+					setTriangle( triangle2$1, i2, index, pos );
+					triangle2$1.needsUpdate = true;
+
+					if ( triangle$1.intersectsTriangle( triangle2$1 ) ) {
+
+						return true;
+
+					}
+
+				}
+
+
+			}
+
+
+		}
+
+	} else {
+
+		const left = nodeIndex32 + 8;
+		const right = uint32Array[ nodeIndex32 + 6 ];
+
+		arrayToBox( BOUNDING_DATA_INDEX( left ), float32Array, boundingBox$1 );
+		const leftIntersection =
+			cachedObb.intersectsBox( boundingBox$1 ) &&
+			_intersectsGeometry$1( left, bvh, otherGeometry, geometryToBvh, cachedObb );
+
+		if ( leftIntersection ) return true;
+
+		arrayToBox( BOUNDING_DATA_INDEX( right ), float32Array, boundingBox$1 );
+		const rightIntersection =
+			cachedObb.intersectsBox( boundingBox$1 ) &&
+			_intersectsGeometry$1( right, bvh, otherGeometry, geometryToBvh, cachedObb );
+
+		if ( rightIntersection ) return true;
+
+		return false;
+
+	}
+
+}
+
+/*********************************************************************/
+/* This file is generated from "closestPointToGeometry.template.js". */
+/*********************************************************************/
+
+const tempMatrix$1 = /* @__PURE__ */ new Matrix4();
+const obb$3 = /* @__PURE__ */ new OrientedBox();
+const obb2$2 = /* @__PURE__ */ new OrientedBox();
+const temp1$1 = /* @__PURE__ */ new Vector3();
+const temp2$1 = /* @__PURE__ */ new Vector3();
+const temp3$1 = /* @__PURE__ */ new Vector3();
+const temp4$1 = /* @__PURE__ */ new Vector3();
+
+function closestPointToGeometry(
+	bvh,
+	otherGeometry,
+	geometryToBvh,
+	target1 = { },
+	target2 = { },
+	minThreshold = 0,
+	maxThreshold = Infinity,
+) {
+
+	if ( ! otherGeometry.boundingBox ) {
+
+		otherGeometry.computeBoundingBox();
+
+	}
+
+	obb$3.set( otherGeometry.boundingBox.min, otherGeometry.boundingBox.max, geometryToBvh );
+	obb$3.needsUpdate = true;
+
+	const geometry = bvh.geometry;
+	const pos = geometry.attributes.position;
+	const index = geometry.index;
+	const otherPos = otherGeometry.attributes.position;
+	const otherIndex = otherGeometry.index;
+	const triangle = ExtendedTrianglePool.getPrimitive();
+	const triangle2 = ExtendedTrianglePool.getPrimitive();
+
+	let tempTarget1 = temp1$1;
+	let tempTargetDest1 = temp2$1;
+	let tempTarget2 = null;
+	let tempTargetDest2 = null;
+
+	if ( target2 ) {
+
+		tempTarget2 = temp3$1;
+		tempTargetDest2 = temp4$1;
+
+	}
+
+	let closestDistance = Infinity;
+	let closestDistanceTriIndex = null;
+	let closestDistanceOtherTriIndex = null;
+	tempMatrix$1.copy( geometryToBvh ).invert();
+	obb2$2.matrix.copy( tempMatrix$1 );
+	bvh.shapecast(
+		{
+
+			boundsTraverseOrder: box => {
+
+				return obb$3.distanceToBox( box );
+
+			},
+
+			intersectsBounds: ( box, isLeaf, score ) => {
+
+				if ( score < closestDistance && score < maxThreshold ) {
+
+					// if we know the triangles of this bounds will be intersected next then
+					// save the bounds to use during triangle checks.
+					if ( isLeaf ) {
+
+						obb2$2.min.copy( box.min );
+						obb2$2.max.copy( box.max );
+						obb2$2.needsUpdate = true;
+
+					}
+
+					return true;
+
+				}
+
+				return false;
+
+			},
+
+			intersectsRange: ( offset, count ) => {
+
+				if ( otherGeometry.boundsTree ) {
+
+					// if the other geometry has a bvh then use the accelerated path where we use shapecast to find
+					// the closest bounds in the other geometry to check.
+					const otherBvh = otherGeometry.boundsTree;
+					return otherBvh.shapecast( {
+						boundsTraverseOrder: box => {
+
+							return obb2$2.distanceToBox( box );
+
+						},
+
+						intersectsBounds: ( box, isLeaf, score ) => {
+
+							return score < closestDistance && score < maxThreshold;
+
+						},
+
+						intersectsRange: ( otherOffset, otherCount ) => {
+
+							for ( let i2 = otherOffset, l2 = otherOffset + otherCount; i2 < l2; i2 ++ ) {
+
+
+								setTriangle( triangle2, 3 * i2, otherIndex, otherPos );
+
+								triangle2.a.applyMatrix4( geometryToBvh );
+								triangle2.b.applyMatrix4( geometryToBvh );
+								triangle2.c.applyMatrix4( geometryToBvh );
+								triangle2.needsUpdate = true;
+
+								for ( let i = offset, l = offset + count; i < l; i ++ ) {
+
+
+									setTriangle( triangle, 3 * i, index, pos );
+
+									triangle.needsUpdate = true;
+
+									const dist = triangle.distanceToTriangle( triangle2, tempTarget1, tempTarget2 );
+									if ( dist < closestDistance ) {
+
+										tempTargetDest1.copy( tempTarget1 );
+
+										if ( tempTargetDest2 ) {
+
+											tempTargetDest2.copy( tempTarget2 );
+
+										}
+
+										closestDistance = dist;
+										closestDistanceTriIndex = i;
+										closestDistanceOtherTriIndex = i2;
+
+									}
+
+									// stop traversal if we find a point that's under the given threshold
+									if ( dist < minThreshold ) {
+
+										return true;
+
+									}
+
+								}
+
+							}
+
+						},
+					} );
+
+				} else {
+
+					// If no bounds tree then we'll just check every triangle.
+					const triCount = getTriCount( otherGeometry );
+					for ( let i2 = 0, l2 = triCount; i2 < l2; i2 ++ ) {
+
+						setTriangle( triangle2, 3 * i2, otherIndex, otherPos );
+						triangle2.a.applyMatrix4( geometryToBvh );
+						triangle2.b.applyMatrix4( geometryToBvh );
+						triangle2.c.applyMatrix4( geometryToBvh );
+						triangle2.needsUpdate = true;
+
+						for ( let i = offset, l = offset + count; i < l; i ++ ) {
+
+
+							setTriangle( triangle, 3 * i, index, pos );
+
+							triangle.needsUpdate = true;
+
+							const dist = triangle.distanceToTriangle( triangle2, tempTarget1, tempTarget2 );
+							if ( dist < closestDistance ) {
+
+								tempTargetDest1.copy( tempTarget1 );
+
+								if ( tempTargetDest2 ) {
+
+									tempTargetDest2.copy( tempTarget2 );
+
+								}
+
+								closestDistance = dist;
+								closestDistanceTriIndex = i;
+								closestDistanceOtherTriIndex = i2;
+
+							}
+
+							// stop traversal if we find a point that's under the given threshold
+							if ( dist < minThreshold ) {
+
+								return true;
+
+							}
+
+						}
+
+					}
+
+				}
+
+			},
+
+		}
+
+	);
+
+	ExtendedTrianglePool.releasePrimitive( triangle );
+	ExtendedTrianglePool.releasePrimitive( triangle2 );
+
+	if ( closestDistance === Infinity ) {
+
+		return null;
+
+	}
+
+	if ( ! target1.point ) {
+
+		target1.point = tempTargetDest1.clone();
+
+	} else {
+
+		target1.point.copy( tempTargetDest1 );
+
+	}
+
+	target1.distance = closestDistance,
+	target1.faceIndex = closestDistanceTriIndex;
+
+	if ( target2 ) {
+
+		if ( ! target2.point ) target2.point = tempTargetDest2.clone();
+		else target2.point.copy( tempTargetDest2 );
+		target2.point.applyMatrix4( tempMatrix$1 );
+		tempTargetDest1.applyMatrix4( tempMatrix$1 );
+		target2.distance = tempTargetDest1.sub( target2.point ).length();
+		target2.faceIndex = closestDistanceOtherTriIndex;
+
+	}
+
+	return target1;
+
+}
+
+/****************************************************/
+/* This file is generated from "refit.template.js". */
+/****************************************************/
+
+function refit_indirect( bvh, nodeIndices = null ) {
+
+	if ( nodeIndices && Array.isArray( nodeIndices ) ) {
+
+		nodeIndices = new Set( nodeIndices );
+
+	}
+
+	const geometry = bvh.geometry;
+	const indexArr = geometry.index ? geometry.index.array : null;
+	const posAttr = geometry.attributes.position;
+
+	let buffer, uint32Array, uint16Array, float32Array;
+	let byteOffset = 0;
+	const roots = bvh._roots;
+	for ( let i = 0, l = roots.length; i < l; i ++ ) {
+
+		buffer = roots[ i ];
+		uint32Array = new Uint32Array( buffer );
+		uint16Array = new Uint16Array( buffer );
+		float32Array = new Float32Array( buffer );
+
+		_traverse( 0, byteOffset );
+		byteOffset += buffer.byteLength;
+
+	}
+
+	function _traverse( node32Index, byteOffset, force = false ) {
+
+		const node16Index = node32Index * 2;
+		const isLeaf = uint16Array[ node16Index + 15 ] === IS_LEAFNODE_FLAG;
+		if ( isLeaf ) {
+
+			const offset = uint32Array[ node32Index + 6 ];
+			const count = uint16Array[ node16Index + 14 ];
+
+			let minx = Infinity;
+			let miny = Infinity;
+			let minz = Infinity;
+			let maxx = - Infinity;
+			let maxy = - Infinity;
+			let maxz = - Infinity;
+
+			for ( let i = offset, l = offset + count; i < l; i ++ ) {
+
+				const t = 3 * bvh.resolveTriangleIndex( i );
+				for ( let j = 0; j < 3; j ++ ) {
+
+					let index = t + j;
+					index = indexArr ? indexArr[ index ] : index;
+
+					const x = posAttr.getX( index );
+					const y = posAttr.getY( index );
+					const z = posAttr.getZ( index );
+
+					if ( x < minx ) minx = x;
+					if ( x > maxx ) maxx = x;
+
+					if ( y < miny ) miny = y;
+					if ( y > maxy ) maxy = y;
+
+					if ( z < minz ) minz = z;
+					if ( z > maxz ) maxz = z;
+
+
+				}
+
+			}
+
+
+			if (
+				float32Array[ node32Index + 0 ] !== minx ||
+				float32Array[ node32Index + 1 ] !== miny ||
+				float32Array[ node32Index + 2 ] !== minz ||
+
+				float32Array[ node32Index + 3 ] !== maxx ||
+				float32Array[ node32Index + 4 ] !== maxy ||
+				float32Array[ node32Index + 5 ] !== maxz
+			) {
+
+				float32Array[ node32Index + 0 ] = minx;
+				float32Array[ node32Index + 1 ] = miny;
+				float32Array[ node32Index + 2 ] = minz;
+
+				float32Array[ node32Index + 3 ] = maxx;
+				float32Array[ node32Index + 4 ] = maxy;
+				float32Array[ node32Index + 5 ] = maxz;
+
+				return true;
+
+			} else {
+
+				return false;
 
 			}
 
 		} else {
 
-			const left = nodeIndex32 + 8;
-			const right = uint32Array[ nodeIndex32 + 6 ];
+			const left = node32Index + 8;
+			const right = uint32Array[ node32Index + 6 ];
 
-			arrayToBox( BOUNDING_DATA_INDEX( left ), float32Array, boundingBox );
-			const leftIntersection =
-				cachedObb.intersectsBox( boundingBox ) &&
-				intersectsGeometry( left, geometry, otherGeometry, geometryToBvh, cachedObb );
+			// the identifying node indices provided by the shapecast function include offsets of all
+			// root buffers to guarantee they're unique between roots so offset left and right indices here.
+			const offsetLeft = left + byteOffset;
+			const offsetRight = right + byteOffset;
+			let forceChildren = force;
+			let includesLeft = false;
+			let includesRight = false;
 
-			if ( leftIntersection ) return true;
+			if ( nodeIndices ) {
 
-			arrayToBox( BOUNDING_DATA_INDEX( right ), float32Array, boundingBox );
-			const rightIntersection =
-				cachedObb.intersectsBox( boundingBox ) &&
-				intersectsGeometry( right, geometry, otherGeometry, geometryToBvh, cachedObb );
+				// if we see that neither the left or right child are included in the set that need to be updated
+				// then we assume that all children need to be updated.
+				if ( ! forceChildren ) {
 
-			if ( rightIntersection ) return true;
+					includesLeft = nodeIndices.has( offsetLeft );
+					includesRight = nodeIndices.has( offsetRight );
+					forceChildren = ! includesLeft && ! includesRight;
 
-			return false;
+				}
+
+			} else {
+
+				includesLeft = true;
+				includesRight = true;
+
+			}
+
+			const traverseLeft = forceChildren || includesLeft;
+			const traverseRight = forceChildren || includesRight;
+
+			let leftChange = false;
+			if ( traverseLeft ) {
+
+				leftChange = _traverse( left, byteOffset, forceChildren );
+
+			}
+
+			let rightChange = false;
+			if ( traverseRight ) {
+
+				rightChange = _traverse( right, byteOffset, forceChildren );
+
+			}
+
+			const didChange = leftChange || rightChange;
+			if ( didChange ) {
+
+				for ( let i = 0; i < 3; i ++ ) {
+
+					const lefti = left + i;
+					const righti = right + i;
+					const minLeftValue = float32Array[ lefti ];
+					const maxLeftValue = float32Array[ lefti + 3 ];
+					const minRightValue = float32Array[ righti ];
+					const maxRightValue = float32Array[ righti + 3 ];
+
+					float32Array[ node32Index + i ] = minLeftValue < minRightValue ? minLeftValue : minRightValue;
+					float32Array[ node32Index + i + 3 ] = maxLeftValue > maxRightValue ? maxLeftValue : maxRightValue;
+
+				}
+
+			}
+
+			return didChange;
 
 		}
 
-	};
-
-} )();
-
-function intersectRay( nodeIndex32, array, ray, target ) {
-
-	arrayToBox( nodeIndex32, array, boundingBox );
-	return ray.intersectBox( boundingBox, target );
-
-}
-
-const bufferStack = [];
-let _prevBuffer;
-let _float32Array;
-let _uint16Array;
-let _uint32Array;
-function setBuffer( buffer ) {
-
-	if ( _prevBuffer ) {
-
-		bufferStack.push( _prevBuffer );
-
-	}
-
-	_prevBuffer = buffer;
-	_float32Array = new Float32Array( buffer );
-	_uint16Array = new Uint16Array( buffer );
-	_uint32Array = new Uint32Array( buffer );
-
-}
-
-function clearBuffer() {
-
-	_prevBuffer = null;
-	_float32Array = null;
-	_uint16Array = null;
-	_uint32Array = null;
-
-	if ( bufferStack.length ) {
-
-		setBuffer( bufferStack.pop() );
-
 	}
 
 }
 
-const SKIP_GENERATION = Symbol( 'skip tree generation' );
+/******************************************************/
+/* This file is generated from "raycast.template.js". */
+/******************************************************/
 
-const aabb = /* @__PURE__ */ new Box3();
-const aabb2 = /* @__PURE__ */ new Box3();
+const _boxIntersection$1 = /* @__PURE__ */ new Vector3();
+function raycast_indirect( bvh, root, side, ray, intersects ) {
+
+	BufferStack.setBuffer( bvh._roots[ root ] );
+	_raycast( 0, bvh, side, ray, intersects );
+	BufferStack.clearBuffer();
+
+}
+
+function _raycast( nodeIndex32, bvh, side, ray, intersects ) {
+
+	const { float32Array, uint16Array, uint32Array } = BufferStack;
+	const nodeIndex16 = nodeIndex32 * 2;
+	const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
+	if ( isLeaf ) {
+
+		const offset = OFFSET( nodeIndex32, uint32Array );
+		const count = COUNT( nodeIndex16, uint16Array );
+
+		intersectTris_indirect( bvh, side, ray, offset, count, intersects );
+
+
+	} else {
+
+		const leftIndex = LEFT_NODE( nodeIndex32 );
+		if ( intersectRay( leftIndex, float32Array, ray, _boxIntersection$1 ) ) {
+
+			_raycast( leftIndex, bvh, side, ray, intersects );
+
+		}
+
+		const rightIndex = RIGHT_NODE( nodeIndex32, uint32Array );
+		if ( intersectRay( rightIndex, float32Array, ray, _boxIntersection$1 ) ) {
+
+			_raycast( rightIndex, bvh, side, ray, intersects );
+
+		}
+
+	}
+
+}
+
+/***********************************************************/
+/* This file is generated from "raycastFirst.template.js". */
+/***********************************************************/
+const _boxIntersection = /* @__PURE__ */ new Vector3();
+const _xyzFields = [ 'x', 'y', 'z' ];
+function raycastFirst_indirect( bvh, root, side, ray ) {
+
+	BufferStack.setBuffer( bvh._roots[ root ] );
+	const result = _raycastFirst( 0, bvh, side, ray );
+	BufferStack.clearBuffer();
+
+	return result;
+
+}
+
+function _raycastFirst( nodeIndex32, bvh, side, ray ) {
+
+	const { float32Array, uint16Array, uint32Array } = BufferStack;
+	let nodeIndex16 = nodeIndex32 * 2;
+
+	const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
+	if ( isLeaf ) {
+
+		const offset = OFFSET( nodeIndex32, uint32Array );
+		const count = COUNT( nodeIndex16, uint16Array );
+
+		return intersectClosestTri_indirect( bvh, side, ray, offset, count );
+
+
+	} else {
+
+		// consider the position of the split plane with respect to the oncoming ray; whichever direction
+		// the ray is coming from, look for an intersection among that side of the tree first
+		const splitAxis = SPLIT_AXIS( nodeIndex32, uint32Array );
+		const xyzAxis = _xyzFields[ splitAxis ];
+		const rayDir = ray.direction[ xyzAxis ];
+		const leftToRight = rayDir >= 0;
+
+		// c1 is the child to check first
+		let c1, c2;
+		if ( leftToRight ) {
+
+			c1 = LEFT_NODE( nodeIndex32 );
+			c2 = RIGHT_NODE( nodeIndex32, uint32Array );
+
+		} else {
+
+			c1 = RIGHT_NODE( nodeIndex32, uint32Array );
+			c2 = LEFT_NODE( nodeIndex32 );
+
+		}
+
+		const c1Intersection = intersectRay( c1, float32Array, ray, _boxIntersection );
+		const c1Result = c1Intersection ? _raycastFirst( c1, bvh, side, ray ) : null;
+
+		// if we got an intersection in the first node and it's closer than the second node's bounding
+		// box, we don't need to consider the second node because it couldn't possibly be a better result
+		if ( c1Result ) {
+
+			// check if the point is within the second bounds
+			// "point" is in the local frame of the bvh
+			const point = c1Result.point[ xyzAxis ];
+			const isOutside = leftToRight ?
+				point <= float32Array[ c2 + splitAxis ] : // min bounding data
+				point >= float32Array[ c2 + splitAxis + 3 ]; // max bounding data
+
+			if ( isOutside ) {
+
+				return c1Result;
+
+			}
+
+		}
+
+		// either there was no intersection in the first node, or there could still be a closer
+		// intersection in the second, so check the second node and then take the better of the two
+		const c2Intersection = intersectRay( c2, float32Array, ray, _boxIntersection );
+		const c2Result = c2Intersection ? _raycastFirst( c2, bvh, side, ray ) : null;
+
+		if ( c1Result && c2Result ) {
+
+			return c1Result.distance <= c2Result.distance ? c1Result : c2Result;
+
+		} else {
+
+			return c1Result || c2Result || null;
+
+		}
+
+	}
+
+}
+
+/*****************************************************************/
+/* This file is generated from "intersectsGeometry.template.js". */
+/*****************************************************************/
+/* eslint-disable indent */
+
+const boundingBox = /* @__PURE__ */ new Box3();
+const triangle = /* @__PURE__ */ new ExtendedTriangle();
+const triangle2 = /* @__PURE__ */ new ExtendedTriangle();
+const invertedMat = /* @__PURE__ */ new Matrix4();
+
+const obb$2 = /* @__PURE__ */ new OrientedBox();
+const obb2$1 = /* @__PURE__ */ new OrientedBox();
+
+function intersectsGeometry_indirect( bvh, root, otherGeometry, geometryToBvh ) {
+
+	BufferStack.setBuffer( bvh._roots[ root ] );
+	const result = _intersectsGeometry( 0, bvh, otherGeometry, geometryToBvh );
+	BufferStack.clearBuffer();
+
+	return result;
+
+}
+
+function _intersectsGeometry( nodeIndex32, bvh, otherGeometry, geometryToBvh, cachedObb = null ) {
+
+	const { float32Array, uint16Array, uint32Array } = BufferStack;
+	let nodeIndex16 = nodeIndex32 * 2;
+
+	if ( cachedObb === null ) {
+
+		if ( ! otherGeometry.boundingBox ) {
+
+			otherGeometry.computeBoundingBox();
+
+		}
+
+		obb$2.set( otherGeometry.boundingBox.min, otherGeometry.boundingBox.max, geometryToBvh );
+		cachedObb = obb$2;
+
+	}
+
+	const isLeaf = IS_LEAF( nodeIndex16, uint16Array );
+	if ( isLeaf ) {
+
+		const thisGeometry = bvh.geometry;
+		const thisIndex = thisGeometry.index;
+		const thisPos = thisGeometry.attributes.position;
+
+		const index = otherGeometry.index;
+		const pos = otherGeometry.attributes.position;
+
+		const offset = OFFSET( nodeIndex32, uint32Array );
+		const count = COUNT( nodeIndex16, uint16Array );
+
+		// get the inverse of the geometry matrix so we can transform our triangles into the
+		// geometry space we're trying to test. We assume there are fewer triangles being checked
+		// here.
+		invertedMat.copy( geometryToBvh ).invert();
+
+		if ( otherGeometry.boundsTree ) {
+
+			// if there's a bounds tree
+			arrayToBox( BOUNDING_DATA_INDEX( nodeIndex32 ), float32Array, obb2$1 );
+			obb2$1.matrix.copy( invertedMat );
+			obb2$1.needsUpdate = true;
+
+			// TODO: use a triangle iteration function here
+			const res = otherGeometry.boundsTree.shapecast( {
+
+				intersectsBounds: box => obb2$1.intersectsBox( box ),
+
+				intersectsTriangle: tri => {
+
+					tri.a.applyMatrix4( geometryToBvh );
+					tri.b.applyMatrix4( geometryToBvh );
+					tri.c.applyMatrix4( geometryToBvh );
+					tri.needsUpdate = true;
+
+					for ( let i = offset, l = count + offset; i < l; i ++ ) {
+
+						// this triangle needs to be transformed into the current BVH coordinate frame
+						setTriangle( triangle2, 3 * bvh.resolveTriangleIndex( i ), thisIndex, thisPos );
+						triangle2.needsUpdate = true;
+						if ( tri.intersectsTriangle( triangle2 ) ) {
+
+							return true;
+
+						}
+
+					}
+
+
+					return false;
+
+				}
+
+			} );
+
+			return res;
+
+		} else {
+
+			// if we're just dealing with raw geometry
+			for ( let i = offset, l = count + offset; i < l; i ++ ) {
+
+				// this triangle needs to be transformed into the current BVH coordinate frame
+				const ti = bvh.resolveTriangleIndex( i );
+				setTriangle( triangle, 3 * ti, thisIndex, thisPos );
+
+
+				triangle.a.applyMatrix4( invertedMat );
+				triangle.b.applyMatrix4( invertedMat );
+				triangle.c.applyMatrix4( invertedMat );
+				triangle.needsUpdate = true;
+
+				for ( let i2 = 0, l2 = index.count; i2 < l2; i2 += 3 ) {
+
+					setTriangle( triangle2, i2, index, pos );
+					triangle2.needsUpdate = true;
+
+					if ( triangle.intersectsTriangle( triangle2 ) ) {
+
+						return true;
+
+					}
+
+				}
+
+			}
+
+
+		}
+
+	} else {
+
+		const left = nodeIndex32 + 8;
+		const right = uint32Array[ nodeIndex32 + 6 ];
+
+		arrayToBox( BOUNDING_DATA_INDEX( left ), float32Array, boundingBox );
+		const leftIntersection =
+			cachedObb.intersectsBox( boundingBox ) &&
+			_intersectsGeometry( left, bvh, otherGeometry, geometryToBvh, cachedObb );
+
+		if ( leftIntersection ) return true;
+
+		arrayToBox( BOUNDING_DATA_INDEX( right ), float32Array, boundingBox );
+		const rightIntersection =
+			cachedObb.intersectsBox( boundingBox ) &&
+			_intersectsGeometry( right, bvh, otherGeometry, geometryToBvh, cachedObb );
+
+		if ( rightIntersection ) return true;
+
+		return false;
+
+	}
+
+}
+
+/*********************************************************************/
+/* This file is generated from "closestPointToGeometry.template.js". */
+/*********************************************************************/
+
 const tempMatrix = /* @__PURE__ */ new Matrix4();
-const obb = /* @__PURE__ */ new OrientedBox();
+const obb$1 = /* @__PURE__ */ new OrientedBox();
 const obb2 = /* @__PURE__ */ new OrientedBox();
-const temp = /* @__PURE__ */ new Vector3();
 const temp1 = /* @__PURE__ */ new Vector3();
 const temp2 = /* @__PURE__ */ new Vector3();
 const temp3 = /* @__PURE__ */ new Vector3();
 const temp4 = /* @__PURE__ */ new Vector3();
+
+function closestPointToGeometry_indirect(
+	bvh,
+	otherGeometry,
+	geometryToBvh,
+	target1 = { },
+	target2 = { },
+	minThreshold = 0,
+	maxThreshold = Infinity,
+) {
+
+	if ( ! otherGeometry.boundingBox ) {
+
+		otherGeometry.computeBoundingBox();
+
+	}
+
+	obb$1.set( otherGeometry.boundingBox.min, otherGeometry.boundingBox.max, geometryToBvh );
+	obb$1.needsUpdate = true;
+
+	const geometry = bvh.geometry;
+	const pos = geometry.attributes.position;
+	const index = geometry.index;
+	const otherPos = otherGeometry.attributes.position;
+	const otherIndex = otherGeometry.index;
+	const triangle = ExtendedTrianglePool.getPrimitive();
+	const triangle2 = ExtendedTrianglePool.getPrimitive();
+
+	let tempTarget1 = temp1;
+	let tempTargetDest1 = temp2;
+	let tempTarget2 = null;
+	let tempTargetDest2 = null;
+
+	if ( target2 ) {
+
+		tempTarget2 = temp3;
+		tempTargetDest2 = temp4;
+
+	}
+
+	let closestDistance = Infinity;
+	let closestDistanceTriIndex = null;
+	let closestDistanceOtherTriIndex = null;
+	tempMatrix.copy( geometryToBvh ).invert();
+	obb2.matrix.copy( tempMatrix );
+	bvh.shapecast(
+		{
+
+			boundsTraverseOrder: box => {
+
+				return obb$1.distanceToBox( box );
+
+			},
+
+			intersectsBounds: ( box, isLeaf, score ) => {
+
+				if ( score < closestDistance && score < maxThreshold ) {
+
+					// if we know the triangles of this bounds will be intersected next then
+					// save the bounds to use during triangle checks.
+					if ( isLeaf ) {
+
+						obb2.min.copy( box.min );
+						obb2.max.copy( box.max );
+						obb2.needsUpdate = true;
+
+					}
+
+					return true;
+
+				}
+
+				return false;
+
+			},
+
+			intersectsRange: ( offset, count ) => {
+
+				if ( otherGeometry.boundsTree ) {
+
+					// if the other geometry has a bvh then use the accelerated path where we use shapecast to find
+					// the closest bounds in the other geometry to check.
+					const otherBvh = otherGeometry.boundsTree;
+					return otherBvh.shapecast( {
+						boundsTraverseOrder: box => {
+
+							return obb2.distanceToBox( box );
+
+						},
+
+						intersectsBounds: ( box, isLeaf, score ) => {
+
+							return score < closestDistance && score < maxThreshold;
+
+						},
+
+						intersectsRange: ( otherOffset, otherCount ) => {
+
+							for ( let i2 = otherOffset, l2 = otherOffset + otherCount; i2 < l2; i2 ++ ) {
+
+								const ti2 = otherBvh.resolveTriangleIndex( i2 );
+								setTriangle( triangle2, 3 * ti2, otherIndex, otherPos );
+
+								triangle2.a.applyMatrix4( geometryToBvh );
+								triangle2.b.applyMatrix4( geometryToBvh );
+								triangle2.c.applyMatrix4( geometryToBvh );
+								triangle2.needsUpdate = true;
+
+								for ( let i = offset, l = offset + count; i < l; i ++ ) {
+
+									const ti = bvh.resolveTriangleIndex( i );
+									setTriangle( triangle, 3 * ti, index, pos );
+
+									triangle.needsUpdate = true;
+
+									const dist = triangle.distanceToTriangle( triangle2, tempTarget1, tempTarget2 );
+									if ( dist < closestDistance ) {
+
+										tempTargetDest1.copy( tempTarget1 );
+
+										if ( tempTargetDest2 ) {
+
+											tempTargetDest2.copy( tempTarget2 );
+
+										}
+
+										closestDistance = dist;
+										closestDistanceTriIndex = i;
+										closestDistanceOtherTriIndex = i2;
+
+									}
+
+									// stop traversal if we find a point that's under the given threshold
+									if ( dist < minThreshold ) {
+
+										return true;
+
+									}
+
+								}
+
+							}
+
+						},
+					} );
+
+				} else {
+
+					// If no bounds tree then we'll just check every triangle.
+					const triCount = getTriCount( otherGeometry );
+					for ( let i2 = 0, l2 = triCount; i2 < l2; i2 ++ ) {
+
+						setTriangle( triangle2, 3 * i2, otherIndex, otherPos );
+						triangle2.a.applyMatrix4( geometryToBvh );
+						triangle2.b.applyMatrix4( geometryToBvh );
+						triangle2.c.applyMatrix4( geometryToBvh );
+						triangle2.needsUpdate = true;
+
+						for ( let i = offset, l = offset + count; i < l; i ++ ) {
+
+							const ti = bvh.resolveTriangleIndex( i );
+							setTriangle( triangle, 3 * ti, index, pos );
+
+							triangle.needsUpdate = true;
+
+							const dist = triangle.distanceToTriangle( triangle2, tempTarget1, tempTarget2 );
+							if ( dist < closestDistance ) {
+
+								tempTargetDest1.copy( tempTarget1 );
+
+								if ( tempTargetDest2 ) {
+
+									tempTargetDest2.copy( tempTarget2 );
+
+								}
+
+								closestDistance = dist;
+								closestDistanceTriIndex = i;
+								closestDistanceOtherTriIndex = i2;
+
+							}
+
+							// stop traversal if we find a point that's under the given threshold
+							if ( dist < minThreshold ) {
+
+								return true;
+
+							}
+
+						}
+
+					}
+
+				}
+
+			},
+
+		}
+
+	);
+
+	ExtendedTrianglePool.releasePrimitive( triangle );
+	ExtendedTrianglePool.releasePrimitive( triangle2 );
+
+	if ( closestDistance === Infinity ) {
+
+		return null;
+
+	}
+
+	if ( ! target1.point ) {
+
+		target1.point = tempTargetDest1.clone();
+
+	} else {
+
+		target1.point.copy( tempTargetDest1 );
+
+	}
+
+	target1.distance = closestDistance,
+	target1.faceIndex = closestDistanceTriIndex;
+
+	if ( target2 ) {
+
+		if ( ! target2.point ) target2.point = tempTargetDest2.clone();
+		else target2.point.copy( tempTargetDest2 );
+		target2.point.applyMatrix4( tempMatrix );
+		tempTargetDest1.applyMatrix4( tempMatrix );
+		target2.distance = tempTargetDest1.sub( target2.point ).length();
+		target2.faceIndex = closestDistanceOtherTriIndex;
+
+	}
+
+	return target1;
+
+}
+
+function isSharedArrayBufferSupported() {
+
+	return typeof SharedArrayBuffer !== 'undefined';
+
+}
+
+const _bufferStack1 = new BufferStack.constructor();
+const _bufferStack2 = new BufferStack.constructor();
+const _boxPool = new PrimitivePool( () => new Box3() );
+const _leftBox1 = new Box3();
+const _rightBox1 = new Box3();
+
+const _leftBox2 = new Box3();
+const _rightBox2 = new Box3();
+
+let _active = false;
+
+function bvhcast( bvh, otherBvh, matrixToLocal, intersectsRanges ) {
+
+	if ( _active ) {
+
+		throw new Error( 'MeshBVH: Recursive calls to bvhcast not supported.' );
+
+	}
+
+	_active = true;
+
+	const roots = bvh._roots;
+	const otherRoots = otherBvh._roots;
+	let result;
+	let offset1 = 0;
+	let offset2 = 0;
+	const invMat = new Matrix4().copy( matrixToLocal ).invert();
+
+	// iterate over the first set of roots
+	for ( let i = 0, il = roots.length; i < il; i ++ ) {
+
+		_bufferStack1.setBuffer( roots[ i ] );
+		offset2 = 0;
+
+		// prep the initial root box
+		const localBox = _boxPool.getPrimitive();
+		arrayToBox( BOUNDING_DATA_INDEX( 0 ), _bufferStack1.float32Array, localBox );
+		localBox.applyMatrix4( invMat );
+
+		// iterate over the second set of roots
+		for ( let j = 0, jl = otherRoots.length; j < jl; j ++ ) {
+
+			_bufferStack2.setBuffer( otherRoots[ i ] );
+
+			result = _traverse(
+				0, 0, matrixToLocal, invMat, intersectsRanges,
+				offset1, offset2, 0, 0,
+				localBox,
+			);
+
+			_bufferStack2.clearBuffer();
+			offset2 += otherRoots[ j ].length;
+
+			if ( result ) {
+
+				break;
+
+			}
+
+		}
+
+		// release stack info
+		_boxPool.releasePrimitive( localBox );
+		_bufferStack1.clearBuffer();
+		offset1 += roots[ i ].length;
+
+		if ( result ) {
+
+			break;
+
+		}
+
+	}
+
+	_active = false;
+	return result;
+
+}
+
+function _traverse(
+	node1Index32,
+	node2Index32,
+	matrix2to1,
+	matrix1to2,
+	intersectsRangesFunc,
+
+	// offsets for ids
+	node1IndexByteOffset = 0,
+	node2IndexByteOffset = 0,
+
+	// tree depth
+	depth1 = 0,
+	depth2 = 0,
+
+	currBox = null,
+	reversed = false,
+
+) {
+
+	// get the buffer stacks associated with the current indices
+	let bufferStack1, bufferStack2;
+	if ( reversed ) {
+
+		bufferStack1 = _bufferStack2;
+		bufferStack2 = _bufferStack1;
+
+	} else {
+
+		bufferStack1 = _bufferStack1;
+		bufferStack2 = _bufferStack2;
+
+	}
+
+	// get the local instances of the typed buffers
+	const
+		float32Array1 = bufferStack1.float32Array,
+		uint32Array1 = bufferStack1.uint32Array,
+		uint16Array1 = bufferStack1.uint16Array,
+		float32Array2 = bufferStack2.float32Array,
+		uint32Array2 = bufferStack2.uint32Array,
+		uint16Array2 = bufferStack2.uint16Array;
+
+	const node1Index16 = node1Index32 * 2;
+	const node2Index16 = node2Index32 * 2;
+	const isLeaf1 = IS_LEAF( node1Index16, uint16Array1 );
+	const isLeaf2 = IS_LEAF( node2Index16, uint16Array2 );
+	let result = false;
+	if ( isLeaf2 && isLeaf1 ) {
+
+		// if both bounds are leaf nodes then fire the callback if the boxes intersect
+		if ( reversed ) {
+
+			result = intersectsRangesFunc(
+				OFFSET( node2Index32, uint32Array2 ), COUNT( node2Index32 * 2, uint16Array2 ),
+				OFFSET( node1Index32, uint32Array1 ), COUNT( node1Index32 * 2, uint16Array1 ),
+				depth2, node2IndexByteOffset + node2Index32,
+				depth1, node1IndexByteOffset + node1Index32,
+			);
+
+		} else {
+
+			result = intersectsRangesFunc(
+				OFFSET( node1Index32, uint32Array1 ), COUNT( node1Index32 * 2, uint16Array1 ),
+				OFFSET( node2Index32, uint32Array2 ), COUNT( node2Index32 * 2, uint16Array2 ),
+				depth1, node1IndexByteOffset + node1Index32,
+				depth2, node2IndexByteOffset + node2Index32,
+			);
+
+		}
+
+	} else if ( isLeaf2 ) {
+
+		// SWAP
+		// If we've traversed to the leaf node on the other bvh then we need to swap over
+		// to traverse down the first one
+
+		// get the new box to use
+		const newBox = _boxPool.getPrimitive();
+		arrayToBox( BOUNDING_DATA_INDEX( node2Index32 ), float32Array2, newBox );
+		newBox.applyMatrix4( matrix2to1 );
+
+		// get the child bounds to check before traversal
+		const cl1 = LEFT_NODE( node1Index32 );
+		const cr1 = RIGHT_NODE( node1Index32, uint32Array1 );
+		arrayToBox( BOUNDING_DATA_INDEX( cl1 ), float32Array1, _leftBox1 );
+		arrayToBox( BOUNDING_DATA_INDEX( cr1 ), float32Array1, _rightBox1 );
+
+		// precompute the intersections otherwise the global boxes will be modified during traversal
+		const intersectCl1 = newBox.intersectsBox( _leftBox1 );
+		const intersectCr1 = newBox.intersectsBox( _rightBox1 );
+		result = (
+			intersectCl1 && _traverse(
+				node2Index32, cl1, matrix1to2, matrix2to1, intersectsRangesFunc,
+				node2IndexByteOffset, node1IndexByteOffset, depth2, depth1 + 1,
+				newBox, ! reversed,
+			)
+		) || (
+			intersectCr1 && _traverse(
+				node2Index32, cr1, matrix1to2, matrix2to1, intersectsRangesFunc,
+				node2IndexByteOffset, node1IndexByteOffset, depth2, depth1 + 1,
+				newBox, ! reversed,
+			)
+		);
+
+		_boxPool.releasePrimitive( newBox );
+
+	} else {
+
+		// if neither are leaves then we should swap if one of the children does not
+		// intersect with the current bounds
+
+		// get the child bounds to check
+		const cl2 = LEFT_NODE( node2Index32 );
+		const cr2 = RIGHT_NODE( node2Index32, uint32Array2 );
+		arrayToBox( BOUNDING_DATA_INDEX( cl2 ), float32Array2, _leftBox2 );
+		arrayToBox( BOUNDING_DATA_INDEX( cr2 ), float32Array2, _rightBox2 );
+
+		const leftIntersects = currBox.intersectsBox( _leftBox2 );
+		const rightIntersects = currBox.intersectsBox( _rightBox2 );
+		if ( leftIntersects && rightIntersects ) {
+
+			// continue to traverse both children if they both intersect
+			result = _traverse(
+				node1Index32, cl2, matrix2to1, matrix1to2, intersectsRangesFunc,
+				node1IndexByteOffset, node2IndexByteOffset, depth1, depth2 + 1,
+				currBox, reversed,
+			) || _traverse(
+				node1Index32, cr2, matrix2to1, matrix1to2, intersectsRangesFunc,
+				node1IndexByteOffset, node2IndexByteOffset, depth1, depth2 + 1,
+				currBox, reversed,
+			);
+
+		} else if ( leftIntersects ) {
+
+			if ( isLeaf1 ) {
+
+				// if the current box is a leaf then just continue
+				result = _traverse(
+					node1Index32, cl2, matrix2to1, matrix1to2, intersectsRangesFunc,
+					node1IndexByteOffset, node2IndexByteOffset, depth1, depth2 + 1,
+					currBox, reversed,
+				);
+
+			} else {
+
+				// SWAP
+				// if only one box intersects then we have to swap to the other bvh to continue
+				const newBox = _boxPool.getPrimitive();
+				newBox.copy( _leftBox2 ).applyMatrix4( matrix2to1 );
+
+				const cl1 = LEFT_NODE( node1Index32 );
+				const cr1 = RIGHT_NODE( node1Index32, uint32Array1 );
+				arrayToBox( BOUNDING_DATA_INDEX( cl1 ), float32Array1, _leftBox1 );
+				arrayToBox( BOUNDING_DATA_INDEX( cr1 ), float32Array1, _rightBox1 );
+
+				// precompute the intersections otherwise the global boxes will be modified during traversal
+				const intersectCl1 = newBox.intersectsBox( _leftBox1 );
+				const intersectCr1 = newBox.intersectsBox( _rightBox1 );
+				result = (
+					intersectCl1 && _traverse(
+						cl2, cl1, matrix1to2, matrix2to1, intersectsRangesFunc,
+						node2IndexByteOffset, node1IndexByteOffset, depth2, depth1 + 1,
+						newBox, ! reversed,
+					)
+				) || (
+					intersectCr1 && _traverse(
+						cl2, cr1, matrix1to2, matrix2to1, intersectsRangesFunc,
+						node2IndexByteOffset, node1IndexByteOffset, depth2, depth1 + 1,
+						newBox, ! reversed,
+					)
+				);
+
+				_boxPool.releasePrimitive( newBox );
+
+			}
+
+		} else if ( rightIntersects ) {
+
+			if ( isLeaf1 ) {
+
+				// if the current box is a leaf then just continue
+				result = _traverse(
+					node1Index32, cr2, matrix2to1, matrix1to2, intersectsRangesFunc,
+					node1IndexByteOffset, node2IndexByteOffset, depth1, depth2 + 1,
+					currBox, reversed,
+				);
+
+			} else {
+
+				// SWAP
+				// if only one box intersects then we have to swap to the other bvh to continue
+				const newBox = _boxPool.getPrimitive();
+				newBox.copy( _rightBox2 ).applyMatrix4( matrix2to1 );
+
+				const cl1 = LEFT_NODE( node1Index32 );
+				const cr1 = RIGHT_NODE( node1Index32, uint32Array1 );
+				arrayToBox( BOUNDING_DATA_INDEX( cl1 ), float32Array1, _leftBox1 );
+				arrayToBox( BOUNDING_DATA_INDEX( cr1 ), float32Array1, _rightBox1 );
+
+				// precompute the intersections otherwise the global boxes will be modified during traversal
+				const intersectCl1 = newBox.intersectsBox( _leftBox1 );
+				const intersectCr1 = newBox.intersectsBox( _rightBox1 );
+				result = (
+					intersectCl1 && _traverse(
+						cr2, cl1, matrix1to2, matrix2to1, intersectsRangesFunc,
+						node2IndexByteOffset, node1IndexByteOffset, depth2, depth1 + 1,
+						newBox, ! reversed,
+					)
+				) || (
+					intersectCr1 && _traverse(
+						cr2, cr1, matrix1to2, matrix2to1, intersectsRangesFunc,
+						node2IndexByteOffset, node1IndexByteOffset, depth2, depth1 + 1,
+						newBox, ! reversed,
+					)
+				);
+
+				_boxPool.releasePrimitive( newBox );
+
+			}
+
+		}
+
+	}
+
+	return result;
+
+}
+
+const obb = /* @__PURE__ */ new OrientedBox();
 const tempBox = /* @__PURE__ */ new Box3();
-const trianglePool = /* @__PURE__ */ new PrimitivePool( () => new ExtendedTriangle() );
 
 class MeshBVH {
 
 	static serialize( bvh, options = {} ) {
-
-		if ( options.isBufferGeometry ) {
-
-			console.warn( 'MeshBVH.serialize: The arguments for the function have changed. See documentation for new signature.' );
-
-			return MeshBVH.serialize(
-				arguments[ 0 ],
-				{
-					cloneBuffers: arguments[ 2 ] === undefined ? true : arguments[ 2 ],
-				}
-			);
-
-		}
 
 		options = {
 			cloneBuffers: true,
@@ -3139,6 +4989,7 @@ class MeshBVH {
 
 		const geometry = bvh.geometry;
 		const rootData = bvh._roots;
+		const indirectBuffer = bvh._indirectBuffer;
 		const indexAttribute = geometry.getIndex();
 		let result;
 		if ( options.cloneBuffers ) {
@@ -3146,6 +4997,7 @@ class MeshBVH {
 			result = {
 				roots: rootData.map( root => root.slice() ),
 				index: indexAttribute.array.slice(),
+				indirectBuffer: indirectBuffer ? indirectBuffer.slice() : null,
 			};
 
 		} else {
@@ -3153,6 +5005,7 @@ class MeshBVH {
 			result = {
 				roots: rootData,
 				index: indexAttribute.array,
+				indirectBuffer: indirectBuffer,
 			};
 
 		}
@@ -3163,28 +5016,16 @@ class MeshBVH {
 
 	static deserialize( data, geometry, options = {} ) {
 
-		if ( typeof options === 'boolean' ) {
-
-			console.warn( 'MeshBVH.deserialize: The arguments for the function have changed. See documentation for new signature.' );
-
-			return MeshBVH.deserialize(
-				arguments[ 0 ],
-				arguments[ 1 ],
-				{
-					setIndex: arguments[ 2 ] === undefined ? true : arguments[ 2 ],
-				}
-			);
-
-		}
-
 		options = {
 			setIndex: true,
+			indirect: Boolean( data.indirectBuffer ),
 			...options,
 		};
 
-		const { index, roots } = data;
+		const { index, roots, indirectBuffer } = data;
 		const bvh = new MeshBVH( geometry, { ...options, [ SKIP_GENERATION ]: true } );
 		bvh._roots = roots;
+		bvh._indirectBuffer = indirectBuffer || null;
 
 		if ( options.setIndex ) {
 
@@ -3204,6 +5045,12 @@ class MeshBVH {
 		}
 
 		return bvh;
+
+	}
+
+	get indirect() {
+
+		return ! ! this._indirectBuffer;
 
 	}
 
@@ -3229,6 +5076,7 @@ class MeshBVH {
 			useSharedArrayBuffer: false,
 			setBoundingBox: true,
 			onProgress: null,
+			indirect: false,
 
 			// undocumented options
 
@@ -3237,16 +5085,20 @@ class MeshBVH {
 
 		}, options );
 
-		if ( options.useSharedArrayBuffer && typeof SharedArrayBuffer === 'undefined' ) {
+		if ( options.useSharedArrayBuffer && ! isSharedArrayBufferSupported() ) {
 
 			throw new Error( 'MeshBVH: SharedArrayBuffer is not available.' );
 
 		}
 
+		// retain references to the geometry so we can use them it without having to
+		// take a geometry reference in every function.
+		this.geometry = geometry;
 		this._roots = null;
+		this._indirectBuffer = null;
 		if ( ! options[ SKIP_GENERATION ] ) {
 
-			this._roots = buildPackedTree( geometry, options );
+			buildPackedTree( this, options );
 
 			if ( ! geometry.boundingBox && options.setBoundingBox ) {
 
@@ -3256,172 +5108,15 @@ class MeshBVH {
 
 		}
 
-		// retain references to the geometry so we can use them it without having to
-		// take a geometry reference in every function.
-		this.geometry = geometry;
+		const { _indirectBuffer } = this;
+		this.resolveTriangleIndex = options.indirect ? i => _indirectBuffer[ i ] : i => i;
 
 	}
 
 	refit( nodeIndices = null ) {
 
-		if ( nodeIndices && Array.isArray( nodeIndices ) ) {
-
-			nodeIndices = new Set( nodeIndices );
-
-		}
-
-		const geometry = this.geometry;
-		const indexArr = geometry.index.array;
-		const posAttr = geometry.attributes.position;
-
-		let buffer, uint32Array, uint16Array, float32Array;
-		let byteOffset = 0;
-		const roots = this._roots;
-		for ( let i = 0, l = roots.length; i < l; i ++ ) {
-
-			buffer = roots[ i ];
-			uint32Array = new Uint32Array( buffer );
-			uint16Array = new Uint16Array( buffer );
-			float32Array = new Float32Array( buffer );
-
-			_traverse( 0, byteOffset );
-			byteOffset += buffer.byteLength;
-
-		}
-
-		function _traverse( node32Index, byteOffset, force = false ) {
-
-			const node16Index = node32Index * 2;
-			const isLeaf = uint16Array[ node16Index + 15 ] === IS_LEAFNODE_FLAG;
-			if ( isLeaf ) {
-
-				const offset = uint32Array[ node32Index + 6 ];
-				const count = uint16Array[ node16Index + 14 ];
-
-				let minx = Infinity;
-				let miny = Infinity;
-				let minz = Infinity;
-				let maxx = - Infinity;
-				let maxy = - Infinity;
-				let maxz = - Infinity;
-
-				for ( let i = 3 * offset, l = 3 * ( offset + count ); i < l; i ++ ) {
-
-					const index = indexArr[ i ];
-					const x = posAttr.getX( index );
-					const y = posAttr.getY( index );
-					const z = posAttr.getZ( index );
-
-					if ( x < minx ) minx = x;
-					if ( x > maxx ) maxx = x;
-
-					if ( y < miny ) miny = y;
-					if ( y > maxy ) maxy = y;
-
-					if ( z < minz ) minz = z;
-					if ( z > maxz ) maxz = z;
-
-				}
-
-				if (
-					float32Array[ node32Index + 0 ] !== minx ||
-					float32Array[ node32Index + 1 ] !== miny ||
-					float32Array[ node32Index + 2 ] !== minz ||
-
-					float32Array[ node32Index + 3 ] !== maxx ||
-					float32Array[ node32Index + 4 ] !== maxy ||
-					float32Array[ node32Index + 5 ] !== maxz
-				) {
-
-					float32Array[ node32Index + 0 ] = minx;
-					float32Array[ node32Index + 1 ] = miny;
-					float32Array[ node32Index + 2 ] = minz;
-
-					float32Array[ node32Index + 3 ] = maxx;
-					float32Array[ node32Index + 4 ] = maxy;
-					float32Array[ node32Index + 5 ] = maxz;
-
-					return true;
-
-				} else {
-
-					return false;
-
-				}
-
-			} else {
-
-				const left = node32Index + 8;
-				const right = uint32Array[ node32Index + 6 ];
-
-				// the identifying node indices provided by the shapecast function include offsets of all
-				// root buffers to guarantee they're unique between roots so offset left and right indices here.
-				const offsetLeft = left + byteOffset;
-				const offsetRight = right + byteOffset;
-				let forceChildren = force;
-				let includesLeft = false;
-				let includesRight = false;
-
-				if ( nodeIndices ) {
-
-					// if we see that neither the left or right child are included in the set that need to be updated
-					// then we assume that all children need to be updated.
-					if ( ! forceChildren ) {
-
-						includesLeft = nodeIndices.has( offsetLeft );
-						includesRight = nodeIndices.has( offsetRight );
-						forceChildren = ! includesLeft && ! includesRight;
-
-					}
-
-				} else {
-
-					includesLeft = true;
-					includesRight = true;
-
-				}
-
-				const traverseLeft = forceChildren || includesLeft;
-				const traverseRight = forceChildren || includesRight;
-
-				let leftChange = false;
-				if ( traverseLeft ) {
-
-					leftChange = _traverse( left, byteOffset, forceChildren );
-
-				}
-
-				let rightChange = false;
-				if ( traverseRight ) {
-
-					rightChange = _traverse( right, byteOffset, forceChildren );
-
-				}
-
-				const didChange = leftChange || rightChange;
-				if ( didChange ) {
-
-					for ( let i = 0; i < 3; i ++ ) {
-
-						const lefti = left + i;
-						const righti = right + i;
-						const minLeftValue = float32Array[ lefti ];
-						const maxLeftValue = float32Array[ lefti + 3 ];
-						const minRightValue = float32Array[ righti ];
-						const maxRightValue = float32Array[ righti + 3 ];
-
-						float32Array[ node32Index + i ] = minLeftValue < minRightValue ? minLeftValue : minRightValue;
-						float32Array[ node32Index + i + 3 ] = maxLeftValue > maxRightValue ? maxLeftValue : maxRightValue;
-
-					}
-
-				}
-
-				return didChange;
-
-			}
-
-		}
+		const refitFunc = this.indirect ? refit_indirect : refit;
+		return refitFunc( this, nodeIndices );
 
 	}
 
@@ -3474,14 +5169,13 @@ class MeshBVH {
 
 		const groups = geometry.groups;
 		const side = isMaterial ? materialOrSide.side : materialOrSide;
+		const raycastFunc = this.indirect ? raycast_indirect : raycast;
 		for ( let i = 0, l = roots.length; i < l; i ++ ) {
 
 			const materialSide = isArrayMaterial ? materialOrSide[ groups[ i ].materialIndex ].side : side;
 			const startCount = intersects.length;
 
-			setBuffer( roots[ i ] );
-			raycast( 0, geometry, materialSide, ray, intersects );
-			clearBuffer();
+			raycastFunc( this, i, materialSide, ray, intersects );
 
 			if ( isArrayMaterial ) {
 
@@ -3511,14 +5205,11 @@ class MeshBVH {
 
 		const groups = geometry.groups;
 		const side = isMaterial ? materialOrSide.side : materialOrSide;
+		const raycastFirstFunc = this.indirect ? raycastFirst_indirect : raycastFirst;
 		for ( let i = 0, l = roots.length; i < l; i ++ ) {
 
 			const materialSide = isArrayMaterial ? materialOrSide[ groups[ i ].materialIndex ].side : side;
-
-			setBuffer( roots[ i ] );
-			const result = raycastFirst( 0, geometry, materialSide, ray );
-			clearBuffer();
-
+			const result = raycastFirstFunc( this, i, materialSide, ray );
 			if ( result != null && ( closestResult == null || result.distance < closestResult.distance ) ) {
 
 				closestResult = result;
@@ -3538,13 +5229,12 @@ class MeshBVH {
 
 	intersectsGeometry( otherGeometry, geomToMesh ) {
 
-		const geometry = this.geometry;
 		let result = false;
-		for ( const root of this._roots ) {
+		const roots = this._roots;
+		const intersectsGeometryFunc = this.indirect ? intersectsGeometry_indirect : intersectsGeometry;
+		for ( let i = 0, l = roots.length; i < l; i ++ ) {
 
-			setBuffer( root );
-			result = intersectsGeometry( 0, geometry, otherGeometry, geomToMesh );
-			clearBuffer();
+			result = intersectsGeometryFunc( this, i, otherGeometry, geomToMesh );
 
 			if ( result ) {
 
@@ -3558,40 +5248,10 @@ class MeshBVH {
 
 	}
 
-	shapecast( callbacks, _intersectsTriangleFunc, _orderNodesFunc ) {
+	shapecast( callbacks ) {
 
-		const geometry = this.geometry;
-		if ( callbacks instanceof Function ) {
-
-			if ( _intersectsTriangleFunc ) {
-
-				// Support the previous function signature that provided three sequential index buffer
-				// indices here.
-				const originalTriangleFunc = _intersectsTriangleFunc;
-				_intersectsTriangleFunc = ( tri, index, contained, depth ) => {
-
-					const i3 = index * 3;
-					return originalTriangleFunc( tri, i3, i3 + 1, i3 + 2, contained, depth );
-
-				};
-
-
-			}
-
-			callbacks = {
-
-				boundsTraverseOrder: _orderNodesFunc,
-				intersectsBounds: callbacks,
-				intersectsTriangle: _intersectsTriangleFunc,
-				intersectsRange: null,
-
-			};
-
-			console.warn( 'MeshBVH: Shapecast function signature has changed and now takes an object of callbacks as a second argument. See docs for new signature.' );
-
-		}
-
-		const triangle = trianglePool.getPrimitive();
+		const triangle = ExtendedTrianglePool.getPrimitive();
+		const iterateFunc = this.indirect ? iterateOverTriangles_indirect : iterateOverTriangles;
 		let {
 			boundsTraverseOrder,
 			intersectsBounds,
@@ -3599,6 +5259,7 @@ class MeshBVH {
 			intersectsTriangle,
 		} = callbacks;
 
+		// wrap the intersectsRange function
 		if ( intersectsRange && intersectsTriangle ) {
 
 			const originalIntersectsRange = intersectsRange;
@@ -3606,7 +5267,7 @@ class MeshBVH {
 
 				if ( ! originalIntersectsRange( offset, count, contained, depth, nodeIndex ) ) {
 
-					return iterateOverTriangles( offset, count, geometry, intersectsTriangle, contained, depth, triangle );
+					return iterateFunc( offset, count, this, intersectsTriangle, contained, depth, triangle );
 
 				}
 
@@ -3620,7 +5281,7 @@ class MeshBVH {
 
 				intersectsRange = ( offset, count, contained, depth ) => {
 
-					return iterateOverTriangles( offset, count, geometry, intersectsTriangle, contained, depth, triangle );
+					return iterateFunc( offset, count, this, intersectsTriangle, contained, depth, triangle );
 
 				};
 
@@ -3636,13 +5297,14 @@ class MeshBVH {
 
 		}
 
+		// run shapecast
 		let result = false;
 		let byteOffset = 0;
-		for ( const root of this._roots ) {
+		const roots = this._roots;
+		for ( let i = 0, l = roots.length; i < l; i ++ ) {
 
-			setBuffer( root );
-			result = shapecast( 0, geometry, intersectsBounds, intersectsRange, boundsTraverseOrder, byteOffset );
-			clearBuffer();
+			const root = roots[ i ];
+			result = shapecast( this, i, intersectsBounds, intersectsRange, boundsTraverseOrder, byteOffset );
 
 			if ( result ) {
 
@@ -3654,7 +5316,7 @@ class MeshBVH {
 
 		}
 
-		trianglePool.releasePrimitive( triangle );
+		ExtendedTrianglePool.releasePrimitive( triangle );
 
 		return result;
 
@@ -3662,32 +5324,53 @@ class MeshBVH {
 
 	bvhcast( otherBvh, matrixToLocal, callbacks ) {
 
-		// BVHCast function for intersecting two BVHs against each other. Ultimately just uses two recursive shapecast calls rather
-		// than an approach that walks down the tree (see bvhcast.js file for more info).
-
 		let {
 			intersectsRanges,
 			intersectsTriangles,
 		} = callbacks;
 
-		const indexAttr = this.geometry.index;
-		const positionAttr = this.geometry.attributes.position;
+		const triangle1 = ExtendedTrianglePool.getPrimitive();
+		const indexAttr1 = this.geometry.index;
+		const positionAttr1 = this.geometry.attributes.position;
+		const assignTriangle1 = this.indirect ?
+			i1 => {
 
-		const otherIndexAttr = otherBvh.geometry.index;
-		const otherPositionAttr = otherBvh.geometry.attributes.position;
 
-		tempMatrix.copy( matrixToLocal ).invert();
+				const ti = this.resolveTriangleIndex( i1 );
+				setTriangle( triangle1, ti * 3, indexAttr1, positionAttr1 );
 
-		const triangle = trianglePool.getPrimitive();
-		const triangle2 = trianglePool.getPrimitive();
+			} :
+			i1 => {
 
+				setTriangle( triangle1, i1 * 3, indexAttr1, positionAttr1 );
+
+			};
+
+		const triangle2 = ExtendedTrianglePool.getPrimitive();
+		const indexAttr2 = otherBvh.geometry.index;
+		const positionAttr2 = otherBvh.geometry.attributes.position;
+		const assignTriangle2 = otherBvh.indirect ?
+			i2 => {
+
+				const ti2 = otherBvh.resolveTriangleIndex( i2 );
+				setTriangle( triangle2, ti2 * 3, indexAttr2, positionAttr2 );
+
+			} :
+			i2 => {
+
+				setTriangle( triangle2, i2 * 3, indexAttr2, positionAttr2 );
+
+			};
+
+		// generate triangle callback if needed
 		if ( intersectsTriangles ) {
 
-			function iterateOverDoubleTriangles( offset1, count1, offset2, count2, depth1, index1, depth2, index2 ) {
+			const iterateOverDoubleTriangles = ( offset1, count1, offset2, count2, depth1, index1, depth2, index2 ) => {
 
 				for ( let i2 = offset2, l2 = offset2 + count2; i2 < l2; i2 ++ ) {
 
-					setTriangle( triangle2, i2 * 3, otherIndexAttr, otherPositionAttr );
+					assignTriangle2( i2 );
+
 					triangle2.a.applyMatrix4( matrixToLocal );
 					triangle2.b.applyMatrix4( matrixToLocal );
 					triangle2.c.applyMatrix4( matrixToLocal );
@@ -3695,10 +5378,11 @@ class MeshBVH {
 
 					for ( let i1 = offset1, l1 = offset1 + count1; i1 < l1; i1 ++ ) {
 
-						setTriangle( triangle, i1 * 3, indexAttr, positionAttr );
-						triangle.needsUpdate = true;
+						assignTriangle1( i1 );
 
-						if ( intersectsTriangles( triangle, triangle2, i1, i2, depth1, index1, depth2, index2 ) ) {
+						triangle1.needsUpdate = true;
+
+						if ( intersectsTriangles( triangle1, triangle2, i1, i2, depth1, index1, depth2, index2 ) ) {
 
 							return true;
 
@@ -3710,7 +5394,7 @@ class MeshBVH {
 
 				return false;
 
-			}
+			};
 
 			if ( intersectsRanges ) {
 
@@ -3735,37 +5419,10 @@ class MeshBVH {
 
 		}
 
-		otherBvh.getBoundingBox( aabb2 );
-		aabb2.applyMatrix4( matrixToLocal );
-		const result = this.shapecast( {
-
-			intersectsBounds: box => aabb2.intersectsBox( box ),
-
-			intersectsRange: ( offset1, count1, contained, depth1, nodeIndex1, box ) => {
-
-				aabb.copy( box );
-				aabb.applyMatrix4( tempMatrix );
-				return otherBvh.shapecast( {
-
-					intersectsBounds: box => aabb.intersectsBox( box ),
-
-					intersectsRange: ( offset2, count2, contained, depth2, nodeIndex2 ) => {
-
-						return intersectsRanges( offset1, count1, offset2, count2, depth1, nodeIndex1, depth2, nodeIndex2 );
-
-					},
-
-				} );
-
-			}
-
-		} );
-
-		trianglePool.releasePrimitive( triangle );
-		trianglePool.releasePrimitive( triangle2 );
-		return result;
+		return bvhcast( this, otherBvh, matrixToLocal, intersectsRanges );
 
 	}
+
 
 	/* Derived Cast Functions */
 	intersectsBox( box, boxToMesh ) {
@@ -3795,279 +5452,28 @@ class MeshBVH {
 
 	closestPointToGeometry( otherGeometry, geometryToBvh, target1 = { }, target2 = { }, minThreshold = 0, maxThreshold = Infinity ) {
 
-		if ( ! otherGeometry.boundingBox ) {
-
-			otherGeometry.computeBoundingBox();
-
-		}
-
-		obb.set( otherGeometry.boundingBox.min, otherGeometry.boundingBox.max, geometryToBvh );
-		obb.needsUpdate = true;
-
-		const geometry = this.geometry;
-		const pos = geometry.attributes.position;
-		const index = geometry.index;
-		const otherPos = otherGeometry.attributes.position;
-		const otherIndex = otherGeometry.index;
-		const triangle = trianglePool.getPrimitive();
-		const triangle2 = trianglePool.getPrimitive();
-
-		let tempTarget1 = temp1;
-		let tempTargetDest1 = temp2;
-		let tempTarget2 = null;
-		let tempTargetDest2 = null;
-
-		if ( target2 ) {
-
-			tempTarget2 = temp3;
-			tempTargetDest2 = temp4;
-
-		}
-
-		let closestDistance = Infinity;
-		let closestDistanceTriIndex = null;
-		let closestDistanceOtherTriIndex = null;
-		tempMatrix.copy( geometryToBvh ).invert();
-		obb2.matrix.copy( tempMatrix );
-		this.shapecast(
-			{
-
-				boundsTraverseOrder: box => {
-
-					return obb.distanceToBox( box );
-
-				},
-
-				intersectsBounds: ( box, isLeaf, score ) => {
-
-					if ( score < closestDistance && score < maxThreshold ) {
-
-						// if we know the triangles of this bounds will be intersected next then
-						// save the bounds to use during triangle checks.
-						if ( isLeaf ) {
-
-							obb2.min.copy( box.min );
-							obb2.max.copy( box.max );
-							obb2.needsUpdate = true;
-
-						}
-
-						return true;
-
-					}
-
-					return false;
-
-				},
-
-				intersectsRange: ( offset, count ) => {
-
-					if ( otherGeometry.boundsTree ) {
-
-						// if the other geometry has a bvh then use the accelerated path where we use shapecast to find
-						// the closest bounds in the other geometry to check.
-						return otherGeometry.boundsTree.shapecast( {
-							boundsTraverseOrder: box => {
-
-								return obb2.distanceToBox( box );
-
-							},
-
-							intersectsBounds: ( box, isLeaf, score ) => {
-
-								return score < closestDistance && score < maxThreshold;
-
-							},
-
-							intersectsRange: ( otherOffset, otherCount ) => {
-
-								for ( let i2 = otherOffset * 3, l2 = ( otherOffset + otherCount ) * 3; i2 < l2; i2 += 3 ) {
-
-									setTriangle( triangle2, i2, otherIndex, otherPos );
-									triangle2.a.applyMatrix4( geometryToBvh );
-									triangle2.b.applyMatrix4( geometryToBvh );
-									triangle2.c.applyMatrix4( geometryToBvh );
-									triangle2.needsUpdate = true;
-
-									for ( let i = offset * 3, l = ( offset + count ) * 3; i < l; i += 3 ) {
-
-										setTriangle( triangle, i, index, pos );
-										triangle.needsUpdate = true;
-
-										const dist = triangle.distanceToTriangle( triangle2, tempTarget1, tempTarget2 );
-										if ( dist < closestDistance ) {
-
-											tempTargetDest1.copy( tempTarget1 );
-
-											if ( tempTargetDest2 ) {
-
-												tempTargetDest2.copy( tempTarget2 );
-
-											}
-
-											closestDistance = dist;
-											closestDistanceTriIndex = i / 3;
-											closestDistanceOtherTriIndex = i2 / 3;
-
-										}
-
-										// stop traversal if we find a point that's under the given threshold
-										if ( dist < minThreshold ) {
-
-											return true;
-
-										}
-
-									}
-
-								}
-
-							},
-						} );
-
-					} else {
-
-						// If no bounds tree then we'll just check every triangle.
-						const triCount = otherIndex ? otherIndex.count : otherPos.count;
-						for ( let i2 = 0, l2 = triCount; i2 < l2; i2 += 3 ) {
-
-							setTriangle( triangle2, i2, otherIndex, otherPos );
-							triangle2.a.applyMatrix4( geometryToBvh );
-							triangle2.b.applyMatrix4( geometryToBvh );
-							triangle2.c.applyMatrix4( geometryToBvh );
-							triangle2.needsUpdate = true;
-
-							for ( let i = offset * 3, l = ( offset + count ) * 3; i < l; i += 3 ) {
-
-								setTriangle( triangle, i, index, pos );
-								triangle.needsUpdate = true;
-
-								const dist = triangle.distanceToTriangle( triangle2, tempTarget1, tempTarget2 );
-								if ( dist < closestDistance ) {
-
-									tempTargetDest1.copy( tempTarget1 );
-
-									if ( tempTargetDest2 ) {
-
-										tempTargetDest2.copy( tempTarget2 );
-
-									}
-
-									closestDistance = dist;
-									closestDistanceTriIndex = i / 3;
-									closestDistanceOtherTriIndex = i2 / 3;
-
-								}
-
-								// stop traversal if we find a point that's under the given threshold
-								if ( dist < minThreshold ) {
-
-									return true;
-
-								}
-
-							}
-
-						}
-
-					}
-
-				},
-
-			}
-
+		const closestPointToGeometryFunc = this.indirect ? closestPointToGeometry_indirect : closestPointToGeometry;
+		return closestPointToGeometryFunc(
+			this,
+			otherGeometry,
+			geometryToBvh,
+			target1,
+			target2,
+			minThreshold,
+			maxThreshold,
 		);
-
-		trianglePool.releasePrimitive( triangle );
-		trianglePool.releasePrimitive( triangle2 );
-
-		if ( closestDistance === Infinity ) return null;
-
-		if ( ! target1.point ) target1.point = tempTargetDest1.clone();
-		else target1.point.copy( tempTargetDest1 );
-		target1.distance = closestDistance,
-		target1.faceIndex = closestDistanceTriIndex;
-
-		if ( target2 ) {
-
-			if ( ! target2.point ) target2.point = tempTargetDest2.clone();
-			else target2.point.copy( tempTargetDest2 );
-			target2.point.applyMatrix4( tempMatrix );
-			tempTargetDest1.applyMatrix4( tempMatrix );
-			target2.distance = tempTargetDest1.sub( target2.point ).length();
-			target2.faceIndex = closestDistanceOtherTriIndex;
-
-		}
-
-		return target1;
 
 	}
 
 	closestPointToPoint( point, target = { }, minThreshold = 0, maxThreshold = Infinity ) {
 
-		// early out if under minThreshold
-		// skip checking if over maxThreshold
-		// set minThreshold = maxThreshold to quickly check if a point is within a threshold
-		// returns Infinity if no value found
-		const minThresholdSq = minThreshold * minThreshold;
-		const maxThresholdSq = maxThreshold * maxThreshold;
-		let closestDistanceSq = Infinity;
-		let closestDistanceTriIndex = null;
-		this.shapecast(
-
-			{
-
-				boundsTraverseOrder: box => {
-
-					temp.copy( point ).clamp( box.min, box.max );
-					return temp.distanceToSquared( point );
-
-				},
-
-				intersectsBounds: ( box, isLeaf, score ) => {
-
-					return score < closestDistanceSq && score < maxThresholdSq;
-
-				},
-
-				intersectsTriangle: ( tri, triIndex ) => {
-
-					tri.closestPointToPoint( point, temp );
-					const distSq = point.distanceToSquared( temp );
-					if ( distSq < closestDistanceSq ) {
-
-						temp1.copy( temp );
-						closestDistanceSq = distSq;
-						closestDistanceTriIndex = triIndex;
-
-					}
-
-					if ( distSq < minThresholdSq ) {
-
-						return true;
-
-					} else {
-
-						return false;
-
-					}
-
-				},
-
-			}
-
+		return closestPointToPoint(
+			this,
+			point,
+			target,
+			minThreshold,
+			maxThreshold,
 		);
-
-		if ( closestDistanceSq === Infinity ) return null;
-
-		const closestDistance = Math.sqrt( closestDistanceSq );
-
-		if ( ! target.point ) target.point = temp1.clone();
-		else target.point.copy( temp1 );
-		target.distance = closestDistance,
-		target.faceIndex = closestDistanceTriIndex;
-
-		return target;
 
 	}
 
@@ -4084,6 +5490,32 @@ class MeshBVH {
 		} );
 
 		return target;
+
+	}
+
+}
+
+// converts the given BVH raycast intersection to align with the three.js raycast
+// structure (include object, world space distance and point).
+function convertRaycastIntersect( hit, object, raycaster ) {
+
+	if ( hit === null ) {
+
+		return null;
+
+	}
+
+	hit.point.applyMatrix4( object.matrixWorld );
+	hit.distance = hit.point.distanceTo( raycaster.ray.origin );
+	hit.object = object;
+
+	if ( hit.distance < raycaster.near || hit.distance > raycaster.far ) {
+
+		return null;
+
+	} else {
+
+		return hit;
 
 	}
 
@@ -4264,8 +5696,18 @@ let Fragment$1 = class Fragment {
             (_a = oldMesh.parent) === null || _a === void 0 ? void 0 : _a.add(newMesh);
             oldMesh.removeFromParent();
             this.mesh = newMesh;
-            newMesh.instanceMatrix = oldMesh.instanceMatrix;
-            newMesh.instanceColor = oldMesh.instanceColor;
+            const tempMatrix = new THREE.Matrix4();
+            for (let i = 0; i < oldMesh.instanceMatrix.count; i++) {
+                oldMesh.getMatrixAt(i, tempMatrix);
+                newMesh.setMatrixAt(i, tempMatrix);
+            }
+            if (oldMesh.instanceColor) {
+                const tempColor = new THREE.Color();
+                for (let i = 0; i < oldMesh.instanceColor.count; i++) {
+                    oldMesh.getColorAt(i, tempColor);
+                    newMesh.setColorAt(i, tempColor);
+                }
+            }
             oldMesh.instanceMatrix = undefined;
             oldMesh.instanceColor = null;
             oldMesh.dispose();
