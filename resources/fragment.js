@@ -5712,7 +5712,10 @@ let Fragment$1 = class Fragment {
         }
         for (let i = 0; i < items.length; i++) {
             const { transforms, colors, id } = items[i];
-            const instances = new Set();
+            if (!this.itemToInstances.has(id)) {
+                this.itemToInstances.set(id, new Set());
+            }
+            const instances = this.itemToInstances.get(id);
             this.ids.add(id);
             for (let j = 0; j < transforms.length; j++) {
                 const transform = transforms[j];
@@ -5726,7 +5729,6 @@ let Fragment$1 = class Fragment {
                 this.instanceToItem.set(newInstanceID, id);
                 this.mesh.count++;
             }
-            this.itemToInstances.set(id, instances);
         }
         this.update();
     }
@@ -5853,20 +5855,22 @@ let Fragment$1 = class Fragment {
         if (id1 === undefined || id2 === undefined) {
             throw new Error("Keys not found");
         }
-        const instances1 = this.itemToInstances.get(id1);
-        const instances2 = this.itemToInstances.get(id2);
-        if (!instances1 || !instances2) {
-            throw new Error("Instances not found");
+        if (id1 !== id2) {
+            const instances1 = this.itemToInstances.get(id1);
+            const instances2 = this.itemToInstances.get(id2);
+            if (!instances1 || !instances2) {
+                throw new Error("Instances not found");
+            }
+            if (!instances1.has(instanceID) || !instances2.has(instanceID2)) {
+                throw new Error("Malformed fragment structure");
+            }
+            instances1.delete(instanceID);
+            instances2.delete(instanceID2);
+            instances1.add(instanceID2);
+            instances2.add(instanceID);
+            this.instanceToItem.set(instanceID, id2);
+            this.instanceToItem.set(instanceID2, id1);
         }
-        if (!instances1.has(instanceID) || !instances2.has(instanceID2)) {
-            throw new Error("Malformed fragment structure");
-        }
-        instances1.delete(instanceID);
-        instances2.delete(instanceID2);
-        instances1.add(instanceID2);
-        instances2.add(instanceID);
-        this.instanceToItem.set(instanceID, id2);
-        this.instanceToItem.set(instanceID2, id1);
         const transform1 = new THREE.Matrix4();
         const transform2 = new THREE.Matrix4();
         this.mesh.getMatrixAt(instanceID, transform1);
@@ -7252,8 +7256,32 @@ let FragmentsGroup$1 = class FragmentsGroup {
         const offset = this.bb.__offset(this.bb_pos, 34);
         return offset ? new Float32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
     }
+    opaqueGeometriesIds(index) {
+        const offset = this.bb.__offset(this.bb_pos, 36);
+        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+    }
+    opaqueGeometriesIdsLength() {
+        const offset = this.bb.__offset(this.bb_pos, 36);
+        return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+    }
+    opaqueGeometriesIdsArray() {
+        const offset = this.bb.__offset(this.bb_pos, 36);
+        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+    }
+    transparentGeometriesIds(index) {
+        const offset = this.bb.__offset(this.bb_pos, 38);
+        return offset ? this.bb.readInt32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+    }
+    transparentGeometriesIdsLength() {
+        const offset = this.bb.__offset(this.bb_pos, 38);
+        return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+    }
+    transparentGeometriesIdsArray() {
+        const offset = this.bb.__offset(this.bb_pos, 38);
+        return offset ? new Int32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+    }
     static startFragmentsGroup(builder) {
-        builder.startObject(16);
+        builder.startObject(18);
     }
     static addItems(builder, itemsOffset) {
         builder.addFieldOffset(0, itemsOffset, 0);
@@ -7383,6 +7411,32 @@ let FragmentsGroup$1 = class FragmentsGroup {
     static startBoundingBoxVector(builder, numElems) {
         builder.startVector(4, numElems, 4);
     }
+    static addOpaqueGeometriesIds(builder, opaqueGeometriesIdsOffset) {
+        builder.addFieldOffset(16, opaqueGeometriesIdsOffset, 0);
+    }
+    static createOpaqueGeometriesIdsVector(builder, data) {
+        builder.startVector(4, data.length, 4);
+        for (let i = data.length - 1; i >= 0; i--) {
+            builder.addInt32(data[i]);
+        }
+        return builder.endVector();
+    }
+    static startOpaqueGeometriesIdsVector(builder, numElems) {
+        builder.startVector(4, numElems, 4);
+    }
+    static addTransparentGeometriesIds(builder, transparentGeometriesIdsOffset) {
+        builder.addFieldOffset(17, transparentGeometriesIdsOffset, 0);
+    }
+    static createTransparentGeometriesIdsVector(builder, data) {
+        builder.startVector(4, data.length, 4);
+        for (let i = data.length - 1; i >= 0; i--) {
+            builder.addInt32(data[i]);
+        }
+        return builder.endVector();
+    }
+    static startTransparentGeometriesIdsVector(builder, numElems) {
+        builder.startVector(4, numElems, 4);
+    }
     static endFragmentsGroup(builder) {
         const offset = builder.endObject();
         return offset;
@@ -7408,6 +7462,11 @@ class FragmentsGroup extends THREE.Group {
         // keys = fragmentKeys to which this asset belongs
         // rels = [floor, categoryid]
         this.data = new Map();
+        // [geometryID, key]
+        this.geometryIDs = {
+            opaque: new Map(),
+            transparent: new Map(),
+        };
         this.ifcMetadata = {
             name: "",
             description: "",
@@ -7596,6 +7655,14 @@ class Serializer {
             keysCounter += keys.length;
             relsCounter += rels.length;
         }
+        const opaqueIDs = [];
+        const transpIDs = [];
+        for (const [geometryID, key] of group.geometryIDs.opaque) {
+            opaqueIDs.push(geometryID, key);
+        }
+        for (const [geometryID, key] of group.geometryIDs.transparent) {
+            transpIDs.push(geometryID, key);
+        }
         const groupID = builder.createString(group.uuid);
         const groupName = builder.createString(group.name);
         const ifcName = builder.createString(group.ifcMetadata.name);
@@ -7606,6 +7673,8 @@ class Serializer {
         const relsIVector = G.createItemsRelsIndicesVector(builder, relsIndices);
         const relsVector = G.createItemsRelsVector(builder, itemsRels);
         const idsVector = G.createIdsVector(builder, ids);
+        const oIdsVector = G.createOpaqueGeometriesIdsVector(builder, opaqueIDs);
+        const tIdsVector = G.createTransparentGeometriesIdsVector(builder, transpIDs);
         const { min, max } = group.boundingBox;
         const bbox = [min.x, min.y, min.z, max.x, max.y, max.z];
         const bboxVector = G.createBoundingBoxVector(builder, bbox);
@@ -7628,6 +7697,8 @@ class Serializer {
         G.addItemsRels(builder, relsVector);
         G.addCoordinationMatrix(builder, matrixVector);
         G.addBoundingBox(builder, bboxVector);
+        G.addOpaqueGeometriesIds(builder, oIdsVector);
+        G.addTransparentGeometriesIds(builder, tIdsVector);
         const result = FragmentsGroup$1.endFragmentsGroup(builder);
         builder.finish(result);
         return builder.asUint8Array();
@@ -7732,6 +7803,21 @@ class Serializer {
         const keysIdsArray = keysIdsString.split(this.fragmentIDSeparator);
         this.setGroupData(fragmentsGroup, ids, keysIndices, keysArray, 0);
         this.setGroupData(fragmentsGroup, ids, relsIndices, relsArray, 1);
+        const opaqueIDs = group.opaqueGeometriesIdsArray() || new Uint32Array();
+        const transpIDs = group.transparentGeometriesIdsArray() || new Uint32Array();
+        const opaque = new Map();
+        for (let i = 0; i < opaqueIDs.length - 1; i += 2) {
+            const geometryID = opaqueIDs[i];
+            const key = opaqueIDs[i + 1];
+            opaque.set(geometryID, key);
+        }
+        const transparent = new Map();
+        for (let i = 0; i < transpIDs.length - 1; i += 2) {
+            const geometryID = transpIDs[i];
+            const key = transpIDs[i + 1];
+            transparent.set(geometryID, key);
+        }
+        fragmentsGroup.geometryIDs = { opaque, transparent };
         const bbox = group.boundingBoxArray() || [0, 0, 0, 0, 0, 0];
         const [minX, minY, minZ, maxX, maxY, maxZ] = bbox;
         fragmentsGroup.boundingBox.min.set(minX, minY, minZ);

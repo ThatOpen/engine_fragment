@@ -175,6 +175,17 @@ export class Serializer {
       relsCounter += rels.length;
     }
 
+    const opaqueIDs: number[] = [];
+    const transpIDs: number[] = [];
+
+    for (const [geometryID, key] of group.geometryIDs.opaque) {
+      opaqueIDs.push(geometryID, key);
+    }
+
+    for (const [geometryID, key] of group.geometryIDs.transparent) {
+      transpIDs.push(geometryID, key);
+    }
+
     const groupID = builder.createString(group.uuid);
     const groupName = builder.createString(group.name);
 
@@ -187,6 +198,12 @@ export class Serializer {
     const relsIVector = G.createItemsRelsIndicesVector(builder, relsIndices);
     const relsVector = G.createItemsRelsVector(builder, itemsRels);
     const idsVector = G.createIdsVector(builder, ids);
+
+    const oIdsVector = G.createOpaqueGeometriesIdsVector(builder, opaqueIDs);
+    const tIdsVector = G.createTransparentGeometriesIdsVector(
+      builder,
+      transpIDs
+    );
 
     const { min, max } = group.boundingBox;
     const bbox = [min.x, min.y, min.z, max.x, max.y, max.z];
@@ -212,6 +229,8 @@ export class Serializer {
     G.addItemsRels(builder, relsVector);
     G.addCoordinationMatrix(builder, matrixVector);
     G.addBoundingBox(builder, bboxVector);
+    G.addOpaqueGeometriesIds(builder, oIdsVector);
+    G.addTransparentGeometriesIds(builder, tIdsVector);
 
     const result = FB.FragmentsGroup.endFragmentsGroup(builder);
     builder.finish(result);
@@ -344,6 +363,26 @@ export class Serializer {
 
     this.setGroupData(fragmentsGroup, ids, keysIndices, keysArray, 0);
     this.setGroupData(fragmentsGroup, ids, relsIndices, relsArray, 1);
+
+    const opaqueIDs = group.opaqueGeometriesIdsArray() || new Uint32Array();
+    const transpIDs =
+      group.transparentGeometriesIdsArray() || new Uint32Array();
+
+    const opaque = new Map<number, number>();
+    for (let i = 0; i < opaqueIDs.length - 1; i += 2) {
+      const geometryID = opaqueIDs[i];
+      const key = opaqueIDs[i + 1];
+      opaque.set(geometryID, key);
+    }
+
+    const transparent = new Map<number, number>();
+    for (let i = 0; i < transpIDs.length - 1; i += 2) {
+      const geometryID = transpIDs[i];
+      const key = transpIDs[i + 1];
+      transparent.set(geometryID, key);
+    }
+
+    fragmentsGroup.geometryIDs = { opaque, transparent };
 
     const bbox = group.boundingBoxArray() || [0, 0, 0, 0, 0, 0];
     const [minX, minY, minZ, maxX, maxY, maxZ] = bbox;

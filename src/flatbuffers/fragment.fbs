@@ -17,6 +17,8 @@ table FragmentsGroup {
     ifc_schema: string;
     max_express_id: uint;
     bounding_box: [float];
+    opaque_geometries_ids: [int];
+    transparent_geometries_ids: [int];
 }
 
 table Fragment {
@@ -27,7 +29,7 @@ table Fragment {
     materials: [float];
     matrices: [float];
     colors: [float];
-    itemsSize: [uint];
+    items_size: [uint];
     ids: [uint];
     id: string;
     capacity: uint;

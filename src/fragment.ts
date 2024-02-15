@@ -155,27 +155,23 @@ export class Fragment {
 
     for (let i = 0; i < items.length; i++) {
       const { transforms, colors, id } = items[i];
-      const instances = new Set<number>();
-
+      if (!this.itemToInstances.has(id)) {
+        this.itemToInstances.set(id, new Set());
+      }
+      const instances = this.itemToInstances.get(id) as Set<number>;
       this.ids.add(id);
-
       for (let j = 0; j < transforms.length; j++) {
         const transform = transforms[j];
         const newInstanceID = this.mesh.count;
         this.mesh.setMatrixAt(newInstanceID, transform);
-
         if (colors) {
           const color = colors[j];
           this.mesh.setColorAt(newInstanceID, color);
         }
-
         instances.add(newInstanceID);
         this.instanceToItem.set(newInstanceID, id);
-
         this.mesh.count++;
       }
-
-      this.itemToInstances.set(id, instances);
     }
 
     this.update();
@@ -318,25 +314,26 @@ export class Fragment {
       throw new Error("Keys not found");
     }
 
-    const instances1 = this.itemToInstances.get(id1);
-    const instances2 = this.itemToInstances.get(id2);
+    if (id1 !== id2) {
+      const instances1 = this.itemToInstances.get(id1);
+      const instances2 = this.itemToInstances.get(id2);
 
-    if (!instances1 || !instances2) {
-      throw new Error("Instances not found");
+      if (!instances1 || !instances2) {
+        throw new Error("Instances not found");
+      }
+
+      if (!instances1.has(instanceID) || !instances2.has(instanceID2)) {
+        throw new Error("Malformed fragment structure");
+      }
+
+      instances1.delete(instanceID);
+      instances2.delete(instanceID2);
+      instances1.add(instanceID2);
+      instances2.add(instanceID);
+
+      this.instanceToItem.set(instanceID, id2);
+      this.instanceToItem.set(instanceID2, id1);
     }
-
-    if (!instances1.has(instanceID) || !instances2.has(instanceID2)) {
-      throw new Error("Malformed fragment structure");
-    }
-
-    instances1.delete(instanceID);
-    instances2.delete(instanceID2);
-
-    instances1.add(instanceID2);
-    instances2.add(instanceID);
-
-    this.instanceToItem.set(instanceID, id2);
-    this.instanceToItem.set(instanceID2, id1);
 
     const transform1 = new THREE.Matrix4();
     const transform2 = new THREE.Matrix4();

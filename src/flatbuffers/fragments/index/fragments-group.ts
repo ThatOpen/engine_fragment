@@ -191,8 +191,38 @@ boundingBoxArray():Float32Array|null {
   return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
+opaqueGeometriesIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 36);
+  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+opaqueGeometriesIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 36);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+opaqueGeometriesIdsArray():Int32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 36);
+  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
+transparentGeometriesIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 38);
+  return offset ? this.bb!.readInt32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+transparentGeometriesIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 38);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+transparentGeometriesIdsArray():Int32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 38);
+  return offset ? new Int32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
 static startFragmentsGroup(builder:flatbuffers.Builder) {
-  builder.startObject(16);
+  builder.startObject(18);
 }
 
 static addItems(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset) {
@@ -387,6 +417,48 @@ static createBoundingBoxVector(builder:flatbuffers.Builder, data:number[]|Float3
 }
 
 static startBoundingBoxVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addOpaqueGeometriesIds(builder:flatbuffers.Builder, opaqueGeometriesIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(16, opaqueGeometriesIdsOffset, 0);
+}
+
+static createOpaqueGeometriesIdsVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createOpaqueGeometriesIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createOpaqueGeometriesIdsVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startOpaqueGeometriesIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addTransparentGeometriesIds(builder:flatbuffers.Builder, transparentGeometriesIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(17, transparentGeometriesIdsOffset, 0);
+}
+
+static createTransparentGeometriesIdsVector(builder:flatbuffers.Builder, data:number[]|Int32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createTransparentGeometriesIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createTransparentGeometriesIdsVector(builder:flatbuffers.Builder, data:number[]|Int32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startTransparentGeometriesIdsVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 

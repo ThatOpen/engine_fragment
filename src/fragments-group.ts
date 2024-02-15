@@ -19,6 +19,12 @@ export class FragmentsGroup extends THREE.Group {
   // rels = [floor, categoryid]
   data = new Map<number, [number[], number[]]>();
 
+  // [geometryID, key]
+  geometryIDs = {
+    opaque: new Map<number, number>(),
+    transparent: new Map<number, number>(),
+  };
+
   properties?: IfcProperties;
 
   ifcMetadata: IfcMetadata = {
