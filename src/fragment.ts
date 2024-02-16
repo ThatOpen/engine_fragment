@@ -246,6 +246,9 @@ export class Fragment {
     this._settingVisibility = true;
     if (visible) {
       for (const itemID of itemIDs) {
+        if (!this.ids.has(itemID)) {
+          throw new Error(`This item doesn't exist here: ${itemID}`);
+        }
         if (!this.hiddenItems.has(itemID)) {
           continue;
         }
@@ -259,6 +262,9 @@ export class Fragment {
       }
     } else {
       for (const itemID of itemIDs) {
+        if (!this.ids.has(itemID)) {
+          throw new Error(`This item doesn't exist here: ${itemID}`);
+        }
         if (this.hiddenItems.has(itemID)) {
           continue;
         }
