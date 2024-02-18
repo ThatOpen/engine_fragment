@@ -7486,6 +7486,11 @@ class FragmentsGroup extends THREE.Group {
             types: new Map(),
         };
     }
+    get hasProperties() {
+        const hasLocalProps = this._properties !== undefined;
+        const hasStreamProps = this.streamSettings.ids.size !== 0;
+        return hasLocalProps || hasStreamProps;
+    }
     getFragmentMap(expressIDs) {
         const fragmentMap = {};
         for (const expressID of expressIDs) {
@@ -7516,16 +7521,19 @@ class FragmentsGroup extends THREE.Group {
         this.items = [];
         this.ifcCivil = undefined;
     }
-    setProperties(properties) {
+    setLocalProperties(properties) {
         this._properties = properties;
     }
-    getAllIDs() {
+    getLocalProperties() {
+        return this._properties;
+    }
+    getAllPropertiesIDs() {
         if (this._properties) {
             return Object.keys(this._properties).map((id) => parseInt(id, 10));
         }
         return Array.from(this.streamSettings.ids.keys());
     }
-    getAllTypes() {
+    getAllPropertiesTypes() {
         if (this._properties) {
             const types = new Set();
             for (const id in this._properties) {
@@ -7538,13 +7546,10 @@ class FragmentsGroup extends THREE.Group {
         }
         return Array.from(this.streamSettings.types.keys());
     }
-    getProperties(id) {
-        if (!this._properties) {
-            throw new Error("Properties not initialized!");
+    async getProperties(id) {
+        if (this._properties) {
+            return this._properties[id] || null;
         }
-        return this._properties[id] || null;
-    }
-    async streamProperties(id) {
         const { baseUrl, baseFileName, ids } = this.streamSettings;
         const fileID = ids.get(id);
         if (fileID === undefined) {
@@ -7555,30 +7560,67 @@ class FragmentsGroup extends THREE.Group {
         const data = await fetched.json();
         return data[id];
     }
-    getAllPropertiesOfType(type) {
-        if (!this._properties) {
-            throw new Error("Properties not initialized!");
-        }
-        const result = {};
-        let found = false;
-        for (const id in this._properties) {
-            const item = this._properties[id];
-            if (item.type === type) {
-                result[item.expressID] = item;
-                found = true;
+    async setProperties(id, value) {
+        if (this._properties) {
+            if (value !== null) {
+                this._properties[id] = value;
             }
+            else {
+                delete this._properties[id];
+            }
+            return;
         }
-        return found ? result : null;
-    }
-    async streamAllPropertiesOfType(type) {
-        const { baseUrl, baseFileName, types } = this.streamSettings;
-        const fileID = types.get(type);
+        const { baseUrl, baseFileName, ids } = this.streamSettings;
+        const fileID = ids.get(id);
         if (fileID === undefined) {
+            throw new Error("Property not found");
+        }
+        const fileName = baseFileName + fileID;
+        const url = baseUrl + fileName;
+        const fetched = await fetch(url);
+        const props = (await fetched.json());
+        if (value !== null) {
+            props[id] = value;
+        }
+        else {
+            delete props[id];
+        }
+        // TODO: Finish defining this
+        const formData = new FormData();
+        formData.append("file", JSON.stringify(props));
+        await fetch("api/KJAKDSJFAKÑSDFJAÑSFJDAÑJFÑA", {
+            body: formData,
+            method: "post",
+        });
+    }
+    async getAllPropertiesOfType(type) {
+        if (this._properties) {
+            const result = {};
+            let found = false;
+            for (const id in this._properties) {
+                const item = this._properties[id];
+                if (item.type === type) {
+                    result[item.expressID] = item;
+                    found = true;
+                }
+            }
+            return found ? result : null;
+        }
+        const { baseUrl, baseFileName, types } = this.streamSettings;
+        const fileIDs = types.get(type);
+        if (fileIDs === undefined) {
             return null;
         }
-        const url = baseUrl + baseFileName + fileID;
-        const fetched = await fetch(url);
-        return fetched.json();
+        const result = {};
+        for (const id of fileIDs) {
+            const url = baseUrl + baseFileName + id;
+            const fetched = await fetch(url);
+            const props = await fetched.json();
+            for (const key in props) {
+                result[parseInt(key, 10)] = props[key];
+            }
+        }
+        return result;
     }
 }
 
