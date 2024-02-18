@@ -77,6 +77,31 @@ export class FragmentsGroup extends THREE.Group {
     this.ifcCivil = undefined;
   }
 
+  setProperties(properties: IfcProperties) {
+    this._properties = properties;
+  }
+
+  getAllIDs() {
+    if (this._properties) {
+      return Object.keys(this._properties).map((id) => parseInt(id, 10));
+    }
+    return Array.from(this.streamSettings.ids.keys());
+  }
+
+  getAllTypes() {
+    if (this._properties) {
+      const types = new Set<number>();
+      for (const id in this._properties) {
+        const property = this._properties[id];
+        if (property.type !== undefined) {
+          types.add(property.type);
+        }
+      }
+      return Array.from(types);
+    }
+    return Array.from(this.streamSettings.types.keys());
+  }
+
   getProperties(id: number): IfcProperties | null {
     if (!this._properties) {
       throw new Error("Properties not initialized!");
