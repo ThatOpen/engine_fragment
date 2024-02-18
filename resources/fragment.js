@@ -7479,6 +7479,12 @@ class FragmentsGroup extends THREE.Group {
             schema: "IFC2X3",
             maxExpressID: 0,
         };
+        this.streamSettings = {
+            baseUrl: "",
+            baseFileName: "",
+            ids: new Map(),
+            types: new Map(),
+        };
     }
     getFragmentMap(expressIDs) {
         const fragmentMap = {};
@@ -7505,10 +7511,52 @@ class FragmentsGroup extends THREE.Group {
         this.coordinationMatrix = new THREE.Matrix4();
         this.keyFragments.clear();
         this.data.clear();
-        this.properties = {};
+        this._properties = {};
         this.removeFromParent();
         this.items = [];
         this.ifcCivil = undefined;
+    }
+    getProperties(id) {
+        if (!this._properties) {
+            throw new Error("Properties not initialized!");
+        }
+        return this._properties[id] || null;
+    }
+    async streamProperties(id) {
+        const { baseUrl, baseFileName, ids } = this.streamSettings;
+        const fileID = ids.get(id);
+        if (fileID === undefined) {
+            return null;
+        }
+        const url = baseUrl + baseFileName + fileID;
+        const fetched = await fetch(url);
+        const data = await fetched.json();
+        return data[id];
+    }
+    getAllPropertiesOfType(type) {
+        if (!this._properties) {
+            throw new Error("Properties not initialized!");
+        }
+        const result = {};
+        let found = false;
+        for (const id in this._properties) {
+            const item = this._properties[id];
+            if (item.type === type) {
+                result[item.expressID] = item;
+                found = true;
+            }
+        }
+        return found ? result : null;
+    }
+    async streamAllPropertiesOfType(type) {
+        const { baseUrl, baseFileName, types } = this.streamSettings;
+        const fileID = types.get(type);
+        if (fileID === undefined) {
+            return null;
+        }
+        const url = baseUrl + baseFileName + fileID;
+        const fetched = await fetch(url);
+        return fetched.json();
     }
 }
 
