@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { unzip } from "unzipit";
 import { Fragment } from "./fragment";
 import { IfcAlignmentData } from "./alignment";
 import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
@@ -119,16 +120,8 @@ export class FragmentsGroup extends THREE.Group {
       return this._properties[id] || null;
     }
 
-    const { baseUrl, baseFileName, ids } = this.streamSettings;
-    const fileID = ids.get(id);
-    if (fileID === undefined) {
-      return null;
-    }
-
-    const url = baseUrl + baseFileName + fileID;
-    const fetched = await fetch(url);
-    const data = await fetched.json();
-    return data[id];
+    const data = await this.getPropertiesData(id);
+    return data ? data[id] : null;
   }
 
   async setProperties(id: number, value: { [attribute: string]: any } | null) {
@@ -141,26 +134,19 @@ export class FragmentsGroup extends THREE.Group {
       return;
     }
 
-    const { baseUrl, baseFileName, ids } = this.streamSettings;
-    const fileID = ids.get(id);
-    if (fileID === undefined) {
-      throw new Error("Property not found");
-    }
+    // TODO: Fix this
 
-    const fileName = baseFileName + fileID;
-    const url = baseUrl + fileName;
-    const fetched = await fetch(url);
-    const props = (await fetched.json()) as { [attribute: string]: any };
+    const data = await this.getPropertiesData(id);
     if (value !== null) {
-      props[id] = value;
+      data[id] = value;
     } else {
-      delete props[id];
+      delete data[id];
     }
 
     // TODO: Finish defining this
 
     const formData = new FormData();
-    formData.append("file", JSON.stringify(props));
+    formData.append("file", JSON.stringify(data));
     await fetch("api/KJAKDSJFAKÑSDFJAÑSFJDAÑJFÑA", {
       body: formData,
       method: "post",
@@ -181,7 +167,7 @@ export class FragmentsGroup extends THREE.Group {
       return found ? result : null;
     }
 
-    const { baseUrl, baseFileName, types } = this.streamSettings;
+    const { types } = this.streamSettings;
     const fileIDs = types.get(type);
     if (fileIDs === undefined) {
       return null;
@@ -189,13 +175,45 @@ export class FragmentsGroup extends THREE.Group {
 
     const result: IfcProperties = {};
     for (const id of fileIDs) {
-      const url = baseUrl + baseFileName + id;
-      const fetched = await fetch(url);
-      const props = await fetched.json();
-      for (const key in props) {
-        result[parseInt(key, 10)] = props[key];
+      const data = await this.getPropertiesData(id);
+      for (const key in data) {
+        result[parseInt(key, 10)] = data[key];
       }
     }
+
     return result;
+  }
+
+  private getPropsURL(id: number) {
+    const { baseUrl } = this.streamSettings;
+    const name = this.getFileName(id);
+    return `${baseUrl}${name}`;
+  }
+
+  private getFileName(id: number) {
+    const { baseFileName, ids } = this.streamSettings;
+    const fileID = ids.get(id);
+    if (fileID === undefined) {
+      throw new Error("ID not found");
+    }
+    return `${baseFileName}-${fileID}`;
+  }
+
+  private async getPropertiesData(id: number) {
+    const url = this.getPropsURL(id);
+
+    const { ids } = this.streamSettings;
+    const fileID = ids.get(id);
+    if (fileID === undefined) {
+      return null;
+    }
+
+    const fetched = await fetch(url);
+    const buffer = await fetched.arrayBuffer();
+    const file = new File([new Blob([buffer])], "temp");
+    const fileURL = URL.createObjectURL(file);
+    const { entries } = await unzip(fileURL);
+    const name = Object.keys(entries)[0];
+    return entries[name].json();
   }
 }
