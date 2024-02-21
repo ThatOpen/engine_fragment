@@ -8577,7 +8577,8 @@ class FragmentsGroup extends THREE.Group {
         if (this._properties) {
             return this._properties[id] || null;
         }
-        const data = await this.getPropertiesData(id);
+        const url = this.getPropsURL(id);
+        const data = await this.getPropertiesData(url);
         return data ? data[id] : null;
     }
     async setProperties(id, value) {
@@ -8591,7 +8592,8 @@ class FragmentsGroup extends THREE.Group {
             return;
         }
         // TODO: Fix this
-        const data = await this.getPropertiesData(id);
+        const url = this.getPropsURL(id);
+        const data = await this.getPropertiesData(url);
         if (value !== null) {
             data[id] = value;
         }
@@ -8625,8 +8627,10 @@ class FragmentsGroup extends THREE.Group {
             return null;
         }
         const result = {};
-        for (const id of fileIDs) {
-            const data = await this.getPropertiesData(id);
+        for (const fileID of fileIDs) {
+            const name = this.constructFileName(fileID);
+            const url = this.constructURL(name);
+            const data = await this.getPropertiesData(url);
             for (const key in data) {
                 result[parseInt(key, 10)] = data[key];
             }
@@ -8634,25 +8638,15 @@ class FragmentsGroup extends THREE.Group {
         return result;
     }
     getPropsURL(id) {
-        const { baseUrl } = this.streamSettings;
-        const name = this.getFileName(id);
-        return `${baseUrl}${name}`;
-    }
-    getFileName(id) {
-        const { baseFileName, ids } = this.streamSettings;
+        const { ids } = this.streamSettings;
         const fileID = ids.get(id);
         if (fileID === undefined) {
             throw new Error("ID not found");
         }
-        return `${baseFileName}-${fileID}`;
+        const name = this.constructFileName(fileID);
+        return this.constructURL(name);
     }
-    async getPropertiesData(id) {
-        const url = this.getPropsURL(id);
-        const { ids } = this.streamSettings;
-        const fileID = ids.get(id);
-        if (fileID === undefined) {
-            return null;
-        }
+    async getPropertiesData(url) {
         const fetched = await fetch(url);
         const buffer = await fetched.arrayBuffer();
         const file = new File([new Blob([buffer])], "temp");
@@ -8660,6 +8654,14 @@ class FragmentsGroup extends THREE.Group {
         const { entries } = await unzip(fileURL);
         const name = Object.keys(entries)[0];
         return entries[name].json();
+    }
+    constructFileName(fileID) {
+        const { baseFileName } = this.streamSettings;
+        return `${baseFileName}-${fileID}`;
+    }
+    constructURL(name) {
+        const { baseUrl } = this.streamSettings;
+        return `${baseUrl}${name}`;
     }
 }
 
