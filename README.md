@@ -30,11 +30,9 @@ You generally won't need to interact with this library direclty. Instead, you ca
 You need to be familiar with [Three.js API](https://github.com/mrdoob/three.js/) to be able to use this library effectively. In the following example, we will create a cube in a 3D scene that can be navigated with the mouse or touch events. You can see the full example [here](https://github.com/ThatOpen/engine_components/blob/main/src/core/SimpleScene/index.html) and the deployed app [here](https://thatopen.github.io/engine_components/src/core/SimpleScene/index.html).
 
 ```js
-import * as FRAGS from 'bim-fragment';
+import * as FRAGS from '../resources/fragment.js';
 
 const canvas = document.getElementById('container');
-
-// Simple three.js scene: check the resources folder of this repo
 const threeScene = new SimpleThreeScene(canvas);
 
 let chairs;
@@ -42,38 +40,33 @@ let chairs;
 const serializer = new FRAGS.Serializer();
 
 async function importChairsBinary() {
-  if (chairs !== undefined) return;
-  const fetched = await fetch("../resources/chairs.frag");
-  const rawData = await fetched.arrayBuffer();
-  const buffer = new Uint8Array(rawData);
-  chairs = serializer.import(buffer);
-
-  for(const frag of chairs) {
-    threeScene.scene.add(frag.mesh);
-  }
+    if (chairs !== undefined) return;
+    const fetched = await fetch("../resources/chairs.frag");
+    const rawData = await fetched.arrayBuffer();
+    const buffer = new Uint8Array(rawData);
+    chairs = serializer.import(buffer);
+    threeScene.scene.add(chairs);
 }
 
 function deleteChairs() {
-  if (!chairs) return;
-  for(const frag of chairs) {
-    frag.dispose(true);
-  }
-  chairs = undefined;
+    if (!chairs) return;
+    chairs.dispose();
+    chairs = undefined;
 }
 
 async function exportChairsBinary() {
-  if (!chairs) return;
+    if (!chairs) return;
 
-  const buffer = serializer.export(chairs);
-  const file = new File([new Blob([buffer])], "chairs.frag");
-  const link = document.createElement('a');
-  document.body.appendChild(link);
+    const buffer = serializer.export(chairs);
+    const file = new File([new Blob([buffer])], "chairs.frag");
+    const link = document.createElement('a');
+    document.body.appendChild(link);
 
-  link.download = 'chairs.frag';
-  link.href = URL.createObjectURL(file);
-  link.click();
+    link.download = 'chairs.frag';
+    link.href = URL.createObjectURL(file);
+    link.click();
 
-  link.remove();
+    link.remove();
 }
 ```
 
