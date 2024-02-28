@@ -12,7 +12,7 @@
 
 ![cover](resources/cover.png)
 
-<h1>BIM Fragment <img src="https://thatopen.github.io/engine_components/resources/favicon.ico" width="32"></h1>
+<h1>BIM Fragment <img src="https://thatopen.github.io/engine_components/resources/favicon.ico" width="32"/></h1>
 
 [![NPM Package][npm]][npm-url]
 [![NPM Package][npm-downloads]][npm-url]
