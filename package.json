@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ifcjs/fragment.git"
+    "url": "git+https://github.com/ThatOpen/engine_fragment.git"
   },
   "keywords": [
     "ifc",
@@ -26,9 +26,9 @@
   "author": "agviegas",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ifcjs/fragment/issues"
+    "url": "https://github.com/ThatOpen/engine_fragment/issues"
   },
-  "homepage": "https://github.com/ifcjs/fragment",
+  "homepage": "https://github.com/ThatOpen/engine_fragment",
   "dependencies": {
     "flatbuffers": "^23.3.3",
     "three-mesh-bvh": "0.7.0",
