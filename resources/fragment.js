@@ -5622,7 +5622,9 @@ let Fragment$1 = class Fragment {
         this.id = this.mesh.uuid;
         this.capacity = count;
         this.mesh.count = 0;
-        BVH.apply(geometry);
+        if (this.mesh.geometry.index.count) {
+            BVH.apply(this.mesh.geometry);
+        }
     }
     dispose(disposeResources = true) {
         this.clear();
