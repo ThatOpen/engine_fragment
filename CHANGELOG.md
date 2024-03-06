@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/ThatOpen/engine_fragment/compare/v1.4.1...v1.4.2) (2024-03-06)
+
+
+### Bug Fixes
+
+* support empty geometries for fragments ([082a3c2](https://github.com/ThatOpen/engine_fragment/commit/082a3c2ed1515fc63c238fcf637a70ea9f2c2cbd))
+
 ## [1.4.1](https://github.com/ThatOpen/engine_fragment/compare/v1.3.0...v1.4.1) (2024-02-28)
 
 
