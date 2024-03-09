@@ -1,10 +1,12 @@
-export class IfcAlignmentData {
-  coordinates: Float32Array = new Float32Array(0);
-  alignmentIndex: number[] = [];
-  curveIndex: number[] = [];
+import * as THREE from "three";
 
-  exportData() {
-    const { coordinates, alignmentIndex, curveIndex } = this;
-    return { coordinates, alignmentIndex, curveIndex };
-  }
+export interface CivilCurve {
+  mesh: THREE.LineSegments;
+  data: { [name: string]: any };
+}
+
+export interface Alignment {
+  vertical: CivilCurve[];
+  horizontal: CivilCurve[];
+  absolute: CivilCurve[];
 }

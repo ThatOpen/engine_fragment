@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { unzip } from "unzipit";
 import { Fragment } from "./fragment";
-import { IfcAlignmentData } from "./alignment";
+import { Alignment, CivilCurve } from "./alignment";
 import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
 
 // TODO: Document this
@@ -33,10 +33,8 @@ export class FragmentsGroup extends THREE.Group {
     maxExpressID: 0,
   };
 
-  ifcCivil?: {
-    horizontalAlignments: IfcAlignmentData;
-    verticalAlignments: IfcAlignmentData;
-    realAlignments: IfcAlignmentData;
+  civilData?: {
+    alignments: Map<number, Alignment>;
   };
 
   streamSettings = {
@@ -81,7 +79,15 @@ export class FragmentsGroup extends THREE.Group {
     this._properties = {};
     this.removeFromParent();
     this.items = [];
-    this.ifcCivil = undefined;
+    if (this.civilData) {
+      const { alignments } = this.civilData;
+      for (const [_id, alignment] of alignments) {
+        this.disposeAlignment(alignment.vertical);
+        this.disposeAlignment(alignment.horizontal);
+        this.disposeAlignment(alignment.absolute);
+      }
+    }
+    this.civilData = undefined;
   }
 
   setLocalProperties(properties: IfcProperties) {
@@ -216,5 +222,19 @@ export class FragmentsGroup extends THREE.Group {
   private constructURL(name: string) {
     const { baseUrl } = this.streamSettings;
     return `${baseUrl}${name}`;
+  }
+
+  private disposeAlignment(alignment: CivilCurve[]) {
+    for (const curve of alignment) {
+      curve.mesh.geometry.dispose();
+      if (Array.isArray(curve.mesh.material)) {
+        for (const mat of curve.mesh.material) {
+          mat.dispose();
+        }
+      } else {
+        curve.mesh.material.dispose();
+      }
+    }
+    alignment.length = 0;
   }
 }

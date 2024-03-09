@@ -4,8 +4,7 @@ import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
 import { IfcSchema, Item } from "./base-types";
 import { FragmentsGroup } from "./fragments-group";
-import { IfcAlignmentData } from "./alignment";
-import { Alignment } from "./flatbuffers/fragments";
+import { Alignment, CivilCurve } from "./alignment";
 
 /**
  * Object to export and import sets of fragments efficiently using the library
@@ -44,51 +43,31 @@ export class Serializer {
   export(group: FragmentsGroup) {
     const builder = new flatbuffers.Builder(1024);
     const items: number[] = [];
+    const alignments: number[] = [];
 
     const G = FB.FragmentsGroup;
     const F = FB.Fragment;
-    const C = FB.Civil;
 
-    let exportedCivil: number | null = null;
-
-    if (group.ifcCivil) {
+    if (group.civilData) {
       const A = FB.Alignment;
 
-      const resultH = group.ifcCivil.horizontalAlignments.exportData();
-      const posVectorH = A.createPositionVector(builder, resultH.coordinates);
-      const curveVectorH = A.createSegmentVector(builder, resultH.curveIndex);
-      const alignVectorH = A.createCurveVector(builder, resultH.alignmentIndex);
-      A.startAlignment(builder);
-      A.addPosition(builder, posVectorH);
-      A.addSegment(builder, curveVectorH);
-      A.addCurve(builder, alignVectorH);
-      const exportedH = FB.Alignment.endAlignment(builder);
+      for (const [_id, alignment] of group.civilData.alignments) {
+        const { absolute, horizontal, vertical } = alignment;
+        const horCurves = this.saveCivilCurves(horizontal, builder);
+        const verCurves = this.saveCivilCurves(vertical, builder);
+        const absCurves = this.saveCivilCurves(absolute, builder);
 
-      const resultV = group.ifcCivil.verticalAlignments.exportData();
-      const posVectorV = A.createPositionVector(builder, resultV.coordinates);
-      const curveVectorV = A.createSegmentVector(builder, resultV.curveIndex);
-      const alignVectorV = A.createCurveVector(builder, resultV.alignmentIndex);
-      A.startAlignment(builder);
-      A.addPosition(builder, posVectorV);
-      A.addSegment(builder, curveVectorV);
-      A.addCurve(builder, alignVectorV);
-      const exportedV = FB.Alignment.endAlignment(builder);
+        const horVector = A.createHorizontalVector(builder, horCurves);
+        const verVector = A.createVerticalVector(builder, verCurves);
+        const absVector = A.createAbsoluteVector(builder, absCurves);
 
-      const resultR = group.ifcCivil.realAlignments.exportData();
-      const posVectorR = A.createPositionVector(builder, resultR.coordinates);
-      const curveVectorR = A.createSegmentVector(builder, resultR.curveIndex);
-      const alignVectorR = A.createCurveVector(builder, resultR.alignmentIndex);
-      A.startAlignment(builder);
-      A.addPosition(builder, posVectorR);
-      A.addSegment(builder, curveVectorR);
-      A.addCurve(builder, alignVectorR);
-      const exportedR = FB.Alignment.endAlignment(builder);
-
-      C.startCivil(builder);
-      C.addAlignmentHorizontal(builder, exportedH);
-      C.addAlignmentVertical(builder, exportedV);
-      C.addAlignment3d(builder, exportedR);
-      exportedCivil = FB.Civil.endCivil(builder);
+        A.startAlignment(builder);
+        A.addHorizontal(builder, horVector);
+        A.addVertical(builder, verVector);
+        A.addAbsolute(builder, absVector);
+        const exported = A.endAlignment(builder);
+        alignments.push(exported);
+      }
     }
 
     for (const fragment of group.items) {
@@ -209,11 +188,13 @@ export class Serializer {
     const bbox = [min.x, min.y, min.z, max.x, max.y, max.z];
     const bboxVector = G.createBoundingBoxVector(builder, bbox);
 
-    G.startFragmentsGroup(builder);
-    if (exportedCivil !== null) {
-      G.addCivil(builder, exportedCivil);
+    let alignVector: number | null = null;
+
+    if (alignments.length) {
+      alignVector = G.createCivilVector(builder, alignments);
     }
 
+    G.startFragmentsGroup(builder);
     G.addId(builder, groupID);
     G.addName(builder, groupName);
     G.addIfcName(builder, ifcName);
@@ -231,6 +212,10 @@ export class Serializer {
     G.addBoundingBox(builder, bboxVector);
     G.addOpaqueGeometriesIds(builder, oIdsVector);
     G.addTransparentGeometriesIds(builder, tIdsVector);
+
+    if (alignments.length && alignVector !== null) {
+      G.addCivil(builder, alignVector);
+    }
 
     const result = FB.FragmentsGroup.endFragmentsGroup(builder);
     builder.finish(result);
@@ -317,27 +302,47 @@ export class Serializer {
 
   private constructFragmentGroup(group: FB.FragmentsGroup) {
     const fragmentsGroup = new FragmentsGroup();
-    const FBcivil = group.civil();
+    const cLength = group.civilLength();
+    for (let i = 0; i < cLength; i++) {
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff });
 
-    const horizontalAlignments = new IfcAlignmentData();
-    const verticalAlignments = new IfcAlignmentData();
-    const realAlignments = new IfcAlignmentData();
+      const aligData = group.civil(i);
+      if (!aligData) {
+        throw new Error("Alignment not found!");
+      }
+      const horLength = aligData.horizontalLength();
+      const horizontal = this.constructCivilCurves(
+        aligData,
+        "horizontal",
+        horLength,
+        lineMat
+      );
 
-    if (FBcivil) {
-      const FBalignmentH = FBcivil.alignmentHorizontal();
-      this.getAlignmentData(FBalignmentH, horizontalAlignments);
+      const verLength = aligData.verticalLength();
+      const vertical = this.constructCivilCurves(
+        aligData,
+        "vertical",
+        verLength,
+        lineMat
+      );
 
-      const FBalignmentV = FBcivil.alignmentVertical();
-      this.getAlignmentData(FBalignmentV, verticalAlignments);
+      const absLength = aligData.horizontalLength();
+      const absolute = this.constructCivilCurves(
+        aligData,
+        "absolute",
+        absLength,
+        lineMat
+      );
 
-      const FBalignment3D = FBcivil.alignment3d();
-      this.getAlignmentData(FBalignment3D, realAlignments);
+      const alignment: Alignment = { horizontal, vertical, absolute };
 
-      fragmentsGroup.ifcCivil = {
-        horizontalAlignments,
-        verticalAlignments,
-        realAlignments,
-      };
+      if (!fragmentsGroup.civilData) {
+        fragmentsGroup.civilData = {
+          alignments: new Map(),
+        };
+      }
+
+      fragmentsGroup.civilData.alignments.set(i, alignment);
     }
 
     // fragmentsGroup.ifcCivil?.horizontalAlignments
@@ -400,23 +405,6 @@ export class Serializer {
     return fragmentsGroup;
   }
 
-  private getAlignmentData(
-    alignment: Alignment | null,
-    result: IfcAlignmentData
-  ) {
-    if (alignment) {
-      if (alignment.positionArray) {
-        result.coordinates = alignment.positionArray() as Float32Array;
-        for (let j = 0; j < alignment.curveLength(); j++) {
-          result.alignmentIndex.push(alignment.curve(j) as number);
-        }
-        for (let j = 0; j < alignment.segmentLength(); j++) {
-          result.curveIndex.push(alignment.segment(j) as number);
-        }
-      }
-    }
-  }
-
   private setGroupData(
     group: FragmentsGroup,
     ids: Uint32Array,
@@ -465,5 +453,56 @@ export class Serializer {
     }
 
     return geometry;
+  }
+
+  private constructCivilCurves(
+    alignData: FB.Alignment,
+    option: "horizontal" | "vertical" | "absolute",
+    length: number,
+    lineMat: THREE.LineBasicMaterial
+  ) {
+    const curves: CivilCurve[] = [];
+    for (let i = 0; i < length; i++) {
+      const found = alignData[option](i);
+      if (!found) {
+        throw new Error("Curve not found!");
+      }
+      const points = found.pointsArray();
+      if (points === null) {
+        throw new Error("Curve points not found!");
+      }
+
+      let data = {};
+      const curveData = found.data();
+      if (curveData) {
+        data = JSON.parse(curveData);
+      }
+
+      const geometry = new THREE.EdgesGeometry();
+      const posAttr = new THREE.BufferAttribute(points, 3);
+      geometry.setAttribute("position", posAttr);
+      const mesh = new THREE.LineSegments(geometry, lineMat);
+
+      curves.push({ data, mesh });
+    }
+
+    return curves;
+  }
+
+  private saveCivilCurves(curves: CivilCurve[], builder: flatbuffers.Builder) {
+    const CC = FB.CivilCurve;
+    const curvesRef: number[] = [];
+    for (const curve of curves) {
+      const attrs = curve.mesh.geometry.attributes;
+      const position = attrs.position.array as Float32Array;
+      const posVector = CC.createPointsVector(builder, position);
+      const dataStr = builder.createString(JSON.stringify(curve.data));
+      CC.startCivilCurve(builder);
+      CC.addPoints(builder, posVector);
+      CC.addData(builder, dataStr);
+      const exported = CC.endCivilCurve(builder);
+      curvesRef.push(exported);
+    }
+    return curvesRef;
   }
 }

@@ -2,7 +2,7 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { Civil } from '../../fragments/index/civil.js';
+import { Alignment } from '../../fragments/index/alignment.js';
 import { Fragment } from '../../fragments/index/fragment.js';
 
 
@@ -34,9 +34,14 @@ itemsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-civil(obj?:Civil):Civil|null {
+civil(index: number, obj?:Alignment):Alignment|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
-  return offset ? (obj || new Civil()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+  return offset ? (obj || new Alignment()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+civilLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 6);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 coordinationMatrix(index: number):number|null {
@@ -243,6 +248,18 @@ static startItemsVector(builder:flatbuffers.Builder, numElems:number) {
 
 static addCivil(builder:flatbuffers.Builder, civilOffset:flatbuffers.Offset) {
   builder.addFieldOffset(1, civilOffset, 0);
+}
+
+static createCivilVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startCivilVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
 }
 
 static addCoordinationMatrix(builder:flatbuffers.Builder, coordinationMatrixOffset:flatbuffers.Offset) {
@@ -475,4 +492,26 @@ static finishSizePrefixedFragmentsGroupBuffer(builder:flatbuffers.Builder, offse
   builder.finish(offset, undefined, true);
 }
 
+static createFragmentsGroup(builder:flatbuffers.Builder, itemsOffset:flatbuffers.Offset, civilOffset:flatbuffers.Offset, coordinationMatrixOffset:flatbuffers.Offset, idsOffset:flatbuffers.Offset, itemsKeysOffset:flatbuffers.Offset, itemsKeysIndicesOffset:flatbuffers.Offset, itemsRelsOffset:flatbuffers.Offset, itemsRelsIndicesOffset:flatbuffers.Offset, fragmentKeysOffset:flatbuffers.Offset, idOffset:flatbuffers.Offset, nameOffset:flatbuffers.Offset, ifcNameOffset:flatbuffers.Offset, ifcDescriptionOffset:flatbuffers.Offset, ifcSchemaOffset:flatbuffers.Offset, maxExpressId:number, boundingBoxOffset:flatbuffers.Offset, opaqueGeometriesIdsOffset:flatbuffers.Offset, transparentGeometriesIdsOffset:flatbuffers.Offset):flatbuffers.Offset {
+  FragmentsGroup.startFragmentsGroup(builder);
+  FragmentsGroup.addItems(builder, itemsOffset);
+  FragmentsGroup.addCivil(builder, civilOffset);
+  FragmentsGroup.addCoordinationMatrix(builder, coordinationMatrixOffset);
+  FragmentsGroup.addIds(builder, idsOffset);
+  FragmentsGroup.addItemsKeys(builder, itemsKeysOffset);
+  FragmentsGroup.addItemsKeysIndices(builder, itemsKeysIndicesOffset);
+  FragmentsGroup.addItemsRels(builder, itemsRelsOffset);
+  FragmentsGroup.addItemsRelsIndices(builder, itemsRelsIndicesOffset);
+  FragmentsGroup.addFragmentKeys(builder, fragmentKeysOffset);
+  FragmentsGroup.addId(builder, idOffset);
+  FragmentsGroup.addName(builder, nameOffset);
+  FragmentsGroup.addIfcName(builder, ifcNameOffset);
+  FragmentsGroup.addIfcDescription(builder, ifcDescriptionOffset);
+  FragmentsGroup.addIfcSchema(builder, ifcSchemaOffset);
+  FragmentsGroup.addMaxExpressId(builder, maxExpressId);
+  FragmentsGroup.addBoundingBox(builder, boundingBoxOffset);
+  FragmentsGroup.addOpaqueGeometriesIds(builder, opaqueGeometriesIdsOffset);
+  FragmentsGroup.addTransparentGeometriesIds(builder, transparentGeometriesIdsOffset);
+  return FragmentsGroup.endFragmentsGroup(builder);
+}
 }
