@@ -9090,6 +9090,11 @@ class Serializer {
             const geometry = new THREE.EdgesGeometry();
             const posAttr = new THREE.BufferAttribute(points, 3);
             geometry.setAttribute("position", posAttr);
+            const index = [];
+            for (let i = 0; i < points.length / 3 - 1; i++) {
+                index.push(i, i + 1);
+            }
+            geometry.setIndex(index);
             const mesh = new THREE.LineSegments(geometry, lineMat);
             curves.push({ data, mesh });
         }
