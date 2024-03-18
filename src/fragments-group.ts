@@ -34,6 +34,7 @@ export class FragmentsGroup extends THREE.Group {
   };
 
   civilData?: {
+    coordinationMatrix: THREE.Matrix4;
     alignments: Map<number, Alignment>;
   };
 

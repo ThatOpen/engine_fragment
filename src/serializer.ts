@@ -43,13 +43,17 @@ export class Serializer {
   export(group: FragmentsGroup) {
     const builder = new flatbuffers.Builder(1024);
     const items: number[] = [];
-    const alignments: number[] = [];
 
     const G = FB.FragmentsGroup;
     const F = FB.Fragment;
 
+    let civilData: number | null = null;
+
     if (group.civilData) {
+      const alignments: number[] = [];
+
       const A = FB.Alignment;
+      const C = FB.CivilData;
 
       for (const [_id, alignment] of group.civilData.alignments) {
         const { absolute, horizontal, vertical } = alignment;
@@ -65,9 +69,21 @@ export class Serializer {
         A.addHorizontal(builder, horVector);
         A.addVertical(builder, verVector);
         A.addAbsolute(builder, absVector);
+        A.addInitialPk(builder, alignment.initialKP);
         const exported = A.endAlignment(builder);
         alignments.push(exported);
       }
+
+      const algVector = C.createAlignmentsVector(builder, alignments);
+      const coordVector = C.createCoordinationMatrixVector(
+        builder,
+        group.coordinationMatrix.elements
+      );
+
+      C.startCivilData(builder);
+      C.addAlignments(builder, algVector);
+      C.addCoordinationMatrix(builder, coordVector);
+      civilData = C.endCivilData(builder);
     }
 
     for (const fragment of group.items) {
@@ -188,12 +204,6 @@ export class Serializer {
     const bbox = [min.x, min.y, min.z, max.x, max.y, max.z];
     const bboxVector = G.createBoundingBoxVector(builder, bbox);
 
-    let alignVector: number | null = null;
-
-    if (alignments.length) {
-      alignVector = G.createCivilVector(builder, alignments);
-    }
-
     G.startFragmentsGroup(builder);
     G.addId(builder, groupID);
     G.addName(builder, groupName);
@@ -213,8 +223,8 @@ export class Serializer {
     G.addOpaqueGeometriesIds(builder, oIdsVector);
     G.addTransparentGeometriesIds(builder, tIdsVector);
 
-    if (alignments.length && alignVector !== null) {
-      G.addCivil(builder, alignVector);
+    if (civilData !== null) {
+      G.addCivil(builder, civilData);
     }
 
     const result = FB.FragmentsGroup.endFragmentsGroup(builder);
@@ -302,47 +312,61 @@ export class Serializer {
 
   private constructFragmentGroup(group: FB.FragmentsGroup) {
     const fragmentsGroup = new FragmentsGroup();
-    const cLength = group.civilLength();
-    for (let i = 0; i < cLength; i++) {
-      const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff });
 
-      const aligData = group.civil(i);
-      if (!aligData) {
-        throw new Error("Alignment not found!");
+    const civil = group.civil();
+
+    if (civil) {
+      const matArray = civil.coordinationMatrixArray();
+      const coordinationMatrix = new THREE.Matrix4();
+      if (matArray) {
+        coordinationMatrix.fromArray(matArray);
       }
-      const horLength = aligData.horizontalLength();
-      const horizontal = this.constructCivilCurves(
-        aligData,
-        "horizontal",
-        horLength,
-        lineMat
-      );
 
-      const verLength = aligData.verticalLength();
-      const vertical = this.constructCivilCurves(
-        aligData,
-        "vertical",
-        verLength,
-        lineMat
-      );
+      fragmentsGroup.civilData = { alignments: new Map(), coordinationMatrix };
 
-      const absLength = aligData.horizontalLength();
-      const absolute = this.constructCivilCurves(
-        aligData,
-        "absolute",
-        absLength,
-        lineMat
-      );
+      const aligLength = civil.alignmentsLength();
+      for (let i = 0; i < aligLength; i++) {
+        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff });
 
-      const alignment: Alignment = { horizontal, vertical, absolute };
+        const aligData = civil.alignments(i);
+        if (!aligData) {
+          throw new Error("Alignment not found!");
+        }
+        const horLength = aligData.horizontalLength();
+        const horizontal = this.constructCivilCurves(
+          aligData,
+          "horizontal",
+          horLength,
+          lineMat
+        );
 
-      if (!fragmentsGroup.civilData) {
-        fragmentsGroup.civilData = {
-          alignments: new Map(),
+        const verLength = aligData.verticalLength();
+        const vertical = this.constructCivilCurves(
+          aligData,
+          "vertical",
+          verLength,
+          lineMat
+        );
+
+        const absLength = aligData.horizontalLength();
+        const absolute = this.constructCivilCurves(
+          aligData,
+          "absolute",
+          absLength,
+          lineMat
+        );
+
+        const initialKP = aligData.initialPk();
+
+        const alignment: Alignment = {
+          horizontal,
+          vertical,
+          absolute,
+          initialKP,
         };
-      }
 
-      fragmentsGroup.civilData.alignments.set(i, alignment);
+        fragmentsGroup.civilData.alignments.set(i, alignment);
+      }
     }
 
     // fragmentsGroup.ifcCivil?.horizontalAlignments

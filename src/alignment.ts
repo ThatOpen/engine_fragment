@@ -9,4 +9,5 @@ export interface Alignment {
   vertical: CivilCurve[];
   horizontal: CivilCurve[];
   absolute: CivilCurve[];
+  initialKP: number;
 }

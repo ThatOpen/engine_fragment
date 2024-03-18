@@ -53,8 +53,13 @@ absoluteLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
+initialPk():number {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.readFloat32(this.bb_pos + offset) : 0.0;
+}
+
 static startAlignment(builder:flatbuffers.Builder) {
-  builder.startObject(3);
+  builder.startObject(4);
 }
 
 static addVertical(builder:flatbuffers.Builder, verticalOffset:flatbuffers.Offset) {
@@ -105,16 +110,21 @@ static startAbsoluteVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 
+static addInitialPk(builder:flatbuffers.Builder, initialPk:number) {
+  builder.addFieldFloat32(3, initialPk, 0.0);
+}
+
 static endAlignment(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   return offset;
 }
 
-static createAlignment(builder:flatbuffers.Builder, verticalOffset:flatbuffers.Offset, horizontalOffset:flatbuffers.Offset, absoluteOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createAlignment(builder:flatbuffers.Builder, verticalOffset:flatbuffers.Offset, horizontalOffset:flatbuffers.Offset, absoluteOffset:flatbuffers.Offset, initialPk:number):flatbuffers.Offset {
   Alignment.startAlignment(builder);
   Alignment.addVertical(builder, verticalOffset);
   Alignment.addHorizontal(builder, horizontalOffset);
   Alignment.addAbsolute(builder, absoluteOffset);
+  Alignment.addInitialPk(builder, initialPk);
   return Alignment.endAlignment(builder);
 }
 }
