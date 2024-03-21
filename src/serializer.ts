@@ -4,7 +4,7 @@ import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
 import { IfcSchema, Item } from "./base-types";
 import { FragmentsGroup } from "./fragments-group";
-import { Alignment, CivilCurve } from "./alignment";
+import { Alignment, CivilCurve, CurveMesh } from "./alignment";
 
 /**
  * Object to export and import sets of fragments efficiently using the library
@@ -328,42 +328,40 @@ export class Serializer {
       for (let i = 0; i < aligLength; i++) {
         const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff });
 
+        const alignment = new Alignment();
+
         const aligData = civil.alignments(i);
         if (!aligData) {
           throw new Error("Alignment not found!");
         }
         const horLength = aligData.horizontalLength();
-        const horizontal = this.constructCivilCurves(
+        alignment.horizontal = this.constructCivilCurves(
           aligData,
+          alignment,
           "horizontal",
           horLength,
           lineMat
         );
 
         const verLength = aligData.verticalLength();
-        const vertical = this.constructCivilCurves(
+        alignment.vertical = this.constructCivilCurves(
           aligData,
+          alignment,
           "vertical",
           verLength,
           lineMat
         );
 
         const absLength = aligData.horizontalLength();
-        const absolute = this.constructCivilCurves(
+        alignment.absolute = this.constructCivilCurves(
           aligData,
+          alignment,
           "absolute",
           absLength,
           lineMat
         );
 
-        const initialKP = aligData.initialPk();
-
-        const alignment: Alignment = {
-          horizontal,
-          vertical,
-          absolute,
-          initialKP,
-        };
+        alignment.initialKP = aligData.initialPk();
 
         fragmentsGroup.civilData.alignments.set(i, alignment);
       }
@@ -481,6 +479,7 @@ export class Serializer {
 
   private constructCivilCurves(
     alignData: FB.Alignment,
+    alignment: Alignment,
     option: "horizontal" | "vertical" | "absolute",
     length: number,
     lineMat: THREE.LineBasicMaterial
@@ -496,7 +495,7 @@ export class Serializer {
         throw new Error("Curve points not found!");
       }
 
-      let data = {};
+      let data = {} as any;
       const curveData = found.data();
       if (curveData) {
         data = JSON.parse(curveData);
@@ -512,9 +511,8 @@ export class Serializer {
       }
       geometry.setIndex(index);
 
-      const mesh = new THREE.LineSegments(geometry, lineMat);
-
-      curves.push({ data, mesh });
+      const curveMesh = new CurveMesh(i, data, alignment, geometry, lineMat);
+      curves.push(curveMesh.curve);
     }
 
     return curves;
