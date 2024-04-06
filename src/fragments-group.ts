@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { unzip } from "unzipit";
 import { Fragment } from "./fragment";
-import { Alignment, CivilCurve } from "./alignment";
+import { Alignment, CivilCurve } from "./civil";
 import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
 
 // TODO: Document this

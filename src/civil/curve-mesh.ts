@@ -1,9 +1,8 @@
-/* eslint no-use-before-define: 0 */
-
-// eslint-disable-next-line max-classes-per-file
-import * as THREE from "three";
 import { BufferGeometry } from "three/src/core/BufferGeometry";
 import { Material } from "three/src/materials/Material";
+import * as THREE from "three";
+import { Alignment } from "./alignment";
+import { CivilCurve } from "./civil-curve";
 
 export class CurveMesh<
   TGeometry extends BufferGeometry = BufferGeometry,
@@ -19,25 +18,6 @@ export class CurveMesh<
     material?: TMaterial
   ) {
     super(geometry, material);
-    this.curve = {
-      index,
-      data,
-      alignment,
-      mesh: this,
-    };
+    this.curve = new CivilCurve(index, this, data, alignment);
   }
-}
-
-export interface CivilCurve {
-  index: number;
-  mesh: CurveMesh;
-  data: { [name: string]: any };
-  alignment: Alignment;
-}
-
-export class Alignment {
-  vertical: CivilCurve[] = [];
-  horizontal: CivilCurve[] = [];
-  absolute: CivilCurve[] = [];
-  initialKP = 0;
 }

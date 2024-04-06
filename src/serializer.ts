@@ -4,7 +4,7 @@ import * as FB from "./flatbuffers/fragments";
 import { Fragment } from "./fragment";
 import { IfcSchema, Item } from "./base-types";
 import { FragmentsGroup } from "./fragments-group";
-import { Alignment, CivilCurve, CurveMesh } from "./alignment";
+import { Alignment, CivilCurve, CurveMesh } from "./civil";
 
 /**
  * Object to export and import sets of fragments efficiently using the library
