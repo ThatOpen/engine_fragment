@@ -38,30 +38,38 @@ export class CivilCurve {
   }
 
   getPointAt(percentage: number) {
+    // Strategy: get start-end segment, normalize it,
+    // multiply by target length and add it to start point
+    const { startPoint, endPoint, distanceToStart } =
+      this.getSegmentAt(percentage);
+
+    const targetPoint = endPoint.clone();
+    targetPoint.sub(startPoint);
+    targetPoint.normalize();
+    targetPoint.multiplyScalar(distanceToStart);
+    targetPoint.add(startPoint);
+    return targetPoint;
+  }
+
+  getSegmentAt(percentage: number) {
     if (percentage < 0) {
       percentage = 0;
     } else if (percentage > 1) {
       percentage = 1;
     }
 
-    const length = this.getLength();
-    const targetLength = length * percentage;
+    const totalLength = this.getLength();
+    const targetLength = totalLength * percentage;
 
     let accumulatedLength = 0;
 
-    for (let i = 0; i < this._index.array.length - 1; i += 2) {
-      const { startPoint, endPoint } = this.getSegment(i);
+    for (let index = 0; index < this._index.array.length - 1; index += 2) {
+      const { startPoint, endPoint } = this.getSegment(index);
       const segmentLength = startPoint.distanceTo(endPoint);
       if (accumulatedLength + segmentLength > targetLength) {
-        const targetSegmentLength = targetLength - accumulatedLength;
-        const targetPoint = endPoint.clone();
-        // Strategy: get start-end segment, normalize it,
-        // multiply by target length and add it to start point
-        targetPoint.sub(startPoint);
-        targetPoint.normalize();
-        targetPoint.multiplyScalar(targetSegmentLength);
-        targetPoint.add(startPoint);
-        return targetPoint;
+        // Position is the distance from the startPoint to the target point
+        const distanceToStart = targetLength - accumulatedLength;
+        return { distanceToStart, index, startPoint, endPoint };
       }
       accumulatedLength += segmentLength;
     }
@@ -70,7 +78,7 @@ export class CivilCurve {
   }
 
   // Returns the percentage or null if the point is not contained in this curve
-  getPercentageAt(point: THREE.Vector3, tolerance = 0) {
+  getPercentageAt(point: THREE.Vector3, tolerance = 0.01) {
     let currentLength = 0;
 
     for (let i = 0; i < this._index.array.length - 1; i += 2) {

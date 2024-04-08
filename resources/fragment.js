@@ -8796,29 +8796,11 @@ class Alignment {
         return length;
     }
     getPointAt(percentage, type) {
-        if (percentage < 0) {
-            percentage = 0;
-        }
-        else if (percentage > 1) {
-            percentage = 1;
-        }
-        const alignment = this[type];
-        const alignmentLength = this.getLength(type);
-        const targetLength = alignmentLength * percentage;
-        let accumulatedLength = 0;
-        for (const curve of alignment) {
-            const curveLength = curve.getLength();
-            if (accumulatedLength + curveLength > targetLength) {
-                const targetCurveLength = targetLength - accumulatedLength;
-                const curvePercentage = targetCurveLength / curveLength;
-                return curve.getPointAt(curvePercentage);
-            }
-            accumulatedLength += curveLength;
-        }
-        throw new Error("Could not compute point!");
+        const found = this.getCurveAt(percentage, type);
+        return found.curve.getPointAt(found.percentage);
     }
     // Returns the percentage or null if the point is not contained in this alignment
-    getPercentageAt(point, type, tolerance = 0) {
+    getPercentageAt(point, type, tolerance = 0.01) {
         const alignment = this[type];
         let currentLength = 0;
         for (const curve of alignment) {
@@ -8833,6 +8815,28 @@ class Alignment {
             currentLength += curveLength;
         }
         return null;
+    }
+    getCurveAt(percentage, type) {
+        if (percentage < 0) {
+            percentage = 0;
+        }
+        else if (percentage > 1) {
+            percentage = 1;
+        }
+        const alignment = this[type];
+        const alignmentLength = this.getLength(type);
+        const targetLength = alignmentLength * percentage;
+        let accumulatedLength = 0;
+        for (const curve of alignment) {
+            const curveLength = curve.getLength();
+            if (accumulatedLength + curveLength > targetLength) {
+                const targetCurveLength = targetLength - accumulatedLength;
+                const percentage = targetCurveLength / curveLength;
+                return { curve, percentage };
+            }
+            accumulatedLength += curveLength;
+        }
+        throw new Error("Could not compute point!");
     }
 }
 
@@ -8858,35 +8862,40 @@ class CivilCurve {
         return length;
     }
     getPointAt(percentage) {
+        // Strategy: get start-end segment, normalize it,
+        // multiply by target length and add it to start point
+        const { startPoint, endPoint, distanceToStart } = this.getSegmentAt(percentage);
+        const targetPoint = endPoint.clone();
+        targetPoint.sub(startPoint);
+        targetPoint.normalize();
+        targetPoint.multiplyScalar(distanceToStart);
+        targetPoint.add(startPoint);
+        return targetPoint;
+    }
+    getSegmentAt(percentage) {
         if (percentage < 0) {
             percentage = 0;
         }
         else if (percentage > 1) {
             percentage = 1;
         }
-        const length = this.getLength();
-        const targetLength = length * percentage;
+        const totalLength = this.getLength();
+        const targetLength = totalLength * percentage;
         let accumulatedLength = 0;
-        for (let i = 0; i < this._index.array.length - 1; i += 2) {
-            const { startPoint, endPoint } = this.getSegment(i);
+        for (let index = 0; index < this._index.array.length - 1; index += 2) {
+            const { startPoint, endPoint } = this.getSegment(index);
             const segmentLength = startPoint.distanceTo(endPoint);
             if (accumulatedLength + segmentLength > targetLength) {
-                const targetSegmentLength = targetLength - accumulatedLength;
-                const targetPoint = endPoint.clone();
-                // Strategy: get start-end segment, normalize it,
-                // multiply by target length and add it to start point
-                targetPoint.sub(startPoint);
-                targetPoint.normalize();
-                targetPoint.multiplyScalar(targetSegmentLength);
-                targetPoint.add(startPoint);
-                return targetPoint;
+                // Position is the distance from the startPoint to the target point
+                const distanceToStart = targetLength - accumulatedLength;
+                return { distanceToStart, index, startPoint, endPoint };
             }
             accumulatedLength += segmentLength;
         }
         throw new Error("Could not compute point");
     }
     // Returns the percentage or null if the point is not contained in this curve
-    getPercentageAt(point, tolerance = 0) {
+    getPercentageAt(point, tolerance = 0.01) {
         let currentLength = 0;
         for (let i = 0; i < this._index.array.length - 1; i += 2) {
             const { startPoint, endPoint } = this.getSegment(i);
