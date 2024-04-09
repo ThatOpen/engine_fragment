@@ -58,7 +58,7 @@ export class Alignment {
     let accumulatedLength = 0;
     for (const curve of alignment) {
       const curveLength = curve.getLength();
-      if (accumulatedLength + curveLength > targetLength) {
+      if (accumulatedLength + curveLength >= targetLength) {
         const targetCurveLength = targetLength - accumulatedLength;
         const percentage = targetCurveLength / curveLength;
         return { curve, percentage };

@@ -8829,7 +8829,7 @@ class Alignment {
         let accumulatedLength = 0;
         for (const curve of alignment) {
             const curveLength = curve.getLength();
-            if (accumulatedLength + curveLength > targetLength) {
+            if (accumulatedLength + curveLength >= targetLength) {
                 const targetCurveLength = targetLength - accumulatedLength;
                 const percentage = targetCurveLength / curveLength;
                 return { curve, percentage };
@@ -8885,7 +8885,7 @@ class CivilCurve {
         for (let index = 0; index < this._index.array.length - 1; index += 2) {
             const { startPoint, endPoint } = this.getSegment(index);
             const segmentLength = startPoint.distanceTo(endPoint);
-            if (accumulatedLength + segmentLength > targetLength) {
+            if (accumulatedLength + segmentLength >= targetLength) {
                 // Position is the distance from the startPoint to the target point
                 const distanceToStart = targetLength - accumulatedLength;
                 return { distanceToStart, index, startPoint, endPoint };
