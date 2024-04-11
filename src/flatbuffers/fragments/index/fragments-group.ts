@@ -2,7 +2,7 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { Civil } from '../../fragments/index/civil.js';
+import { CivilData } from '../../fragments/index/civil-data.js';
 import { Fragment } from '../../fragments/index/fragment.js';
 
 
@@ -34,9 +34,9 @@ itemsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
-civil(obj?:Civil):Civil|null {
+civil(obj?:CivilData):CivilData|null {
   const offset = this.bb!.__offset(this.bb_pos, 6);
-  return offset ? (obj || new Civil()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
+  return offset ? (obj || new CivilData()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
 coordinationMatrix(index: number):number|null {

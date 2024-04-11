@@ -2,7 +2,7 @@ namespace Fragments.index;
 
 table FragmentsGroup {
     items: [Fragment];
-    civil: Civil;
+    civil: CivilData;
     coordination_matrix: [float];
     ids: [uint];
     items_keys: [uint];
@@ -36,16 +36,21 @@ table Fragment {
     capacity_offset: uint;
 }
 
-table Civil {
-    alignment_horizontal: Alignment;
-    alignment_vertical: Alignment;
-    alignment_3d: Alignment;
+table CivilData {
+    alignments: [Alignment];
+    coordination_matrix: [float];
 }
 
 table Alignment {
-    position: [float];
-    curve: [int];
-    segment: [int];
+    vertical: [CivilCurve];
+    horizontal: [CivilCurve];
+    absolute: [CivilCurve];
+    initial_pk: float;
+}
+
+table CivilCurve {
+    points: [float];
+    data: string;
 }
 
 root_type FragmentsGroup;
