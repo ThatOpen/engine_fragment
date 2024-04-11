@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.5.0](https://github.com/ThatOpen/engine_fragment/compare/v1.4.1...v1.5.0) (2024-04-11)
+
+
+### Features
+
+* add back-reference in civil items ([880c21d](https://github.com/ThatOpen/engine_fragment/commit/880c21dda216a3d95d6c86818fb577736277bcdd))
+* add logic to traverse curves and alignments ([cb73524](https://github.com/ThatOpen/engine_fragment/commit/cb73524816ceadb0629ba001c4ffb326ce54428b))
+* add more civil data to fragments ([92bc3b9](https://github.com/ThatOpen/engine_fragment/commit/92bc3b931713b3e782d1f5c38dde1c9cf89b560e))
+* improve civil items ([8ce4641](https://github.com/ThatOpen/engine_fragment/commit/8ce46412aaea3588236ad28f818f6e87ea1f83d9))
+
+
+### Bug Fixes
+
+* add index to curves edges geometry ([32c0ec7](https://github.com/ThatOpen/engine_fragment/commit/32c0ec70c8f8f9d9aea6dd7c4880091d62154d7b))
+* correct civil getPoint when percentage = 1 ([e68330b](https://github.com/ThatOpen/engine_fragment/commit/e68330bf133e45114ba29b62fda68879866d3809))
+* misc corrections ([e5d0b28](https://github.com/ThatOpen/engine_fragment/commit/e5d0b28a921de5c5c2b117b021c93691e70868c4))
+* support empty geometries for fragments ([082a3c2](https://github.com/ThatOpen/engine_fragment/commit/082a3c2ed1515fc63c238fcf637a70ea9f2c2cbd))
+
 ## [1.4.1](https://github.com/ThatOpen/engine_fragment/compare/v1.3.0...v1.4.1) (2024-02-28)
 
 
