@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { BufferAttribute } from "three/src/core/BufferAttribute";
 
 // The number array has the meaning: [start, end, start, end, start, end...]
 
@@ -32,5 +31,5 @@ export type StreamedGeometries = Map<
 >;
 
 export interface IndexedGeometry extends THREE.BufferGeometry {
-  index: BufferAttribute;
+  index: THREE.BufferAttribute;
 }

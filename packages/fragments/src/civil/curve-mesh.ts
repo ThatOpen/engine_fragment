@@ -1,12 +1,12 @@
-import { BufferGeometry } from "three/src/core/BufferGeometry";
-import { Material } from "three/src/materials/Material";
 import * as THREE from "three";
 import { Alignment } from "./alignment";
 import { CivilCurve } from "./civil-curve";
 
 export class CurveMesh<
-  TGeometry extends BufferGeometry = BufferGeometry,
-  TMaterial extends Material | Material[] = Material | Material[]
+  TGeometry extends THREE.BufferGeometry = THREE.BufferGeometry,
+  TMaterial extends THREE.Material | THREE.Material[] =
+    | THREE.Material
+    | THREE.Material[],
 > extends THREE.LineSegments<TGeometry, TMaterial> {
   curve: CivilCurve;
 
@@ -15,7 +15,7 @@ export class CurveMesh<
     data: { [name: string]: any },
     alignment: Alignment,
     geometry?: TGeometry,
-    material?: TMaterial
+    material?: TMaterial,
   ) {
     super(geometry, material);
     this.curve = new CivilCurve(index, this, data, alignment);

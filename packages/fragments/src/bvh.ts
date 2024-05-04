@@ -11,17 +11,22 @@ export class BVH {
 
   static apply(geometry: BufferGeometry) {
     if (!BVH.initialized) {
+      // @ts-ignore
       BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+      // @ts-ignore
       BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
       Mesh.prototype.raycast = acceleratedRaycast;
       BVH.initialized = true;
     }
+    // @ts-ignore
     if (!geometry.boundsTree) {
+      // @ts-ignore
       geometry.computeBoundsTree();
     }
   }
 
   static dispose(geometry: BufferGeometry) {
+    // @ts-ignore
     geometry.disposeBoundsTree();
   }
 }

@@ -1,6 +1,4 @@
 import * as THREE from "three";
-import { Material } from "three/src/materials/Material";
-import { BufferGeometry } from "three";
 import { Fragment } from "./fragment";
 import { IndexedGeometry } from "./base-types";
 
@@ -10,10 +8,10 @@ export class FragmentMesh extends THREE.InstancedMesh {
   geometry: IndexedGeometry;
 
   constructor(
-    geometry: BufferGeometry,
-    material: Material | Material[],
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material | THREE.Material[],
     count: number,
-    fragment: Fragment
+    fragment: Fragment,
   ) {
     super(geometry, material, count);
 

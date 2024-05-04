@@ -89,7 +89,6 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
 .cache/
@@ -129,3 +128,13 @@ dist
 .yarn/install-state.gz
 .pnp.*
 .idea/
+dist/
+resources/asdf.ifc
+resources/asdf.frag
+resources/asdf.json
+resources/bbbb.*
+
+
+
+resources/asdf2.frag
+resources/asdf2.json

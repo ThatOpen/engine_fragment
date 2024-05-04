@@ -10,12 +10,7 @@ module.exports = {
     sourceType: "module",
   },
   plugins: ["@typescript-eslint", "prettier"],
-  ignorePatterns: [
-    "**/dist/*",
-    "**/node_modules/*",
-    "**/*.json",
-    "**/flatbuffers/*",
-  ],
+  ignorePatterns: ["**/dist/*", "**/node_modules/*", "**/*.json", "**/*.js"],
   rules: {
     "prettier/prettier": [
       "error",
@@ -46,7 +41,6 @@ module.exports = {
       "error",
       "ignorePackages",
       {
-        js: "never",
         ts: "never",
       },
     ],
