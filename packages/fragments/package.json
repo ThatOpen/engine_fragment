@@ -1,6 +1,6 @@
 {
   "name": "@thatopen/fragments",
-  "description": "Collection of core functionalities to author BIM apps.",
+  "description": "Fragments utilities.",
   "version": "2.0.0-alpha.1",
   "author": "That Open Company",
   "contributors": [
@@ -9,9 +9,9 @@
     "Harry Collin (https://github.com/harrycollin)"
   ],
   "license": "MIT",
-  "homepage": "https://github.com/ThatOpen/engine_components/tree/main/packages/components#readme",
+  "homepage": "https://docs.thatopen.com/",
   "bugs": {
-    "url": "https://github.com/ThatOpen/engine_components/issues"
+    "url": "https://github.com/ThatOpen/engine_fragment/issues"
   },
   "type": "module",
   "main": "dist/index.cjs",
@@ -22,7 +22,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ThatOpen/engine_components/tree/main/packages/components.git"
+    "url": "https://github.com/ThatOpen/engine_fragment.git",
+    "directory": "packages/fragments"
   },
   "packageManager": "yarn@3.2.1",
   "scripts": {
