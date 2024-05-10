@@ -26,16 +26,19 @@ export class Fragment {
   capacity = 0;
   capacityOffset = 10;
 
+  // eslint-disable-next-line no-use-before-define
   fragments: { [id: string]: Fragment } = {};
 
   group?: FragmentsGroup;
+
+  private _originalColors = new Map<number, Map<number, THREE.Color>>();
 
   private _settingVisibility = false;
 
   constructor(
     geometry: THREE.BufferGeometry,
     material: THREE.Material | THREE.Material[],
-    count: number
+    count: number,
   ) {
     this.mesh = new FragmentMesh(geometry, material, count, this);
     this.id = this.mesh.uuid;
@@ -51,6 +54,7 @@ export class Fragment {
     this.clear();
 
     this.group = undefined;
+    this._originalColors.clear();
 
     if (this.mesh) {
       if (disposeResources) {
@@ -128,7 +132,7 @@ export class Fragment {
         this.mesh.geometry,
         this.mesh.material,
         newCapacity,
-        this
+        this,
       );
 
       newMesh.count = this.mesh.count;
@@ -272,7 +276,9 @@ export class Fragment {
           continue;
         }
         const instances = this.itemToInstances.get(itemID);
-        if (!instances) throw new Error("Instances not found!");
+        if (!instances) {
+          throw new Error("Instances not found!");
+        }
         for (const instance of new Set(instances)) {
           this.putLast(instance);
           this.mesh.count--;
@@ -282,6 +288,78 @@ export class Fragment {
     }
     this.update();
     this._settingVisibility = false;
+  }
+
+  setColor(
+    color: THREE.Color,
+    itemIDs = this.ids as Iterable<number>,
+    override = false,
+  ) {
+    if (!this.mesh.instanceColor) {
+      throw new Error("This fragment doesn't have color per instance!");
+    }
+    for (const itemID of itemIDs) {
+      if (!this.ids.has(itemID)) {
+        throw new Error(`This item doesn't exist here: ${itemID}`);
+      }
+      const instances = this.itemToInstances.get(itemID);
+      if (!instances) {
+        throw new Error("Instances not found!");
+      }
+
+      const originalsExist = this._originalColors.has(itemID);
+
+      if (!originalsExist) {
+        this._originalColors.set(itemID, new Map());
+      }
+
+      const originals = this._originalColors.get(itemID)!;
+
+      for (const instance of new Set(instances)) {
+        if (!originalsExist) {
+          const originalColor = new THREE.Color();
+          this.mesh.getColorAt(instance, originalColor);
+          originals.set(instance, originalColor);
+        }
+
+        this.mesh.setColorAt(instance, color);
+
+        if (override) {
+          originals.set(instance, color);
+        }
+      }
+    }
+    this.mesh.instanceColor.needsUpdate = true;
+  }
+
+  resetColor(itemIDs = this.ids as Iterable<number>) {
+    if (!this.mesh.instanceColor) {
+      throw new Error("This fragment doesn't have color per instance!");
+    }
+    for (const itemID of itemIDs) {
+      if (!this.ids.has(itemID)) {
+        throw new Error(`This item doesn't exist here: ${itemID}`);
+      }
+      const instances = this.itemToInstances.get(itemID);
+      if (!instances) {
+        throw new Error("Instances not found!");
+      }
+
+      const originals = this._originalColors.get(itemID);
+
+      if (!originals) {
+        throw new Error("Original colors not found!");
+      }
+
+      for (const instance of new Set(instances)) {
+        const originalColor = originals.get(instance);
+        if (!originalColor) {
+          throw new Error("Original color not found!");
+        }
+        this.mesh.setColorAt(instance, originalColor);
+      }
+    }
+    this.mesh.instanceColor.needsUpdate = true;
   }
 
   applyTransform(itemIDs: Iterable<number>, transform: THREE.Matrix4) {
