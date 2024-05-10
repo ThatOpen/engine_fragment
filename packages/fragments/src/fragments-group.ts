@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { unzip } from "unzipit";
 import { Fragment } from "./fragment";
 import { Alignment, CivilCurve } from "./civil";
 import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
@@ -121,7 +120,7 @@ export class FragmentsGroup extends THREE.Group {
   }
 
   async getProperties(
-    id: number
+    id: number,
   ): Promise<{ [attribute: string]: any } | null> {
     if (this._properties) {
       return this._properties[id] || null;
@@ -207,12 +206,7 @@ export class FragmentsGroup extends THREE.Group {
 
   private async getPropertiesData(url: string) {
     const fetched = await fetch(url);
-    const buffer = await fetched.arrayBuffer();
-    const file = new File([new Blob([buffer])], "temp");
-    const fileURL = URL.createObjectURL(file);
-    const { entries } = await unzip(fileURL);
-    const name = Object.keys(entries)[0];
-    return entries[name].json();
+    return fetched.json();
   }
 
   private constructFileName(fileID: number) {

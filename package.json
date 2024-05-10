@@ -1,5 +1,5 @@
 {
-  "description": "Collection of tools to author BIM apps.",
+  "description": "Geometry system build on top of Three.js to handle BIM data efficiently.",
   "author": "That Open Company",
   "contributors": [
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",
