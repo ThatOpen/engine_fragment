@@ -346,9 +346,8 @@ export class Fragment {
       }
 
       const originals = this._originalColors.get(itemID);
-
       if (!originals) {
-        throw new Error("Original colors not found!");
+        continue;
       }
 
       for (const instance of new Set(instances)) {
