@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.6.0](https://github.com/ThatOpen/engine_fragment/compare/v1.5.0...v1.6.0) (2024-05-22)
+
+
+### Features
+
+* improve reset color logic ([f6b4bde](https://github.com/ThatOpen/engine_fragment/commit/f6b4bde8527f32dbcaad9d130746c72effc19421))
+* make color per item editable ([475f209](https://github.com/ThatOpen/engine_fragment/commit/475f209f3ac20a3f499391c4c44751762e0b4289))
+* make streamed properties non-zipped ([c5e6eb2](https://github.com/ThatOpen/engine_fragment/commit/c5e6eb2d7d24eb8c95316867e6763cb2c4c058a8))
+* restructure repo, add package to thatopen org ([46b3429](https://github.com/ThatOpen/engine_fragment/commit/46b34293fef7d69e1d6b63f66ccd6e42f4aaa8df))
+
 ## [1.5.0](https://github.com/ThatOpen/engine_components/compare/v1.4.5...v1.5.0) (2024-04-11)
 
 
