@@ -1,6 +1,7 @@
 {
   "description": "Geometry system build on top of Three.js to handle BIM data efficiently.",
   "author": "That Open Company",
+  "version": "2.0.0",
   "contributors": [
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",
     "Juan Hoyos (https://github.com/HoyosJuan)",
