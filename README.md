@@ -21,6 +21,7 @@
 This library is an efficient geometry system built on top of Three.js to represent huge amounts of BIM data with ease. 🚀
 
 
+
 [npm]: https://img.shields.io/npm/v/@thatopen/fragments
 [npm-url]: https://www.npmjs.com/package/@thatopen/fragments
 [npm-downloads]: https://img.shields.io/npm/dw/@thatopen/fragments
