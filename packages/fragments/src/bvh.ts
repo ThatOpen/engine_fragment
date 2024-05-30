@@ -27,6 +27,9 @@ export class BVH {
 
   static dispose(geometry: BufferGeometry) {
     // @ts-ignore
-    geometry.disposeBoundsTree();
+    if (geometry.disposeBoundsTree) {
+      // @ts-ignore
+      geometry.disposeBoundsTree();
+    }
   }
 }
