@@ -63,7 +63,9 @@ export class Fragment {
         }
         this.mesh.material = [];
         BVH.dispose(this.mesh.geometry);
-        this.mesh.geometry.dispose();
+        if (this.mesh.geometry) {
+          this.mesh.geometry.dispose();
+        }
         (this.mesh.geometry as any) = null;
       }
 
