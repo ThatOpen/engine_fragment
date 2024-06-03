@@ -386,13 +386,13 @@ export class Fragment {
     return { ...geometry, ids, id };
   }
 
-  private putLast(instanceID: number) {
+  private putLast(instanceID1: number) {
     if (this.mesh.count === 0) return;
 
-    const id1 = this.instanceToItem.get(instanceID);
+    const id1 = this.instanceToItem.get(instanceID1);
 
     const instanceID2 = this.mesh.count - 1;
-    if (instanceID2 === instanceID) {
+    if (instanceID2 === instanceID1) {
       return;
     }
 
@@ -410,34 +410,54 @@ export class Fragment {
         throw new Error("Instances not found");
       }
 
-      if (!instances1.has(instanceID) || !instances2.has(instanceID2)) {
+      if (!instances1.has(instanceID1) || !instances2.has(instanceID2)) {
         throw new Error("Malformed fragment structure");
       }
 
-      instances1.delete(instanceID);
+      instances1.delete(instanceID1);
       instances2.delete(instanceID2);
       instances1.add(instanceID2);
-      instances2.add(instanceID);
+      instances2.add(instanceID1);
 
-      this.instanceToItem.set(instanceID, id2);
+      this.instanceToItem.set(instanceID1, id2);
       this.instanceToItem.set(instanceID2, id1);
     }
 
     const transform1 = new THREE.Matrix4();
     const transform2 = new THREE.Matrix4();
 
-    this.mesh.getMatrixAt(instanceID, transform1);
+    this.mesh.getMatrixAt(instanceID1, transform1);
     this.mesh.getMatrixAt(instanceID2, transform2);
-    this.mesh.setMatrixAt(instanceID, transform2);
+    this.mesh.setMatrixAt(instanceID1, transform2);
     this.mesh.setMatrixAt(instanceID2, transform1);
 
     if (this.mesh.instanceColor !== null) {
       const color1 = new THREE.Color();
       const color2 = new THREE.Color();
-      this.mesh.getColorAt(instanceID, color1);
+      this.mesh.getColorAt(instanceID1, color1);
       this.mesh.getColorAt(instanceID2, color2);
-      this.mesh.setColorAt(instanceID, color2);
+      this.mesh.setColorAt(instanceID1, color2);
       this.mesh.setColorAt(instanceID2, color1);
+
+      // Also swap instance color information
+
+      const originals1 = this._originalColors.get(id1);
+      if (originals1) {
+        const color1 = originals1.get(instanceID1);
+        if (color1) {
+          originals1.delete(instanceID1);
+          originals1.set(instanceID2, color1);
+        }
+      }
+
+      const originals2 = this._originalColors.get(id2);
+      if (originals2) {
+        const color2 = originals2.get(instanceID2);
+        if (color2) {
+          originals2.delete(instanceID2);
+          originals2.set(instanceID1, color2);
+        }
+      }
     }
   }
 }
