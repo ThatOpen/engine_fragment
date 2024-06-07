@@ -4,37 +4,71 @@ import { FragmentMesh } from "./fragment-mesh";
 import { FragmentsGroup } from "./fragments-group";
 import { BVH } from "./bvh";
 
-/*
+/**
+ * Class representing a fragment of a 3D model.
  * Fragments are just a simple wrapper around THREE.InstancedMesh.
- * Each fragments can contain Items (identified by ItemID) which
+ * Each fragment can contain Items (identified by ItemID) which
  * are mapped to one or many instances inside this THREE.InstancedMesh.
  *
  * Fragments also implement features like instance buffer resizing and
  * hiding out of the box.
- * */
+ */
 export class Fragment {
+  /**
+   * A set of unique item IDs associated with this fragment.
+   */
   ids = new Set<number>();
 
+  /**
+   * A map of item IDs to sets of instance IDs.
+   */
   itemToInstances = new Map<number, Set<number>>();
+
+  /**
+   * A map of instance IDs to item IDs.
+   */
   instanceToItem = new Map<number, number>();
+
+  /**
+   * A set of item IDs of instances that are currently hidden.
+   */
   hiddenItems = new Set<number>();
 
+  /**
+   * The unique identifier of this fragment.
+   */
   id: string;
 
+  /**
+   * The mesh associated with this fragment.
+   */
   mesh: FragmentMesh;
 
+  /**
+   * The amount of instances that this fragment can contain.
+   */
   capacity = 0;
+
+  /**
+   * The amount by which to increase the capacity when necessary.
+   */
   capacityOffset = 10;
 
-  // eslint-disable-next-line no-use-before-define
-  fragments: { [id: string]: Fragment } = {};
-
+  /**
+   * The group of fragments to which this fragment belongs.
+   */
   group?: FragmentsGroup;
 
   private _originalColors = new Map<number, Map<number, THREE.Color>>();
 
   private _settingVisibility = false;
 
+  /**
+   * Constructs a new Fragment.
+   * @param geometry - The geometry of the fragment.
+   * @param material - The material(s) of the fragment.
+   * @param count - The initial number of instances in the fragment.
+   */
   constructor(
     geometry: THREE.BufferGeometry,
     material: THREE.Material | THREE.Material[],
@@ -50,6 +84,11 @@ export class Fragment {
     }
   }
 
+  /**
+   * Disposes of the fragment and its associated resources.
+   *
+   * @param disposeResources - If true, disposes geometries and materials associated with the fragment. If false, only disposes of the fragment itself.
+   */
   dispose(disposeResources = true) {
     this.clear();
 
@@ -75,16 +114,17 @@ export class Fragment {
       (this.mesh.fragment as any) = null;
       (this.mesh as any) = null;
     }
-
-    for (const key in this.fragments) {
-      const frag = this.fragments[key];
-      frag.dispose(disposeResources);
-    }
-
-    this.fragments = {};
   }
 
-  get(itemID: number) {
+  /**
+   * Retrieves the transform matrices and colors of instances associated with a given item ID.
+   *
+   * @param itemID - The unique identifier of the item.
+   * @throws Will throw an error if the item is not found.
+   * @returns An object containing the item ID, an array of transform matrices, and an optional array of colors.
+   * If no colors are found, the colors array will be undefined.
+   */
+  get(itemID: number): Item {
     const instanceIDs = this.getInstancesIDs(itemID);
     if (!instanceIDs) {
       throw new Error("Item not found!");
@@ -105,14 +145,31 @@ export class Fragment {
     return { id: itemID, transforms, colors } as Item;
   }
 
-  getItemID(instanceID: number) {
+  /**
+   * Retrieves the item ID associated with a given instance ID.
+   *
+   * @param instanceID - The unique identifier of the instance.
+   * @returns The item ID associated with the instance, or null if no association exists.
+   */
+  getItemID(instanceID: number): number | null {
     return this.instanceToItem.get(instanceID) || null;
   }
 
-  getInstancesIDs(itemID: number) {
+  /**
+   * Retrieves the instance IDs associated with a given item ID.
+   *
+   * @param itemID - The unique identifier of the item.
+   * @returns The set of instance IDs associated with the item, or null if no association exists.
+   */
+  getInstancesIDs(itemID: number): Set<number> | null {
     return this.itemToInstances.get(itemID) || null;
   }
 
+  /**
+   * Updates the instance color and matrix attributes of the fragment's mesh.
+   * This method should be called whenever the instance color or matrix attributes
+   * need to be updated.
+   */
   update() {
     if (this.mesh.instanceColor) {
       this.mesh.instanceColor.needsUpdate = true;
@@ -120,6 +177,20 @@ export class Fragment {
     this.mesh.instanceMatrix.needsUpdate = true;
   }
 
+  /**
+   * Adds items to the fragment.
+   *
+   * @param items - An array of items to be added. Each item contains an ID, an array of transform matrices, and an optional array of colors.
+   *
+   * If the necessary capacity to accommodate the new items exceeds the current capacity,
+   * a new mesh with a larger capacity is created, and the old mesh is disposed.
+   *
+   * The transform matrices and colors of the items are added to the respective attributes of the mesh.
+   *
+   * The instance IDs, item IDs, and associations between instance IDs and item IDs are updated accordingly.
+   *
+   * The instance color and matrix attributes of the mesh are updated.
+   */
   add(items: Item[]) {
     let size = 0;
     for (const item of items) {
@@ -186,6 +257,17 @@ export class Fragment {
     this.update();
   }
 
+  /**
+   * Removes items from the fragment.
+   *
+   * @param itemsIDs - An iterable of item IDs to be removed.
+   *
+   * The instance IDs, item IDs, and associations between instance IDs and item IDs are updated accordingly.
+   *
+   * The instance color and matrix attributes of the mesh are updated.
+   *
+   * @throws Will throw an error if the instances are not found.
+   */
   remove(itemsIDs: Iterable<number>) {
     if (this.mesh.count === 0) {
       return;
@@ -198,7 +280,7 @@ export class Fragment {
       }
 
       for (const instanceID of instancesToDelete) {
-        if (this.mesh.count === 0) throw new Error("Errow with mesh count!");
+        if (this.mesh.count === 0) throw new Error("Error with mesh count!");
         this.putLast(instanceID);
         this.instanceToItem.delete(instanceID);
         this.mesh.count--;
@@ -211,6 +293,18 @@ export class Fragment {
     this.update();
   }
 
+  /**
+   * Clears the fragment by resetting the hidden items, item IDs, instance-to-item associations,
+   * instance-to-item map, and the count of instances in the fragment's mesh.
+   *
+   * @remarks
+   * This method is used to reset the fragment to its initial state.
+   *
+   * @example
+   * ```typescript
+   * fragment.clear();
+   * ```
+   */
   clear() {
     this.hiddenItems.clear();
     this.ids.clear();
@@ -219,37 +313,23 @@ export class Fragment {
     this.mesh.count = 0;
   }
 
-  addFragment(id: string, material = this.mesh.material) {
-    const newGeometry = new THREE.BufferGeometry();
-    const attrs = this.mesh.geometry.attributes;
-
-    newGeometry.setAttribute("position", attrs.position);
-    newGeometry.setAttribute("normal", attrs.normal);
-    newGeometry.setIndex(Array.from(this.mesh.geometry.index.array));
-
-    const newFragment = new Fragment(newGeometry, material, this.capacity);
-
-    const items: Item[] = [];
-    for (const id of this.ids) {
-      const item = this.get(id);
-      items.push(item);
-    }
-    newFragment.add(items);
-
-    newFragment.mesh.applyMatrix4(this.mesh.matrix);
-    newFragment.mesh.updateMatrix();
-    this.fragments[id] = newFragment;
-    return this.fragments[id];
-  }
-
-  removeFragment(id: string) {
-    const fragment = this.fragments[id];
-    if (fragment) {
-      fragment.dispose(false);
-      delete this.fragments[id];
-    }
-  }
-
+  /**
+   * Sets the visibility of items in the fragment.
+   *
+   * @param visible - A boolean indicating whether the items should be visible or hidden.
+   * @param itemIDs - An iterable of item IDs to be affected. If not provided, all items in the fragment will be affected.
+   *
+   * @remarks
+   * This method updates the visibility of items in the fragment based on the provided visibility flag.
+   *
+   * @throws Will throw an error if the instances are not found or if the item IDs are not found in the fragment.
+   *
+   * @example
+   * ```typescript
+   * fragment.setVisibility(true, [1, 2, 3]); // Makes items with IDs 1, 2, and 3 visible.
+   * fragment.setVisibility(false); // Makes all items in the fragment hidden.
+   * ```
+   */
   setVisibility(visible: boolean, itemIDs = this.ids as Iterable<number>) {
     if (this._settingVisibility) return;
     this._settingVisibility = true;
@@ -292,6 +372,21 @@ export class Fragment {
     this._settingVisibility = false;
   }
 
+  /**
+   * Sets the color of items in the fragment.
+   *
+   * @param color - The color to be set for the items.
+   * @param itemIDs - An iterable of item IDs to be affected. If not provided, all items in the fragment will be affected.
+   * @param override - A boolean indicating whether the original color should be overridden. If true, the original color will be replaced with the new color.
+   *
+   * @throws Will throw an error if the fragment doesn't have color per instance or if the item IDs are not found in the fragment.
+   *
+   * @example
+   * ```typescript
+   * fragment.setColor(new THREE.Color(0xff0000), [1, 2, 3], true); // Sets the color of items with IDs 1, 2, and 3 to red, overriding their original colors.
+   * fragment.setColor(new THREE.Color(0x00ff00)); // Sets the color of all items in the fragment to green.
+   * ```
+   */
   setColor(
     color: THREE.Color,
     itemIDs = this.ids as Iterable<number>,
@@ -334,6 +429,19 @@ export class Fragment {
     this.mesh.instanceColor.needsUpdate = true;
   }
 
+  /**
+   * Resets the color of items in the fragment to their original colors.
+   *
+   * @param itemIDs - An iterable of item IDs to be affected. If not provided, all items in the fragment will be affected.
+   *
+   * @throws Will throw an error if the fragment doesn't have color per instance or if the item IDs are not found in the fragment.
+   *
+   * @example
+   * ```typescript
+   * fragment.resetColor([1, 2, 3]); // Resets the color of items with IDs 1, 2, and 3 to their original colors.
+   * fragment.resetColor(); // Resets the color of all items in the fragment to their original colors.
+   * ```
+   */
   resetColor(itemIDs = this.ids as Iterable<number>) {
     if (!this.mesh.instanceColor) {
       throw new Error("This fragment doesn't have color per instance!");
@@ -363,6 +471,20 @@ export class Fragment {
     this.mesh.instanceColor.needsUpdate = true;
   }
 
+  /**
+   * Applies a transformation matrix to instances associated with given item IDs.
+   *
+   * @param itemIDs - An iterable of item IDs to be affected.
+   * @param transform - The transformation matrix to be applied.
+   *
+   * @remarks
+   * This method applies the provided transformation matrix to the instances associated with the given item IDs.
+   *
+   * @example
+   * ```typescript
+   * fragment.applyTransform([1, 2, 3], new THREE.Matrix4().makeTranslation(1, 0, 0)); // Applies a translation of (1, 0, 0) to instances with IDs 1, 2, and 3.
+   * ```
+   */
   applyTransform(itemIDs: Iterable<number>, transform: THREE.Matrix4) {
     const tempMatrix = new THREE.Matrix4();
     for (const itemID of itemIDs) {
@@ -379,6 +501,20 @@ export class Fragment {
     this.update();
   }
 
+  /**
+   * Exports the fragment's geometry and associated data.
+   *
+   * @returns An object containing the exported geometry, an array of IDs associated with the fragment, and the fragment's ID.
+   *
+   * @remarks
+   * This method is used to export the fragment's geometry and associated data for further processing or storage.
+   *
+   * @example
+   * ```typescript
+   * const exportedData = fragment.exportData();
+   * // Use the exportedData object for further processing or storage
+   * ```
+   */
   exportData() {
     const geometry = this.mesh.exportData();
     const ids = Array.from(this.ids);

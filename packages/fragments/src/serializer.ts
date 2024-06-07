@@ -7,12 +7,18 @@ import { FragmentsGroup } from "./fragments-group";
 import { Alignment, CivilCurve, CurveMesh } from "./civil";
 
 /**
- * Object to export and import sets of fragments efficiently using the library
- * [flatbuffers](https://flatbuffers.dev/).
+ * Serializer class for handling the serialization and deserialization of 3D model data.
+ * It uses the [flatbuffers library](https://flatbuffers.dev/) for efficient data serialization and deserialization.
  */
 export class Serializer {
   private fragmentIDSeparator = "|";
 
+  /**
+   * Constructs a FragmentsGroup object from the given flatbuffers data.
+   *
+   * @param bytes - The flatbuffers data as Uint8Array.
+   * @returns A FragmentsGroup object constructed from the flatbuffers data.
+   */
   import(bytes: Uint8Array): FragmentsGroup {
     const buffer = new flatbuffers.ByteBuffer(bytes);
 
@@ -40,6 +46,12 @@ export class Serializer {
     return fragmentsGroup;
   }
 
+  /**
+   * Exports the FragmentsGroup to a flatbuffer binary file.
+   *
+   * @param group - The FragmentsGroup to be exported.
+   * @returns The flatbuffer binary file as a Uint8Array.
+   */
   export(group: FragmentsGroup) {
     const builder = new flatbuffers.Builder(1024);
     const items: number[] = [];
@@ -77,7 +89,7 @@ export class Serializer {
       const algVector = C.createAlignmentsVector(builder, alignments);
       const coordVector = C.createCoordinationMatrixVector(
         builder,
-        group.coordinationMatrix.elements
+        group.coordinationMatrix.elements,
       );
 
       C.startCivilData(builder);
@@ -131,7 +143,7 @@ export class Serializer {
 
     const matrixVector = G.createCoordinationMatrixVector(
       builder,
-      group.coordinationMatrix.elements
+      group.coordinationMatrix.elements,
     );
 
     let fragmentKeys = "";
@@ -197,7 +209,7 @@ export class Serializer {
     const oIdsVector = G.createOpaqueGeometriesIdsVector(builder, opaqueIDs);
     const tIdsVector = G.createTransparentGeometriesIdsVector(
       builder,
-      transpIDs
+      transpIDs,
     );
 
     const { min, max } = group.boundingBox;
@@ -340,7 +352,7 @@ export class Serializer {
           alignment,
           "horizontal",
           horLength,
-          lineMat
+          lineMat,
         );
 
         const verLength = aligData.verticalLength();
@@ -349,7 +361,7 @@ export class Serializer {
           alignment,
           "vertical",
           verLength,
-          lineMat
+          lineMat,
         );
 
         const absLength = aligData.horizontalLength();
@@ -358,7 +370,7 @@ export class Serializer {
           alignment,
           "absolute",
           absLength,
-          lineMat
+          lineMat,
         );
 
         alignment.initialKP = aligData.initialPk();
@@ -432,7 +444,7 @@ export class Serializer {
     ids: Uint32Array,
     indices: Uint32Array,
     array: Uint32Array,
-    index: number
+    index: number,
   ) {
     for (let i = 0; i < indices.length; i++) {
       const expressID = ids[i];
@@ -482,7 +494,7 @@ export class Serializer {
     alignment: Alignment,
     option: "horizontal" | "vertical" | "absolute",
     length: number,
-    lineMat: THREE.LineBasicMaterial
+    lineMat: THREE.LineBasicMaterial,
   ) {
     const curves: CivilCurve[] = [];
     for (let i = 0; i < length; i++) {
