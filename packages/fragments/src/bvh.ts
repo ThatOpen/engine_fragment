@@ -6,8 +6,7 @@ import {
 } from "three-mesh-bvh";
 
 /**
- * A static class that manages [Bounding Volume Hierarchy (BVH)](https://github.com/gkjohnson/three-mesh-bvh) operations.
- * It adds necessary methods to BufferGeometry and Mesh prototypes if not already initialized.
+ * A static class that manages [Bounding Volume Hierarchy (BVH)](https://github.com/gkjohnson/three-mesh-bvh) operations. It adds necessary methods to BufferGeometry and Mesh prototypes if not already initialized.
  */
 export class BVH {
   /**

@@ -3,8 +3,7 @@ import { Alignment } from "./alignment";
 import { CivilCurve } from "./civil-curve";
 
 /**
- * Represents an alignment 3D curve mesh with additional civil engineering properties.
- * Extends THREE.LineSegments to provide geometry and material for the curve.
+ * Represents an alignment 3D curve mesh with additional civil engineering properties. Extends THREE.LineSegments to provide geometry and material for the curve.
  *
  * @template TGeometry - The type of geometry for the curve mesh. Default is THREE.BufferGeometry.
  * @template TMaterial - The type of material(s) for the curve mesh. Default is THREE.Material or THREE.Material[].

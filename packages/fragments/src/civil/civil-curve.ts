@@ -69,7 +69,7 @@ export class CivilCurve {
   /**
    * Calculates a point on the curve based on the given percentage.
    *
-   * @param percentage - The percentage along the curve (0 <= percentage <= 1).
+   * @param percentage - The percentage along the curve (between zero and one).
    * @returns A new THREE.Vector3 representing the point on the curve.
    *
    * @remarks
@@ -96,7 +96,7 @@ export class CivilCurve {
   /**
    * Calculates a segment of the curve based on the given percentage.
    *
-   * @param percentage - The percentage along the curve (0 <= percentage <= 1).
+   * @param percentage - The percentage along the curve (between zero and one).
    * @returns An object containing the distance to the start of the segment, the index of the segment, and the start and end points of the segment.
    *
    * @remarks

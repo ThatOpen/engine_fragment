@@ -4,8 +4,7 @@ import { Alignment, CivilCurve } from "./civil";
 import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
 
 /**
- * A class representing a group of 3D fragments.
- * This class extends THREE.Group and adds additional properties and methods for managing and interacting with the fragments it contains.
+ * A class representing a group of 3D fragments. This class extends THREE.Group and adds additional properties and methods for managing and interacting with the fragments it contains.
  */
 export class FragmentsGroup extends THREE.Group {
   /**

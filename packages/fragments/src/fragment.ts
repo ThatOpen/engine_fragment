@@ -5,13 +5,7 @@ import { FragmentsGroup } from "./fragments-group";
 import { BVH } from "./bvh";
 
 /**
- * Class representing a fragment of a 3D model.
- * Fragments are just a simple wrapper around THREE.InstancedMesh.
- * Each fragment can contain Items (identified by ItemID) which
- * are mapped to one or many instances inside this THREE.InstancedMesh.
- *
- * Fragments also implement features like instance buffer resizing and
- * hiding out of the box.
+ * Class representing a fragment of a 3D model. Fragments are just a simple wrapper around THREE.InstancedMesh. Each fragment can contain Items (identified by ItemID) which are mapped to one or many instances inside this THREE.InstancedMesh. Fragments also implement features like instance buffer resizing and hiding out of the box.
  */
 export class Fragment {
   /**
