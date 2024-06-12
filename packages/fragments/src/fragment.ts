@@ -53,6 +53,38 @@ export class Fragment {
    */
   group?: FragmentsGroup;
 
+  /**
+   * A getter property that returns the unique vertices of the fragment's geometry.
+   * The unique vertices are determined by comparing the vertex positions.
+   *
+   * @returns An array of unique vertices.
+   */
+  get uniqueVertices() {
+    const uniqueVertices: THREE.Vector3[] = [];
+
+    const position = this.mesh.geometry.getAttribute(
+      "position",
+    ) as THREE.BufferAttribute;
+    if (!position) return uniqueVertices;
+
+    const uniqueVerticesSet = new Set();
+
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i);
+      const y = position.getY(i);
+      const z = position.getZ(i);
+
+      const vertexKey = `${x},${y},${z}`;
+
+      if (!uniqueVerticesSet.has(vertexKey)) {
+        uniqueVerticesSet.add(vertexKey);
+        uniqueVertices.push(new THREE.Vector3(x, y, z));
+      }
+    }
+
+    return uniqueVertices;
+  }
+
   private _originalColors = new Map<number, Map<number, THREE.Color>>();
 
   private _settingVisibility = false;

@@ -107,6 +107,44 @@ export class FragmentsGroup extends THREE.Group {
   }
 
   /**
+   * Method to retrieve the vertices of a specific item within the fragments.
+   * This method finds the fragments that contain the specified item,
+   * then retrieves the vertices of those fragments.
+   *
+   * @param itemID - The ID of the item for which to retrieve vertices. Usually, an IFC expressID.
+   * @returns An array of THREE.Vector3 objects representing the vertices of the specified item.
+   *
+   * @example
+   * ```typescript
+   * const itemVertices = fragmentsGroup.getItemVertices(12345);
+   * for (const vertex of itemVertices) {
+   *   console.log(`Vertex: ${vertex.x}, ${vertex.y}, ${vertex.z}`);
+   * }
+   * ```
+   */
+  getItemVertices(itemID: number) {
+    const vertices: THREE.Vector3[] = [];
+    const fragmentIdMap = this.getFragmentMap([itemID]);
+    for (const fragmentID in fragmentIdMap) {
+      const fragment = this.items.find(
+        (fragment) => fragment.id === fragmentID,
+      );
+      if (!fragment) continue;
+      const itemInstances = fragment.getInstancesIDs(itemID);
+      if (!itemInstances) continue;
+      for (const instance of itemInstances) {
+        const matrix = new THREE.Matrix4();
+        fragment.mesh.getMatrixAt(instance, matrix);
+        for (const vertex of fragment.uniqueVertices) {
+          const vector = vertex.clone().applyMatrix4(matrix);
+          vertices.push(vector);
+        }
+      }
+    }
+    return vertices;
+  }
+
+  /**
    * Method to dispose of the resources used by the FragmentsGroup.
    *
    * @param disposeResources - If true, also dispose of the resources used by the fragments (geometries and materials). Default is true.
