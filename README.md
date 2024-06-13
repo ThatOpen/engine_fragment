@@ -16,7 +16,6 @@
 
 [![NPM Package][npm]][npm-url]
 [![NPM Package][npm-downloads]][npm-url]
-[![Tests](https://github.com/ThatOpen/engine_fragment/actions/workflows/tests.yml/badge.svg)](https://github.com/ThatOpen/engine_fragment/actions/workflows/tests.yaml)
 
 This library is an efficient geometry system built on top of Three.js to represent huge amounts of BIM data with ease. 🚀
 
