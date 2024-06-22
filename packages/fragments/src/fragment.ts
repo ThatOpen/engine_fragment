@@ -135,6 +135,7 @@ export class Fragment {
       }
 
       this.mesh.removeFromParent();
+      this.mesh.userData = {};
       this.mesh.dispose();
 
       (this.mesh.fragment as any) = null;
