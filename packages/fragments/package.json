@@ -1,7 +1,7 @@
 {
   "name": "@thatopen/fragments",
   "description": "Simple geometric system built on top of Three.js to display 3D BIM data efficiently.",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "author": "That Open Company",
   "contributors": [
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",
@@ -32,7 +32,9 @@
     "build": "tsc --p ./tsconfig-build.json && vite build",
     "prepublishOnly": "yarn build",
     "publish-repo": "npm publish",
-    "publish-alpha": "npm publish --tag alpha"
+    "publish-alpha": "npm publish --tag alpha",
+    "create-flatbuffers": "cd src/flatbuffers && flatc.exe --ts fragment.fbs",
+    "create-stream-flatbuffers": "cd src/flatbuffers && flatc.exe --ts streamed-geometry.fbs"
   },
   "publishConfig": {
     "access": "public"

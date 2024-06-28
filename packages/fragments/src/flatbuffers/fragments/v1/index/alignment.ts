@@ -2,7 +2,7 @@
 
 import * as flatbuffers from "flatbuffers";
 
-import { CivilCurve } from "../../fragments/index/civil-curve.js";
+import { CivilCurve } from "./civil-curve";
 
 export class Alignment {
   bb: flatbuffers.ByteBuffer | null = null;

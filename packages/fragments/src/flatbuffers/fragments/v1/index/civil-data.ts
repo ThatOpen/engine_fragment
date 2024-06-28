@@ -2,7 +2,7 @@
 
 import * as flatbuffers from "flatbuffers";
 
-import { Alignment } from "../../fragments/index/alignment.js";
+import { Alignment } from "./alignment";
 
 export class CivilData {
   bb: flatbuffers.ByteBuffer | null = null;

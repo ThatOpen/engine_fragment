@@ -2,8 +2,8 @@
 
 import * as flatbuffers from "flatbuffers";
 
-import { CivilData } from "../../fragments/index/civil-data.js";
-import { Fragment } from "../../fragments/index/fragment.js";
+import { CivilData } from "./civil-data";
+import { Fragment } from "./fragment";
 
 export class FragmentsGroup {
   bb: flatbuffers.ByteBuffer | null = null;

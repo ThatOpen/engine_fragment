@@ -29,6 +29,11 @@ export class FragmentsGroup extends THREE.Group {
   keyFragments = new Map<number, string>();
 
   /**
+   * A Map object where the keys are global IDs and the values are expressIDs.
+   */
+  globalToExpressIDs = new Map<string, number>();
+
+  /**
    * A Map object where the keys are express IDs and the values are arrays of two arrays.
    * The first array contains fragment keys to which this asset belongs, and the second array contains floor and category IDs.
    */
