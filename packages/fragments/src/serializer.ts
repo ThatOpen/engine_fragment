@@ -72,7 +72,8 @@ export class Serializer implements FragmentParser {
       this.warnVersion(this.version, latestVersion);
     }
 
-    if (Number.isInteger(this.version)) {
+    const isInteger = Number.isInteger(this.version);
+    if (!isInteger) {
       throw new Error(
         `Invalid version. Non-automatic versions must an integer.`,
       );
