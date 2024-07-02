@@ -1,5 +1,24 @@
 # Changelog
 
+## [2.1.0](https://github.com/ThatOpen/engine_fragment/compare/v2.0.0...v2.1.0) (2024-07-02)
+
+
+### Features
+
+* implement multi version flatbuffer ([c53ac59](https://github.com/ThatOpen/engine_fragment/commit/c53ac590ab69c5725b6ef4e124fa2e7660bf1741))
+* implements vertices retrieval logic in Fragment and FragmentsGroup ([3450b13](https://github.com/ThatOpen/engine_fragment/commit/3450b13c280f5cb728ff14a153d020c737974adf))
+
+
+### Bug Fixes
+
+* add guard for geometry disposal (was failing when streaming) ([9588048](https://github.com/ThatOpen/engine_fragment/commit/95880486e5f657a0c6c9267cfb2bda3f9d02a12b))
+* add guard to dispose bounds tree ([e161a3c](https://github.com/ThatOpen/engine_fragment/commit/e161a3c3c8b17393994effde7c501d6f253d0350))
+* dispose user data when disposing a fragment ([f656574](https://github.com/ThatOpen/engine_fragment/commit/f6565745ed225d0af70f5e2dd99cc04f2fc626f6))
+* prevent disposing null geometrys (can happen in streaming) ([ed0936f](https://github.com/ThatOpen/engine_fragment/commit/ed0936fed39d71664349f4b859f61cda0f872b2a))
+* solve serializer check bug ([ffaa424](https://github.com/ThatOpen/engine_fragment/commit/ffaa4247558e6cd8e06061c0bcce974b9d3f6b04))
+* solve serializer parser selection logic ([2d55755](https://github.com/ThatOpen/engine_fragment/commit/2d55755600842591e7e0c35a59f90888ace9fe59))
+* swap color information when hiding items ([e44962b](https://github.com/ThatOpen/engine_fragment/commit/e44962bb02ba5855e9afc2b805baca837bf55f3b))
+
 ## [2.0.0](https://github.com/ThatOpen/engine_fragment/compare/v1.5.0...v2.0.0) (2024-05-22)
 
 
