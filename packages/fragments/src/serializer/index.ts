@@ -1,5 +1,5 @@
-import { FragmentsGroup } from "./fragments-group";
-import { FragmentParser, ParserV1, ParserV2 } from "./parsers";
+import { FragmentsGroup } from "../fragments-group";
+import { FragmentParser, ParserV1, ParserV2 } from "../parsers";
 
 /**
  * Serializer class for handling the serialization and deserialization of 3D model data. It uses the [flatbuffers library](https://flatbuffers.dev/) for efficient data serialization and deserialization.
@@ -16,7 +16,7 @@ export class Serializer implements FragmentParser {
 
   /** {@link FragmentParser.import} */
   import(bytes: Uint8Array): FragmentsGroup {
-    const latestVersion = this.parsers.length - 1;
+    const latestVersion = this.parsers.length;
 
     if (this.version === "auto") {
       for (let i = 0; i < this.parsers.length; i++) {
@@ -34,7 +34,7 @@ export class Serializer implements FragmentParser {
       throw new Error("No valid parser found for this file");
     }
 
-    this.checkCurrentVersionValid(latestVersion);
+    this.checkCurrentVersionValid(this.version);
 
     const index = this.parsers.length - this.version;
     const parser = this.parsers[index];
@@ -51,14 +51,12 @@ export class Serializer implements FragmentParser {
 
   /** {@link FragmentParser.export} */
   export(group: FragmentsGroup) {
-    const latestVersion = this.parsers.length - 1;
-
     if (this.version === "auto") {
-      const latestParser = this.parsers[this.parsers.length - 1];
+      const latestParser = this.parsers[0];
       return latestParser.export(group);
     }
 
-    this.checkCurrentVersionValid(latestVersion);
+    this.checkCurrentVersionValid(this.version);
 
     const index = this.parsers.length - this.version;
     const parser = this.parsers[index];
