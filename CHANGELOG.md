@@ -5,6 +5,15 @@
 
 ### Miscellaneous Chores
 
+* release 2.1.0 ([79049f3](https://github.com/ThatOpen/engine_fragment/commit/79049f30e70a2610dd1f77ea5298c93aa2c17be2))
+* release 2.1.0 ([28a1f2d](https://github.com/ThatOpen/engine_fragment/commit/28a1f2d52f6f0705f27523cfe82e5792eb782897))
+* release 2.1.0 ([fcbeeac](https://github.com/ThatOpen/engine_fragment/commit/fcbeeacf85c4b692784ce1e8538e072b74f866ae))
+
+## [2.1.0](https://github.com/ThatOpen/engine_fragment/compare/v2.1.0...v2.1.0) (2024-07-10)
+
+
+### Miscellaneous Chores
+
 * release 2.1.0 ([28a1f2d](https://github.com/ThatOpen/engine_fragment/commit/28a1f2d52f6f0705f27523cfe82e5792eb782897))
 * release 2.1.0 ([fcbeeac](https://github.com/ThatOpen/engine_fragment/commit/fcbeeacf85c4b692784ce1e8538e072b74f866ae))
 
