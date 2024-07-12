@@ -349,7 +349,6 @@ export class Fragment {
    * @remarks
    * This method updates the visibility of items in the fragment based on the provided visibility flag.
    *
-   * @throws Will throw an error if the instances are not found or if the item IDs are not found in the fragment.
    *
    * @example
    * ```typescript
@@ -363,7 +362,7 @@ export class Fragment {
     if (visible) {
       for (const itemID of itemIDs) {
         if (!this.ids.has(itemID)) {
-          throw new Error(`This item doesn't exist here: ${itemID}`);
+          continue;
         }
         if (!this.hiddenItems.has(itemID)) {
           continue;
@@ -379,7 +378,7 @@ export class Fragment {
     } else {
       for (const itemID of itemIDs) {
         if (!this.ids.has(itemID)) {
-          throw new Error(`This item doesn't exist here: ${itemID}`);
+          continue;
         }
         if (this.hiddenItems.has(itemID)) {
           continue;
@@ -406,7 +405,6 @@ export class Fragment {
    * @param itemIDs - An iterable of item IDs to be affected. If not provided, all items in the fragment will be affected.
    * @param override - A boolean indicating whether the original color should be overridden. If true, the original color will be replaced with the new color.
    *
-   * @throws Will throw an error if the fragment doesn't have color per instance or if the item IDs are not found in the fragment.
    *
    * @example
    * ```typescript
@@ -424,7 +422,7 @@ export class Fragment {
     }
     for (const itemID of itemIDs) {
       if (!this.ids.has(itemID)) {
-        throw new Error(`This item doesn't exist here: ${itemID}`);
+        continue;
       }
       const instances = this.itemToInstances.get(itemID);
       if (!instances) {
@@ -461,7 +459,6 @@ export class Fragment {
    *
    * @param itemIDs - An iterable of item IDs to be affected. If not provided, all items in the fragment will be affected.
    *
-   * @throws Will throw an error if the fragment doesn't have color per instance or if the item IDs are not found in the fragment.
    *
    * @example
    * ```typescript
@@ -475,7 +472,7 @@ export class Fragment {
     }
     for (const itemID of itemIDs) {
       if (!this.ids.has(itemID)) {
-        throw new Error(`This item doesn't exist here: ${itemID}`);
+        continue;
       }
       const instances = this.itemToInstances.get(itemID);
       if (!instances) {
