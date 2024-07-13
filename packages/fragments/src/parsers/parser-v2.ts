@@ -465,7 +465,9 @@ export class ParserV2 implements FragmentParser {
     for (let i = 0; i < indices.length; i++) {
       const expressID = ids[i];
       const currentIndex = indices[i];
-      const nextIndex = indices[i + 1] || array.length;
+
+      const next = indices[i + 1];
+      const nextIndex = next === undefined ? array.length : next;
 
       const keys: number[] = [];
       for (let j = currentIndex; j < nextIndex; j++) {
