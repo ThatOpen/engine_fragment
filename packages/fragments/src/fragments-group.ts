@@ -7,6 +7,10 @@ import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
  * A class representing a group of 3D fragments. This class extends THREE.Group and adds additional properties and methods for managing and interacting with the fragments it contains.
  */
 export class FragmentsGroup extends THREE.Group {
+  static fetch = async (url: string) => {
+    return fetch(url);
+  };
+
   /**
    * An array of Fragment objects that are part of this group.
    */
@@ -406,7 +410,7 @@ export class FragmentsGroup extends THREE.Group {
   }
 
   private async getPropertiesData(url: string) {
-    const fetched = await fetch(url);
+    const fetched = await FragmentsGroup.fetch(url);
     return fetched.json();
   }
 
