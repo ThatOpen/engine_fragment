@@ -411,7 +411,14 @@ export class FragmentsGroup extends THREE.Group {
 
   private async getPropertiesData(url: string) {
     const fetched = await FragmentsGroup.fetch(url);
-    return fetched.json();
+    if (fetched.json) {
+      return fetched.json();
+    }
+    if (fetched.text) {
+      const text = await fetched.text();
+      return JSON.parse(text);
+    }
+    throw new Error("Invalid response type when getting properties data.");
   }
 
   private constructFileName(fileID: number) {
