@@ -80,6 +80,11 @@ export class FragmentsGroup extends THREE.Group {
   };
 
   /**
+   * Whether this fragments group is being streamed or not.
+   */
+  isStreamed = false;
+
+  /**
    * A getter that checks if this group has properties, either locally defined or streamed from a data source.
    */
   get hasProperties() {
