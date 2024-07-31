@@ -546,6 +546,51 @@ export class Fragment {
     return { ...geometry, ids, id };
   }
 
+  /**
+   * Creates a copy of the whole fragment or a part of it. It shares the geometry with the original fragment, but has its own InstancedMesh data, so it also needs to be disposed.
+   *
+   * @param itemIDs - An iterable of item IDs to be included in the clone.
+   *
+   */
+  clone(itemIDs: Iterable<number> = this.ids) {
+    const newFragment = new Fragment(
+      this.mesh.geometry,
+      this.mesh.material,
+      this.capacity,
+    );
+
+    const items: Item[] = [];
+
+    for (const id of itemIDs) {
+      const instancesIDs = this.getInstancesIDs(id);
+      if (instancesIDs === null) {
+        continue;
+      }
+
+      const transforms: THREE.Matrix4[] = [];
+      const colors: THREE.Color[] = [];
+
+      for (const instanceID of instancesIDs) {
+        const newMatrix = new THREE.Matrix4();
+        const newColor = new THREE.Color();
+        this.mesh.getMatrixAt(instanceID, newMatrix);
+        this.mesh.getColorAt(instanceID, newColor);
+        transforms.push(newMatrix);
+        colors.push(newColor);
+      }
+
+      items.push({
+        id,
+        transforms,
+        colors,
+      });
+    }
+
+    newFragment.add(items);
+
+    return newFragment;
+  }
+
   private putLast(instanceID1: number) {
     if (this.mesh.count === 0) return;
 

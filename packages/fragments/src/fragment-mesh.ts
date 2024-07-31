@@ -118,4 +118,10 @@ export class FragmentMesh extends THREE.InstancedMesh {
       colors,
     };
   }
+
+  clone(_recursive?: boolean): any {
+    throw new Error(
+      "Fragment meshes can't be cloned directly. Use mesh.fragment.clone instead!",
+    );
+  }
 }

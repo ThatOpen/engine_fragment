@@ -404,6 +404,86 @@ export class FragmentsGroup extends THREE.Group {
     return result;
   }
 
+  clone(_recursive?: boolean): any {
+    throw new Error("Use FragmentsGroup.cloneGroup instead!");
+  }
+
+  /**
+   * Creates a copy of the whole group or a part of it. Each fragment clone shares the geometry of with its respective original fragment, but has its own InstancedMesh data, so it also needs to be disposed.
+   *
+   * @param items - Optional - The part of the group to be cloned. If not given, the whole group is cloned.
+   *
+   */
+  cloneGroup(items?: FragmentIdMap) {
+    const newGroup = new FragmentsGroup();
+
+    newGroup.coordinationMatrix = this.coordinationMatrix;
+    newGroup.position.copy(this.position);
+    newGroup.rotation.copy(this.rotation);
+    newGroup.scale.copy(this.scale);
+    newGroup.updateMatrix();
+
+    newGroup.ifcMetadata = { ...this.ifcMetadata };
+
+    if (!items) {
+      items = this.getFragmentMap(this.data.keys());
+    }
+
+    const allIDs = new Set<number>();
+
+    const fragmentIDConversion = new Map<string, string>();
+
+    for (const fragment of this.items) {
+      if (!items[fragment.id]) {
+        continue;
+      }
+
+      const ids = items[fragment.id];
+      const newFragment = fragment.clone(ids);
+
+      fragmentIDConversion.set(fragment.id, newFragment.id);
+
+      newGroup.items.push(newFragment);
+      newGroup.add(newFragment.mesh);
+
+      for (const expressID of ids) {
+        allIDs.add(expressID);
+      }
+    }
+
+    for (const id of allIDs) {
+      const data = this.data.get(id);
+      if (data) {
+        newGroup.data.set(id, data);
+      }
+    }
+
+    for (const [fragKey, fragID] of this.keyFragments) {
+      if (fragmentIDConversion.has(fragID)) {
+        const newID = fragmentIDConversion.get(fragID);
+        if (newID === undefined) {
+          throw new Error("Malformed fragment ID map during clone!");
+        }
+        newGroup.keyFragments.set(fragKey, newID);
+      }
+    }
+
+    for (const [globalID, expressID] of this.globalToExpressIDs) {
+      if (allIDs.has(expressID)) {
+        newGroup.globalToExpressIDs.set(globalID, expressID);
+      }
+    }
+
+    if (this.civilData) {
+      newGroup.civilData = {
+        coordinationMatrix: this.coordinationMatrix,
+        alignments: new Map(),
+      };
+    }
+
+    return newGroup as this;
+  }
+
   private getPropsURL(id: number) {
     const { ids } = this.streamSettings;
     const fileID = ids.get(id);
