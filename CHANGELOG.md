@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.1.0](https://github.com/ThatOpen/engine_fragment/compare/v2.1.0...v2.1.0) (2024-07-31)
+
+
+### Features
+
+* allow custom streaming function ([c820d3d](https://github.com/ThatOpen/engine_fragment/commit/c820d3d43e244f12eab0227ab4c58923eb729ba2))
+* implement fragment cloning ([88cd07b](https://github.com/ThatOpen/engine_fragment/commit/88cd07b3a8151250fc8eb6da4d773f07345fabcd))
+* support distinction between streamed/non-streamed groups ([88be54b](https://github.com/ThatOpen/engine_fragment/commit/88be54b542fccf3e639c66e898f17c9ad7ae7f93))
+
+
+### Bug Fixes
+
+* correct importer fragmentsgroup data error ([4ec3e3e](https://github.com/ThatOpen/engine_fragment/commit/4ec3e3e5f2f587f7443b0de97f2f2ab2471012e3))
+* remove errors when ID not found ([ac8458b](https://github.com/ThatOpen/engine_fragment/commit/ac8458bd1d9042c6856a3da7543ec2f8b3cd39b2))
+* support blob response types ([218631c](https://github.com/ThatOpen/engine_fragment/commit/218631ce29c71fd5657c5b6e2872f076a9003ce9))
+
+
+### Miscellaneous Chores
+
+* release 2.1.0 ([79049f3](https://github.com/ThatOpen/engine_fragment/commit/79049f30e70a2610dd1f77ea5298c93aa2c17be2))
+* release 2.1.0 ([28a1f2d](https://github.com/ThatOpen/engine_fragment/commit/28a1f2d52f6f0705f27523cfe82e5792eb782897))
+* release 2.1.0 ([fcbeeac](https://github.com/ThatOpen/engine_fragment/commit/fcbeeacf85c4b692784ce1e8538e072b74f866ae))
+
 ## [2.1.0](https://github.com/ThatOpen/engine_fragment/compare/v2.1.0...v2.1.0) (2024-07-10)
 
 
