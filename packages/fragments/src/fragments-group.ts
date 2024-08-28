@@ -8,8 +8,13 @@ import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
  */
 export class FragmentsGroup extends THREE.Group {
   static fetch = async (url: string) => {
-    return fetch(url);
+    return fetch(`${FragmentsGroup.url}${url}`);
   };
+
+  /**
+   * Default URL for requesting property tiles. Feel free to change this, or override the FragmentsGroup.fetch method for more granular control.
+   */
+  static url = "";
 
   /**
    * An array of Fragment objects that are part of this group.
@@ -72,8 +77,15 @@ export class FragmentsGroup extends THREE.Group {
   /**
    * An object containing settings for streaming data, including base URL, base file name, IDs, and types.
    */
-  streamSettings = {
-    baseUrl: "",
+  streamSettings: {
+    /**
+     * @deprecated use FragmentsGroup.baseUrl instead
+     */
+    baseUrl?: string;
+    baseFileName: string;
+    ids: Map<number, number>;
+    types: Map<number, number[]>;
+  } = {
     baseFileName: "",
     ids: new Map<number, number>(),
     types: new Map<number, number[]>(),
@@ -394,8 +406,7 @@ export class FragmentsGroup extends THREE.Group {
     const result: IfcProperties = {};
     for (const fileID of fileIDs) {
       const name = this.constructFileName(fileID);
-      const url = this.constructURL(name);
-      const data = await this.getPropertiesData(url);
+      const data = await this.getPropertiesData(name);
       for (const key in data) {
         result[parseInt(key, 10)] = data[key];
       }
@@ -490,12 +501,18 @@ export class FragmentsGroup extends THREE.Group {
     if (fileID === undefined) {
       throw new Error("ID not found");
     }
-    const name = this.constructFileName(fileID);
-    return this.constructURL(name);
+    return this.constructFileName(fileID);
   }
 
-  private async getPropertiesData(url: string) {
-    const fetched = await FragmentsGroup.fetch(url);
+  private async getPropertiesData(name: string) {
+    if (this.streamSettings.baseUrl?.length) {
+      console.warn(
+        "streamSettings.baseUrl is deprecated. Use FragmentsGroup.url instead.",
+      );
+      FragmentsGroup.url = this.streamSettings.baseUrl;
+    }
+
+    const fetched = await FragmentsGroup.fetch(name);
     if (fetched.json) {
       return fetched.json();
     }
@@ -509,11 +526,6 @@ export class FragmentsGroup extends THREE.Group {
   private constructFileName(fileID: number) {
     const { baseFileName } = this.streamSettings;
     return `${baseFileName}-${fileID}`;
-  }
-
-  private constructURL(name: string) {
-    const { baseUrl } = this.streamSettings;
-    return `${baseUrl}${name}`;
   }
 
   private disposeAlignment(alignment: CivilCurve[]) {
