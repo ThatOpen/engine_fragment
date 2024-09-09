@@ -27,7 +27,6 @@ export class StreamerFileDb {
   }
 
   async get(name: string) {
-    console.log(`Fetched from cache: ${name}`);
     const encodedName = this.encodeName(name);
     const baseDir = await this.getDir(this.baseDirectory);
     try {
@@ -41,7 +40,6 @@ export class StreamerFileDb {
   }
 
   async add(name: string, buffer: Uint8Array) {
-    console.log(`Add to cache: ${name}`);
     const encodedName = this.encodeName(name);
     const baseDir = await this.getDir(this.baseDirectory);
     const fileHandle = await baseDir.getFileHandle(encodedName, {
@@ -95,7 +93,6 @@ export class StreamerFileDb {
       const deadTime = now - lastAccess;
 
       if (deadTime > this.maxDeadTime) {
-        console.log(`Removed from cache: ${entry.name}`);
         filesToDelete.add(entry.name);
         localStorage.removeItem(entry.name);
       }
