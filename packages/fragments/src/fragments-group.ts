@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { Fragment } from "./fragment";
 import { Alignment, CivilCurve } from "./civil";
 import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
+import { StreamerFileDb } from "./streamer-file-db";
 
 /**
  * A class representing a group of 3D fragments. This class extends THREE.Group and adds additional properties and methods for managing and interacting with the fragments it contains.
@@ -15,6 +16,11 @@ export class FragmentsGroup extends THREE.Group {
    * Default URL for requesting property tiles. Feel free to change this, or override the FragmentsGroup.fetch method for more granular control.
    */
   static url = "";
+
+  /**
+   * Whether to use local cache when streaming properties.
+   */
+  static useCache = true;
 
   /**
    * An array of Fragment objects that are part of this group.
@@ -95,6 +101,11 @@ export class FragmentsGroup extends THREE.Group {
    * Whether this fragments group is being streamed or not.
    */
   isStreamed = false;
+
+  /**
+   * The object in charge of caching property files locally to save requests over the network.
+   */
+  propertiesDB = new StreamerFileDb("that-open-company-streaming-properties");
 
   /**
    * A getter that checks if this group has properties, either locally defined or streamed from a data source.
@@ -505,6 +516,7 @@ export class FragmentsGroup extends THREE.Group {
   }
 
   private async getPropertiesData(name: string) {
+    // deprecated
     if (this.streamSettings.baseUrl?.length) {
       console.warn(
         "streamSettings.baseUrl is deprecated. Use FragmentsGroup.url instead.",
@@ -512,12 +524,30 @@ export class FragmentsGroup extends THREE.Group {
       FragmentsGroup.url = this.streamSettings.baseUrl;
     }
 
-    const fetched = await FragmentsGroup.fetch(name);
-    if (fetched.text) {
-      const text = await fetched.text();
-      return JSON.parse(text);
+    let fetched: string;
+
+    // If this file is in the local cache, get it
+    if (FragmentsGroup.useCache) {
+      // Add or update this file to clean it up from indexedDB automatically later
+
+      const found = await this.propertiesDB.get(name);
+
+      if (found) {
+        fetched = await found.text();
+      } else {
+        const dataFromBackend = await FragmentsGroup.fetch(name);
+        fetched = await dataFromBackend.text();
+
+        const encoder = new TextEncoder();
+        const buffer = encoder.encode(fetched);
+        await this.propertiesDB.add(name, buffer);
+      }
+    } else {
+      const dataFromBackend = await FragmentsGroup.fetch(name);
+      fetched = await dataFromBackend.text();
     }
-    throw new Error("Invalid response type when getting properties data.");
+
+    return JSON.parse(fetched);
   }
 
   private constructFileName(fileID: number) {
