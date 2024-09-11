@@ -23,6 +23,11 @@ export class FragmentsGroup extends THREE.Group {
   static useCache = true;
 
   /**
+   * The object in charge of caching property files locally to save requests over the network.
+   */
+  static propertiesDB: StreamerFileDb | null = null;
+
+  /**
    * An array of Fragment objects that are part of this group.
    */
   items: Fragment[] = [];
@@ -103,11 +108,6 @@ export class FragmentsGroup extends THREE.Group {
   isStreamed = false;
 
   /**
-   * The object in charge of caching property files locally to save requests over the network.
-   */
-  propertiesDB = new StreamerFileDb("that-open-company-streaming-properties");
-
-  /**
    * A getter that checks if this group has properties, either locally defined or streamed from a data source.
    */
   get hasProperties() {
@@ -179,6 +179,25 @@ export class FragmentsGroup extends THREE.Group {
       }
     }
     return vertices;
+  }
+
+  /**
+   * Enables or disables the local property caching system.
+   *
+   * @param enabled - Whether to enable or disable it.
+   */
+  static setPropertiesDB(enabled: boolean) {
+    if (enabled) {
+      if (!FragmentsGroup.propertiesDB) {
+        FragmentsGroup.propertiesDB = new StreamerFileDb(
+          "that-open-company-streaming-properties",
+        );
+      }
+    } else if (!enabled) {
+      if (FragmentsGroup.propertiesDB) {
+        FragmentsGroup.propertiesDB.dispose();
+      }
+    }
   }
 
   /**
@@ -530,7 +549,11 @@ export class FragmentsGroup extends THREE.Group {
     if (FragmentsGroup.useCache) {
       // Add or update this file to clean it up from indexedDB automatically later
 
-      const found = await this.propertiesDB.get(name);
+      let found: File | null = null;
+
+      if (FragmentsGroup.propertiesDB) {
+        found = await FragmentsGroup.propertiesDB.get(name);
+      }
 
       if (found) {
         fetched = await found.text();
@@ -538,9 +561,11 @@ export class FragmentsGroup extends THREE.Group {
         const dataFromBackend = await FragmentsGroup.fetch(name);
         fetched = await dataFromBackend.text();
 
-        const encoder = new TextEncoder();
-        const buffer = encoder.encode(fetched);
-        await this.propertiesDB.add(name, buffer);
+        if (FragmentsGroup.propertiesDB) {
+          const encoder = new TextEncoder();
+          const buffer = encoder.encode(fetched);
+          await FragmentsGroup.propertiesDB.add(name, buffer);
+        }
       }
     } else {
       const dataFromBackend = await FragmentsGroup.fetch(name);
