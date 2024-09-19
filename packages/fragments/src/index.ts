@@ -6,3 +6,4 @@ export * from "./fragment-mesh";
 export * from "./streamer-file-db";
 export * from "./civil";
 export * from "./stream-serializer";
+export * from "./fragment-utils";
