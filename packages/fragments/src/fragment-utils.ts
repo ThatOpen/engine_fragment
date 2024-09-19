@@ -16,6 +16,59 @@ export class FragmentUtils {
     return result;
   }
 
+  static intersect(maps: Iterable<FragmentIdMap>) {
+    // Strategy: count all fragIDs and all IDs
+    // only stay with values whose count equals the maps count
+
+    const visitedIDs = new Map<
+      string,
+      { count: number; ids: Map<number, number> }
+    >();
+
+    let mapsCount = 0;
+
+    for (const map of maps) {
+      mapsCount++;
+      for (const fragID in map) {
+        if (visitedIDs.has(fragID)) {
+          visitedIDs.set(fragID, {
+            count: 0,
+            ids: new Map(),
+          });
+        }
+
+        const current = visitedIDs.get(fragID)!;
+        current.count++;
+
+        for (const id of map[fragID]) {
+          const idCount = current.ids.get(id) || 0;
+          current.ids.set(id, idCount + 1);
+        }
+      }
+    }
+
+    const result: FragmentIdMap = {};
+
+    for (const [fragID, { count, ids }] of visitedIDs) {
+      if (count !== mapsCount) {
+        continue;
+      }
+
+      for (const [id, idCount] of ids) {
+        if (idCount !== mapsCount) {
+          continue;
+        }
+
+        if (!result[fragID]) {
+          result[fragID] = new Set();
+        }
+        result[fragID].add(id);
+      }
+    }
+
+    return result;
+  }
+
   static export(map: FragmentIdMap) {
     const serialized: { [fragID: string]: number[] } = {};
     for (const fragID in map) {
