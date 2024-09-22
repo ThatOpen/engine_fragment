@@ -46,7 +46,7 @@ export class FragmentUtils {
     for (const map of maps) {
       mapsCount++;
       for (const fragID in map) {
-        if (visitedIDs.has(fragID)) {
+        if (!visitedIDs.has(fragID)) {
           visitedIDs.set(fragID, {
             count: 0,
             ids: new Map(),
