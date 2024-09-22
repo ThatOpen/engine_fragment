@@ -1,7 +1,15 @@
 import { FragmentIdMap } from "./base-types";
 
 export class FragmentUtils {
-  static combine(maps: Iterable<FragmentIdMap>) {
+  static combine(maps: FragmentIdMap[]) {
+    if (maps.length === 0) {
+      return {};
+    }
+
+    if (maps.length === 1) {
+      return maps[0];
+    }
+
     const result: FragmentIdMap = {};
     for (const map of maps) {
       for (const fragID in map) {
@@ -16,9 +24,17 @@ export class FragmentUtils {
     return result;
   }
 
-  static intersect(maps: Iterable<FragmentIdMap>) {
+  static intersect(maps: FragmentIdMap[]) {
     // Strategy: count all fragIDs and all IDs
     // only stay with values whose count equals the maps count
+
+    if (maps.length === 0) {
+      return {};
+    }
+
+    if (maps.length === 1) {
+      return maps[0];
+    }
 
     const visitedIDs = new Map<
       string,
