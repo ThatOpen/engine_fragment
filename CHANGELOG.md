@@ -1,5 +1,28 @@
 # Changelog
 
+## [2.3.0](https://github.com/ThatOpen/engine_fragment/compare/v2.2.0...v2.3.0) (2024-10-07)
+
+
+### Features
+
+* add streamed property caching ([9cff742](https://github.com/ThatOpen/engine_fragment/commit/9cff742ef4bc089f7731d1067c4af4e6a242650f))
+* allow file as response type for tiles fetching ([a372ad8](https://github.com/ThatOpen/engine_fragment/commit/a372ad88e0c732bc0d0854f54b1c60702702baa6))
+* make fragmentutils ([e68abea](https://github.com/ThatOpen/engine_fragment/commit/e68abea8e9a8f881fc567afed4215d11c8f7885f))
+* make intersect fragmentidmaps ([7f3fb30](https://github.com/ThatOpen/engine_fragment/commit/7f3fb30c84b34a16e640f510160635b48309fdab))
+* make property streaming more flexible ([5156341](https://github.com/ThatOpen/engine_fragment/commit/5156341dc055dc8e6ce05d135366e02f5f9b5a7c))
+* make streamed property db optional and disabled by default ([1779e8f](https://github.com/ThatOpen/engine_fragment/commit/1779e8fb36b9d7c2a72eec2c55cd2bf1ce032782))
+
+
+### Bug Fixes
+
+* solve fragment utils edge cases ([4694098](https://github.com/ThatOpen/engine_fragment/commit/469409880a1c86c4bd11d8b7baace66eb8ac8ebc))
+* solve fragmentidmap intersect logic ([c393769](https://github.com/ThatOpen/engine_fragment/commit/c393769146ab509258912e386927026ac0393ee9))
+
+
+### Miscellaneous Chores
+
+* release 2.3.0 ([8c5210c](https://github.com/ThatOpen/engine_fragment/commit/8c5210c3d7cfe2691167a19d59c148bc07173eec))
+
 ## [2.2.0](https://github.com/ThatOpen/engine_fragment/compare/v2.1.0...v2.2.0) (2024-08-18)
 
 
