@@ -2,14 +2,30 @@ import * as THREE from "three";
 import { Fragment } from "./fragment";
 import { Alignment, CivilCurve } from "./civil";
 import { IfcProperties, IfcMetadata, FragmentIdMap } from "./base-types";
+import { StreamerFileDb } from "./streamer-file-db";
 
 /**
  * A class representing a group of 3D fragments. This class extends THREE.Group and adds additional properties and methods for managing and interacting with the fragments it contains.
  */
 export class FragmentsGroup extends THREE.Group {
-  static fetch = async (url: string) => {
-    return fetch(url);
+  static fetch = async (url: string): Promise<File | Response> => {
+    return fetch(`${FragmentsGroup.url}${url}`);
   };
+
+  /**
+   * Default URL for requesting property tiles. Feel free to change this, or override the FragmentsGroup.fetch method for more granular control.
+   */
+  static url = "";
+
+  /**
+   * Whether to use local cache when streaming properties.
+   */
+  static useCache = true;
+
+  /**
+   * The object in charge of caching property files locally to save requests over the network.
+   */
+  static propertiesDB: StreamerFileDb | null = null;
 
   /**
    * An array of Fragment objects that are part of this group.
@@ -72,8 +88,15 @@ export class FragmentsGroup extends THREE.Group {
   /**
    * An object containing settings for streaming data, including base URL, base file name, IDs, and types.
    */
-  streamSettings = {
-    baseUrl: "",
+  streamSettings: {
+    /**
+     * @deprecated use FragmentsGroup.baseUrl instead
+     */
+    baseUrl?: string;
+    baseFileName: string;
+    ids: Map<number, number>;
+    types: Map<number, number[]>;
+  } = {
     baseFileName: "",
     ids: new Map<number, number>(),
     types: new Map<number, number[]>(),
@@ -156,6 +179,25 @@ export class FragmentsGroup extends THREE.Group {
       }
     }
     return vertices;
+  }
+
+  /**
+   * Enables or disables the local property caching system.
+   *
+   * @param enabled - Whether to enable or disable it.
+   */
+  static setPropertiesDB(enabled: boolean) {
+    if (enabled) {
+      if (!FragmentsGroup.propertiesDB) {
+        FragmentsGroup.propertiesDB = new StreamerFileDb(
+          "that-open-company-streaming-properties",
+        );
+      }
+    } else if (!enabled) {
+      if (FragmentsGroup.propertiesDB) {
+        FragmentsGroup.propertiesDB.dispose();
+      }
+    }
   }
 
   /**
@@ -394,8 +436,7 @@ export class FragmentsGroup extends THREE.Group {
     const result: IfcProperties = {};
     for (const fileID of fileIDs) {
       const name = this.constructFileName(fileID);
-      const url = this.constructURL(name);
-      const data = await this.getPropertiesData(url);
+      const data = await this.getPropertiesData(name);
       for (const key in data) {
         result[parseInt(key, 10)] = data[key];
       }
@@ -490,30 +531,53 @@ export class FragmentsGroup extends THREE.Group {
     if (fileID === undefined) {
       throw new Error("ID not found");
     }
-    const name = this.constructFileName(fileID);
-    return this.constructURL(name);
+    return this.constructFileName(fileID);
   }
 
-  private async getPropertiesData(url: string) {
-    const fetched = await FragmentsGroup.fetch(url);
-    if (fetched.json) {
-      return fetched.json();
+  private async getPropertiesData(name: string) {
+    // deprecated
+    if (this.streamSettings.baseUrl?.length) {
+      console.warn(
+        "streamSettings.baseUrl is deprecated. Use FragmentsGroup.url instead.",
+      );
+      FragmentsGroup.url = this.streamSettings.baseUrl;
     }
-    if (fetched.text) {
-      const text = await fetched.text();
-      return JSON.parse(text);
+
+    let fetched: string;
+
+    // If this file is in the local cache, get it
+    if (FragmentsGroup.useCache) {
+      // Add or update this file to clean it up from indexedDB automatically later
+
+      let found: File | null = null;
+
+      if (FragmentsGroup.propertiesDB) {
+        found = await FragmentsGroup.propertiesDB.get(name);
+      }
+
+      if (found) {
+        fetched = await found.text();
+      } else {
+        const dataFromBackend = await FragmentsGroup.fetch(name);
+        fetched = await dataFromBackend.text();
+
+        if (FragmentsGroup.propertiesDB) {
+          const encoder = new TextEncoder();
+          const buffer = encoder.encode(fetched);
+          await FragmentsGroup.propertiesDB.add(name, buffer);
+        }
+      }
+    } else {
+      const dataFromBackend = await FragmentsGroup.fetch(name);
+      fetched = await dataFromBackend.text();
     }
-    throw new Error("Invalid response type when getting properties data.");
+
+    return JSON.parse(fetched);
   }
 
   private constructFileName(fileID: number) {
     const { baseFileName } = this.streamSettings;
     return `${baseFileName}-${fileID}`;
-  }
-
-  private constructURL(name: string) {
-    const { baseUrl } = this.streamSettings;
-    return `${baseUrl}${name}`;
   }
 
   private disposeAlignment(alignment: CivilCurve[]) {
