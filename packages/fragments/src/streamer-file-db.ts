@@ -26,6 +26,11 @@ export class StreamerFileDb {
     this.setupMemoryCleanup();
   }
 
+  isCached(name: string) {
+    const encodedName = this.encodeName(name);
+    return localStorage.getItem(encodedName) !== null;
+  }
+
   async get(name: string) {
     const encodedName = this.encodeName(name);
     const baseDir = await this.getDir(this.baseDirectory);
