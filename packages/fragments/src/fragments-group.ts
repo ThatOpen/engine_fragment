@@ -123,11 +123,19 @@ export class FragmentsGroup extends THREE.Group {
 
   /**
    * A method to create a map of fragment IDs and express IDs contained within them. This is useful because if you want to get "a chair", it might be made of 4 different geometries, and thus the subsets of 4 different fragments. Using this method, you would get exactly the fragments of where that chair is.
-   * @param expressIDs - An iterable of express IDs to create the map for.
+   * @param expressIDs - An iterable of express IDs to create the map for. If not provided, returns the fragment ID map for the whole group.
    * @returns A map where the keys are fragment IDs and the values are sets of express IDs.
    */
-  getFragmentMap(expressIDs: Iterable<number>) {
+  getFragmentMap(expressIDs?: Iterable<number>) {
     const fragmentMap: FragmentIdMap = {};
+
+    if (!expressIDs) {
+      for (const item of this.items) {
+        fragmentMap[item.id] = new Set(item.ids);
+      }
+      return fragmentMap;
+    }
+
     for (const expressID of expressIDs) {
       const data = this.data.get(expressID);
       if (!data) continue;
