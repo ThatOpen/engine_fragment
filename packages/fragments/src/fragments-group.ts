@@ -128,16 +128,8 @@ export class FragmentsGroup extends THREE.Group {
    * @param expressIDs - An iterable of express IDs to create the map for. If not provided, returns the fragment ID map for the whole group.
    * @returns A map where the keys are fragment IDs and the values are sets of express IDs.
    */
-  getFragmentMap(expressIDs?: Iterable<number>) {
+  getFragmentMap(expressIDs: Iterable<number> = this.data.keys()) {
     const fragmentMap: FragmentIdMap = {};
-
-    if (!expressIDs) {
-      for (const item of this.items) {
-        fragmentMap[item.id] = new Set(item.ids);
-      }
-      return fragmentMap;
-    }
-
     for (const expressID of expressIDs) {
       const data = this.data.get(expressID);
       if (!data) continue;
