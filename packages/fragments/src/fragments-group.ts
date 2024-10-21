@@ -12,6 +12,8 @@ export class FragmentsGroup extends THREE.Group {
     return fetch(`${FragmentsGroup.url}${url}`);
   };
 
+  static constructFileName: ((id: number) => string) | null = null;
+
   /**
    * Default URL for requesting property tiles. Feel free to change this, or override the FragmentsGroup.fetch method for more granular control.
    */
@@ -584,6 +586,9 @@ export class FragmentsGroup extends THREE.Group {
   }
 
   private constructFileName(fileID: number) {
+    if (FragmentsGroup.constructFileName) {
+      return FragmentsGroup.constructFileName(fileID);
+    }
     const { baseFileName } = this.streamSettings;
     return `${baseFileName}-${fileID}`;
   }
