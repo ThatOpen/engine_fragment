@@ -98,13 +98,10 @@ export class FragmentUtils {
     for (const fragID in map) {
       serialized[fragID] = Array.from(map[fragID]);
     }
-    return JSON.stringify(serialized);
+    return serialized;
   }
 
-  static import(serializedMap: string) {
-    const serialized = JSON.parse(serializedMap) as {
-      [fragID: string]: number[];
-    };
+  static import(serialized: { [fragID: string]: number[] }) {
     const map: FragmentIdMap = {};
     for (const fragID in serialized) {
       map[fragID] = new Set(serialized[fragID]);
