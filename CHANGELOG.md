@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.0](https://github.com/ThatOpen/engine_fragment/compare/v2.3.0...v2.4.0) (2024-11-27)
+
+
+### Features
+
+* add check for cached fragment files ([d9e7dde](https://github.com/ThatOpen/engine_fragment/commit/d9e7ddeb8242598c434f126acdc33399730870db))
+* allow to copy fragmentmaps ([ab138d6](https://github.com/ThatOpen/engine_fragment/commit/ab138d605e8a55eaaa064b627ee4a7e1213ccbb7))
+* allow to customize the property files name ([53253a5](https://github.com/ThatOpen/engine_fragment/commit/53253a583d1e15f4bdf9d111a65efaa772d7eb67))
+* allow to return whole fragment id map for fragments group ([01bc12f](https://github.com/ThatOpen/engine_fragment/commit/01bc12f043f179719285a54c453c033e4a6d03a9))
+* improve behavior when getting all fragments ([da3843f](https://github.com/ThatOpen/engine_fragment/commit/da3843f06fa9a32ecba68f142512f89f20abd4de))
+* provide both minified and non-minified build ([c6ff41f](https://github.com/ThatOpen/engine_fragment/commit/c6ff41fde9464087e6a628566728a3397996514e))
+* remove stringify from fragment map serializer ([092b24b](https://github.com/ThatOpen/engine_fragment/commit/092b24b560e1a18e80b16a0b620362efbe8286fa))
+
 ## [2.3.0](https://github.com/ThatOpen/engine_fragment/compare/v2.2.0...v2.3.0) (2024-10-07)
 
 
