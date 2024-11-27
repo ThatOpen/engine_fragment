@@ -85,18 +85,23 @@ export class FragmentUtils {
     return result;
   }
 
+  static copy(map: FragmentIdMap) {
+    const copied: FragmentIdMap = {};
+    for (const id in map) {
+      copied[id] = new Set(map[id]);
+    }
+    return copied;
+  }
+
   static export(map: FragmentIdMap) {
     const serialized: { [fragID: string]: number[] } = {};
     for (const fragID in map) {
       serialized[fragID] = Array.from(map[fragID]);
     }
-    return JSON.stringify(serialized);
+    return serialized;
   }
 
-  static import(serializedMap: string) {
-    const serialized = JSON.parse(serializedMap) as {
-      [fragID: string]: number[];
-    };
+  static import(serialized: { [fragID: string]: number[] }) {
     const map: FragmentIdMap = {};
     for (const fragID in serialized) {
       map[fragID] = new Set(serialized[fragID]);

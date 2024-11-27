@@ -12,6 +12,8 @@ export class FragmentsGroup extends THREE.Group {
     return fetch(`${FragmentsGroup.url}${url}`);
   };
 
+  static constructFileName: ((id: number) => string) | null = null;
+
   /**
    * Default URL for requesting property tiles. Feel free to change this, or override the FragmentsGroup.fetch method for more granular control.
    */
@@ -123,10 +125,10 @@ export class FragmentsGroup extends THREE.Group {
 
   /**
    * A method to create a map of fragment IDs and express IDs contained within them. This is useful because if you want to get "a chair", it might be made of 4 different geometries, and thus the subsets of 4 different fragments. Using this method, you would get exactly the fragments of where that chair is.
-   * @param expressIDs - An iterable of express IDs to create the map for.
+   * @param expressIDs - An iterable of express IDs to create the map for. If not provided, returns the fragment ID map for the whole group.
    * @returns A map where the keys are fragment IDs and the values are sets of express IDs.
    */
-  getFragmentMap(expressIDs: Iterable<number>) {
+  getFragmentMap(expressIDs: Iterable<number> = this.data.keys()) {
     const fragmentMap: FragmentIdMap = {};
     for (const expressID of expressIDs) {
       const data = this.data.get(expressID);
@@ -576,6 +578,9 @@ export class FragmentsGroup extends THREE.Group {
   }
 
   private constructFileName(fileID: number) {
+    if (FragmentsGroup.constructFileName) {
+      return FragmentsGroup.constructFileName(fileID);
+    }
     const { baseFileName } = this.streamSettings;
     return `${baseFileName}-${fileID}`;
   }
