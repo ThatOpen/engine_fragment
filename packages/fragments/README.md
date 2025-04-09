@@ -10,7 +10,7 @@
   <a href="https://www.npmjs.com/package/openbim-components">npm package</a>
 </p>
 
-![cover](https://raw.githubusercontent.com/ThatOpen/engine_fragment/refs/heads/main/resources/cover.png)
+![cover](https://thatopen.github.io/engine_components/resources/cover.png)
 
 ## 🤝 Want our help?
 Are you developing a project with our technology and would like our help?
