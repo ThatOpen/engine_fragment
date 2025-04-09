@@ -1,29 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
+  <!DOCTYPE html>
+  <html lang="en">
+  
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Examples Index</title>
+    <style>
+      * {
+        margin: 0;
+      }
+  
+      html {
+        font-family: sans-serif;
+      }
+  
+      body {
+        padding: 1rem;
+      }
+    </style> 
+  </head>
+  
+  <body>
+    <div style="display: flex; flex-direction: column; gap: 1rem;">
+      <h3>Choose an example</h3>
+      <a style="width: fit-content;" href="./packages\fragments\src\Importers\IfcImporter\example.html">fragments/IfcImporter</a>
+<a style="width: fit-content;" href="./packages\fragments\src\FragmentsModels\example.html">fragments/FragmentsModels</a>
+<a style="width: fit-content;" href="./packages\fragments\src\FragmentsModels\examples\VisibilityOperations\example.html">fragments/VisibilityOperations</a>
+<a style="width: fit-content;" href="./packages\fragments\src\FragmentsModels\examples\Raycasting\example.html">fragments/Raycasting</a>
+<a style="width: fit-content;" href="./packages\fragments\src\FragmentsModels\examples\ModelInformation\example.html">fragments/ModelInformation</a>
+<a style="width: fit-content;" href="./packages\fragments\src\FragmentsModels\examples\MaterialsManagement\example.html">fragments/MaterialsManagement</a>
+<a style="width: fit-content;" href="./packages\fragments\src\FragmentsModels\examples\ItemFinder\example.html">fragments/ItemFinder</a>
 
-<body>
-  <h2>
-    If you're developing, append the package and component folder to the URL in order to see the example working without
-    compiling. For example: <a id="dev"></a>
-  </h2>
-  <h2>
-    To see the compiled example after you run yarn build, append the name of the component at the end of the URL. For
-    example: <a id="exp"></a>
-  </h2>
-  <script>
-    const dev = document.getElementById("dev")
-    dev.href = location.href + "packages/components/src/core/Worlds/example.html"
-    dev.textContent = dev.href.replace(location.href, "")
-
-    const exp = document.getElementById("exp")
-    exp.href = location.href + "examples/Worlds/"
-    exp.textContent = exp.href.replace(location.href, "")
-  </script>
-</body>
-
-</html>
+    </div>
+  </body>
+  
+  </html>
+      

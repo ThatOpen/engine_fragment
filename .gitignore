@@ -129,12 +129,8 @@ out
 .pnp.*
 .idea/
 dist/
-resources/asdf.ifc
-resources/asdf.frag
-resources/asdf.json
-resources/bbbb.*
-
-
+resources/ifc
+resources/frags/test
 
 resources/asdf2.frag
 resources/asdf2.json

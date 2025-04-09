@@ -1,14 +1,13 @@
 {
-  "description": "Geometry system build on top of Three.js to handle BIM data efficiently.",
+  "description": "Fragments is an open-source library designed to store, display, navigate, and edit massive amounts of BIM data with exceptional efficiency—on any device.",
   "author": "That Open Company",
   "contributors": [
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",
-    "Juan Hoyos (https://github.com/HoyosJuan)",
-    "Harry Collin (https://github.com/harrycollin)"
+    "Juan Hoyos (https://github.com/HoyosJuan)"
   ],
   "scripts": {
     "dev": "vite --host",
-    "build-core": "yarn workspace @thatopen/fragments build",
+    "build-core": "yarn workspace @thatopen-platform/fragments-beta build",
     "build-examples": "vite build --config ./vite.config-examples.ts",
     "build": "yarn build-examples && yarn build-core",
     "test": "echo 'test to be implemented!'",
@@ -29,7 +28,9 @@
   ],
   "devDependencies": {
     "@rollup/plugin-terser": "^0.4.4",
+    "@thatopen/ui": "^2",
     "stats.js": "^0.17.0",
+    "typescript": "5.4.2",
     "vite": "5.1.6",
     "vite-plugin-dts": "3.7.3"
   },

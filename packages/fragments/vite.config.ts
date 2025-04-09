@@ -6,22 +6,22 @@ import * as fs from "fs";
 import pluginTerser from "@rollup/plugin-terser";
 import * as packageJson from "./package.json";
 
-const generateTSNamespace = (dts: Map<string, string>) => {
-  if (!fs.existsSync("./dist")) return;
-  console.log("Generating namespace!");
-  let types = "";
-  dts.forEach((declaration) => {
-    const cleanedType = declaration
-      .replace(/export\s+\*?\s+from\s+"[^"]+";/g, "")
-      .replace(/^\s*[\r\n]/gm, "")
-      .replace(/`/g, "'");
-    types += cleanedType;
-  });
-  fs.writeFileSync(
-    "./dist/namespace.d.ts",
-    `declare namespace OBC {\n${types}\n}`,
-  );
-};
+// const generateTSNamespace = (dts: Map<string, string>) => {
+//   if (!fs.existsSync("./dist")) return;
+//   console.log("Generating namespace!");
+//   let types = "";
+//   dts.forEach((declaration) => {
+//     const cleanedType = declaration
+//       .replace(/export\s+\*?\s+from\s+"[^"]+";/g, "")
+//       .replace(/^\s*[\r\n]/gm, "")
+//       .replace(/`/g, "'");
+//     types += cleanedType;
+//   });
+//   fs.writeFileSync(
+//     "./dist/namespace.d.ts",
+//     `declare namespace OBC {\n${types}\n}`,
+//   );
+// };
 
 export default defineConfig({
   build: {
@@ -32,23 +32,24 @@ export default defineConfig({
     },
     rollupOptions: {
       external: Object.keys(packageJson.peerDependencies),
+      // TODO: Only build minified version until repo is reorganized and public
       output: [
+        // {
+        //   entryFileNames: `index.mjs`,
+        //   format: "es",
+        //   globals: {
+        //     three: "THREE",
+        //   },
+        // },
+        // {
+        //   entryFileNames: `index.cjs`,
+        //   format: "cjs",
+        //   globals: {
+        //     three: "THREE",
+        //   },
+        // },
         {
           entryFileNames: `index.mjs`,
-          format: "es",
-          globals: {
-            three: "THREE",
-          },
-        },
-        {
-          entryFileNames: `index.cjs`,
-          format: "cjs",
-          globals: {
-            three: "THREE",
-          },
-        },
-        {
-          entryFileNames: `index.min.mjs`,
           plugins: [pluginTerser()],
           format: "es",
           globals: {
@@ -56,7 +57,7 @@ export default defineConfig({
           },
         },
         {
-          entryFileNames: `index.min.cjs`,
+          entryFileNames: `index.cjs`,
           plugins: [pluginTerser()],
           format: "cjs",
           globals: {
@@ -69,8 +70,13 @@ export default defineConfig({
   plugins: [
     dts({
       include: ["./src"],
-      exclude: ["./src/**/example.ts", "./src/**/*.test.ts"],
-      afterBuild: generateTSNamespace,
+      rollupTypes: true,
+      exclude: [
+        "./src/**/example.ts",
+        "./src/**/sample.ts",
+        "./src/**/*.test.ts",
+      ],
+      // afterBuild: generateTSNamespace,
     }),
   ],
 });

@@ -1,0 +1,203 @@
+// MESHES
+
+enum RenderedFaces:byte {
+    ONE = 0,
+    TWO = 1
+}
+
+enum Stroke:byte {
+    DEFAULT = 0
+}
+
+enum AxisPartClass:byte {
+    NONE = 0,
+    WIRE = 1,
+    WIRE_SET = 2,
+    CIRCLE_CURVE = 3
+}
+
+enum RepresentationClass:byte {
+    NONE = 0,
+    SHELL = 1,
+    CIRCLE_EXTRUSION = 2,
+}
+
+struct FloatVector {
+    x: float;
+    y: float;
+    z: float;
+}
+
+struct DoubleVector {
+    x: double;
+    y: double;
+    z: double;
+}
+
+struct Transform {
+    position: DoubleVector;
+    x_direction: FloatVector;
+    y_direction: FloatVector;
+}
+
+struct Material {
+    r: ubyte;
+    g: ubyte;
+    b: ubyte;
+    a: ubyte;
+    rendered_faces: RenderedFaces;
+    stroke: Stroke;
+}
+
+struct BoundingBox {
+    min: FloatVector;
+    max: FloatVector;
+}
+
+struct Wire {
+    p1: FloatVector;
+    p2: FloatVector;
+}
+
+table WireSet {
+    ps: [FloatVector];
+}
+
+struct CircleCurve {
+    aperture: float;
+    position: FloatVector;
+    radius: float;
+    x_direction: FloatVector;
+    y_direction: FloatVector;
+}
+
+table ShellHole {
+    indices: [ushort] (required);
+    profile_id: ushort;
+}
+
+table ShellProfile {
+    indices: [ushort] (required);
+}
+
+table Axis {
+    wires: [Wire] (required);
+    order: [uint] (required);
+    parts: [AxisPartClass] (required);
+    wire_sets: [WireSet] (required);
+    circle_curves: [CircleCurve] (required);
+}
+
+struct Representation {
+    id: uint;
+    bbox: BoundingBox;
+    representation_class: RepresentationClass;
+}
+
+struct Sample {
+    item: uint;
+    material: uint;
+    representation: uint;
+    local_transform: uint;
+}
+
+table Shell {
+    profiles: [ShellProfile] (required);
+    holes: [ShellHole] (required);
+    points: [FloatVector] (required);
+}
+
+table CircleExtrusion {
+    radius: [double] (required);
+    axes: [Axis] (required);
+}
+
+table Meshes {
+    coordinates: Transform (required);
+    meshes_items: [uint] (required); // An array that works as an indexation matching localIds indices with meshes.
+    samples: [Sample] (required);
+    representations: [Representation] (required);
+    materials: [Material] (required);
+    circle_extrusions: [CircleExtrusion] (required);
+    shells: [Shell] (required);
+    local_transforms: [Transform] (required);
+    global_transforms: [Transform] (required);
+}
+
+table Attribute {
+    data: [string] (required);
+}
+
+table Relation {
+    data: [string] (required);
+}
+
+table SpatialStructure {
+    local_id: uint = null;
+    category: string;
+    children: [SpatialStructure];
+}
+
+table Alignment {
+    absolute: [uint];
+}
+
+// IMPLICIT GEOMETRIES
+
+enum GeometryClass:byte {
+    NONE = 0,
+    LINES = 1,
+    ELLIPSE_ARC = 2,
+    CLOTHOID = 3,
+    PARABOLA = 4,
+}
+
+struct GeometrySample {
+    geometry_class: GeometryClass;
+    id: uint;
+    transform: uint;
+}
+
+// TODO: Simply make this a float array?
+table GeometryLines {
+    points: [FloatVector] (required);
+}
+
+table Geometries {
+    samples: [GeometrySample] (required);
+    transforms: [Transform] (required);
+    lines: [GeometryLines] (required);
+}
+
+// MODELS
+
+table Model {
+    metadata: string; // JSON string for generic data about the file
+
+    guids: [string] (required); // An array of Global Unique Identifiers of items. Not all items may have a guid.
+    guids_items: [uint] (required); // An array that works as an indexation matching localIds indices with guids.
+
+    max_local_id: uint; // The last localID converted when serializing. Used to know the next localID when adding a new item.
+    local_ids: [uint] (required); // File specific identification for each item.
+
+    categories: [string] (required); // An array of all item categories found in the file, stored as strings.
+
+    meshes: Meshes (required);
+
+    attributes: [Attribute]; // An array of items data stored as an array of arrays.
+
+    relations: [Relation]; // An array of relations between different items stored as arrays of arrays.
+    relations_items: [int]; // An array that works as an indexation matching localIds indices with relations.
+
+    guid: string (required); // An global ID that identifies this model uniquely.
+
+    spatial_structure: SpatialStructure;
+
+    alignments: [Alignment];
+
+    geometries: Geometries;
+}
+
+file_identifier "0001";
+
+root_type Model;
