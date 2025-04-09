@@ -38,7 +38,6 @@ export class IfcImporter {
    * @param data.raw Whether to return raw uncompressed data. If false, the output fragments will be smaller.
    * @param data.readFromCallback Whether to read data from a callback function. Useful for node.js.
    * @param data.readCallback Callback function to read IFC data. Useful for node.js.
-   * @returns Promise<Uint8Array> The processed fragments data.
    */
   async process(data: {
     readFromCallback?: boolean;
