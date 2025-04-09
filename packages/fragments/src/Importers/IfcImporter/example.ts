@@ -1,20 +1,21 @@
 /* MD
-  ## Converting IFC to Fragments 🧐
+  ## Converting IFC to Fragments 😀
   ---
-  [Some cool intro goes here]
+  In this tutorial, we'll learn how to convert large and complex IFC files into the lightweight, modern binary BIM data that we call Fragments for high-performance applications. Let's get started!
   
   ### 🖖 Importing our Libraries
-  First things first, let's install all necessary dependencies to make this little example work:
+  First things first, let's install all necessary dependencies to make this example work:
 */
 
 import * as OBC from "@thatopen/components";
 import * as BUI from "@thatopen/ui";
 import Stats from "stats.js";
-// You have to import from "@thatopen/fragments"
+// You have to import * as FRAGS from "@thatopen/fragments"
 import * as FRAGS from "../..";
 
 /* MD
   ### 🌎 Setting up a Simple Scene
+  To get started, let's set up a basic ThreeJS scene. This will serve as the foundation for our application and allow us to visualize the 3D models effectively:
 */
 
 const components = new OBC.Components();
@@ -34,7 +35,7 @@ const container = document.getElementById("container")!;
 world.renderer = new OBC.SimpleRenderer(components, container);
 
 world.camera = new OBC.SimpleCamera(components);
-world.camera.controls.setLookAt(90, 22, -13, 27, 0, 25); // convenient position for the model we will load
+world.camera.controls.setLookAt(74, 16, 0.2, 30, -4, 27); // convenient position for the model we will load
 
 components.init();
 
@@ -44,14 +45,17 @@ grids.create(world);
 /* MD
   :::info Do I need @thatopen/components?
 
-  Not really! We use @thatopen/components for convenience as it is really easy to setup a scene with it. However, you can use plain ThreeJS to create your own scene setup 😉
+  Not necessarily! While @thatopen/components simplifies the process of setting up a scene, you can always use plain ThreeJS to create your own custom scene setup. It's entirely up to your preference and project requirements! 😉
 
   :::
 
-  ### Converting IFCs
+  ### Converting IFCs 🚀
+  The IfcImporter is your gateway to converting IFC files into Fragments, enabling you to build high-performance BIM applications effortlessly. With just a few lines of code, you can transform complex IFC data into lightweight, modern Fragments. Let's dive in and make it happen!
   */
 
 const serializer = new FRAGS.IfcImporter();
+serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.68/" };
+// A convenient variable to hold the ArrayBuffer data loaded into memory
 let fragmentBytes: ArrayBuffer | null = null;
 let onConversionFinish = () => {};
 
@@ -65,18 +69,21 @@ const convertIFC = async () => {
 };
 
 /* MD
-  ### Setting Up Fragments
+  ### 🛠️ Setting Up Fragments
+  Now, let's configure the Fragments library core. This will allow us to load the converted files effortlessly and start manipulating them with ease:
   */
 
-// You have to copy `node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
+// You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
+// We use here the internal route of the worker in the library for simplicity purposes
 const workerUrl =
   "../../FragmentsModels/src/multithreading/fragments-thread.ts";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 
 /* MD
-  ### Loading a Fragments Model
+  ### Loading a Fragments Model 🚧
+  With the core already set up, let's create a simple function to load the Fragments Model from the binary data and add it to the scene. This function ensures seamless integration of the converted model into our application:
 */
 
 const loadModel = async () => {
@@ -86,6 +93,10 @@ const loadModel = async () => {
   world.scene.three.add(model.object);
   await fragments.update(true);
 };
+
+/* MD
+  To ensure optimal performance and prevent memory leaks, it's important to handle model disposal properly. Here's how we can do it:
+*/
 
 const removeModel = async () => {
   await fragments.disposeModel("example");
@@ -114,10 +125,13 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       URL.revokeObjectURL(a.href);
     };
 
-    let content = BUI.html`<bim-button label="Load IFC" @click=${convertIFC}></bim-button>`;
+    let content = BUI.html`
+      <bim-label style="white-space: normal;">💡 Open the console to see more information</bim-label>
+      <bim-button label="Load IFC" @click=${convertIFC}></bim-button>
+    `;
     if (fragmentBytes) {
       content = BUI.html`
-        <bim-label style="white-space: normal;">🚀 The IFC has been converted to Fragments. Add the model to the scene!</bim-label>
+        <bim-label style="white-space: normal;">🚀 The IFC has been converted to Fragments binary data. Add the model to the scene!</bim-label>
         <bim-button label="Add Model" @click=${loadModel}></bim-button>
         <bim-button label="Remove Model" @click=${removeModel}></bim-button>
         <bim-button label="Download Fragments" @click=${onDownload}></bim-button>
@@ -176,5 +190,7 @@ world.renderer.onBeforeUpdate.add(() => stats.begin());
 world.renderer.onAfterUpdate.add(() => stats.end());
 
 /* MD
-  ### ⏱️ Congratulations!
+  ### 🎉 Congratulations!
+  You've successfully completed this tutorial on converting complex IFC models into lightweight and efficient Fragments Models! 🚀
+  Now you can leverage this knowledge to build high-performance BIM applications with ease. Happy coding! 🎊
 */

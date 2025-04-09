@@ -1,21 +1,22 @@
 /* MD
-  ## Getting Your Fragments Model Information 👀
+  ## Getting Your Fragments Model Information 🗒️
   ---
-  [Some cool intro goes here]
+  A BIM model is only as valuable as the information it provides. Retrieving specific data efficiently is crucial for any workflow. In this tutorial, you'll learn how to extract and utilize data from Fragments with ease!
   
   ### 🖖 Importing our Libraries
-  First things first, let's install all necessary dependencies to make this little example work:
+  First things first, let's install all necessary dependencies to make this example work:
 */
 
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import * as BUI from "@thatopen/ui";
 import Stats from "stats.js";
-// You have to import from "@thatopen/fragments"
+// You have to import * as FRAGS from "@thatopen/fragments"
 import * as FRAGS from "../../..";
 
 /* MD
   ### 🌎 Setting up a Simple Scene
+  To get started, let's set up a basic ThreeJS scene. This will serve as the foundation for our application and allow us to visualize the 3D models effectively:
 */
 
 const components = new OBC.Components();
@@ -35,7 +36,7 @@ const container = document.getElementById("container")!;
 world.renderer = new OBC.SimpleRenderer(components, container);
 
 world.camera = new OBC.SimpleCamera(components);
-world.camera.controls.setLookAt(80, 25, -52, 11, -9.5, -3); // convenient position for the model we will load
+world.camera.controls.setLookAt(183, 11, -102, 27, -52, -11); // convenient position for the model we will load
 
 components.init();
 
@@ -45,42 +46,50 @@ grids.create(world);
 /* MD
   :::info Do I need @thatopen/components?
 
-  Not really! We use @thatopen/components for convenience as it is really easy to setup a scene with it. However, you can use plain ThreeJS to create your own scene setup 😉
+  Not necessarily! While @thatopen/components simplifies the process of setting up a scene, you can always use plain ThreeJS to create your own custom scene setup. It's entirely up to your preference and project requirements! 😉
 
   :::
 
-  ### Setting Up Fragments
-  */
+  ### 🛠️ Setting Up Fragments
+  Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start manipulating them with ease:
+*/
 
-// You have to copy `node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
+// You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
+// We use here the internal route of the worker in the library for simplicity purposes
 const workerUrl = "../../src/multithreading/fragments-thread.ts";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 
+// Once a model is available in the list, we can tell what camera to use
+// in order to perform the culling and LOD operations.
+// Also, we add the model to the 3D scene.
 fragments.models.list.onItemSet.add(({ value: model }) => {
   model.useCamera(world.camera.three);
   world.scene.three.add(model.object);
+  // At the end, you tell fragments to update so the model can be seen given
+  // the initial camera position
   fragments.update(true);
 });
 
 /* MD
-  ### Loading a Fragments Model
+  ### 📂 Loading a Fragments Model
+  With the core setup complete, it's time to load a Fragments model into our scene. Fragments are optimized for fast loading and rendering, making them ideal for large-scale 3D models.
+
+  :::info Where can I find Fragment files?
+
+  You can use the sample Fragment files available in our repository for testing. If you have an IFC model you'd like to convert to Fragments, check out the IfcImporter tutorial for detailed instructions.
+
+  :::
 */
 
-const file = await fetch("/resources/frags/medium_test.frag");
+const file = await fetch("/resources/frags/school_arq.frag");
 const buffer = await file.arrayBuffer();
 const model = await fragments.load(buffer, { modelId: "example" });
 
-const spaceItems = await model.getItemsOfCategory("IFCSPACE");
-const localIds = (
-  await Promise.all(spaceItems.map((wall) => wall.getLocalId()))
-).filter((localId) => typeof localId !== "undefined") as number[];
-await model.setVisible(localIds, false);
-fragments.update(true);
-
 /* MD
-  ### Setup Raycaster
+  ### 🤏 Setting Up Raycaster
+  To enable element selection and information querying in this example, let's configure a straightforward raycasting operation for the model:
 */
 
 const highlightMaterial: FRAGS.MaterialDefinition = {
@@ -94,12 +103,12 @@ let localId: number | null = null;
 
 const highlight = async () => {
   if (!localId) return;
-  await fragments.highlight(highlightMaterial, { [model.modelId]: [localId] });
+  await model.highlight([localId], highlightMaterial);
 };
 
 const resetHighlight = async () => {
   if (!localId) return;
-  await fragments.resetHighlight({ [model.modelId]: [localId] });
+  await model.resetHighlight([localId]);
 };
 
 let onItemSelected = () => {};
@@ -109,7 +118,7 @@ const mouse = new THREE.Vector2();
 container.addEventListener("click", async (event) => {
   mouse.x = event.clientX;
   mouse.y = event.clientY;
-  const result = await fragments.raycast({
+  const result = await model.raycast({
     camera: world.camera.three,
     mouse,
     dom: world.renderer!.three.domElement!,
@@ -130,11 +139,21 @@ container.addEventListener("click", async (event) => {
 });
 
 /* MD
-  ### Getting Item Attributes
+  :::info Raycasting
+
+  If you're unfamiliar with the raycasting logic above, we recommend checking out the dedicated raycasting tutorial. It provides a detailed explanation and step-by-step guidance to help you understand how raycasting works in this context.
+
+  :::
+
+  ### 🗒️ Getting Item Attributes
+  Great! With the raycasting setup complete, let's move on to the exciting part: extracting information. To begin, we'll create a handy function to retrieve the direct attributes of the selected item in the scene:
 */
 
 const getAttributes = async (attributes?: string[]) => {
   if (!localId) return null;
+  // This model method is the most straightforward way to get information
+  // about one or multiple elements.
+  // You can see the options in the API reference.
   const [data] = await model.getItemsData([localId], {
     attributesDefault: !attributes,
     attributes,
@@ -143,7 +162,7 @@ const getAttributes = async (attributes?: string[]) => {
 };
 
 /* MD
-  You can extract specific attributes very easily
+  The function above is designed to retrieve all attributes if none are specified. However, if you're only interested in a specific set of attributes, you can easily pass them as parameters. Let's create a function that retrieves just the name of the selected item:
   */
 
 const getName = async () => {
@@ -154,9 +173,17 @@ const getName = async () => {
 };
 
 /* MD
-  ### Get Relations
+  ### 🔗 Retrieving Item Relations
+  Accessing the direct attributes of an item is useful, but the true power lies in exploring its relationships. Items can be interconnected through relations, enabling you to understand their context and associations. For instance, a level can contain walls, and walls can reference the level they belong to. These relationships are often defined in the source file from which the Fragments were converted.
+
+  For Fragments derived from IFC files, the possible relations and their names are determined by the IFC schema. Let's create a helper function to retrieve all Property Sets (Psets) associated with the selected item, leveraging these relationships.
 */
 
+// `IsDefinedBy` is the relationship that links property sets (psets) to the element they define.
+// `DefinesOccurrence` is the relationship that links a property set to the elements that use it.
+// In this case, we don't need to know the elements that have the psets (just the psets of the selected element)
+// Then we don't want to get DefinesOcurrences items and that's by attributes and relations are set to false.
+// For more information, please refer to the IFC schema documentation
 const getItemPropertySets = async () => {
   if (!localId) return null;
   const [data] = await model.getItemsData([localId], {
@@ -171,7 +198,7 @@ const getItemPropertySets = async () => {
 };
 
 /* MD
-  [cool text about formating the data returned]
+  The data returned from the function above is structured similarly to how it's stored internally in the Fragments file. However, this format might not always be regular-developer-friendly. To make it more convenient, let's create a function that formats the result into a regular object for easier consumption:
 */
 
 const formatItemPsets = (rawPsets: FRAGS.ItemData[]) => {
@@ -194,7 +221,8 @@ const formatItemPsets = (rawPsets: FRAGS.ItemData[]) => {
 };
 
 /* MD
-  ### Getting Attributes from Category
+  ### 📊 More Data Operations
+  Beyond accessing attributes and relationships, you can also retrieve the full list of categories in the model. This enables convenient operations like fetching all elements from a specific category, which is a common use case. Let's create a function to retrieve all item names from a given category:
   */
 
 const getNamesFromCategory = async (category: string, unique = false) => {
@@ -220,13 +248,18 @@ const getNamesFromCategory = async (category: string, unique = false) => {
 };
 
 /* MD
-  ### Fragments Model Spatial Structure
+  ### 🌐 Exploring the Spatial Structure
+  The spatial structure is a fundamental aspect of any BIM model, as it defines the hierarchical relationships between elements. With Fragments, retrieving this structure is straightforward. Here's how you can do it:
   */
 
 const getSpatialStructure = async () => {
   const result = await model.getSpatialStructure();
   return result;
 };
+
+/* MD
+  Now, thanks to the spatial structure present in the model, you can perform useful operations, such as retrieving all children of a specific item. This parent/child relationship is derived from the spatial structure, so ensure the structure accurately reflects these relationships to make the following function effective:
+  */
 
 const getFirstLevelChildren = async () => {
   const items = await model.getItemsOfCategory("IFCBUILDINGSTOREY");
@@ -416,5 +449,8 @@ world.renderer.onBeforeUpdate.add(() => stats.begin());
 world.renderer.onAfterUpdate.add(() => stats.end());
 
 /* MD
-  ### ⏱️ Congratulations!
+  ### 🎉 Congratulations!
+  You've successfully mastered the art of retrieving information from your FragmentsModel! 🚀
+  
+  With this knowledge, you're now equipped to explore, manipulate, and extract valuable insights from your BIM models. Keep experimenting and building amazing applications! 💡
 */

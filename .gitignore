@@ -129,7 +129,7 @@ out
 .pnp.*
 .idea/
 dist/
-resources/ifc
+resources/ifc/test
 resources/frags/test
 
 resources/asdf2.frag

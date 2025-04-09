@@ -9,7 +9,8 @@
     "dev": "vite --host",
     "build-core": "yarn workspace @thatopen/fragments build",
     "build-examples": "vite build --config ./vite.config-examples.ts",
-    "build": "yarn build-examples && yarn build-core",
+    "build": "yarn copy-readme && yarn build-examples && yarn build-core",
+    "copy-readme": "node resources/readme-copier.mjs",
     "test": "echo 'test to be implemented!'",
     "publish-repo": "yarn workspace @thatopen/fragments publish-repo",
     "reset-release-please": "git commit --allow-empty -m \"chore: release 2.0.0\" -m \"Release-As: 2.0.0\""
