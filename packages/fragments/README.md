@@ -12,6 +12,11 @@
 
 ![cover](https://raw.githubusercontent.com/ThatOpen/engine_fragment/refs/heads/main/resources/cover.png)
 
+## 🤝 Want our help?
+Are you developing a project with our technology and would like our help?
+Apply now to join [That Open Accelerator Program](https://thatopen.com/accelerator)!
+
+
 <h1>Fragments <img src="https://thatopen.github.io/engine_components/resources/favicon.ico" width="32"/></h1>
 
 [![NPM Package][npm]][npm-url]
