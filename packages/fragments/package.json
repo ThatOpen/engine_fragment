@@ -43,6 +43,7 @@
   "devDependencies": {
     "@thatopen/components": "~2.4.0",
     "@thatopen/components-front": "^2.4.2",
+    "@thatopen/fragments": "2.4.0",
     "@types/jest": "27.0.0",
     "@types/node": "20.11.30",
     "@types/pako": "2.0.3",

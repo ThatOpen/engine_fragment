@@ -1535,12 +1535,25 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@thatopen/fragments@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@thatopen/fragments@npm:2.4.0"
+  dependencies:
+    flatbuffers: 23.3.3
+    three-mesh-bvh: 0.7.0
+  peerDependencies:
+    three: ^0.160.1
+  checksum: 4bbdfb22955b874ceb7669952413fd18f2fc8ebad8a57dc31581871c3b521082608f2f5c5a0a3e0ede507cab04849aeceae947a38673c0937fc1cf702a7031b3
+  languageName: node
+  linkType: hard
+
 "@thatopen/fragments@workspace:packages/fragments":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
     "@thatopen/components": ~2.4.0
     "@thatopen/components-front": ^2.4.2
+    "@thatopen/fragments": 2.4.0
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
     "@types/pako": 2.0.3
@@ -3784,6 +3797,13 @@ __metadata:
     keyv: ^4.5.3
     rimraf: ^3.0.2
   checksum: e7e0f59801e288b54bee5cb9681e9ee21ee28ef309f886b312c9d08415b79fc0f24ac842f84356ce80f47d6a53de62197ce0e6e148dc42d5db005992e2a756ec
+  languageName: node
+  linkType: hard
+
+"flatbuffers@npm:23.3.3":
+  version: 23.3.3
+  resolution: "flatbuffers@npm:23.3.3"
+  checksum: 7d8352e233cc81942e36b2ccfd7f3baf5d9a5e9614ebd83e9f4bc4accaebd43cb824788bd76334f5a61a8c2a74ddfd8f87ca7ac01cc522ad2774ae66c276dff1
   languageName: node
   linkType: hard
 
