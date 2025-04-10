@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.1](https://github.com/ThatOpen/engine_fragment/compare/v3.0.0...v3.0.1) (2025-04-10)
+
+
+### Bug Fixes
+
+* add old frags files to prevent conflict with components ([4544747](https://github.com/ThatOpen/engine_fragment/commit/4544747e12a019efbf29667127b196d72899762a))
+
 ## [3.0.0](https://github.com/ThatOpen/engine_fragment/compare/v2.4.0...v3.0.0) (2025-04-10)
 
 
