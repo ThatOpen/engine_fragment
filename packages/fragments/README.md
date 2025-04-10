@@ -12,10 +12,6 @@
 
 ![cover](https://thatopen.github.io/engine_components/resources/cover.png)
 
-## 🤝 Want our help?
-Are you developing a project with our technology and would like our help?
-Apply now to join [That Open Accelerator Program](https://thatopen.com/accelerator)!
-
 
 <h1>Fragments <img src="https://thatopen.github.io/engine_components/resources/favicon.ico" width="32"/></h1>
 
@@ -25,6 +21,27 @@ Apply now to join [That Open Accelerator Program](https://thatopen.com/accelerat
 Fragments is an open-source library designed to store, display, navigate, and edit massive amounts of BIM data with exceptional efficiency—on any device.
 
 This repository contains the format and a whole toolkit to start building on top.
+
+## 🤝 Want our help?
+Are you developing a project with our technology and would like our help?
+Apply now to join [That Open Accelerator Program](https://thatopen.com/accelerator)!
+
+
+## 🧩 Integration with components
+As you might know, we have 4 open source libraries:
+- [web-ifc](https://github.com/ThatOpen/engine_web-ifc): the IFC parser and geometry engine.
+- [fragments](https://github.com/ThatOpen/engine_fragment): the open source format and 3D engine.
+- [components](https://github.com/ThatOpen/engine_components): a set of tools to build BIM software fast. 
+- [ui components](https://github.com/ThatOpen/engine_ui-components): our agnostic UI system.
+
+Components doesn't work with this new version of Fragments yet. In the next release, at the end of Q2, all components will be updated to work with this new version of Fragments. In the meantime, you have 3 options:
+
+- Work with Fragments and build your own BIM components from scratch.
+- Work with Components (which don't use this new version of Fragments).
+- Check out our [Accelerator Program](https://thatopen.com/accelerator) to get previous access to the upcoming components.
+
+Once the release at the end of Q2 is made, Components will work natively with this new version of Fragments.
+
 
 ## 🧩 The Format
 Fragments defines an open BIM format optimized for handling large datasets efficiently.
@@ -37,7 +54,7 @@ Fragments defines an open BIM format optimized for handling large datasets effic
 
 The format is built with [Google's FlatBuffers](https://flatbuffers.dev/), an efficient cross-platform serialization library. This means you can create your own Fragments importer/exporter in any programming language. Just refer to the FlatBuffers documentation to get started.
 
-📄 You can find the Fragments schema [HERE](https://github.com/ThatOpen/engine_fragment/blob/main/packages/fragments/flatbuffers/index.fbs). It defines what kind of data Fragments can store—anything the schema supports, you can include.
+📄 You can find the Fragments schema [here](https://github.com/ThatOpen/engine_fragment/blob/main/packages/fragments/flatbuffers/index.fbs). It defines what kind of data Fragments can store—anything the schema supports, you can include.
 
 This library also includes a TypeScript/JavaScript importer/exporter, so you can get up and running fast. But feel free to build your own!
 
