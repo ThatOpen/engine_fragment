@@ -1,0 +1,57 @@
+namespace Fragments.index;
+
+table FragmentsGroup {
+    items: [Fragment];
+    civil: CivilData;
+    coordination_matrix: [float];
+    ids: [uint];
+    items_keys: [uint];
+    items_keys_indices: [uint];
+    items_rels: [uint];
+    items_rels_indices: [uint];
+    fragment_keys: string;
+    global_ids: string;
+    id: string;
+    name: string;
+    ifc_name: string;
+    ifc_description: string;
+    ifc_schema: string;
+    max_express_id: uint;
+    bounding_box: [float];
+    opaque_geometries_ids: [int];
+    transparent_geometries_ids: [int];
+}
+
+table Fragment {
+    position: [float];
+    normal: [float];
+    index: [uint];
+    groups: [float];
+    materials: [float];
+    matrices: [float];
+    colors: [float];
+    items_size: [uint];
+    ids: [uint];
+    id: string;
+    capacity: uint;
+    capacity_offset: uint;
+}
+
+table CivilData {
+    alignments: [Alignment];
+    coordination_matrix: [float];
+}
+
+table Alignment {
+    vertical: [CivilCurve];
+    horizontal: [CivilCurve];
+    absolute: [CivilCurve];
+    initial_pk: float;
+}
+
+table CivilCurve {
+    points: [float];
+    data: string;
+}
+
+root_type FragmentsGroup;

@@ -1,0 +1,14 @@
+namespace StreamedGeometries.index;
+
+table StreamedGeometries {
+    geometries: [StreamedGeometry];
+}
+
+table StreamedGeometry {
+    geometry_id: uint;
+    position: [float];
+    normal: [float];
+    index: [uint];
+}
+
+root_type StreamedGeometries;
