@@ -35,14 +35,7 @@ import { DataManager } from "./data-manager";
 import { SequenceManager } from "./sequence-manager";
 
 /**
- * The main class for managing a 3D model loaded from a fragments file.
- * Handles geometry, materials, visibility, highlighting, sections, and more.
- *
- * This class orchestrates multiple specialized managers to handle different aspects
- * of the model like mesh management, item data, raycasting, etc. It maintains the
- * overall state and provides the main interface for interacting with the model.
- *
- * The model data is loaded and processed asynchronously across multiple threads.
+ * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
  */
 export class FragmentsModel {
   /**

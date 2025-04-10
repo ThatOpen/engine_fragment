@@ -69,8 +69,7 @@ export interface RelsModifyChange {
 export type RelsChange = RelsModifyChange;
 
 /**
- * Type representing a unique identifier for a model item.
- * This can be either a string or a number.
+ * Type representing a unique identifier for a model item. This can be either a string or a number.
  */
 export type Identifier = string | number;
 
