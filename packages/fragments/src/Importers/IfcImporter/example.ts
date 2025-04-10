@@ -60,7 +60,7 @@ let fragmentBytes: ArrayBuffer | null = null;
 let onConversionFinish = () => {};
 
 const convertIFC = async () => {
-  const url = "/resources/ifc/school_str.ifc";
+  const url = "https://thatopen.github.io/engine_fragment/resources/ifc/school_str.ifc";
   const ifcFile = await fetch(url);
   const ifcBuffer = await ifcFile.arrayBuffer();
   const ifcBytes = new Uint8Array(ifcBuffer);
@@ -73,13 +73,19 @@ const convertIFC = async () => {
   Now, let's configure the Fragments library core. This will allow us to load the converted files effortlessly and start manipulating them with ease:
   */
 
-// You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
-// and provide the relative path in `workerUrl`
-// We use here the internal route of the worker in the library for simplicity purposes
+// You can copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
+// and provide the relative path of the worker, or fetch it from github, unpkg, etc.
 const workerUrl =
   "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-const fragments = new FRAGS.FragmentsModels(workerUrl);
+const fetchedWorker = await fetch(workerUrl);
+const workerText = await fetchedWorker.text();
+const workerFile = new File([new Blob([workerText])], "worker.mjs", {
+  type: "text/javascript",
+});
+const url = URL.createObjectURL(workerFile);
+const fragments = new FRAGS.FragmentsModels(url);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
+world.camera.controls.addEventListener("update", () => fragments.update());
 
 /* MD
   ### Loading a Fragments Model 🚧
