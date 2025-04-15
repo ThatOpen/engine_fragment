@@ -1,7 +1,7 @@
 {
   "name": "@thatopen/fragments",
   "description": "Simple geometric system built on top of Three.js to display 3D BIM data efficiently.",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "author": "That Open Company",
   "contributors": [
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",
@@ -49,7 +49,7 @@
     "@types/jest": "27.0.0",
     "@types/node": "20.11.30",
     "@types/pako": "2.0.3",
-    "@types/three": "0.175.0",
+    "@types/three": "^0.175.0",
     "@typescript-eslint/eslint-plugin": "7.2.0",
     "@typescript-eslint/parser": "7.2.0",
     "eslint": "8.57.0",
@@ -68,7 +68,7 @@
     "web-ifc": "0.0.68"
   },
   "peerDependencies": {
-    "three": "0.175.0",
+    "three": "^0.175.0",
     "web-ifc": "0.0.68"
   }
 }
