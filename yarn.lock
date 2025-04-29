@@ -1557,7 +1557,7 @@ __metadata:
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
     "@types/pako": 2.0.3
-    "@types/three": 0.175.0
+    "@types/three": ^0.175.0
     "@typescript-eslint/eslint-plugin": 7.2.0
     "@typescript-eslint/parser": 7.2.0
     eslint: 8.57.0
@@ -1578,7 +1578,7 @@ __metadata:
     typescript: 5.4.2
     web-ifc: 0.0.68
   peerDependencies:
-    three: 0.175.0
+    three: ^0.175.0
     web-ifc: 0.0.68
   languageName: unknown
   linkType: soft
@@ -1802,7 +1802,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/three@npm:0.175.0":
+"@types/three@npm:^0.175.0":
   version: 0.175.0
   resolution: "@types/three@npm:0.175.0"
   dependencies:
