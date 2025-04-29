@@ -90,7 +90,9 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
   :::
 */
 
-const file = await fetch("https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag");
+const file = await fetch(
+  "https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag",
+);
 const buffer = await file.arrayBuffer();
 const model = await fragments.load(buffer, { modelId: "example" });
 
@@ -295,6 +297,37 @@ const getFirstLevelChildren = async () => {
 };
 
 /* MD
+  ### 🧱 Accessing Geometry Data
+  A key reason why a FragmentsModel is highly memory-efficient is that all BufferAttributes from the geometry in ThreeJS are removed after being used to render the model in the scene. However, all the data you see in the model, including the explicit geometry used to create the meshes in the first place, is stored within the Fragments file. Fortunately, retrieving this information is straightforward in case you need it. Here's how you can do it:
+*/
+
+const getItemGeometry = async () => {
+  if (!localId) return null;
+  const [geometryCollection] = await model.getItemsGeometry([localId]);
+  return geometryCollection;
+};
+
+/* MD
+  :::info
+
+  Keep in mind that a single item may consist of multiple geometries. This is why the model method used above returns a nested array structure: the outer array represents the collection of items, while the inner arrays contain the geometries associated with each item.
+
+  :::
+
+  You can combine this with retrieving items from a category to obtain the complete explicit geometry of a specific group of elements.
+  */
+
+const getGeometriesFromCategory = async (category: string) => {
+  const items = await model.getItemsOfCategory(category);
+  const localIds = (
+    await Promise.all(items.map((item) => item.getLocalId()))
+  ).filter((localId) => localId !== null) as number[];
+
+  const geometries = await model.getItemsGeometry(localIds);
+  return geometries;
+};
+
+/* MD
   ### 🧩 Adding User Interface (optional)
   We will use the `@thatopen/ui` library to add some simple and cool UI elements to our app. First, we need to call the `init` method of the `BUI.Manager` class to initialize the library:
 */
@@ -342,6 +375,19 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       console.log(data);
     };
 
+    const onGeometriesFromCategory = async ({
+      target,
+    }: {
+      target: BUI.Button;
+    }) => {
+      const [category] = categoriesDropdown.value;
+      if (!category) return;
+      target.loading = true;
+      const data = await getGeometriesFromCategory(category);
+      target.loading = false;
+      console.log(data);
+    };
+
     const onNameLabelCreated = async (e?: Element) => {
       if (!e) return;
       const label = e as BUI.Label;
@@ -351,6 +397,13 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
     const onLogStructure = async ({ target }: { target: BUI.Button }) => {
       target.loading = true;
       const result = await getSpatialStructure();
+      console.log(result);
+      target.loading = false;
+    };
+
+    const onLogGeometry = async ({ target }: { target: BUI.Button }) => {
+      target.loading = true;
+      const result = await getItemGeometry();
       console.log(result);
       target.loading = false;
     };
@@ -395,6 +448,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
           <bim-button ?disabled=${!localId} label="Log Psets" @click=${onLogPsets}></bim-button>
           <bim-checkbox name="format" label="Format" inverted checked></bim-checkbox>
         </div>
+        <bim-button ?disabled=${!localId} label="Log Geometry" @click=${onLogGeometry}></bim-button>
       </bim-panel-section>
       <bim-panel-section label="Categories">
         ${categoriesDropdown}
@@ -402,6 +456,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
           <bim-button label="Log Names" @click=${onNamesFromCategory}></bim-button>
           <bim-checkbox name="unique" label="Unique" inverted></bim-checkbox>
         </div>
+        <bim-button label="Log Geometries" @click=${onGeometriesFromCategory}></bim-button>
       </bim-panel-section>
       <bim-panel-section label="Spatial Structure">
         <bim-button label="Log Spatial Structure" @click=${onLogStructure}></bim-button>
