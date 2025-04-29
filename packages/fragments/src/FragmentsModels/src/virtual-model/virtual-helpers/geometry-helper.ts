@@ -7,24 +7,35 @@ export class GeometryHelper {
     return model.data.meshes()!.globalTransformsLength();
   }
 
-  getGeometry(model: VirtualFragmentsModel, item: number): MeshData[] {
-    const [itemIndex] = model.properties.getItemIdsFromLocalIds([item]);
-    const sampleIds = model.boxes.sampleOf(itemIndex);
-    const result: MeshData[] = [];
-    if (!sampleIds) return result;
+  getGeometry(model: VirtualFragmentsModel, localIds: number[]) {
+    const indices = model.properties.getItemIdsFromLocalIds(localIds);
 
-    for (const sampleId of sampleIds) {
-      const sample = model.tiles.fetchSample(sampleId, CurrentLod.GEOMETRY);
+    const result: MeshData[][] = [];
+    for (const index of indices) {
+      const sampleIds = model.boxes.sampleOf(index);
+      if (!sampleIds) {
+        result.push([]);
+        continue;
+      }
 
-      MiscHelper.forEach(sample.geometries, (d) => {
-        result.push({
-          transform: sample.transform.clone(),
-          indices: d.indexBuffer,
-          positions: d.positionBuffer,
-          normals: d.normalBuffer,
-        } as MeshData);
-      });
+      const localResult: MeshData[] = [];
+
+      for (const sampleId of sampleIds) {
+        const sample = model.tiles.fetchSample(sampleId, CurrentLod.GEOMETRY);
+
+        MiscHelper.forEach(sample.geometries, (d) => {
+          localResult.push({
+            transform: sample.transform.clone(),
+            indices: d.indexBuffer,
+            positions: d.positionBuffer,
+            normals: d.normalBuffer,
+          } as MeshData);
+        });
+      }
+
+      result.push(localResult);
     }
+
     return result;
   }
 }

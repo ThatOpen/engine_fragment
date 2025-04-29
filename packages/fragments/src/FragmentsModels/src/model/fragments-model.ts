@@ -14,6 +14,7 @@ import {
   AttrsChange,
   Identifier,
   RelsChange,
+  MeshData,
 } from "./model-types";
 
 import { MiscHelper } from "../utils";
@@ -238,6 +239,21 @@ export class FragmentsModel {
    */
   async getItemsOfCategory(category: string) {
     return this._dataManager.getItemsOfCategory(this, category);
+  }
+
+  /**
+   * Retrieves the geometry data for the specified local IDs.
+   *
+   * The returned data is structured as an array of arrays of `MeshData`,
+   * which contains the necessary information to reconstruct a `THREE.BufferGeometry`.
+   *
+   * @param localIds - An array of local IDs for which the geometry data is requested.
+   */
+  async getItemsGeometry(localIds: number[]) {
+    const geometries = (await this.threads.invoke(this.modelId, "getGeometry", [
+      localIds,
+    ])) as MeshData[][];
+    return geometries;
   }
 
   /**

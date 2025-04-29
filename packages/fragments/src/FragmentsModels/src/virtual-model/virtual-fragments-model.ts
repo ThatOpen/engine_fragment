@@ -19,7 +19,6 @@ import {
   ItemConfigController,
 } from "./virtual-controllers";
 import {
-  MeshData,
   MaterialDefinition,
   SnappingClass,
   VirtualModelConfig,
@@ -184,8 +183,8 @@ export class VirtualFragmentsModel {
     return this._geometryHelper.getGeometriesLength(this);
   }
 
-  getGeometry(item: number): MeshData[] {
-    return this._geometryHelper.getGeometry(this, item);
+  getGeometry(localIds: number[]) {
+    return this._geometryHelper.getGeometry(this, localIds);
   }
 
   resetVisible() {

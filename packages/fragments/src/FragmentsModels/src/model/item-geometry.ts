@@ -27,12 +27,11 @@ export class ItemGeometry {
   }
 
   private async getGeometry() {
-    const geometries = (await this.model.threads.invoke(
+    const [geometries] = (await this.model.threads.invoke(
       this.model.modelId,
       "getGeometry",
-      // @ts-ignore
-      [this.localId],
-    )) as MeshData[];
+      [[this.localId]],
+    )) as MeshData[][];
 
     for (const geometryData of geometries) {
       geometryData.transform = new THREE.Matrix4().fromArray(
