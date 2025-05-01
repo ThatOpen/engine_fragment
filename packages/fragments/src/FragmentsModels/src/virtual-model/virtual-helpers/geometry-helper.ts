@@ -1,5 +1,4 @@
 import { CurrentLod, MeshData } from "../../model/model-types";
-import { MiscHelper } from "../../utils";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
 
 export class GeometryHelper {
@@ -7,33 +6,25 @@ export class GeometryHelper {
     return model.data.meshes()!.globalTransformsLength();
   }
 
-  getGeometry(model: VirtualFragmentsModel, localIds: number[]) {
-    const indices = model.properties.getItemIdsFromLocalIds(localIds);
+  getGeometry(model: VirtualFragmentsModel, itemIndex: number): MeshData[] {
+    const sampleIds = model.boxes.sampleOf(itemIndex);
+    const result: MeshData[] = [];
+    if (!sampleIds) return result;
 
-    const result: MeshData[][] = [];
-    for (const index of indices) {
-      const sampleIds = model.boxes.sampleOf(index);
-      if (!sampleIds) {
-        result.push([]);
-        continue;
-      }
+    for (const sampleId of sampleIds) {
+      const sample = model.tiles.fetchSample(sampleId, CurrentLod.GEOMETRY);
+      const geometries = Array.isArray(sample.geometries)
+        ? sample.geometries
+        : [sample.geometries];
 
-      const localResult: MeshData[] = [];
-
-      for (const sampleId of sampleIds) {
-        const sample = model.tiles.fetchSample(sampleId, CurrentLod.GEOMETRY);
-
-        MiscHelper.forEach(sample.geometries, (d) => {
-          localResult.push({
-            transform: sample.transform.clone(),
-            indices: d.indexBuffer,
-            positions: d.positionBuffer,
-            normals: d.normalBuffer,
-          } as MeshData);
+      for (const geometry of geometries) {
+        result.push({
+          transform: sample.transform.clone(),
+          indices: geometry.indexBuffer,
+          positions: geometry.positionBuffer,
+          normals: geometry.normalBuffer,
         });
       }
-
-      result.push(localResult);
     }
 
     return result;

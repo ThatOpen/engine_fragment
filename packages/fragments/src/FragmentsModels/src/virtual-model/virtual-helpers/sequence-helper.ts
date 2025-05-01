@@ -59,7 +59,7 @@ export class SequenceHelper {
       ids.map((id) => this._model.getItemCategory(id)),
     children: (_) => this._model.getItemsChildren(_),
     data: (ids: number[], ...args) => this._model.getItemsData(ids, args[0]),
-    geometry: (ids: number[]) => this._model.getGeometry(ids),
+    geometry: (ids: number[]) => this._model.getItemsGeometry(ids),
     guid: (_) => this._model.getGuidsByLocalIds(_),
     highlight: (_) => this._model.getHighlight(_),
     relations: (ids: number[]) =>

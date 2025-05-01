@@ -250,9 +250,11 @@ export class FragmentsModel {
    * @param localIds - An array of local IDs for which the geometry data is requested.
    */
   async getItemsGeometry(localIds: number[]) {
-    const geometries = (await this.threads.invoke(this.modelId, "getGeometry", [
-      localIds,
-    ])) as MeshData[][];
+    const geometries = (await this.threads.invoke(
+      this.modelId,
+      "getItemsGeometry",
+      [localIds],
+    )) as MeshData[][];
     return geometries;
   }
 

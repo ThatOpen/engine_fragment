@@ -25,6 +25,7 @@ import {
   ItemSelectionType,
   ItemInformationType,
   Identifier,
+  MeshData,
 } from "../model/model-types";
 
 import { VirtualBoxController } from "../bounding-boxes";
@@ -183,8 +184,14 @@ export class VirtualFragmentsModel {
     return this._geometryHelper.getGeometriesLength(this);
   }
 
-  getGeometry(localIds: number[]) {
-    return this._geometryHelper.getGeometry(this, localIds);
+  getItemsGeometry(localIds: number[]) {
+    const indices = this.properties.getItemIdsFromLocalIds(localIds);
+    const geometries: MeshData[][] = [];
+    for (const index of indices) {
+      const geometry = this._geometryHelper.getGeometry(this, index);
+      geometries.push(geometry);
+    }
+    return geometries;
   }
 
   resetVisible() {
