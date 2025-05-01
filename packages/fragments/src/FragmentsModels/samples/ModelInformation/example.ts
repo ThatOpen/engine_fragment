@@ -324,7 +324,29 @@ const getGeometriesFromCategory = async (category: string) => {
   ).filter((localId) => localId !== null) as number[];
 
   const geometries = await model.getItemsGeometry(localIds);
-  return geometries;
+  return { localIds, geometries };
+};
+
+/* MD
+  Finally, you can easily create a new ThreeJS mesh using any geometry data retrieved from the FragmentsModel. Here's how:
+*/
+
+let meshes: THREE.Mesh[] = [];
+
+const meshMaterial = new THREE.MeshLambertMaterial({ color: "purple" });
+
+const createMesh = (data: FRAGS.MeshData) => {
+  const { positions, indices, normals, transform } = data;
+  if (!(positions && indices && normals)) return null;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  geometry.setIndex(Array.from(indices));
+
+  const mesh = new THREE.Mesh(geometry, meshMaterial);
+  mesh.applyMatrix4(transform);
+  meshes.push(mesh);
+  return mesh;
 };
 
 /* MD
@@ -383,9 +405,35 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       const [category] = categoriesDropdown.value;
       if (!category) return;
       target.loading = true;
-      const data = await getGeometriesFromCategory(category);
+      const { localIds, geometries: data } =
+        await getGeometriesFromCategory(category);
+      for (const value of data) {
+        for (const meshData of value) {
+          const mesh = createMesh(meshData);
+          if (!mesh) continue;
+          world.scene.three.add(mesh);
+        }
+      }
+      await model.setVisible(localIds, false);
+      await fragments.update(true);
       target.loading = false;
       console.log(data);
+    };
+
+    const onDisposeMeshes = async () => {
+      for (const mesh of meshes) {
+        mesh.removeFromParent();
+        mesh.geometry.dispose();
+        const materials = Array.isArray(mesh.material)
+          ? mesh.material
+          : [mesh.material];
+        for (const material of materials) {
+          material.dispose();
+        }
+      }
+      meshes = [];
+      await model.setVisible(undefined, true);
+      await fragments.update(true);
     };
 
     const onNameLabelCreated = async (e?: Element) => {
@@ -457,6 +505,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
           <bim-checkbox name="unique" label="Unique" inverted></bim-checkbox>
         </div>
         <bim-button label="Log Geometries" @click=${onGeometriesFromCategory}></bim-button>
+        <bim-button label="Dispose Meshes" @click=${onDisposeMeshes}></bim-button>
       </bim-panel-section>
       <bim-panel-section label="Spatial Structure">
         <bim-button label="Log Spatial Structure" @click=${onLogStructure}></bim-button>
