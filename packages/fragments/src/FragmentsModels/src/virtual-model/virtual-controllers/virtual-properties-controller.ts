@@ -155,13 +155,19 @@ export class VirtualPropertiesController {
   }
 
   getLocalIdsByGuids(guids: string[]) {
-    const localIds: (number | null)[] = guids.map(() => null);
+    const localIds: (number | null)[] = new Array(guids.length).fill(null);
+
+    const guidToIndexMap = new Map();
+    guids.forEach((guid, index) => {
+      guidToIndexMap.set(guid, index);
+    });
+
     let found = 0;
     const guidCount = this._model.guidsLength();
     for (let i = 0; i < guidCount; i++) {
       const guid = this._model.guids(i);
-      const guidIndex = guids.indexOf(guid);
-      if (guidIndex === -1) {
+      const guidIndex = guidToIndexMap.get(guid);
+      if (guidIndex === undefined) {
         continue;
       }
       localIds[guidIndex] = this._model.guidsItems(i);
