@@ -10,12 +10,15 @@ import {
 } from "./ifc-file-reader";
 import { ifcCategoryMap } from "../../../../Utils";
 import { AlignmentData } from "../../../../FragmentsModels";
+import { IfcImporter } from "../..";
 
 export class IfcGeometryProcessor {
   wasm = {
     path: "../../../../node_modules/web-ifc/",
     absolute: false,
   };
+
+  constructor(private _serializer: IfcImporter) {}
 
   async process(data: {
     builder: FB.Builder;
@@ -56,7 +59,7 @@ export class IfcGeometryProcessor {
     const geometryIDMap = new Map<number, number>();
     const materialIDMap = new Map<string, { id: number; color: number[] }>();
 
-    const reader = new IfcFileReader();
+    const reader = new IfcFileReader(this._serializer);
     reader.wasm = this.wasm;
 
     // reader.isolatedMeshes = new Set([127787]);

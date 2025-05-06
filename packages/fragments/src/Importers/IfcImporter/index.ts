@@ -1,8 +1,10 @@
 import * as fb from "flatbuffers";
 import { MathUtils } from "three";
 import pako from "pako";
+import * as WEBIFC from "web-ifc";
 import * as TFB from "../../Schema";
-import { IfcPropertyProcessor, IfcGeometryProcessor } from "./src";
+import { IfcPropertyProcessor, IfcGeometryProcessor, ifcClasses } from "./src";
+import { DataSet } from "../../Utils";
 
 /**
  * An objet to convert IFC files into fragments.
@@ -20,9 +22,41 @@ export class IfcImporter {
   };
 
   /** A set of attribute names to exclude from serialization.
-   * By default excludes "Representation" and "ObjectPlacement" attributes.
    */
-  attrsToExclude = new Set(["Representation", "ObjectPlacement"]);
+  attributesToExclude = new Set([
+    "Representation",
+    "ObjectPlacement",
+    "CompositionType",
+    "OwnerHistory",
+  ]);
+
+  relations = new Map([
+    [
+      WEBIFC.IFCRELDEFINESBYPROPERTIES,
+      { forRelating: "DefinesOcurrence", forRelated: "IsDefinedBy" },
+    ],
+    [
+      WEBIFC.IFCRELASSOCIATESMATERIAL,
+      { forRelated: "HasAssociations", forRelating: "AssociatedTo" },
+    ],
+    [
+      WEBIFC.IFCRELAGGREGATES,
+      { forRelated: "Decomposes", forRelating: "IsDecomposedBy" },
+    ],
+    [
+      WEBIFC.IFCRELCONTAINEDINSPATIALSTRUCTURE,
+      { forRelated: "ContainedInStructure", forRelating: "ContainsElements" },
+    ],
+  ]);
+
+  classes = {
+    elements: new DataSet<number>([...ifcClasses.elements]),
+    abstract: new DataSet<number>([
+      ...ifcClasses.base,
+      ...ifcClasses.materials,
+      ...ifcClasses.properties,
+    ]),
+  };
 
   private get builder() {
     if (!this._builder) {
@@ -49,7 +83,7 @@ export class IfcImporter {
 
     // Get geometry
 
-    const geometryProcessor = new IfcGeometryProcessor();
+    const geometryProcessor = new IfcGeometryProcessor(this);
     geometryProcessor.wasm = this.wasm;
     const geomData = { ...data, builder: this.builder };
     const geoms = await geometryProcessor.process(geomData);

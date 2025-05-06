@@ -3,8 +3,6 @@ import { Builder } from "flatbuffers";
 import * as TFB from "../../../../Schema";
 import { RawEntityAttrs } from "./types";
 import { IfcImporter } from "../..";
-import { invAttrsMap } from "./inv-attrs-map";
-import { classes } from "./classes";
 import { ifcCategoryMap } from "../../../../Utils";
 
 export class IfcPropertyProcessor {
@@ -18,13 +16,6 @@ export class IfcPropertyProcessor {
     path: "/node_modules/web-ifc/",
     absolute: false,
   };
-
-  classesToInclude: {
-    entities: Set<number>;
-    rels?: Set<number>;
-  }[] = [classes.base, classes.materials, classes.properties, classes.elements];
-
-  attributesToIgnore: string[] = ["CompositionType", "OwnerHistory"];
 
   readonly expressIDs: number[] = [];
 
@@ -103,10 +94,12 @@ export class IfcPropertyProcessor {
 
     // Now process the rest of items
 
-    const entitiesToProcess = this.getEntitiesToProcess();
-    const toProcess = modelClasses.filter((type) =>
-      entitiesToProcess.includes(type),
-    );
+    const classes = new Set([
+      ...this._serializer.classes.abstract,
+      ...this._serializer.classes.elements,
+    ]);
+
+    const toProcess = modelClasses.filter((type) => classes.has(type));
 
     for (const entityClass of toProcess) {
       const classEntities = ifcApi.GetLineIDsWithType(0, entityClass);
@@ -120,9 +113,8 @@ export class IfcPropertyProcessor {
       await this.processItems(items);
     }
 
-    const relsToProcess = modelClasses.filter((type) =>
-      this.getRelsToProcess().includes(type),
-    );
+    const relations = new Set([...this._serializer.relations.keys()]);
+    const relsToProcess = modelClasses.filter((type) => relations.has(type));
 
     await this.processRelations(relsToProcess);
 
@@ -195,47 +187,11 @@ export class IfcPropertyProcessor {
     const attrOffsets: number[] = [];
     let guid: string | null = null;
 
-    // Props to Psets relation
-    // if (
-    //   typeof attrs.type === "number" &&
-    //   attrs.type === WEBIFC.IFCPROPERTYSET
-    // ) {
-    //   const handles = attrs.HasProperties;
-    //   if (Array.isArray(handles)) {
-    //     for (const handle of handles) {
-    //       if (!(handle.type === 5 && typeof handle.value === "number"))
-    //         continue;
-    //       this.addRelation(handle.value, "PartOfPset", [expressID]);
-    //     }
-    //   }
-    // }
-
-    // Props to pset relation and quantities to qset relation
-    // if (
-    //   typeof attrs.type === "number" &&
-    //   (attrs.type === WEBIFC.IFCPROPERTYSET ||
-    //     attrs.type === WEBIFC.IFCELEMENTQUANTITY)
-    // ) {
-    //   const propsAttrName =
-    //     attrs.type === WEBIFC.IFCPROPERTYSET ? "HasProperties" : "Quantities";
-    //   const relName =
-    //     attrs.type === WEBIFC.IFCPROPERTYSET ? "PartOfPset" : "PartOfQset";
-    //   const handles = attrs[propsAttrName];
-    //   if (Array.isArray(handles)) {
-    //     for (const handle of handles) {
-    //       if (!(handle.type === 5 && typeof handle.value === "number"))
-    //         continue;
-    //       this.addRelation(handle.value, relName, [expressID]);
-    //     }
-    //   }
-    // }
-
     let index = 0;
     for (const [attrName, attrValue] of Object.entries(attrs)) {
-      if (this.attributesToIgnore.includes(attrName)) continue;
       if (typeof attrValue === "number") continue;
       if (
-        this._serializer.attrsToExclude.has(attrName) ||
+        this._serializer.attributesToExclude.has(attrName) ||
         attrValue === null ||
         attrValue === undefined
       ) {
@@ -323,7 +279,7 @@ export class IfcPropertyProcessor {
   async processRelations(rels: number[]) {
     const ifcApi = await this.getIfcApi();
     for (const entityClass of rels) {
-      const relNames = invAttrsMap.get(entityClass);
+      const relNames = this._serializer.relations.get(entityClass);
       if (!relNames) continue;
       const { forRelating, forRelated } = relNames;
       const classEntities = ifcApi.GetLineIDsWithType(0, entityClass);
@@ -486,19 +442,5 @@ export class IfcPropertyProcessor {
     this._relationsMap = {};
     (this.expressIDs as any) = [];
     (this.classes as any) = [];
-  }
-
-  private getEntitiesToProcess() {
-    // @ts-ignore
-    return this.classesToInclude.map(({ entities }) => [...entities]).flat();
-  }
-
-  private getRelsToProcess() {
-    return (
-      this.classesToInclude
-        // @ts-ignore
-        .map(({ rels }) => (rels ? [...rels] : []))
-        .flat()
-    );
   }
 }

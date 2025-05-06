@@ -3,12 +3,11 @@ import * as THREE from "three";
 import { ShellData, getShellData } from "./geometry/geometry-processor";
 import { round } from "./geometry/utils";
 import * as TFB from "../../../../Schema";
-
 import { getAABB } from "./geometry/bbox";
-import { getElementsToLoad } from "./ifc/elements-to-load";
 import { ifcCategoryMap } from "../../../../Utils";
 import { CivilReader } from "./ifc/civil-reader";
 import { AlignmentData } from "../../../../FragmentsModels";
+import { IfcImporter } from "../..";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -89,11 +88,11 @@ export class IfcFileReader {
     WEBIFC.IFCEARTHWORKSCUT,
   ]);
 
-  categoriesToLoad = getElementsToLoad();
-
   scene: THREE.Scene | null = null;
 
   isolatedMeshes: Set<number> | null = null;
+
+  constructor(private _serializer: IfcImporter) {}
 
   onElementLoaded: (data: {
     element: IfcElement;
@@ -222,7 +221,7 @@ export class IfcFileReader {
         callback,
       );
     } else {
-      for (const category of this.categoriesToLoad) {
+      for (const category of this._serializer.classes.elements) {
         const idsVector = this._ifcAPI.GetLineIDsWithType(modelID, category);
         const ids: number[] = [];
         for (let i = 0; i < idsVector.size(); i++) {
