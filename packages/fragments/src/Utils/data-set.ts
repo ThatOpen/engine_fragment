@@ -25,7 +25,8 @@ export class DataSet<T> extends Set<T> {
     for (const item of value) {
       const existing = this.has(item);
       if (existing) continue;
-      const isValid = this.guard(item);
+      const guard = this.guard ?? (() => true);
+      const isValid = guard(item);
       if (!isValid) continue;
       super.add(item);
       if (!this.onItemAdded) (this.onItemAdded as any) = new Event<T>();
