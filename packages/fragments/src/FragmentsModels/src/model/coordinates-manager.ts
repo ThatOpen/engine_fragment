@@ -2,6 +2,45 @@ import * as THREE from "three";
 import { FragmentsModel } from "./fragments-model";
 
 export class CoordinatesManager {
+  private _coordinationMatrices = new Map<string, THREE.Matrix4>();
+
+  async getCoordinationMatrix(model: FragmentsModel) {
+    let matrix = this._coordinationMatrices.get(model.modelId);
+    if (matrix) {
+      return matrix;
+    }
+
+    matrix = new THREE.Matrix4();
+    this._coordinationMatrices.set(model.modelId, matrix);
+
+    const [x, y, z, xx, xy, xz, yx, yy, yz] = await this.getCoordinates(model);
+
+    const xDir = new THREE.Vector3(xx, xy, xz);
+    const yDir = new THREE.Vector3(yx, yy, yz);
+    const zDir = new THREE.Vector3().crossVectors(xDir, yDir);
+
+    matrix.set(
+      xx,
+      yx,
+      zDir.x,
+      x,
+      xy,
+      yy,
+      zDir.y,
+      y,
+      xz,
+      yz,
+      zDir.z,
+      z,
+      0,
+      0,
+      0,
+      1,
+    );
+
+    return matrix;
+  }
+
   async getCoordinates(model: FragmentsModel) {
     const id = model.modelId;
     return model.threads.invoke(id, "getCoordinates") as Promise<number[]>;

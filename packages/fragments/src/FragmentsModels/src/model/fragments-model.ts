@@ -306,6 +306,16 @@ export class FragmentsModel {
   }
 
   /**
+   * Retrieves the coordination matrix for the current model.
+   *
+   * This method utilizes the `_coordinatesManager` to compute and return a
+   * `THREE.Matrix4` object based on the original model coordinates.
+   */
+  async getCoordinationMatrix() {
+    return this._coordinatesManager.getCoordinationMatrix(this);
+  }
+
+  /**
    * Get the merged bounding box of the specified items.
    * @param localIds - The local IDs of the items to look up.
    */
