@@ -1578,7 +1578,7 @@ __metadata:
     typescript: 5.4.2
     web-ifc: 0.0.68
   peerDependencies:
-    three: ^0.175.0
+    three: ">=0.175.0"
     web-ifc: 0.0.68
   languageName: unknown
   linkType: soft
