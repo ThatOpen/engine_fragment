@@ -73,7 +73,6 @@ export default defineConfig({
       rollupTypes: true,
       exclude: [
         "./src/**/example.ts",
-        "./src/**/sample.ts",
         "./src/**/*.test.ts",
       ],
       // afterBuild: generateTSNamespace,
