@@ -87,15 +87,23 @@ export function getShellData(geometry: {
 }): ShellData {
   const { position, normals, index, raw } = geometry;
 
+  // TODO: Test to see if this is the correct threshold
+  // if not applied, some geometries take too long to process
+  const threshold = 3000;
+
   const precision = 1000000;
   const normalPrecision = 10000000;
   const planePrecision = 1000;
 
+  const vertexCount = position.length / 3;
+  const tooBigToShell = vertexCount > threshold;
+
   const bbox = getAABB(position);
 
-  if (raw) {
+  if (raw || tooBigToShell) {
     // Just generate a profile per triangle
     // useful for big irregular surfaces like terrains
+    // console.log("Too big to Shell");
 
     return getRawShellData(index, position, bbox);
   }
