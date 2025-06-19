@@ -1,6 +1,13 @@
 import * as WEBIFC from "web-ifc";
 
 export const ifcClasses = {
+  units: new Set([
+    WEBIFC.IFCUNITASSIGNMENT,
+    WEBIFC.IFCSIUNIT,
+    WEBIFC.IFCNAMEDUNIT,
+    WEBIFC.IFCDERIVEDUNIT,
+    WEBIFC.IFCMONETARYUNIT,
+  ]),
   base: new Set([
     WEBIFC.IFCPROJECT,
     WEBIFC.IFCSITE,
