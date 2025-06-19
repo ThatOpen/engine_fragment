@@ -52,6 +52,7 @@ export class IfcImporter {
   classes = {
     elements: new DataSet<number>([...ifcClasses.elements]),
     abstract: new DataSet<number>([
+      ...ifcClasses.units,
       ...ifcClasses.base,
       ...ifcClasses.materials,
       ...ifcClasses.properties,
