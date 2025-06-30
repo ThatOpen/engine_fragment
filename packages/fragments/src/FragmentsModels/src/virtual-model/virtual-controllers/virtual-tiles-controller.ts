@@ -814,7 +814,9 @@ export class VirtualTilesController {
   }
 
   private processTileDataId(tile: TileData, material: number, lod: CurrentLod) {
-    this._tileIdGenerator.compute(tile.objectClass);
+    this._tileIdGenerator.compute(
+      tile.objectClass !== undefined ? tile.objectClass : 0,
+    );
     this._tileIdGenerator.compute(material);
     this._tileIdGenerator.compute(lod);
   }
