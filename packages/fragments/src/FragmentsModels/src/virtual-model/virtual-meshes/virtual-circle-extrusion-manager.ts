@@ -85,6 +85,9 @@ export class VirtualCircleExtrusionManager extends VirtualMeshManager {
     createIfVoid: boolean,
     meshes: TileData[],
   ) {
+    if (meshes.length === 0) {
+      return;
+    }
     const meshesExist = Boolean(meshes.length);
     const isVoid = !meshes[0].positionBuffer;
     const shouldCreate = createIfVoid && isVoid && meshesExist;
