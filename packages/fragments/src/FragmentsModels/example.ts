@@ -147,7 +147,10 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       if (ids.includes(id)) {
         await disposeModels([id]);
       } else {
-        await loadFragmentFile(`/resources/frags/${id}.frag`, id);
+        await loadFragmentFile(
+          `https://thatopen.github.io/engine_fragment/resources/frags/${id}.frag`,
+          id,
+        );
       }
       target.loading = false;
     };

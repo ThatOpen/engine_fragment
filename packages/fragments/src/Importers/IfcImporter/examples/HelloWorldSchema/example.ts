@@ -156,7 +156,8 @@ loadFileBtn.addEventListener("click", () => {
 });
 
 loadWallBtn.addEventListener("click", () => {
-  const url = "/resources/ifc/just_wall.ifc";
+  const url =
+    "https://thatopen.github.io/engine_fragment/resources/ifc/just_wall.ifc";
   loadIfcFile(url, true);
 });
 

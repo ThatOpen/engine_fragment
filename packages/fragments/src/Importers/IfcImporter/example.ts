@@ -60,7 +60,8 @@ let fragmentBytes: ArrayBuffer | null = null;
 let onConversionFinish = () => {};
 
 const convertIFC = async () => {
-  const url = "/resources/ifc/school_str.ifc";
+  const url =
+    "https://thatopen.github.io/engine_fragment/resources/ifc/school_str.ifc";
   const ifcFile = await fetch(url);
   const ifcBuffer = await ifcFile.arrayBuffer();
   const ifcBytes = new Uint8Array(ifcBuffer);
