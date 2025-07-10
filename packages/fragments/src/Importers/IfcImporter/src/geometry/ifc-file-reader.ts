@@ -8,10 +8,10 @@ import { ifcCategoryMap } from "../../../../Utils";
 import { CivilReader } from "./ifc/civil-reader";
 import { AlignmentData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
+import { ProcessData } from "../types";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
-  units: number;
   indicesArray: number[];
   typesArray: number[];
   circleCurveData: number[][];
@@ -74,6 +74,7 @@ export class IfcFileReader {
 
   private _previousGeometries = new Map<string, number>();
   private _previousGeometriesIDs = new Map<number, number>();
+  private _previousGeometriesScales = new Map<number, string>();
   private _previousLocalTransforms = new Map<string, IfcLocalTransform>();
 
   private _problematicGeometries = new Set<number>();
@@ -83,10 +84,15 @@ export class IfcFileReader {
 
   private _civilReader = new CivilReader();
 
+  private _maxId = 0;
+
   private _rawCategories = new Set<number>([
     WEBIFC.IFCEARTHWORKSFILL,
     WEBIFC.IFCEARTHWORKSCUT,
   ]);
+
+  // TODO: Expose this value?
+  distanceThreshold = 100000; // 100 km
 
   scene: THREE.Scene | null = null;
 
@@ -113,11 +119,12 @@ export class IfcFileReader {
 
   onAlignmentsLoaded: (data: AlignmentData[]) => void = () => {};
 
-  async load(data: {
-    readFromCallback?: boolean;
-    bytes?: Uint8Array;
-    readCallback?: any;
-  }) {
+  async load(data: ProcessData) {
+    data.progressCallback?.(0, {
+      process: "conversion",
+      state: "start",
+    });
+
     this._previousGeometriesIDs.clear();
 
     this._ifcAPI = new WEBIFC.IfcAPI();
@@ -140,8 +147,7 @@ export class IfcFileReader {
 
     this._ifcAPI.SetLogLevel(WEBIFC.LogLevel.LOG_LEVEL_OFF);
 
-    const maxID = this._ifcAPI.GetMaxExpressID(modelID);
-    this.onMaxIdFound(maxID);
+    this._maxId = this._ifcAPI.GetMaxExpressID(modelID);
 
     // First local transform is the no-transform
 
@@ -150,6 +156,8 @@ export class IfcFileReader {
       id: 0,
       data: [0, 0, 0, 1, 0, 0, 0, 1, 0]
     });
+
+    const tempPosition = new THREE.Vector3();
 
     const callback = (mesh: WEBIFC.FlatMesh) => {
       if (this._ifcAPI === null) {
@@ -179,6 +187,20 @@ export class IfcFileReader {
       const firstGeometryRef = mesh.geometries.get(0);
       const transformArray = firstGeometryRef.flatTransformation;
       const { transformWithoutScale } = this.removeScale(transformArray);
+
+      // Check that the object is not too far away
+      tempPosition.set(0, 0, 0);
+      tempPosition.applyMatrix4(transformWithoutScale);
+      if (
+        tempPosition.x > this.distanceThreshold ||
+        tempPosition.y > this.distanceThreshold ||
+        tempPosition.z > this.distanceThreshold
+      ) {
+        console.log(
+          `Object ${element.id} is more than ${this.distanceThreshold} meters away from the origin and will be skipped.`,
+        );
+        return;
+      }
 
       for (let i = 0; i < geometryCount; i++) {
         if (element.type === WEBIFC.IFCREINFORCINGBAR) {
@@ -221,21 +243,40 @@ export class IfcFileReader {
         callback,
       );
     } else {
-      for (const category of this._serializer.classes.elements) {
+      const modelClasses = this._ifcAPI
+        .GetAllTypesOfModel(modelID)
+        .map((entry) => entry.typeID);
+      const toProcess = modelClasses.filter((type) =>
+        this._serializer.classes.elements.has(type),
+      );
+      const categoryPercentage = 0.5 / toProcess.length;
+      for (const [index, category] of toProcess.entries()) {
+        const state = (() => {
+          if (index === 0) return "start";
+          if (index + 1 === toProcess.length) return "finish";
+          return "inProgress";
+        })();
         const idsVector = this._ifcAPI.GetLineIDsWithType(modelID, category);
         const ids: number[] = [];
         for (let i = 0; i < idsVector.size(); i++) {
           ids.push(idsVector.get(i));
         }
         if (ids.length > 0) {
-          console.log(`${ifcCategoryMap[category]}: ${ids.length}`);
           this._ifcAPI.StreamMeshes(modelID, ids, callback);
+          data.progressCallback?.(categoryPercentage * (index + 1), {
+            process: "geometries",
+            state,
+            class: ifcCategoryMap[category],
+            entitiesProcessed: ids.length,
+          });
         }
       }
     }
 
     const alignments = this._civilReader.read(this._ifcAPI);
     this.onAlignmentsLoaded(alignments);
+
+    this.onMaxIdFound(this._maxId);
 
     this._ifcAPI.Dispose();
     this._ifcAPI = null;
@@ -245,6 +286,8 @@ export class IfcFileReader {
 
     this._previousGeometries.clear();
     this._previousGeometriesIDs.clear();
+    this._previousGeometriesScales.clear();
+    this._maxId = 0;
     this._previousLocalTransforms.clear();
     this._problematicGeometries.clear();
     this._problematicGeometriesHashes.clear();
@@ -304,8 +347,6 @@ export class IfcFileReader {
 
     const geometry = this._ifcAPI.GetGeometry(modelID, geometryData.id);
 
-    // TODO: Republish web-ifc
-
     // @ts-ignore
     const circleExtrusion = geometry.GetSweptDiskSolid();
 
@@ -327,7 +368,7 @@ export class IfcFileReader {
       const axisTemp: any[] = [];
       for (let j = 0; j < axis.points.size(); j++) {
         const p = axis.points.get(j);
-        axisTemp.push({ x: p.x * units, y: p.y * units, z: p.z * units });
+        axisTemp.push({ x: p.x * units.x, y: p.y * units.y, z: p.z * units.z });
       }
       axisPoints.push(axisTemp);
     }
@@ -444,13 +485,16 @@ export class IfcFileReader {
 
     const { position } = buffers;
 
-    for (let i = 0; i < position.length; i++) {
-      position[i] *= units;
+    for (let i = 0; i < position.length - 2; i += 3) {
+      position[i] *= units.x;
+      position[i + 1] *= units.y;
+      position[i + 2] *= units.z;
     }
 
     const bbox = getAABB(position);
 
-    const radius = circleExtrusion.profileRadius * units;
+    // TODO: This might fail? What units should we use?
+    const radius = circleExtrusion.profileRadius * units.x;
 
     this._previousGeometriesIDs.set(geometryData.id, geometryData.id);
 
@@ -458,7 +502,6 @@ export class IfcFileReader {
       id: geometryData.id,
       geometry: {
         type: TFB.RepresentationClass.CIRCLE_EXTRUSION,
-        units,
         indicesArray,
         typesArray,
         segments,
@@ -513,15 +556,29 @@ export class IfcFileReader {
       // This geometry was already computed according to the IFC
       // Just save its transform and ID and return
 
-      this.getLocalTransform(
-        elementTransform,
-        transformWithoutScale,
-        geometryData,
+      // Some files have geometries with different scales
+      // Fragments transforms dont have scale, so we have to consider them new geometries
+      const scaleHash = this.getScaleHash(units);
+      const previousScaleHash = this._previousGeometriesScales.get(
+        geometryData.id,
       );
+      const sameScale = previousScaleHash === scaleHash;
 
-      // We need to recover the ID, in case this geometry was previously deduplicated
-      geometryData.id = this._previousGeometriesIDs.get(geometryData.id)!;
-      return;
+      if (sameScale) {
+        this.getLocalTransform(
+          elementTransform,
+          transformWithoutScale,
+          geometryData,
+        );
+
+        // We need to recover the ID, in case this geometry was previously deduplicated
+        geometryData.id = this._previousGeometriesIDs.get(geometryData.id)!;
+        return;
+      }
+      // This geometry has a different scale, so we need to consider it as a new geometry
+      const newId = ++this._maxId;
+      this._previousGeometriesScales.set(newId, scaleHash);
+      geometryData.id = newId;
     }
 
     // Now we need to determine if this geometry is duplicated or not
@@ -537,8 +594,10 @@ export class IfcFileReader {
 
     const { position, normals, index } = buffers;
 
-    for (let i = 0; i < position.length; i++) {
-      position[i] *= units;
+    for (let i = 0; i < position.length - 2; i += 3) {
+      position[i] *= units.x;
+      position[i + 1] *= units.y;
+      position[i + 2] *= units.z;
     }
 
     // Determine whether the geometry is duplicated by computing some properties
@@ -617,11 +676,11 @@ export class IfcFileReader {
 
     const isNewGeometry = !this._previousGeometries.has(hash);
 
-    const geomID = geometryRef.geometryExpressID;
+    const geomID = geometryData.id;
 
     if (isNewGeometry) {
       // New geometry: save its ID for future deduplication
-      this._previousGeometries.set(hash, geometryRef.geometryExpressID);
+      this._previousGeometries.set(hash, geomID);
       this._previousGeometriesIDs.set(geomID, geomID);
     } else {
       // When deduplicated, just use the previously found geometry id
@@ -657,6 +716,10 @@ export class IfcFileReader {
         this._problematicGeometriesHashes.add(hash);
       }
     }
+  }
+
+  private getScaleHash(units: THREE.Vector3) {
+    return `${units.x}-${units.y}-${units.z}`;
   }
 
   private getLocalTransform(
@@ -722,7 +785,8 @@ export class IfcFileReader {
     matrix.decompose(position, quaternion, scale);
 
     // To convert models to meters
-    const units = scale.x;
+
+    const units = scale;
 
     const transformWithoutScale = new THREE.Matrix4();
     transformWithoutScale.compose(

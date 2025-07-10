@@ -178,8 +178,32 @@ geometries(obj?:Geometries):Geometries|null {
   return offset ? (obj || new Geometries()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
+uniqueAttributes(index: number):string
+uniqueAttributes(index: number,optionalEncoding:flatbuffers.Encoding):string|Uint8Array
+uniqueAttributes(index: number,optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 32);
+  return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
+}
+
+uniqueAttributesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 32);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+relationNames(index: number):string
+relationNames(index: number,optionalEncoding:flatbuffers.Encoding):string|Uint8Array
+relationNames(index: number,optionalEncoding?:any):string|Uint8Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 34);
+  return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
+}
+
+relationNamesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 34);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
 static startModel(builder:flatbuffers.Builder) {
-  builder.startObject(14);
+  builder.startObject(16);
 }
 
 static addMetadata(builder:flatbuffers.Builder, metadataOffset:flatbuffers.Offset) {
@@ -347,6 +371,38 @@ static startAlignmentsVector(builder:flatbuffers.Builder, numElems:number) {
 
 static addGeometries(builder:flatbuffers.Builder, geometriesOffset:flatbuffers.Offset) {
   builder.addFieldOffset(13, geometriesOffset, 0);
+}
+
+static addUniqueAttributes(builder:flatbuffers.Builder, uniqueAttributesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(14, uniqueAttributesOffset, 0);
+}
+
+static createUniqueAttributesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startUniqueAttributesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addRelationNames(builder:flatbuffers.Builder, relationNamesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(15, relationNamesOffset, 0);
+}
+
+static createRelationNamesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startRelationNamesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
 }
 
 static endModel(builder:flatbuffers.Builder):flatbuffers.Offset {

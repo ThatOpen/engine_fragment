@@ -153,7 +153,7 @@ export class MultithreadingHelper {
 
   private static getCpuCapacity() {
     const freeCores = 3;
-    if (navigator.hardwareConcurrency) {
+    if (globalThis.navigator?.hardwareConcurrency) {
       return navigator.hardwareConcurrency - freeCores;
     }
     return 0;

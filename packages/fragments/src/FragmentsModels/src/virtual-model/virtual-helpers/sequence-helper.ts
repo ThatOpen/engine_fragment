@@ -43,7 +43,10 @@ export class SequenceHelper {
     withVisiblity: (_) => this._model.getItemsByVisibility(_),
     highlighted: () => this._model.getHighlightItemIds(),
     children: (_) => this._model.getItemsChildren(_),
-    ofCategory: (_) => this._model.getItemsOfCategory(_),
+    ofCategory: (_) => {
+      const categoryIds = this._model.getItemsOfCategories(_);
+      return Object.values(categoryIds).flat();
+    },
     withCondition: () => [],
     withGeometry: () => this._model.getItemsWithGeometry(),
   };
@@ -55,8 +58,7 @@ export class SequenceHelper {
     attributes: (ids: number[]) =>
       ids.map((id) => this._model.getItemAttributes(id)),
     mergedBoxes: (_) => this._model.getBBoxes(_),
-    category: (ids: number[]) =>
-      ids.map((id) => this._model.getItemCategory(id)),
+    category: (ids: number[]) => this._model.getItemsCategories(ids),
     children: (_) => this._model.getItemsChildren(_),
     data: (ids: number[], ...args) => this._model.getItemsData(ids, args[0]),
     geometry: (ids: number[]) => this._model.getItemsGeometry(ids),

@@ -2,16 +2,26 @@ import { AnyTileBasicData, TileBasicData } from "../types";
 import { limitOf2Bytes, ObjectClass } from "../../../model/model-types";
 // @ts-ignore
 import { earcut } from "../../../utils/geometry/earcut";
-import { Shell, ShellHole, ShellProfile } from "../../../../../Schema";
+import {
+  BigShellHole,
+  BigShellProfile,
+  Shell,
+  ShellHole,
+  ShellProfile,
+  ShellType,
+} from "../../../../../Schema";
+import { ShellUtils } from "./shell-utils";
 
 export class ShellTemplateConstructor {
-  shellHole = new ShellHole();
-  shellProfile = new ShellProfile();
+  private _shellHole = new ShellHole();
+  private _bigShellHole = new BigShellHole();
   holePoints = 0;
   profilePoints = 0;
   triangleAmount = 0;
   indexCount = 0;
   meshes: AnyTileBasicData = [];
+  private _shellProfile = new ShellProfile();
+  private _bigShellProfile = new BigShellProfile();
 
   newMeshTemplate(shell: Shell) {
     const isEmpty = this.getIsEmpty(shell);
@@ -31,21 +41,23 @@ export class ShellTemplateConstructor {
   }
 
   private getIsEmpty(shell: Shell) {
-    return shell.profilesLength() === 0;
+    const length = ShellUtils.getProfilesLength(shell);
+    return length === 0;
   }
 
   private processShellHoles(shell: Shell, id: number) {
     let shellHolesExist = false;
-    const count = shell.holesLength();
+    const count = ShellUtils.getHolesLength(shell);
+    const hole = this.getTempHole(shell);
     for (let i = 0; i < count; i++) {
-      shell.holes(i, this.shellHole);
-      const profileId = this.shellHole.profileId();
+      ShellUtils.getHole(shell, i, hole);
+      const profileId = hole.profileId();
       if (profileId !== id) continue;
-      this.updateBuffers(shellHolesExist);
+      this.updateBuffers(shell, shellHolesExist);
       shellHolesExist = true;
     }
 
-    this.manageFoundHoles(shellHolesExist);
+    this.manageFoundHoles(shell, shellHolesExist);
   }
 
   private newMesh() {
@@ -74,10 +86,11 @@ export class ShellTemplateConstructor {
   }
 
   private processShell(shell: Shell) {
-    const count = shell.profilesLength();
+    const count = ShellUtils.getProfilesLength(shell);
+    const profile = this.getTempProfile(shell);
     for (let id = 0; id < count; id++) {
-      shell.profiles(id, this.shellProfile);
-      this.indexCount = this.shellProfile.indicesLength();
+      ShellUtils.getProfile(shell, id, profile);
+      this.indexCount = profile.indicesLength();
       this.profilePoints += this.indexCount;
       this.processShellHoles(shell, id);
       this.manageMemory();
@@ -85,8 +98,9 @@ export class ShellTemplateConstructor {
     this.manageDataLeft();
   }
 
-  private manageFoundHoles(shellHolesExist: boolean) {
-    const indicesAmount = this.shellProfile.indicesLength();
+  private manageFoundHoles(shell: Shell, shellHolesExist: boolean) {
+    const profile = this.getTempProfile(shell);
+    const indicesAmount = profile.indicesLength();
 
     if (shellHolesExist) {
       this.triangleAmount += indicesAmount;
@@ -112,9 +126,10 @@ export class ShellTemplateConstructor {
     }
   }
 
-  private updateBuffers(shellHolesExist: boolean) {
-    this.holePoints += this.shellHole.indicesLength();
-    this.triangleAmount += this.shellHole.indicesLength();
+  private updateBuffers(shell: Shell, shellHolesExist: boolean) {
+    const hole = this.getTempHole(shell);
+    this.holePoints += hole.indicesLength();
+    this.triangleAmount += hole.indicesLength();
     if (shellHolesExist) {
       this.triangleAmount += 2;
     }
@@ -130,5 +145,19 @@ export class ShellTemplateConstructor {
       this.meshes = [this.meshes, mesh];
     }
     this.reset(false);
+  }
+
+  private getTempProfile(shell: Shell) {
+    if (shell.type() === ShellType.BIG) {
+      return this._bigShellProfile;
+    }
+    return this._shellProfile;
+  }
+
+  private getTempHole(shell: Shell) {
+    if (shell.type() === ShellType.BIG) {
+      return this._bigShellHole;
+    }
+    return this._shellHole;
   }
 }

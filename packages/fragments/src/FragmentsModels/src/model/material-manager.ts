@@ -11,7 +11,6 @@ import {
 import { CRC } from "../utils";
 import { LodMaterial } from "../lod";
 import { DataMap } from "../../../Utils";
-import { RenderedFaces } from "../../../Schema";
 
 export class MaterialManager {
   readonly list = new DataMap<number, BIMMaterial>();
@@ -158,7 +157,7 @@ export class MaterialManager {
         transparent: data.opacity < 1,
         opacity: data.opacity,
         userData: { customId: data.customId },
-        side: (data.renderedFaces === RenderedFaces.ONE ? THREE.FrontSide : THREE.DoubleSide),
+        depthTest: data.depthTest ?? true,
       });
     } else if (objectClass === ObjectClass.LINE) {
       material = this.newLODMaterial(

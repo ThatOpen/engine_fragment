@@ -7,5 +7,6 @@ export enum GeometryClass {
   LINES = 1,
   ELLIPSE_ARC = 2,
   CLOTHOID = 3,
-  PARABOLA = 4
+  PARABOLA = 4,
+  WALLS = 5
 }

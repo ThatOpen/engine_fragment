@@ -15,7 +15,7 @@ export class SectionGenerator {
   private _precission = 10000;
 
   // Used if the plane is orthogonal to the cartesian planes
-  private _planeAxis?: "x" | "y" | "z";
+  // private _planeAxis?: "x" | "y" | "z";
 
   get plane() {
     if (!this._plane) {
@@ -378,26 +378,42 @@ export class SectionGenerator {
 
   private updatePlane2DCoordinateSystem() {
     // Assuming the normal of the plane is called Z
-
     this._plane2DCoordinateSystem = new THREE.Matrix4();
 
-    const xAxis = new THREE.Vector3(1, 0, 0);
-    const yAxis = new THREE.Vector3(0, 1, 0);
     const zAxis = this.plane.normal;
-
     const pos = new THREE.Vector3();
     this.plane.coplanarPoint(pos);
 
-    if (this._planeAxis === "x") {
-      xAxis.crossVectors(yAxis, zAxis);
-    } else if (this._planeAxis === "y") {
-      yAxis.crossVectors(zAxis, xAxis);
-    } else if (this._planeAxis === "z") {
-      // Axes XYZ stay the same
+    // Create a coordinate system that works for any plane orientation
+    let xAxis: THREE.Vector3;
+    let yAxis: THREE.Vector3;
+
+    // If the plane is horizontal (normal is parallel to Z axis)
+    if (Math.abs(zAxis.z) > 0.99) {
+      // For horizontal planes, we can use the world X and Y axes directly
+      xAxis = new THREE.Vector3(1, 0, 0);
+      yAxis = new THREE.Vector3(0, 1, 0);
+    } else if (Math.abs(zAxis.x) > 0.99) {
+      // For planes aligned with X axis (normal is parallel to X axis)
+      // Use Y and Z axes for the 2D coordinate system
+      xAxis = new THREE.Vector3(0, 1, 0);
+      yAxis = new THREE.Vector3(0, 0, 1);
+    } else if (Math.abs(zAxis.y) > 0.99) {
+      // For planes aligned with Y axis (normal is parallel to Y axis)
+      // Use X and Z axes for the 2D coordinate system
+      xAxis = new THREE.Vector3(1, 0, 0);
+      yAxis = new THREE.Vector3(0, 0, 1);
     } else {
-      // Non-orthogonal to cardinal axis
-      xAxis.crossVectors(yAxis, zAxis).normalize();
-      yAxis.crossVectors(zAxis, xAxis);
+      // For other orientations, create a proper coordinate system
+      // Start with a vector that's guaranteed to not be parallel to zAxis
+      const tempVector =
+        Math.abs(zAxis.x) < 0.5
+          ? new THREE.Vector3(1, 0, 0)
+          : new THREE.Vector3(0, 1, 0);
+      xAxis = new THREE.Vector3();
+      xAxis.crossVectors(tempVector, zAxis).normalize();
+      yAxis = new THREE.Vector3();
+      yAxis.crossVectors(zAxis, xAxis).normalize();
     }
 
     // prettier-ignore

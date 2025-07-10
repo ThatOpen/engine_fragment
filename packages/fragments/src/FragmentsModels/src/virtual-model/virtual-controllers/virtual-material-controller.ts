@@ -35,6 +35,35 @@ export class VirtualMaterialController {
     return ids;
   }
 
+  getItemsMaterialDefinition(
+    model: Model,
+    indices: number[],
+    localIds: number[],
+  ) {
+    const result: { localIds: number[]; definition: MaterialDefinition }[] = [];
+    const meshes = model.meshes();
+    if (!meshes) return [];
+    const map = new Map<number, Set<number>>();
+    for (const [index, itemIndex] of indices.entries()) {
+      const sample = meshes.samples(itemIndex);
+      if (!sample) continue;
+      const materialIndex = sample.material();
+      let materialItems = map.get(materialIndex);
+      if (!materialItems) {
+        materialItems = new Set();
+        map.set(materialIndex, materialItems);
+      }
+      materialItems.add(localIds[index]);
+    }
+    for (const [materialIndex, localIds] of map.entries()) {
+      const material = meshes.materials(materialIndex);
+      if (!material) continue;
+      const definition = ParserHelper.parseMaterial(material);
+      result.push({ localIds: [...localIds], definition });
+    }
+    return result;
+  }
+
   private checkMaterialExists(material: MaterialDefinition, ids: number[]) {
     const count = this._list.length;
     for (let i = 0; i < count; i++) {

@@ -21,17 +21,18 @@ export class ShellFace4 {
   private static readonly vertexIncrease = 4;
 
   static create(
-    indices: Uint16Array,
+    indices: Uint16Array | Uint32Array,
     data: Float32Array,
     normals: Int16Array,
     id: number,
     mesh: TileData,
     sizes: DataSizes,
+    faceId: number,
   ) {
     this.setAllVectors(indices, data);
     const isConvex = this.getIsConvex();
     if (isConvex) {
-      this.processConvexFace4(mesh, sizes, normals);
+      this.processConvexFace4(mesh, sizes, normals, faceId);
       return;
     }
     ShellFaceX.create(
@@ -42,10 +43,14 @@ export class ShellFace4 {
       mesh,
       undefined as any,
       sizes,
+      faceId,
     );
   }
 
-  private static setAllVectors(indices: Uint16Array, data: Float32Array) {
+  private static setAllVectors(
+    indices: Uint16Array | Uint32Array,
+    data: Float32Array,
+  ) {
     this.setVector(indices, data, this.a, 0);
     this.setVector(indices, data, this.b, 1);
     this.setVector(indices, data, this.c, 2);
@@ -57,11 +62,21 @@ export class ShellFace4 {
     mesh: TileData,
     sizes: DataSizes,
     normals: Int16Array,
+    faceId: number,
   ) {
     this.processIndices(mesh, sizes);
     this.processPoints(mesh, sizes);
     this.processNormal(mesh, sizes, normals);
+    this.setFaceId(mesh, sizes, faceId);
     this.updateData(sizes);
+  }
+
+  private static setFaceId(mesh: TileData, sizes: DataSizes, faceId: number) {
+    // Add face id to next 4 vertices
+    const faceIds = mesh.faceIdBuffer!;
+    for (let i = sizes.vertices; i < sizes.vertices + 4; i++) {
+      faceIds[i] = faceId;
+    }
   }
 
   private static getIsConvex() {
@@ -98,7 +113,7 @@ export class ShellFace4 {
   }
 
   private static setVector(
-    indices: Uint16Array,
+    indices: Uint16Array | Uint32Array,
     data: Float32Array,
     vector: THREE.Vector3,
     offset: number,

@@ -6,16 +6,27 @@ export class ShellFace3 {
   private static readonly totalIncrease = 9;
 
   static create(
-    indices: Uint16Array,
+    indices: Uint16Array | Uint32Array,
     data: Float32Array,
     normals: Int16Array,
     mesh: TileData,
     sizes: DataSizes,
+    faceId: number,
   ) {
+    this.setFaceIds(sizes, mesh, faceId);
     this.setIndices(mesh, sizes);
     this.setPoints(indices, mesh, sizes, data);
     this.setNormals(mesh, sizes, normals);
     this.updateData(sizes);
+  }
+
+  private static setFaceIds(sizes: DataSizes, mesh: TileData, faceId: number) {
+    const amount = sizes.verticesAmount;
+    const firstFace = amount / 3;
+    const lastFace = firstFace + 3;
+    for (let i = firstFace; i < lastFace; i++) {
+      mesh.faceIdBuffer![i] = faceId;
+    }
   }
 
   private static setNormals(
@@ -30,7 +41,7 @@ export class ShellFace3 {
   }
 
   private static setPoints(
-    indices: Uint16Array,
+    indices: Uint16Array | Uint32Array,
     mesh: TileData,
     sizes: DataSizes,
     data: Float32Array,

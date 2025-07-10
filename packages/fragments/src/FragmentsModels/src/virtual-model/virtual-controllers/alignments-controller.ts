@@ -1,4 +1,4 @@
-import { Model } from "../../../../Schema";
+import { Alignment, Model } from "../../../../Schema";
 import { AlignmentData } from "../../model/model-types";
 
 export class AlignmentsController {
@@ -11,45 +11,68 @@ export class AlignmentsController {
   async getAlignments() {
     const allAlignments: AlignmentData[] = [];
 
-    const geometries = this._model.geometries()!;
-
     const alignmentsSize = this._model.alignmentsLength();
     for (let i = 0; i < alignmentsSize; i++) {
       const alignment = this._model.alignments(i)!;
-      const absoluteCurveSize = alignment.absoluteLength();
 
-      const currentAlignment: AlignmentData = {
+      const current: AlignmentData = {
         absolute: [],
+        horizontal: [],
+        vertical: [],
       };
-      allAlignments.push(currentAlignment);
+      allAlignments.push(current);
 
-      for (let j = 0; j < absoluteCurveSize; j++) {
-        const sampleId = alignment.absolute(j)!;
-        const sample = geometries.samples(sampleId)!;
-
-        const geometryClass = sample.geometryClass();
-        const geomId = sample.id();
-
-        // TODO: For now, all alignments are lines
-        // in the future, we will have to handle other geometry classes
-
-        const curveBuffer: number[] = [];
-        const lines = geometries.lines(geomId)!;
-        for (let k = 0; k < lines.pointsLength(); k++) {
-          const point = lines.points(k)!;
-          const x = point.x();
-          const y = point.y();
-          const z = point.z();
-          curveBuffer.push(x, y, z);
-        }
-
-        currentAlignment.absolute.push({
-          points: new Float32Array(curveBuffer),
-          type: geometryClass,
-        });
-      }
+      this.constructAlignment(alignment, current, "absolute");
+      this.constructAlignment(alignment, current, "horizontal");
+      this.constructAlignment(alignment, current, "vertical");
     }
 
     return allAlignments;
+  }
+
+  private constructAlignment(
+    alignment: Alignment,
+    current: AlignmentData,
+    type: "absolute" | "horizontal" | "vertical",
+  ) {
+    const lengthIds = {
+      absolute: "absoluteLength",
+      horizontal: "horizontalLength",
+      vertical: "verticalLength",
+    };
+
+    const lengthId = lengthIds[type] as
+      | "absoluteLength"
+      | "horizontalLength"
+      | "verticalLength";
+
+    const curveSize = alignment[lengthId]();
+
+    const geometries = this._model.geometries()!;
+
+    for (let j = 0; j < curveSize; j++) {
+      const sampleId = alignment[type](j)!;
+      const sample = geometries.samples(sampleId)!;
+
+      const reprIndex = sample.id();
+
+      const representation = geometries.representations(reprIndex)!;
+      const geomIndex = representation.id();
+      const geometryClass = representation.geometryClass()!;
+
+      // TODO: For now, all alignments are lines
+      // in the future, we will have to handle other geometry classes
+      const curveBuffer: number[] = [];
+      const lines = geometries.lines(geomIndex)!;
+      const coords = lines.pointsArray()!;
+      for (const coord of coords) {
+        curveBuffer.push(coord);
+      }
+
+      current[type].push({
+        points: new Float32Array(curveBuffer),
+        type: geometryClass,
+      });
+    }
   }
 }

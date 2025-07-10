@@ -25,7 +25,9 @@ import {
   ItemSelectionType,
   ItemInformationType,
   Identifier,
+  ItemsQueryParams,
   MeshData,
+  AttributesUniqueValuesParams,
 } from "../model/model-types";
 
 import { VirtualBoxController } from "../bounding-boxes";
@@ -93,8 +95,8 @@ export class VirtualFragmentsModel {
     return this._itemsHelper.getItemsByConfig(this, condition);
   }
 
-  getItemCategory(id: number) {
-    return this.properties.getItemCategory(id);
+  getItemsCategories(ids: number[]) {
+    return this.properties.getItemsCategories(ids);
   }
 
   getItemIdsByLocalIds(localIds: number[]) {
@@ -105,16 +107,32 @@ export class VirtualFragmentsModel {
     return this.properties.getItemAttributes(id);
   }
 
+  // getItemsAttributes(ids: number[]) {
+  //   return this.properties.getItemsAttributes(ids);
+  // }
+
+  getAttributesUniqueValues(config: AttributesUniqueValuesParams[]) {
+    return this.properties.getAttributesUniqueValues(config);
+  }
+
   getItemsData(ids: number[], config: any) {
     return this.properties.getItemsData(ids, config);
   }
 
-  getItemsOfCategory(category: string) {
-    return this.properties.getItemsOfCategory(category);
+  getItemsOfCategories(categories: RegExp[]) {
+    return this.properties.getItemsOfCategories(categories);
   }
 
   getItemsWithGeometry() {
     return this.properties.getItemsWithGeometry();
+  }
+
+  getItemsWithGeometryCategories() {
+    return this.properties.getItemsWithGeometryCategories();
+  }
+
+  getItemsByQuery(params: ItemsQueryParams) {
+    return this.properties.getItemsByQuery(params);
   }
 
   getItemRelations(id: number) {
@@ -184,6 +202,14 @@ export class VirtualFragmentsModel {
     return this._geometryHelper.getGeometriesLength(this);
   }
 
+  getGuids() {
+    return this.properties.getGuids();
+  }
+
+  getLocalIds() {
+    return this.properties.getLocalIds();
+  }
+
   getItemsGeometry(localIds: number[]) {
     const indices = this.properties.getItemIdsFromLocalIds(localIds);
     const geometries: MeshData[][] = [];
@@ -192,6 +218,44 @@ export class VirtualFragmentsModel {
       geometries.push(geometry);
     }
     return geometries;
+  }
+
+  getItemsVolume(localIds: number[]) {
+    const indices = this.properties.getItemIdsFromLocalIds(localIds);
+    let volume: number = 0;
+    for (const index of indices) {
+      volume += this._geometryHelper.getVolume(this, index);
+    }
+    return volume;
+  }
+
+  getAttributeNames() {
+    const names = this.properties.getAttributeNames();
+    return names;
+  }
+
+  getAttributeValues() {
+    const values = this.properties.getAttributeValues();
+    return values;
+  }
+
+  getAttributeTypes() {
+    const types = this.properties.getAttributeTypes();
+    return types;
+  }
+
+  getRelationNames() {
+    const names = this.properties.getRelationNames();
+    return names;
+  }
+
+  getItemsMaterialDefinition(localIds: number[]) {
+    const indices = this.properties.getItemIdsFromLocalIds(localIds);
+    return this.materials.getItemsMaterialDefinition(
+      this.data,
+      indices,
+      localIds,
+    );
   }
 
   resetVisible() {
@@ -218,8 +282,9 @@ export class VirtualFragmentsModel {
     return this._raycastHelper.rectangleRaycast(this, frustum, fullyIncluded);
   }
 
-  async getSection(plane: THREE.Plane) {
-    return this._sectionHelper.getSection(this, plane);
+  async getSection(plane: THREE.Plane, localIds?: number[]) {
+    const indices = this.properties.getItemIdsFromLocalIds(localIds);
+    return this._sectionHelper.getSection(this, plane, indices);
   }
 
   async getAlignments() {
@@ -330,6 +395,7 @@ export class VirtualFragmentsModel {
   }
 
   private _onTransferMaterial = (data: any, trans: any) => {
+    if (!this._connection) return undefined;
     return this._connection.fetch(data, trans);
   };
 

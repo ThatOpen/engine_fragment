@@ -36,7 +36,7 @@ const container = document.getElementById("container")!;
 world.renderer = new OBC.SimpleRenderer(components, container);
 
 world.camera = new OBC.SimpleCamera(components);
-world.camera.controls.setLookAt(183, 11, -102, 27, -52, -11); // convenient position for the model we will load
+world.camera.controls.setLookAt(58, 22, -25, 13, 0, 4.2); // convenient position for the model we will load
 
 components.init();
 
@@ -54,19 +54,12 @@ grids.create(world);
   Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start manipulating them with ease:
 */
 
-// You can copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
-// and provide the relative path of the worker, or fetch it from github, unpkg, etc.
-const workerUrl =
-  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-const fetchedWorker = await fetch(workerUrl);
-const workerText = await fetchedWorker.text();
-const workerFile = new File([new Blob([workerText])], "worker.mjs", {
-  type: "text/javascript",
-});
-const url = URL.createObjectURL(workerFile);
-const fragments = new FRAGS.FragmentsModels(url);
+// You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
+// and provide the relative path in `workerUrl`
+// We use here the internal route of the worker in the library for simplicity purposes
+const workerUrl = "../FragmentsModels/src/multithreading/fragments-thread.ts";
+const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
-world.camera.controls.addEventListener("update", () => fragments.update());
 
 // Once a model is available in the list, we can tell what camera to use
 // in order to perform the culling and LOD operations.
@@ -153,10 +146,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       if (ids.includes(id)) {
         await disposeModels([id]);
       } else {
-        await loadFragmentFile(
-          `https://thatopen.github.io/engine_fragment/resources/frags/${id}.frag`,
-          id,
-        );
+        await loadFragmentFile(`/resources/frags/${id}.frag`, id);
       }
       target.loading = false;
     };

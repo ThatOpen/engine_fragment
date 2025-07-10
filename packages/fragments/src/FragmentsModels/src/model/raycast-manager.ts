@@ -139,8 +139,14 @@ export class RaycastManager {
   private screenToCast(p: Point, element: any, result = new THREE.Vector2()) {
     // src: https://stackoverflow.com/a/69971471
     const rect = element.getBoundingClientRect();
-    result.x = ((p.x - rect.left) / element.clientWidth) * 2 - 1;
-    result.y = -((p.y - rect.top) / element.clientHeight) * 2 + 1;
+    // Calculate scale factors
+    const scaleX = rect.width / element.clientWidth;
+    const scaleY = rect.height / element.clientHeight;
+    // Adjust mouse coordinates for scale
+    const x = (p.x - rect.left) / scaleX;
+    const y = (p.y - rect.top) / scaleY;
+    result.x = (x / element.clientWidth) * 2 - 1;
+    result.y = -(y / element.clientHeight) * 2 + 1;
     return result;
   }
 
@@ -246,6 +252,8 @@ export class RaycastManager {
     this.setBasicHitData(model, hit, result, ray, frustum);
     this.setSnapEdge(model, hit, result, "snappedEdgeP1");
     this.setSnapEdge(model, hit, result, "snappedEdgeP2");
+    result.facePoints = hit.facePoints;
+    result.faceIndices = hit.faceIndices;
     return result as RaycastResult;
   }
 
@@ -283,8 +291,9 @@ export class RaycastManager {
       edge.copy(hit[key]);
       edge.applyMatrix4(model.object.matrixWorld);
       result[key] = edge;
+    } else {
+      result[key] = undefined;
     }
-    result[key] = undefined;
   }
 
   private setNormal(

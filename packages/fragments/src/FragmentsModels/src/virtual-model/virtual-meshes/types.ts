@@ -35,6 +35,7 @@ export interface TileData extends TileBasicData {
   ids?: DataBuffer;
   indexBuffer?: DataBuffer;
   positionBuffer?: DataBuffer;
+  faceIdBuffer?: DataBuffer;
   normalBuffer?: DataBuffer;
   visibilities?: MultiBufferData<boolean>;
   highlights?: MultiBufferData<number>;

@@ -4,12 +4,20 @@ import * as TFB from "../../../../Schema";
 import { RawEntityAttrs } from "./types";
 import { IfcImporter } from "../..";
 import { ifcCategoryMap } from "../../../../Utils";
+import { ProcessData } from "../types";
+
+export interface PropertiesProcessData extends ProcessData {
+  geometryProcessedLocalIDs: number[];
+}
 
 export class IfcPropertyProcessor {
+  private _lengthUnitsFactor = 1;
   private _attributesOffsets: number[] = [];
   private _relationsMap: Record<number, { [name: string]: number[] }> = {};
   private _guids: string[] = [];
   private _guidsItems: number[] = [];
+  private _uniqueAttributes = new Set<string>();
+  private _uniqueRelNames = new Set<string>();
 
   private _ifcApi: WEBIFC.IfcAPI | null = null;
   wasm = {
@@ -44,7 +52,7 @@ export class IfcPropertyProcessor {
     if (schema.startsWith("IFC4") && schema.replace("IFC4", "") === "") {
       return "IFC4";
     }
-    if (schema.startsWith("IFC4X3")) {
+    if (schema.startsWith("IFC4X")) {
       return "IFC4X3";
     }
     return schema;
@@ -55,12 +63,7 @@ export class IfcPropertyProcessor {
     private _builder: Builder,
   ) {}
 
-  async process(data: {
-    readFromCallback?: boolean;
-    bytes?: Uint8Array;
-    readCallback?: any;
-    geometryProcessedLocalIDs: number[];
-  }) {
+  async process(data: PropertiesProcessData) {
     // Open the IFC
     const ifcApi = await this.getIfcApi();
 
@@ -74,6 +77,10 @@ export class IfcPropertyProcessor {
       });
     } else {
       throw new Error("Fragments: No data provided");
+    }
+
+    if (this._serializer.replaceStoreyElevation) {
+      await this.setLengthUnitsFactor();
     }
 
     const modelClasses = ifcApi
@@ -91,6 +98,11 @@ export class IfcPropertyProcessor {
     const itemsWithGeom = data.geometryProcessedLocalIDs;
     await this.processItems(itemsWithGeom);
     const visitedItems = new Set(itemsWithGeom);
+    data.progressCallback?.(0.6, {
+      process: "attributes",
+      state: "start",
+      entitiesProcessed: itemsWithGeom.length,
+    });
 
     // Now process the rest of items
 
@@ -100,8 +112,9 @@ export class IfcPropertyProcessor {
     ]);
 
     const toProcess = modelClasses.filter((type) => classes.has(type));
+    const categoryPercentage = 0.15 / toProcess.length;
 
-    for (const entityClass of toProcess) {
+    for (const [index, entityClass] of toProcess.entries()) {
       const classEntities = ifcApi.GetLineIDsWithType(0, entityClass);
       if (classEntities.size() === 0) continue;
       const items: number[] = [];
@@ -110,18 +123,40 @@ export class IfcPropertyProcessor {
         if (visitedItems.has(id)) continue;
         items.push(id);
       }
+      if (items.length === 0) continue;
       await this.processItems(items);
+      data.progressCallback?.(categoryPercentage * (index + 1) + 0.6, {
+        process: "attributes",
+        state: index + 1 === toProcess.length ? "finish" : "inProgress",
+        class: ifcCategoryMap[entityClass],
+        entitiesProcessed: items.length,
+      });
     }
 
     const relations = new Set([...this._serializer.relations.keys()]);
     const relsToProcess = modelClasses.filter((type) => relations.has(type));
+    const relsPercentage = 0.15 / relsToProcess.length;
 
-    await this.processRelations(relsToProcess);
+    for (const [index, rel] of relsToProcess.entries()) {
+      const state = (() => {
+        if (index === 0) return "start";
+        if (index + 1 === relsToProcess.length) return "finish";
+        return "inProgress";
+      })();
+      await this.processRelations([rel]);
+      data.progressCallback?.(relsPercentage * (index + 1) + 0.75, {
+        process: "relations",
+        state,
+        class: ifcCategoryMap[rel],
+      });
+    }
 
     const { relIndicesVector, relsVector } = this.getRelationsVector();
     const { guidsVector, guidsItemsVector } = this.getGuidsVector();
     const metadataOffset = await this.getMetadataOffset();
     const attributesVector = this.getAttributesVector();
+    const uniqueAttributesVector = this.getUniqueAttributesVector();
+    const relNamesVector = this.getRelNamesVector();
 
     const localIdsVector = TFB.Model.createLocalIdsVector(
       this._builder,
@@ -144,6 +179,8 @@ export class IfcPropertyProcessor {
       localIdsVector,
       categoriesVector,
       spatialStrutureOffset,
+      uniqueAttributesVector,
+      relNamesVector,
     };
   }
 
@@ -162,7 +199,7 @@ export class IfcPropertyProcessor {
         const className = ifcCategoryMap[attrs.type];
         this.classes.push(className);
         this.expressIDs.push(expressID);
-        this.serializeAttributes(expressID, attrs);
+        await this.serializeAttributes(expressID, attrs);
       } catch (e) {
         console.log(`Problem reading properties for ${expressID}`);
         console.log(e);
@@ -181,11 +218,134 @@ export class IfcPropertyProcessor {
     for (const id of ids) {
       this._relationsMap[expressID][relName].push(id);
     }
+    if (this._serializer.includeRelationNames) {
+      this._uniqueRelNames.add(relName);
+    }
   }
 
-  serializeAttributes(expressID: number, attrs: RawEntityAttrs) {
+  private async getStoreyElevation(
+    placement: number,
+    height: { value: number },
+  ) {
+    const ifcApi = await this.getIfcApi();
+
+    const localPlacementAttrs = await ifcApi.properties.getItemProperties(
+      0,
+      placement,
+    );
+
+    let relPlacementAttrs: RawEntityAttrs | undefined;
+
+    if (
+      localPlacementAttrs?.RelativePlacement &&
+      "value" in localPlacementAttrs.RelativePlacement &&
+      typeof localPlacementAttrs.RelativePlacement.value === "number"
+    ) {
+      relPlacementAttrs = await ifcApi.properties.getItemProperties(
+        0,
+        localPlacementAttrs.RelativePlacement.value,
+      );
+    }
+
+    let locationAttrs: RawEntityAttrs | undefined;
+
+    if (
+      relPlacementAttrs?.Location &&
+      "value" in relPlacementAttrs.Location &&
+      typeof relPlacementAttrs.Location.value === "number"
+    ) {
+      locationAttrs = await ifcApi.properties.getItemProperties(
+        0,
+        relPlacementAttrs.Location.value,
+      );
+    }
+
+    if (
+      locationAttrs?.Coordinates &&
+      Array.isArray(locationAttrs.Coordinates) &&
+      "value" in locationAttrs.Coordinates[2] &&
+      typeof locationAttrs.Coordinates[2].value === "number"
+    ) {
+      height.value += locationAttrs.Coordinates[2].value;
+    }
+
+    if (
+      localPlacementAttrs?.PlacementRelTo &&
+      "value" in localPlacementAttrs.PlacementRelTo &&
+      typeof localPlacementAttrs.PlacementRelTo.value === "number"
+    ) {
+      await this.getStoreyElevation(
+        localPlacementAttrs.PlacementRelTo.value,
+        height,
+      );
+    }
+  }
+
+  async setLengthUnitsFactor() {
+    const ifcApi = await this.getIfcApi();
+    const unitAssignmentIds = ifcApi.GetLineIDsWithType(
+      0,
+      WEBIFC.IFCUNITASSIGNMENT,
+    );
+
+    if (unitAssignmentIds.size() === 0) return;
+
+    for (let i = 0; i < unitAssignmentIds.size(); i++) {
+      const assignmentId = unitAssignmentIds.get(i);
+      const assignmentAttrs = await ifcApi.properties.getItemProperties(
+        0,
+        assignmentId,
+      );
+
+      for (const unitHandle of assignmentAttrs.Units) {
+        const unit = await ifcApi.properties.getItemProperties(
+          0,
+          unitHandle.value,
+        );
+
+        const value = unit.UnitType.value;
+        if (value !== "LENGTHUNIT") continue;
+
+        let factor = 1;
+        let unitValue = 1;
+        if (unit.Name.value === "METRE") unitValue = 1;
+        if (unit.Name.value === "FOOT") unitValue = 0.3048;
+
+        if (unit.Prefix?.value === "MILLI") {
+          factor = 0.001;
+        } else if (unit.Prefix?.value === "CENTI") {
+          factor = 0.01;
+        } else if (unit.Prefix?.value === "DECI") {
+          factor = 0.1;
+        }
+
+        this._lengthUnitsFactor = unitValue * factor;
+      }
+    }
+  }
+
+  async serializeAttributes(expressID: number, attrs: RawEntityAttrs) {
     const attrOffsets: number[] = [];
     let guid: string | null = null;
+
+    if (
+      this._serializer.replaceStoreyElevation &&
+      attrs.type &&
+      typeof attrs.type === "number" &&
+      attrs.type === WEBIFC.IFCBUILDINGSTOREY &&
+      attrs.Elevation &&
+      "value" in attrs.Elevation
+    ) {
+      const height = { value: 0 };
+      if (
+        attrs.ObjectPlacement &&
+        "value" in attrs.ObjectPlacement &&
+        typeof attrs.ObjectPlacement.value === "number"
+      ) {
+        await this.getStoreyElevation(attrs.ObjectPlacement.value, height);
+      }
+      attrs.Elevation.value = height.value * this._lengthUnitsFactor;
+    }
 
     let index = 0;
     for (const [attrName, attrValue] of Object.entries(attrs)) {
@@ -199,9 +359,30 @@ export class IfcPropertyProcessor {
         continue;
       }
 
-      // Array attributes are usually references to other entities
+      // Array attributes are **usually** references to other entities
       // They must be added as a relation
+      // When they are not references to other entities, the value of them all
+      // is taken and packed into a single array
       if (Array.isArray(attrValue)) {
+        const noHandles = attrValue.filter((handle) => handle.type !== 5);
+
+        if (noHandles.length > 0) {
+          const noHandlesValue = noHandles.map(
+            (handle) => handle.value,
+          ) as number[];
+
+          const attrData = [attrName, noHandlesValue];
+          const dataTypeName =
+            "name" in noHandles[0] && noHandles[0].name
+              ? noHandles[0].name
+              : noHandles[0].constructor.name.toUpperCase();
+          attrData.push(dataTypeName !== "OBJECT" ? dataTypeName : "UNDEFINED");
+
+          const hash = JSON.stringify(attrData);
+          const attrOffset = this._builder.createSharedString(hash);
+          attrOffsets.push(attrOffset);
+        }
+
         const handles = attrValue.filter((handle) => handle.type === 5);
         const ids = handles.map((handle) => handle.value) as number[];
         this.addRelation(expressID, attrName, ids);
@@ -233,6 +414,9 @@ export class IfcPropertyProcessor {
         const hash = JSON.stringify(attrData);
         const attrOffset = this._builder.createSharedString(hash);
         attrOffsets.push(attrOffset);
+        if (this._serializer.includeUniqueAttributes) {
+          this._uniqueAttributes.add(hash);
+        }
       }
 
       index++;
@@ -260,6 +444,32 @@ export class IfcPropertyProcessor {
       this._attributesOffsets,
     );
     return attributesVector;
+  }
+
+  getUniqueAttributesVector() {
+    const offsets: number[] = [];
+    for (const hash of this._uniqueAttributes) {
+      const offset = this._builder.createSharedString(hash);
+      offsets.push(offset);
+    }
+    const uniqueAttributesVector = TFB.Model.createUniqueAttributesVector(
+      this._builder,
+      offsets,
+    );
+    return uniqueAttributesVector;
+  }
+
+  getRelNamesVector() {
+    const offsets: number[] = [];
+    for (const name of this._uniqueRelNames) {
+      const offset = this._builder.createSharedString(name);
+      offsets.push(offset);
+    }
+    const relationNamesVector = TFB.Model.createRelationNamesVector(
+      this._builder,
+      offsets,
+    );
+    return relationNamesVector;
   }
 
   getGuidsVector() {
@@ -440,6 +650,8 @@ export class IfcPropertyProcessor {
     this._guidsItems = [];
     this._attributesOffsets = [];
     this._relationsMap = {};
+    this._uniqueAttributes.clear();
+    this._uniqueRelNames.clear();
     (this.expressIDs as any) = [];
     (this.classes as any) = [];
   }

@@ -71,10 +71,7 @@ export default defineConfig({
     dts({
       include: ["./src"],
       rollupTypes: true,
-      exclude: [
-        "./src/**/example.ts",
-        "./src/**/*.test.ts",
-      ],
+      exclude: ["./src/**/example.ts", "./src/**/*.test.ts"],
       // afterBuild: generateTSNamespace,
     }),
   ],

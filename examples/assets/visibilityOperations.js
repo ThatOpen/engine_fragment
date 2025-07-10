@@ -1,17 +1,17 @@
-import"./encoding-OofKfb5O.js";import{bU as g,bV as w,bW as y,bX as f,bY as h,bZ as C,b_ as I,b$ as k,c0 as m,c1 as u,c2 as L}from"./pako.esm-CxPC41x8.js";const r=new g,V=r.get(w),t=V.create();t.scene=new y(r);t.scene.setup();t.scene.three.background=null;const v=document.getElementById("container");t.renderer=new f(r,v);t.camera=new h(r);t.camera.controls.setLookAt(183,11,-102,27,-52,-11);r.init();const S=r.get(C);S.create(t);const F="https://thatopen.github.io/engine_fragment/resources/worker.mjs",$=await fetch(F),B=await $.text(),O=new File([new Blob([B])],"worker.mjs",{type:"text/javascript"}),x=URL.createObjectURL(O),o=new I(x);t.camera.controls.addEventListener("rest",()=>o.update(!0));t.camera.controls.addEventListener("update",()=>o.update());o.models.list.onItemSet.add(({value:e})=>{e.useCamera(t.camera.three),t.scene.three.add(e.object),o.update(!0)});const D=await fetch("https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag"),R=await D.arrayBuffer(),s=await o.load(R,{modelId:"example"}),U=await s.getItemsOfCategory("IFCROOF"),j=(await Promise.all(U.map(e=>e.getLocalId()))).filter(e=>typeof e<"u");await s.setVisible(j,!1);await o.update(!0);const b=async e=>{const l=await s.getItemsOfCategory(e),n=(await Promise.all(l.map(i=>i.getLocalId()))).filter(i=>typeof i<"u");await s.toggleVisible(n),await o.update(!0)},A=async e=>{const l=await s.getItemsOfCategory(e),n=(await Promise.all(l.map(a=>a.getLocalId()))).filter(a=>a!==null);return(await s.getVisible(n)).reduce((a,p)=>(p?a.visible++:a.hidden++,a),{visible:0,hidden:0})},T=async()=>{const e=await s.getItemsByVisibility(!0),l=await s.getItemsByVisibility(!1);return{visible:e.length,hidden:l.length}};k.init();const d=m.create(()=>u`
+import{c3 as p,c4 as y,c5 as w,c6 as f,c7 as C,c8 as h,c9 as I,ca as m,cb as u,cc as v}from"./pako.esm-TbDA1OGb.js";import{h as V}from"./index-DUcvzWcL.js";const o=new p,$=o.get(y),e=$.create();e.scene=new w(o);e.scene.setup();e.scene.three.background=null;const k=document.getElementById("container");e.renderer=new f(o,k);e.camera=new C(o);e.camera.controls.setLookAt(58,22,-25,13,0,4.2);o.init();const S=o.get(h);S.create(e);const L="../../src/multithreading/fragments-thread.ts",a=new V(L);e.camera.controls.addEventListener("rest",()=>a.update(!0));a.models.list.onItemSet.add(({value:t})=>{t.useCamera(e.camera.three),e.scene.three.add(t.object),a.update(!0)});const O=await fetch("/resources/frags/school_arq.frag"),B=await O.arrayBuffer(),s=await a.load(B,{modelId:"example"}),F=await s.getItemsOfCategories([/ROOF/]),x=Object.values(F).flat();await s.setVisible(x,!1);await a.update(!0);const d=async t=>{const n=await s.getItemsOfCategories([new RegExp(`^${t}$`)]),i=Object.values(n).flat();await s.toggleVisible(i),await a.update(!0)},D=async t=>{const n=await s.getItemsOfCategories([new RegExp(`^${t}$`)]),i=Object.values(n).flat();return(await s.getVisible(i)).reduce((b,g)=>(g?b.visible++:b.hidden++,b),{visible:0,hidden:0})},R=async()=>{const t=await s.getItemsByVisibility(!0),n=await s.getItemsByVisibility(!1);return{visible:t.length,hidden:n.length}};I.init();const r=m.create(()=>u`
     <bim-panel active label="Fragments Visibility" class="options-menu">
       <bim-panel-section fixed label="Controls">
-        <bim-button label="Toggle Roofs" @click=${()=>b("IFCROOF")}></bim-button>  
-        <bim-button label="Toggle Walls" @click=${()=>b("IFCWALL")}></bim-button>  
-        <bim-button label="Toggle Slabs" @click=${()=>b("IFCSLAB")}></bim-button>  
-        <bim-button label="Display Slab Visibility" @click=${async()=>{const{visible:n,hidden:i}=await A("IFCSLAB");window.alert(`Visible Slabs: ${n}.
-Hidden Slabs: ${i}.`)}}></bim-button>  
-        <bim-button label="Display Visibility State" @click=${async()=>{const{visible:n,hidden:i}=await T();window.alert(`Visible: ${n} items.
-Hidden: ${i} items.`)}}></bim-button>  
+        <bim-button label="Toggle Roofs" @click=${()=>d("IFCROOF")}></bim-button>  
+        <bim-button label="Toggle Walls" @click=${()=>d("IFCWALL")}></bim-button>  
+        <bim-button label="Toggle Slabs" @click=${()=>d("IFCSLAB")}></bim-button>  
+        <bim-button label="Display Slab Visibility" @click=${async()=>{const{visible:i,hidden:c}=await D("IFCSLAB");window.alert(`Visible Slabs: ${i}.
+Hidden Slabs: ${c}.`)}}></bim-button>  
+        <bim-button label="Display Visibility State" @click=${async()=>{const{visible:i,hidden:c}=await R();window.alert(`Visible: ${i} items.
+Hidden: ${c} items.`)}}></bim-button>  
       </bim-panel-section>
     </bim-panel>
-  `);document.body.append(d);const W=m.create(()=>u`
+  `);document.body.append(r);const A=m.create(()=>u`
     <bim-button class="phone-menu-toggler" icon="solar:settings-bold"
-      @click=${()=>{d.classList.contains("options-menu-visible")?d.classList.remove("options-menu-visible"):d.classList.add("options-menu-visible")}}>
+      @click=${()=>{r.classList.contains("options-menu-visible")?r.classList.remove("options-menu-visible"):r.classList.add("options-menu-visible")}}>
     </bim-button>
-  `);document.body.append(W);const c=new L;c.showPanel(2);document.body.append(c.dom);c.dom.style.left="0px";c.dom.style.zIndex="unset";t.renderer.onBeforeUpdate.add(()=>c.begin());t.renderer.onAfterUpdate.add(()=>c.end());
+  `);document.body.append(A);const l=new v;l.showPanel(2);document.body.append(l.dom);l.dom.style.left="0px";l.dom.style.zIndex="unset";e.renderer.onBeforeUpdate.add(()=>l.begin());e.renderer.onAfterUpdate.add(()=>l.end());

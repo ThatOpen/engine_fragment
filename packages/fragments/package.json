@@ -38,18 +38,21 @@
     "test-node": "yarn tsx ./src/Importers/IfcImporter/node-example.ts"
   },
   "dependencies": {
+    "earcut": "^3.0.1",
     "flatbuffers": "25.2.10",
     "lru-cache": "11.1.0",
     "pako": "2.1.0"
   },
   "devDependencies": {
+    "@andypf/json-viewer": "^2.1.10",
     "@thatopen/components": "~2.4.0",
     "@thatopen/components-front": "^2.4.2",
-    "@thatopen/fragments": "2.4.0",
+    "@thatopen/fragments": "^2.4.0",
+    "@types/earcut": "^3.0.0",
     "@types/jest": "27.0.0",
     "@types/node": "20.11.30",
     "@types/pako": "2.0.3",
-    "@types/three": "^0.175.0",
+    "@types/three": "0.175.0",
     "@typescript-eslint/eslint-plugin": "7.2.0",
     "@typescript-eslint/parser": "7.2.0",
     "eslint": "8.57.0",
@@ -61,14 +64,14 @@
     "jest": "^27.0.4",
     "prettier": "3.2.5",
     "stats.js": "^0.17.0",
-    "three": "0.175.0",
+    "three": "0.175",
     "ts-node": "^10.0.0",
     "tsx": "^4.19.2",
     "typescript": "5.4.2",
-    "web-ifc": "0.0.68"
+    "web-ifc": "0.0.69"
   },
   "peerDependencies": {
-    "three": ">=0.175.0",
-    "web-ifc": "0.0.68"
+    "three": ">=0.175",
+    "web-ifc": "0.0.69"
   }
 }

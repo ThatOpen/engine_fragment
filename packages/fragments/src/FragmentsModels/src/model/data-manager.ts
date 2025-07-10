@@ -1,4 +1,8 @@
-import { MultiThreadingRequestClass, SpatialTreeItem } from "./model-types";
+import {
+  MultiThreadingRequestClass,
+  ItemsQueryParams,
+  SpatialTreeItem,
+} from "./model-types";
 import { AlignmentsManager } from "./alignments-manager";
 import { FragmentsModel } from "./fragments-model";
 import { MeshManager } from "./mesh-manager";
@@ -59,15 +63,40 @@ export class DataManager {
     return items;
   }
 
-  async getItemsOfCategory(model: FragmentsModel, category: string) {
-    const args = [category];
+  async getItemsWithGeometryCategories(model: FragmentsModel) {
+    return model.threads.invoke(
+      model.modelId,
+      "getItemsWithGeometryCategories",
+      [],
+    ) as Promise<(string | null)[]>;
+  }
+
+  async getItemsIdsWithGeometry(model: FragmentsModel) {
+    return model.threads.invoke(
+      model.modelId,
+      "getItemsWithGeometry",
+      [],
+    ) as Promise<number[]>;
+  }
+
+  async getItemsOfCategories(model: FragmentsModel, categories: RegExp[]) {
+    const args = [categories];
+    const data = (await model.threads.invoke(
+      model.modelId,
+      "getItemsOfCategories",
+      args,
+    )) as { [category: string]: number[] };
+    return data;
+  }
+
+  async getItemsByQuery(model: FragmentsModel, params: ItemsQueryParams) {
+    const args = [params];
     const localIds = (await model.threads.invoke(
       model.modelId,
-      "getItemsOfCategory",
+      "getItemsByQuery",
       args,
     )) as number[];
-    const items = localIds.map((id) => model.getItem(id));
-    return items;
+    return localIds;
   }
 
   async getMetadata<T extends Record<string, any> = Record<string, any>>(

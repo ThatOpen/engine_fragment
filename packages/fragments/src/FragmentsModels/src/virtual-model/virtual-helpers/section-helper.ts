@@ -1,12 +1,16 @@
 import * as THREE from "three";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
-import { CurrentLod } from "../../model/model-types";
+import { CurrentLod, ModelSection } from "../../model/model-types";
 import { MiscHelper, SectionGenerator } from "../../utils";
 
 export class SectionHelper {
   private _sectionGenerator = new SectionGenerator();
 
-  async getSection(model: VirtualFragmentsModel, plane: THREE.Plane) {
+  async getSection(
+    model: VirtualFragmentsModel,
+    plane: THREE.Plane,
+    indices: number[],
+  ) {
     // TODO: Accept item IDs to traverse in the args
 
     this._sectionGenerator.plane = plane;
@@ -15,12 +19,11 @@ export class SectionHelper {
 
     // @ts-ignore
     const start = performance.now();
-    const itemsLength = model.properties.getItemsCount();
     const visitedGeometries = new Map<number, THREE.BufferGeometry[]>();
 
     const meshes: THREE.Mesh[] = [];
 
-    for (let itemID = 0; itemID < itemsLength; itemID++) {
+    for (const itemID of indices) {
       const sampleIds = model.boxes.sampleOf(itemID);
       if (!sampleIds) continue;
       for (const sampleId of sampleIds) {
@@ -106,11 +109,12 @@ export class SectionHelper {
       }
     }
 
-    const result = {
+    const result: ModelSection = {
       buffer,
       index,
       fillsIndices,
     };
+
     return result;
   }
 }

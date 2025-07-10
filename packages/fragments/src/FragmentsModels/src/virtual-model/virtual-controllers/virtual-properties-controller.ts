@@ -4,16 +4,32 @@ import { Meshes, Model, SpatialStructure } from "../../../../Schema";
 
 import { Identifier } from "../../model";
 import {
+  AttributesUniqueValuesParams,
+  GetItemsByAttributeParams,
+  GetItemsByRelationParams,
   ItemData,
   ItemsDataConfig,
+  ItemsQueryParams,
   SpatialTreeItem,
   VirtualPropertiesConfig,
 } from "../../model/model-types";
 
+// TODO: Create private _items on demand and not always from the start
 export class VirtualPropertiesController {
   private readonly _model: Model;
   private readonly _boxes: VirtualBoxController;
   private readonly _localIdsToGeometryIds = new Map<number, number[]>();
+
+  private _guidToLocalIdMap = new Map<string, number>();
+  private _items = new Map<
+    number,
+    {
+      category: string | null;
+      guid: string | null;
+      geometryIds: number[] | null;
+      attrs: any;
+    }
+  >();
 
   private _itemDataCache: Map<Identifier, ItemData> = new Map();
   private _itemDataConfig: ItemsDataConfig = {
@@ -37,12 +53,65 @@ export class VirtualPropertiesController {
         this.addInverseRelation(category, relation, inverseName);
       }
     }
+
+    const localIds = this._model.localIdsArray();
+    if (localIds) {
+      for (let i = 0; i < this._model.localIdsLength(); i++) {
+        const category = this._model.categories(i);
+        // const attrs: any = {};
+        // const bufferAttributes = this._model.attributes(i);
+        // if (bufferAttributes) {
+        //   for (let j = 0; j < bufferAttributes.dataLength(); j++) {
+        //     const data = bufferAttributes.data(j);
+        //     const [name, value, type] = JSON.parse(data);
+        //     attrs[name] = { value, type };
+        //   }
+        // }
+        const localId = localIds[i];
+        let itemInfo = this._items.get(localId);
+        if (!itemInfo) {
+          itemInfo = {
+            category: null,
+            guid: null,
+            geometryIds: null,
+            attrs: null,
+          };
+          this._items.set(localId, itemInfo);
+        }
+        itemInfo.category = category;
+        // itemInfo.attrs = attrs;
+      }
+      for (let i = 0; i < this._model.guidsItemsLength(); i++) {
+        const localId = this._model.guidsItems(i);
+        if (localId === null) continue;
+        const guid = this._model.guids(i);
+        this._guidToLocalIdMap.set(guid, localId);
+        let itemInfo = this._items.get(localId);
+        if (!itemInfo) {
+          itemInfo = {
+            category: null,
+            guid: null,
+            geometryIds: null,
+            attrs: null,
+          };
+          this._items.set(localId, itemInfo);
+        }
+        itemInfo.guid = guid;
+      }
+    }
   }
 
   private _relations = new Map<number, Record<string, number[]>>();
 
+  private getAllLocalIds() {
+    return this._model.localIdsArray() ?? [];
+  }
+
   addInverseRelation(category: string, relation: string, inverseName: string) {
-    const psetLocalIds = this.getItemsOfCategory(category);
+    const categoriesIds = this.getItemsOfCategories([
+      new RegExp(`^${category}$`),
+    ]);
+    const psetLocalIds = categoriesIds[category];
     for (const psetId of psetLocalIds) {
       const relations = this.getItemRelations(psetId);
       if (!(relations && relations[relation])) continue;
@@ -140,57 +209,243 @@ export class VirtualPropertiesController {
     return [...result];
   }
 
-  getItemCategory(id: Identifier) {
-    const isLocalId = typeof id === "number";
-    const localId = isLocalId ? id : this.getLocalIdsByGuids([id])[0];
-    if (localId === null) {
-      return null;
-    }
-    const itemIndex = this._model.localIdsArray()?.indexOf(localId);
-    if (itemIndex === undefined || itemIndex === -1) {
-      return null;
-    }
-    const category = this._model.categories(itemIndex);
-    return category;
-  }
-
-  getLocalIdsByGuids(guids: string[]) {
-    const localIds: (number | null)[] = guids.map(() => null);
-    let found = 0;
-    const guidCount = this._model.guidsLength();
-    for (let i = 0; i < guidCount; i++) {
+  getGuids() {
+    const guids: string[] = [];
+    for (let i = 0; i < this._model.guidsLength(); i++) {
       const guid = this._model.guids(i);
-      const guidIndex = guids.indexOf(guid);
-      if (guidIndex === -1) {
-        continue;
-      }
-      localIds[guidIndex] = this._model.guidsItems(i);
-      found++;
-      if (guids.length === found) {
-        break;
-      }
-    }
-    return localIds;
-  }
-
-  getGuidsByLocalIds(localIds: number[]) {
-    const guids: (string | null)[] = localIds.map(() => null);
-    const bufferGuidItems = this._model.guidsItemsArray();
-    if (!bufferGuidItems) return guids;
-    let found = 0;
-    for (const [i, localId] of bufferGuidItems.entries()) {
-      const localIdIndex = localIds.indexOf(localId);
-      if (localIdIndex === -1) {
-        continue;
-      }
-      guids[localIdIndex] = this._model.guids(i) ?? null;
-      found++;
-      if (localIds.length === found) {
-        break;
-      }
+      guids.push(guid);
     }
     return guids;
   }
+
+  getLocalIds() {
+    const array = this._model.localIdsArray();
+    if (!array) return [];
+    return Array.from(array);
+  }
+
+  getItemsCategories(ids: Identifier[]) {
+    const result: (string | null)[] = [];
+
+    for (const id of ids) {
+      const localId = this.convertToLocalId(id);
+      if (localId === null) continue;
+      const category = this._items.get(localId)?.category ?? null;
+      result.push(category);
+    }
+
+    return result;
+  }
+
+  getLocalIdsByGuids(guids: string[]) {
+    const result: (number | null)[] = [];
+
+    for (const guid of guids) {
+      const localId = this._guidToLocalIdMap.get(guid);
+      result.push(localId !== undefined ? localId : null);
+    }
+
+    return result;
+  }
+
+  getGuidsByLocalIds(localIds: number[]) {
+    const result: (string | null)[] = [];
+
+    for (const id of localIds) {
+      const guid = this._items.get(id)?.guid;
+      result.push(guid !== undefined ? guid : null);
+    }
+
+    return result;
+  }
+
+  getAttributeNames() {
+    const names = new Set<string>();
+    for (let i = 0; i < this._model.uniqueAttributesLength(); i++) {
+      const attribute = this._model.uniqueAttributes(i);
+      if (!attribute) continue;
+      const [name] = JSON.parse(attribute);
+      names.add(name);
+    }
+    return [...names];
+  }
+
+  getAttributeValues() {
+    const values = new Set<any>();
+    for (let i = 0; i < this._model.uniqueAttributesLength(); i++) {
+      const attribute = this._model.uniqueAttributes(i);
+      if (!attribute) continue;
+      const [, value] = JSON.parse(attribute);
+      values.add(value);
+    }
+    return [...values];
+  }
+
+  getAttributesUniqueValues(params: AttributesUniqueValuesParams[]) {
+    const map = new Map<string, Set<any>>();
+
+    // All param entries must have the category
+    // define to used them as a filter.
+    // If not, would be checking for specific categories
+    // in param entries that doesn't specify any
+    const areCategoriesDefined = params.every(
+      (value) => value.categories !== undefined,
+    );
+
+    const categoriesRegex = params
+      .map((value) => value.categories)
+      .filter((value) => value !== undefined)
+      .flat();
+
+    // It's safe to do the search looping through categories
+    // instead of attributes because each set of attributes
+    // always belong to a category, and the indices always match.
+    for (let i = 0; i < this._model.categoriesLength(); i++) {
+      let valid = true;
+      if (areCategoriesDefined) {
+        const category = this._model.categories(i);
+        valid = categoriesRegex.some((regex) => regex?.test(category));
+      }
+
+      if (!valid) continue;
+
+      const buffer = this._model.attributes(i);
+      if (!buffer) continue;
+      const attributeSet: Record<string, { value: any; type?: string }> = {};
+
+      for (let j = 0; j < buffer.dataLength(); j++) {
+        const attr = buffer.data(j);
+        if (!attr) continue;
+        const [name, value, type] = JSON.parse(attr) as [
+          string,
+          string | number | boolean,
+          string?,
+        ];
+        attributeSet[name] = { value, type };
+      }
+
+      const keys = Object.keys(attributeSet);
+      const category = this._model.categories(i);
+
+      for (const { key: resultKey, attributes, get, categories } of params) {
+        let categoryMatch = true;
+
+        if (categories) {
+          categoryMatch = categories.some((value) => value.test(category));
+        }
+
+        if (!categoryMatch) continue;
+
+        let setPasses = true;
+
+        if (attributes) {
+          const { aggregation, queries } = attributes;
+
+          const queryResults: boolean[] = [];
+          for (const { name, value, type, negate } of queries) {
+            const key = keys.find((key) => name.test(key));
+            if (!(key && attributeSet[key]?.value !== undefined)) break;
+            let pass = false;
+            const { value: keyValue, type: keyType } = attributeSet[key];
+
+            if (value instanceof RegExp) {
+              pass = typeof keyValue === "string" && value.test(keyValue);
+            } else {
+              pass = keyValue === value;
+            }
+
+            if (type !== undefined) {
+              pass = pass && typeof keyType === "string" && type.test(keyType);
+            }
+
+            if (negate) pass = !pass;
+
+            queryResults.push(pass);
+          }
+
+          setPasses =
+            aggregation === "exclusive"
+              ? queryResults.every((result) => result)
+              : queryResults.some((result) => result);
+        }
+
+        if (setPasses) {
+          const key = keys.find((key) => get.test(key));
+          if (!(key && attributeSet[key]?.value !== undefined)) continue;
+          const mapKey = resultKey ?? key;
+          let values = map.get(mapKey);
+          if (!values) {
+            values = new Set();
+            map.set(mapKey, values);
+          }
+          values.add(attributeSet[key]?.value);
+        }
+      }
+    }
+
+    const result: { [name: string]: any[] } = {};
+    for (const [name, values] of map) {
+      result[name] = Array.from(values);
+    }
+    return result;
+  }
+
+  getAttributeTypes() {
+    const types = new Set<string>();
+    for (let i = 0; i < this._model.uniqueAttributesLength(); i++) {
+      const attribute = this._model.uniqueAttributes(i);
+      if (!attribute) continue;
+      const [, , type] = JSON.parse(attribute);
+      types.add(type);
+    }
+    return [...types];
+  }
+
+  getRelationNames() {
+    const names = new Set<string>();
+    for (let i = 0; i < this._model.relationNamesLength(); i++) {
+      const name = this._model.relationNames(i);
+      if (!name) continue;
+      names.add(name);
+    }
+    return [...names];
+  }
+
+  // getItemsAttributes(ids: Identifier[]) {
+  //   const result: (Record<string, { value: any; type?: string }> | null)[] =
+  //     new Array(ids.length).fill(null);
+
+  //   const localIdToIndexMap = new Map<number | string, number>();
+  //   ids.forEach((id, index) => {
+  //     localIdToIndexMap.set(id, index);
+  //   });
+
+  //   let found = 0;
+  //   const count = this._model.localIdsLength();
+  //   for (let i = 0; i < count; i++) {
+  //     const localId = this._model.localIds(i);
+  //     if (localId === null) continue;
+  //     const index = localIdToIndexMap.get(localId);
+  //     if (index === undefined) continue;
+  //     const attributesBuffer = this._model.attributes(i);
+  //     if (!attributesBuffer) {
+  //       result[index] = null;
+  //       continue;
+  //     }
+  //     const attributes: Record<string, { value: any; type?: string }> = {};
+  //     for (let j = 0; j < attributesBuffer.dataLength(); j++) {
+  //       const data = attributesBuffer.data(j);
+  //       const [name, value, type] = data;
+  //       attributes[name] = { value, type };
+  //     }
+  //     result[index] = attributes;
+  //     found++;
+  //     if (ids.length === found) {
+  //       break;
+  //     }
+  //   }
+  //   return result;
+  // }
 
   getItemAttributes(id: Identifier) {
     const isLocalId = typeof id === "number";
@@ -257,19 +512,31 @@ export class VirtualPropertiesController {
       return this._itemDataCache.get(id)!;
     }
 
+    const localId =
+      typeof id === "number" ? id : this._guidToLocalIdMap.get(id) ?? null;
+
+    const category =
+      localId !== null ? this._items.get(localId)?.category ?? null : null;
+
+    const guid =
+      typeof id === "string" ? id : this._items.get(id)?.guid ?? null;
+
     const data: ItemData = {
-      _category: { value: this.getItemCategory(id) },
-      _localId: {
-        value: typeof id === "number" ? id : this.getLocalIdsByGuids([id])[0],
-      },
-      _guid: {
-        value: typeof id === "string" ? id : this.getGuidsByLocalIds([id])[0],
-      },
+      _category: { value: category },
+      _localId: { value: localId },
+      _guid: { value: guid },
     };
 
     this._itemDataCache.set(id, data);
 
-    if (attributes) {
+    if (attributes && localId !== null) {
+      // const result = this._items.get(localId)?.attrs;
+      // if (result) {
+      //   for (const [key, value] of Object.entries(result)) {
+      //     data[key] = value;
+      //   }
+      // }
+      // const itemAttrs = this.getItemsAttributes([id])[0];
       const itemAttrs = this.getItemAttributes(id);
       for (const [key, value] of Object.entries(itemAttrs ?? {})) {
         if (allAttributes) {
@@ -329,6 +596,7 @@ export class VirtualPropertiesController {
   getItemRelations(id: Identifier) {
     const isLocalId = typeof id === "number";
     const localId = isLocalId ? id : this.getLocalIdsByGuids([id])[0];
+
     if (localId === null) {
       return null;
     }
@@ -363,33 +631,30 @@ export class VirtualPropertiesController {
   }
 
   // Improve this with an indexation at runtime?
-  getItemsOfCategory(category: string) {
-    let localIds: number[] = [];
-    let firstIndex: number | null = null;
-    let count = 0;
-    const categoryCount = this._model.categoriesLength();
-    for (let index = 0; index < categoryCount; index++) {
-      const currentcategory = this._model.categories(index);
-      if (currentcategory !== category) {
-        continue;
-      }
-      if (firstIndex !== null && currentcategory !== category) {
-        break;
-      }
-      if (firstIndex === null) {
-        firstIndex = index;
-      }
-      count++;
-    }
-    if (firstIndex === null) {
-      return localIds;
-    }
+  // It already runs fast enough (?)
+  getItemsOfCategories(categories: RegExp[]) {
+    const result: { [category: string]: number[] } = {};
     const allLocalIds = this._model.localIdsArray();
     if (!allLocalIds) {
-      return localIds;
+      return result;
     }
-    localIds = [...allLocalIds].slice(firstIndex, firstIndex + count);
-    return localIds;
+
+    for (let index = 0; index < this._model.categoriesLength(); index++) {
+      const currentCategory = this._model.categories(index);
+      if (!currentCategory) continue;
+
+      for (const categoryRegex of categories) {
+        if (categoryRegex.test(currentCategory)) {
+          if (!result[currentCategory]) {
+            result[currentCategory] = [];
+          }
+          result[currentCategory].push(allLocalIds[index]);
+          break;
+        }
+      }
+    }
+
+    return result;
   }
 
   getItemsWithGeometry() {
@@ -410,6 +675,189 @@ export class VirtualPropertiesController {
       localIds.push(localId);
     }
     return localIds;
+  }
+
+  getItemsWithGeometryCategories() {
+    const localIds = this.getItemsWithGeometry();
+    const categories = this.getItemsCategories(localIds);
+    return categories;
+  }
+
+  getItemsByAttribute({
+    name,
+    value,
+    type,
+    negate,
+    itemIds,
+  }: GetItemsByAttributeParams) {
+    const allAttributesLength = this._model.attributesLength();
+
+    const res: number[] = [];
+
+    for (let i = 0; i < allAttributesLength; i++) {
+      const localId = this._model.localIds(i);
+      if (localId === null) continue;
+      if (itemIds?.length && !itemIds.includes(localId)) continue;
+      const attribute = this._model.attributes(i);
+      if (!attribute) continue;
+
+      const dataLength = attribute?.dataLength();
+
+      let itemPasses = false;
+
+      for (let j = 0; j < dataLength; j++) {
+        const data = attribute.data(j);
+        if (!data) continue;
+
+        const [attrName, val, typeValue] = JSON.parse(data) as [
+          string,
+          string | number | boolean,
+          string?,
+        ];
+
+        if (name.test(attrName)) {
+          // The check automatically passes if there is no value and type to check
+          let pass = value === undefined && type === undefined;
+
+          // If the initial pass value is false, it means there is a value or type to check
+          if (!pass) {
+            if (value !== undefined) {
+              if (Array.isArray(value)) {
+                pass = value.some(
+                  (regex) => typeof val === "string" && regex.test(val),
+                );
+              } else if (value instanceof RegExp) {
+                pass = typeof val === "string" && value.test(val);
+              } else {
+                pass = val === value;
+              }
+            }
+
+            if (type !== undefined) {
+              pass =
+                pass && typeof typeValue === "string" && type.test(typeValue);
+            }
+          }
+
+          if (pass) {
+            itemPasses = true;
+            break;
+          }
+        }
+      }
+
+      if (negate ? !itemPasses : itemPasses) {
+        res.push(localId);
+      }
+    }
+
+    return res;
+  }
+
+  private getItemsByRelation({
+    name,
+    targetItemIds,
+    sourceItemIds,
+  }: GetItemsByRelationParams) {
+    const res: number[] = [];
+    const sources = sourceItemIds ?? this.getAllLocalIds();
+
+    for (const srcId of sources) {
+      const rels = this.getItemRelations(srcId);
+      const linked = rels?.[name];
+      if (!linked) continue;
+      if (targetItemIds) {
+        // Any intersection → add and skip further checks for this src
+        for (const trgId of linked) {
+          if (targetItemIds.has(trgId)) {
+            res.push(srcId);
+            break;
+          }
+        }
+      } else {
+        // If there is no targetItemIds → only checks the relation exist in the source
+        res.push(srcId);
+      }
+    }
+    return res;
+  }
+
+  getItemsByQuery(params: ItemsQueryParams) {
+    const { categories, attributes, relation } = params;
+
+    //  Category pre‑filter (if any)
+    let candidateIds = categories?.filter(Boolean)?.length
+      ? Object.values(this.getItemsOfCategories(categories)).flat()
+      : undefined;
+
+    // If category was given and no item matches, the whole search fails
+    if (candidateIds?.length === 0) return [];
+
+    //  Attribute filter on the *main* items (if requested)
+    if (attributes) {
+      const aggregation = attributes.aggregation ?? "exclusive";
+      // Store the result per attribute query
+      const ids: number[][] = [];
+      for (const attribute of attributes.queries) {
+        if (attributes && Boolean(attribute.name)) {
+          const localIds = this.getItemsByAttribute({
+            ...attribute,
+            itemIds: candidateIds,
+          });
+          ids.push(localIds);
+        }
+      }
+
+      const set = new Set<number>();
+      if (aggregation === "inclusive") {
+        for (const collection of ids) {
+          for (const id of collection) {
+            set.add(id);
+          }
+        }
+      } else {
+        const map = new Map<number, number>();
+        for (const collection of ids) {
+          for (const id of collection) {
+            const count = map.get(id);
+            if (count === undefined) {
+              map.set(id, 1);
+            } else {
+              map.set(id, count + 1);
+            }
+          }
+        }
+        for (const [id, count] of map) {
+          if (count === ids.length) {
+            set.add(id);
+          }
+        }
+      }
+      candidateIds = [...set];
+    }
+
+    // If attribute was given and no item matches, the whole search fails
+    if (candidateIds?.length === 0) return [];
+
+    //  Relation filter (if requested)
+    if (relation && Boolean(relation.name)) {
+      const { name, query } = relation;
+
+      // Find *target* items that satisfy the attribute constraint
+      const targetIds = query
+        ? new Set<number>(this.getItemsByQuery(query))
+        : undefined;
+
+      //  Keep only candidates that reference ↑ targets via the chosen relation
+      candidateIds = this.getItemsByRelation({
+        name,
+        targetItemIds: targetIds,
+        sourceItemIds: candidateIds,
+      });
+    }
+
+    // De-duplicate entries
+    return Array.from(new Set(candidateIds));
   }
 
   private getTreeItem(item: SpatialStructure) {
@@ -447,7 +895,9 @@ export class VirtualPropertiesController {
 
   private convertToLocalId(id: Identifier) {
     const isLocalId = typeof id === "number";
-    const localId = isLocalId ? id : this.getLocalIdsByGuids([id])[0];
+    if (isLocalId) return id;
+    const localId = this._guidToLocalIdMap.get(id);
+    if (localId === undefined) return null;
     return localId;
   }
 

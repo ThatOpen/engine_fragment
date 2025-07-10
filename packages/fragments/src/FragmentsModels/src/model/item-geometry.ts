@@ -26,10 +26,10 @@ export class ItemGeometry {
     this.localId = localId;
   }
 
-  private async getGeometry() {
+  async get() {
     const [geometries] = (await this.model.threads.invoke(
       this.model.modelId,
-      "getGeometry",
+      "getItemsGeometry",
       [[this.localId]],
     )) as MeshData[][];
 
@@ -57,7 +57,7 @@ export class ItemGeometry {
    */
   async getIndices() {
     if (this._indices !== null) return this._indices;
-    await this.getGeometry();
+    await this.get();
     return this._indices;
   }
 
@@ -67,7 +67,7 @@ export class ItemGeometry {
    */
   async getTransform() {
     if (this._transform !== null) return this._transform;
-    await this.getGeometry();
+    await this.get();
     return this._transform;
   }
 
@@ -77,7 +77,7 @@ export class ItemGeometry {
    */
   async getNormals() {
     if (this._normals !== null) return this._normals;
-    await this.getGeometry();
+    await this.get();
     return this._normals;
   }
 
@@ -87,7 +87,7 @@ export class ItemGeometry {
    */
   async getPositions() {
     if (this._positions !== null) return this._positions;
-    await this.getGeometry();
+    await this.get();
     return this._positions;
   }
 

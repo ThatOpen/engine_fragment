@@ -15,6 +15,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@andypf/json-viewer@npm:^2.1.10":
+  version: 2.1.10
+  resolution: "@andypf/json-viewer@npm:2.1.10"
+  checksum: f7f82ffc9bb324bfa78aabc034684a54635b5ef7a46c8ee52e7ee75200cce40f33a1134d9ae8e6e6d690abac963fd9c88007e8650503e8fef0d4cf136766ed32
+  languageName: node
+  linkType: hard
+
 "@babel/code-frame@npm:^7.0.0, @babel/code-frame@npm:^7.12.13, @babel/code-frame@npm:^7.26.2":
   version: 7.26.2
   resolution: "@babel/code-frame@npm:7.26.2"
@@ -1535,7 +1542,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@npm:2.4.0":
+"@thatopen/fragments@npm:^2.4.0":
   version: 2.4.0
   resolution: "@thatopen/fragments@npm:2.4.0"
   dependencies:
@@ -1551,15 +1558,18 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
+    "@andypf/json-viewer": ^2.1.10
     "@thatopen/components": ~2.4.0
     "@thatopen/components-front": ^2.4.2
-    "@thatopen/fragments": 2.4.0
+    "@thatopen/fragments": ^2.4.0
+    "@types/earcut": ^3.0.0
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
     "@types/pako": 2.0.3
-    "@types/three": ^0.175.0
+    "@types/three": 0.175.0
     "@typescript-eslint/eslint-plugin": 7.2.0
     "@typescript-eslint/parser": 7.2.0
+    earcut: ^3.0.1
     eslint: 8.57.0
     eslint-config-airbnb-base: 15.0.0
     eslint-config-prettier: 9.1.0
@@ -1572,14 +1582,14 @@ __metadata:
     pako: 2.1.0
     prettier: 3.2.5
     stats.js: ^0.17.0
-    three: 0.175.0
+    three: 0.175
     ts-node: ^10.0.0
     tsx: ^4.19.2
     typescript: 5.4.2
-    web-ifc: 0.0.68
+    web-ifc: 0.0.69
   peerDependencies:
-    three: ">=0.175.0"
-    web-ifc: 0.0.68
+    three: ">=0.175"
+    web-ifc: 0.0.69
   languageName: unknown
   linkType: soft
 
@@ -1681,6 +1691,13 @@ __metadata:
   dependencies:
     "@babel/types": ^7.20.7
   checksum: 2a2e5ad29c34a8b776162b0fe81c9ccb6459b2b46bf230f756ba0276a0258fcae1cbcfdccbb93a1e8b1df44f4939784ee8a1a269f95afe0c78b24b9cb6d50dd1
+  languageName: node
+  linkType: hard
+
+"@types/earcut@npm:^3.0.0":
+  version: 3.0.0
+  resolution: "@types/earcut@npm:3.0.0"
+  checksum: f36a07fe004b38116078a8548e43cf56b56d92e61af4c20cd7f95952ed18313eca9035ddf86bdce2945d8b58c4969182e47ae2196cac5ac4b5d752d094370060
   languageName: node
   linkType: hard
 
@@ -1802,7 +1819,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/three@npm:^0.175.0":
+"@types/three@npm:0.175.0":
   version: 0.175.0
   resolution: "@types/three@npm:0.175.0"
   dependencies:
@@ -3005,6 +3022,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"earcut@npm:^3.0.1":
+  version: 3.0.1
+  resolution: "earcut@npm:3.0.1"
+  checksum: ed1cc8fc10829ad41b30c574e233333a6ff1b4ad548e342491efd6a54d8e7ad5042bda029ae7c7c41c711cda9b38c1a733e7baf79569ccc43ce36450a549c415
+  languageName: node
+  linkType: hard
+
 "eastasianwidth@npm:^0.2.0":
   version: 0.2.0
   resolution: "eastasianwidth@npm:0.2.0"
@@ -3999,13 +4023,6 @@ __metadata:
   dependencies:
     resolve-pkg-maps: ^1.0.0
   checksum: cebf14d38ecaa9a1af25fc3f56317402a4457e7e20f30f52a0ab98b4c85962a259f75065e483824f73a1ce4a8e4926c149ead60f0619842b8cd13b94e15fbdec
-  languageName: node
-  linkType: hard
-
-"glm@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "glm@npm:1.0.0"
-  checksum: 270a5167e3bde5c09d2ef46a3239fb83556df05b31a3cc47de4d99b38701aaaae32ec1d8e9dcd8fb389f79289cb860b74842464d1f940752eb58e6b813ef8fc3
   languageName: node
   linkType: hard
 
@@ -7282,7 +7299,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"three@npm:0.175.0":
+"three@npm:0.175":
   version: 0.175.0
   resolution: "three@npm:0.175.0"
   checksum: 9d24395620faae40fa91b83e352766932d70d0fba6589ab875bbaa08f47e6aa3f3b78f279ebfefc4468b6e21a8472c42ce27e0730427b21027c6dfa9c95e0994
@@ -7792,12 +7809,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"web-ifc@npm:0.0.68":
-  version: 0.0.68
-  resolution: "web-ifc@npm:0.0.68"
-  dependencies:
-    glm: ^1.0.0
-  checksum: 5ba014d457a9eccb8a0196fa0ced59feee1033a2aeb3842cdfaee57df2dfc7eec983ce7488bc48c0c4c71e07dff7e724acfdd58fe240de5d69adfcc468a11ae8
+"web-ifc@npm:0.0.69":
+  version: 0.0.69
+  resolution: "web-ifc@npm:0.0.69"
+  checksum: be0f6f2a7cdeb21844082a811af553ca5c61818169f641b5e1cd0ad98ac6bba198a4465fc0d03390b046b25225edf64118f51b61696fa92af84d0989a10df5b7
   languageName: node
   linkType: hard
 

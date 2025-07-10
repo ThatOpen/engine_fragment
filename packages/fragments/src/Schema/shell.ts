@@ -4,9 +4,12 @@
 
 import * as flatbuffers from 'flatbuffers';
 
+import { BigShellHole } from './big-shell-hole.js';
+import { BigShellProfile } from './big-shell-profile.js';
 import { FloatVector } from './float-vector.js';
 import { ShellHole } from './shell-hole.js';
 import { ShellProfile } from './shell-profile.js';
+import { ShellType } from './shell-type.js';
 
 
 export class Shell {
@@ -57,8 +60,44 @@ pointsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
+bigProfiles(index: number, obj?:BigShellProfile):BigShellProfile|null {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? (obj || new BigShellProfile()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+bigProfilesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 10);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+bigHoles(index: number, obj?:BigShellHole):BigShellHole|null {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? (obj || new BigShellHole()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+bigHolesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 12);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+type():ShellType {
+  const offset = this.bb!.__offset(this.bb_pos, 14);
+  return offset ? this.bb!.readInt8(this.bb_pos + offset) : ShellType.NONE;
+}
+
+mutate_type(value:ShellType):boolean {
+  const offset = this.bb!.__offset(this.bb_pos, 14);
+
+  if (offset === 0) {
+    return false;
+  }
+
+  this.bb!.writeInt8(this.bb_pos + offset, value);
+  return true;
+}
+
 static startShell(builder:flatbuffers.Builder) {
-  builder.startObject(3);
+  builder.startObject(6);
 }
 
 static addProfiles(builder:flatbuffers.Builder, profilesOffset:flatbuffers.Offset) {
@@ -101,19 +140,60 @@ static startPointsVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(12, numElems, 4);
 }
 
+static addBigProfiles(builder:flatbuffers.Builder, bigProfilesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(3, bigProfilesOffset, 0);
+}
+
+static createBigProfilesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startBigProfilesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addBigHoles(builder:flatbuffers.Builder, bigHolesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(4, bigHolesOffset, 0);
+}
+
+static createBigHolesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startBigHolesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addType(builder:flatbuffers.Builder, type:ShellType) {
+  builder.addFieldInt8(5, type, ShellType.NONE);
+}
+
 static endShell(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   builder.requiredField(offset, 4) // profiles
   builder.requiredField(offset, 6) // holes
   builder.requiredField(offset, 8) // points
+  builder.requiredField(offset, 10) // big_profiles
+  builder.requiredField(offset, 12) // big_holes
   return offset;
 }
 
-static createShell(builder:flatbuffers.Builder, profilesOffset:flatbuffers.Offset, holesOffset:flatbuffers.Offset, pointsOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createShell(builder:flatbuffers.Builder, profilesOffset:flatbuffers.Offset, holesOffset:flatbuffers.Offset, pointsOffset:flatbuffers.Offset, bigProfilesOffset:flatbuffers.Offset, bigHolesOffset:flatbuffers.Offset, type:ShellType):flatbuffers.Offset {
   Shell.startShell(builder);
   Shell.addProfiles(builder, profilesOffset);
   Shell.addHoles(builder, holesOffset);
   Shell.addPoints(builder, pointsOffset);
+  Shell.addBigProfiles(builder, bigProfilesOffset);
+  Shell.addBigHoles(builder, bigHolesOffset);
+  Shell.addType(builder, type);
   return Shell.endShell(builder);
 }
 }

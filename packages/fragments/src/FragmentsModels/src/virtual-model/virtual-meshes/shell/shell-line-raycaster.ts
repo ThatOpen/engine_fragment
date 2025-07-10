@@ -1,12 +1,19 @@
 import * as THREE from "three";
-import { Meshes, Shell, ShellProfile } from "../../../../../Schema";
+import {
+  BigShellProfile,
+  Meshes,
+  Shell,
+  ShellProfile,
+  ShellType,
+} from "../../../../../Schema";
 
 import { ShellUtils } from "./shell-utils";
 
 export class ShellLineRaycaster {
   private readonly _meshes: Meshes;
   private _minAngle = Math.PI / 32;
-  private _profile = new ShellProfile();
+  private _shellProfile = new ShellProfile();
+  private _bigShellProfile = new BigShellProfile();
   private _tempV1 = new THREE.Vector3();
   private _tempV2 = new THREE.Vector3();
   private _tempPoint = new THREE.Vector3();
@@ -26,9 +33,10 @@ export class ShellLineRaycaster {
   }
 
   private lineRaycastItems(ray: THREE.Ray, frustum: THREE.Frustum) {
-    const profilesCount = this._shell.profilesLength();
+    const profilesCount = ShellUtils.getProfilesLength(this._shell);
     for (let id = 0; id < profilesCount; id++) {
-      this._shell.profiles(id, this._profile);
+      const profile = this.getTempProfile(this._shell);
+      ShellUtils.getProfile(this._shell, id, profile);
       this.lineRaycastProfile(ray, frustum, id);
     }
   }
@@ -46,9 +54,10 @@ export class ShellLineRaycaster {
     frustum: THREE.Frustum,
     id: number,
   ) {
-    const indicesCount = this._profile.indicesLength();
+    const profile = this.getTempProfile(this._shell);
+    const indicesCount = profile.indicesLength();
     for (let i = 0; i < indicesCount; i++) {
-      const i1 = this._profile.indices(i)!;
+      const i1 = profile.indices(i)!;
       const i2 = this.getSecondIndex(i, indicesCount);
       const success = this.cast(i1, i2, ray, frustum, id);
       if (success) {
@@ -115,10 +124,11 @@ export class ShellLineRaycaster {
 
   private getSecondIndex(id: number, count: number) {
     const isLast = id === count - 1;
+    const profile = this.getTempProfile(this._shell);
     if (isLast) {
-      return this._profile.indices(0)!;
+      return profile.indices(0)!;
     }
-    return this._profile.indices(id + 1)!;
+    return profile.indices(id + 1)!;
   }
 
   private raycastSegment(ray: THREE.Ray) {
@@ -128,5 +138,12 @@ export class ShellLineRaycaster {
       undefined,
       this._tempPoint,
     );
+  }
+
+  private getTempProfile(shell: Shell) {
+    if (shell.type() === ShellType.BIG) {
+      return this._bigShellProfile;
+    }
+    return this._shellProfile;
   }
 }

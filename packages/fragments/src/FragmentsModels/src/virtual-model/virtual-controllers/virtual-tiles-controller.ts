@@ -477,6 +477,16 @@ export class VirtualTilesController {
       }
     }
 
+    if (tile.faceIdBuffer && geometry.faceIdBuffer) {
+      // We define an offset to the ID to force that different samples have different face IDs
+      const sampleOffset = sample.sample * 100;
+      const start = tile.vertexLocation[location];
+      const end = start + geometry.positionCount! / 3;
+      for (let i = start; i < end; i++) {
+        tile.faceIdBuffer[i] = geometry.faceIdBuffer[i - start] + sampleOffset;
+      }
+    }
+
     if (geometry.objectClass === ObjectClass.SHELL) {
       const start = tile.vertexLocation[location];
       const end = start + geometry.positionCount! / 3;
@@ -587,6 +597,7 @@ export class VirtualTilesController {
     tile.geometriesLocation = [];
     tile.positionCount = 0;
     tile.sampleLocation = new Map();
+    tile.faceIdBuffer = new Uint32Array(0);
     return tile as TileData;
   }
 
@@ -660,6 +671,7 @@ export class VirtualTilesController {
     delete tile.indexBuffer;
     delete tile.positionBuffer;
     delete tile.normalBuffer;
+    delete tile.faceIdBuffer;
     delete tile.ids;
   }
 
@@ -1038,6 +1050,8 @@ export class VirtualTilesController {
       this.setTileBuffer(tile, "index", true);
       this.setTileBuffer(tile, "normal", false);
       this.setTileShellBuffer(tile);
+      tile.faceIdBuffer = new Uint32Array(tile.positionCount! / 3);
+      tile.usedMemory += tile.faceIdBuffer.byteLength;
     }
     const isStart = !tile.location;
     for (const [id, position] of tile.sampleLocation) {
@@ -1139,6 +1153,7 @@ export class VirtualTilesController {
   private loadTile(tileId: number, tile: TileData) {
     const tileData = this.getTileData(tile);
     this.fetchTileMatrixOnLoad(tile);
+    const faceIds = this.getFaceIds(tile);
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.CREATE,
       modelId: this._modelId,
@@ -1149,6 +1164,7 @@ export class VirtualTilesController {
       indices: tile.indexBuffer,
       positions: tile.positionBuffer,
       normals: tile.normalBuffer,
+      faceIds,
       itemIds: tile.ids,
       material: tile.materialId,
       matrix: this._temp.matrix.clone(),
@@ -1156,6 +1172,20 @@ export class VirtualTilesController {
       currentLod: tile.lod,
     });
     this.updateMemoryOnTileLoad(tile);
+  }
+
+  private getFaceIds(tile: TileData) {
+    const tempColor = new THREE.Color();
+    const faceIdBuffer = tile.faceIdBuffer!;
+    const faceIds = new Float32Array(faceIdBuffer.length * 3);
+    for (let i = 0; i < faceIdBuffer.length; i++) {
+      const id = faceIdBuffer[i];
+      tempColor.set(0x000000 + id);
+      faceIds[i * 3] = tempColor.r;
+      faceIds[i * 3 + 1] = tempColor.g;
+      faceIds[i * 3 + 2] = tempColor.b;
+    }
+    return faceIds;
   }
 
   private meshData(mesh: VirtualMeshManager, allowVoid: boolean, lod: number) {

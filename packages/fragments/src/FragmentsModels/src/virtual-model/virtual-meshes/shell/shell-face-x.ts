@@ -3,18 +3,20 @@ import { TileData } from "../types";
 import { DataSizes, ShellHoleData } from "./types";
 import { earcut } from "../../../utils/geometry/earcut";
 import { DataBuffer } from "../../../model/model-types";
+import { FaceUtils } from "../../../utils";
 
 export class ShellFaceX {
   private static _tempVec = new THREE.Vector3();
 
   static create(
-    indices: Uint16Array,
+    indices: Uint16Array | Uint32Array,
     data: Float32Array,
     normals: Int16Array,
     current: number,
     mesh: TileData,
     holes: Map<number, ShellHoleData>,
     sizes: DataSizes,
+    faceId: number,
   ) {
     const size = indices.length;
     const amount = sizes.verticesAmount;
@@ -24,6 +26,20 @@ export class ShellFaceX {
     const normalDims = pointsDiff / 3;
     this.processNormals(position, this._tempVec, normalDims, amount);
     this.triangulate(holes, current, size, mesh, sizes, amount);
+    this.setFaceId(amount, sizes, mesh, faceId);
+  }
+
+  private static setFaceId(
+    amount: number,
+    sizes: DataSizes,
+    mesh: TileData,
+    faceId: number,
+  ) {
+    const firstFace = amount / 3;
+    const lastFace = sizes.verticesAmount / 3;
+    for (let i = firstFace; i < lastFace; i++) {
+      mesh.faceIdBuffer![i] = faceId;
+    }
   }
 
   private static getVertices(mesh: TileData, amount: number, sizes: DataSizes) {
@@ -45,7 +61,7 @@ export class ShellFaceX {
 
   private static processBuffers(
     size: number,
-    indices: Uint16Array,
+    indices: Uint16Array | Uint32Array,
     mesh: TileData,
     sizes: DataSizes,
     data: Float32Array,
@@ -104,7 +120,7 @@ export class ShellFaceX {
 
   private static processPositionBuffer(
     mesh: TileData,
-    indices: Uint16Array,
+    indices: Uint16Array | Uint32Array,
     id: number,
     sizes: DataSizes,
     data: Float32Array,
@@ -127,50 +143,11 @@ export class ShellFaceX {
     const tri = 3;
     const holesData = this.getHoles(holes, current, size, mesh, sizes);
     const vertices = ShellFaceX.getVertices(mesh, amount, sizes);
-    const dims = this.getEarcutDimensions(this._tempVec);
+    const dims = FaceUtils.getEarcutDimensions(this._tempVec);
     const onCreateGeometry = this.getEvent(mesh, sizes, amount);
     const firstDim = dims[0];
     const secondDim = dims[1];
     earcut(vertices, holesData!, tri, firstDim, secondDim, onCreateGeometry);
-  }
-
-  private static getEarcutDimensions(normal: THREE.Vector3) {
-    // Project points in 2D for earcut algorithm, which only works in 2D
-
-    const absX = Math.abs(normal.x);
-    const absY = Math.abs(normal.y);
-    const absZ = Math.abs(normal.z);
-
-    const xDim = 0;
-    const yDim = 1;
-    const zDim = 2;
-
-    const isMostlyHorizontal = absZ > absX && absZ > absY;
-    if (isMostlyHorizontal) {
-      const lookingUp = normal.z > 0;
-      if (lookingUp) {
-        return [xDim, yDim];
-      }
-      return [yDim, xDim];
-    }
-
-    const isMostlyLookingToY = absY > absX && absY > absZ;
-    if (isMostlyLookingToY) {
-      const isLookingYPositive = normal.y > 0;
-      if (isLookingYPositive) {
-        return [zDim, xDim];
-      }
-      return [xDim, zDim];
-    }
-
-    // At this point, we know that the normal is mostly looking to the X axis
-
-    const isLookingXPositive = normal.x > 0;
-    if (isLookingXPositive) {
-      return [yDim, zDim];
-    }
-
-    return [zDim, yDim];
   }
 
   private static processNormals(

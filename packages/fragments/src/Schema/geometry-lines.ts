@@ -4,9 +4,6 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { FloatVector } from './float-vector.js';
-
-
 export class GeometryLines {
   bb: flatbuffers.ByteBuffer|null = null;
   bb_pos = 0;
@@ -25,14 +22,19 @@ static getSizePrefixedRootAsGeometryLines(bb:flatbuffers.ByteBuffer, obj?:Geomet
   return (obj || new GeometryLines()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
 }
 
-points(index: number, obj?:FloatVector):FloatVector|null {
+points(index: number):number|null {
   const offset = this.bb!.__offset(this.bb_pos, 4);
-  return offset ? (obj || new FloatVector()).__init(this.bb!.__vector(this.bb_pos + offset) + index * 12, this.bb!) : null;
+  return offset ? this.bb!.readFloat32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
 }
 
 pointsLength():number {
   const offset = this.bb!.__offset(this.bb_pos, 4);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+pointsArray():Float32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 4);
+  return offset ? new Float32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
 }
 
 static startGeometryLines(builder:flatbuffers.Builder) {
@@ -43,8 +45,21 @@ static addPoints(builder:flatbuffers.Builder, pointsOffset:flatbuffers.Offset) {
   builder.addFieldOffset(0, pointsOffset, 0);
 }
 
+static createPointsVector(builder:flatbuffers.Builder, data:number[]|Float32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createPointsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createPointsVector(builder:flatbuffers.Builder, data:number[]|Float32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addFloat32(data[i]!);
+  }
+  return builder.endVector();
+}
+
 static startPointsVector(builder:flatbuffers.Builder, numElems:number) {
-  builder.startVector(12, numElems, 4);
+  builder.startVector(4, numElems, 4);
 }
 
 static endGeometryLines(builder:flatbuffers.Builder):flatbuffers.Offset {

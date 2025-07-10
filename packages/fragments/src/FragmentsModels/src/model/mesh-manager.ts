@@ -83,12 +83,13 @@ export class MeshManager {
   }
 
   private createMesh(request: any) {
-    const { indices, positions, normals, itemIds } = request;
+    const { indices, positions, normals, itemIds, faceIds } = request;
     const geometry = new THREE.BufferGeometry();
     this.setIndex(geometry, indices);
     this.setPositions(positions, geometry);
     this.setNormals(normals, geometry);
     this.setItemIds(itemIds, geometry);
+    this.setFaceIds(faceIds, geometry);
     const material = this.materials.getFromRequest(request);
     return new THREE.Mesh(geometry, [material]);
   }
@@ -140,6 +141,13 @@ export class MeshManager {
     }
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     this.cleanAttributeMemory(geometry, "position");
+  }
+
+  private setFaceIds(faceIds: any, geometry: THREE.BufferGeometry) {
+    if (faceIds) {
+      geometry.setAttribute("color", new THREE.BufferAttribute(faceIds, 3));
+      this.cleanAttributeMemory(geometry, "color");
+    }
   }
 
   private setIndex(geometry: THREE.BufferGeometry, indices: any) {

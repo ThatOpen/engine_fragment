@@ -1,7 +1,9 @@
 import * as THREE from "three";
+import earcut from "earcut";
 import { ShellUtils } from "./shell-utils";
 import { Meshes, Shell } from "../../../../../Schema";
 import { DataBuffer } from "../../../model/model-types";
+import { FaceUtils } from "../../../utils";
 
 export class ShellFaceRaycaster {
   private a = new THREE.Vector3();
@@ -50,9 +52,9 @@ export class ShellFaceRaycaster {
   }
 
   private getInteriorProfiles(shell: Shell) {
-    const holesLength = shell.holesLength();
+    const holesLength = ShellUtils.getHolesLength(shell);
     for (let holeId = 0; holeId < holesLength; holeId++) {
-      const hole = shell.holes(holeId)!;
+      const hole = ShellUtils.getHole(shell, holeId);
       const profileId = hole.profileId();
       if (!this.interiorProfiles.has(profileId)) {
         this.interiorProfiles.set(profileId, []);
@@ -75,6 +77,9 @@ export class ShellFaceRaycaster {
     this.saveTriPoint(this.g, buffer, third);
     const found = this.triangleHit(ray);
     if (found) {
+      const triangleBuffer = this.getTriangleBuffer(buffer, indices);
+      (found as any).facePoints = triangleBuffer.points;
+      (found as any).faceIndices = triangleBuffer.indices;
       this.includedVertices.push(found);
     }
   }
@@ -84,13 +89,13 @@ export class ShellFaceRaycaster {
     buffer: DataBuffer,
     ray: THREE.Ray,
   ) {
-    const count = shell.profilesLength();
+    const count = ShellUtils.getProfilesLength(shell);
     for (let id = 0; id < count; id++) {
       this.resetVectors();
       const indices = this.getIndices(shell, id);
       const valid = this.getValidCollision(indices, buffer, ray, id, shell);
       if (valid) {
-        this.processCollision(buffer, indices);
+        this.processCollision(shell, id, buffer, indices);
       }
     }
   }
@@ -107,7 +112,7 @@ export class ShellFaceRaycaster {
   }
 
   private getIndices(shell: Shell, id: number) {
-    const currentProfile = shell.profiles(id)!;
+    const currentProfile = ShellUtils.getProfile(shell, id);
     return currentProfile.indicesArray()!;
   }
 
@@ -148,7 +153,7 @@ export class ShellFaceRaycaster {
   private holeContains(indices: number[], shell: Shell, data: DataBuffer) {
     const count = indices.length;
     for (let i = 0; i < count; i++) {
-      const shellHole = shell.holes(indices[i])!;
+      const shellHole = ShellUtils.getHole(shell, indices[i]);
       const index = shellHole.indicesArray()!;
       const contained = this.polygonContains(data, index);
       if (contained) {
@@ -197,12 +202,25 @@ export class ShellFaceRaycaster {
     return true;
   }
 
-  private processCollision(buffer: DataBuffer, indices: DataBuffer) {
+  private processCollision(
+    shell: Shell,
+    profileId: number,
+    buffer: DataBuffer,
+    indices: DataBuffer,
+  ) {
     const contains = this.polygonContains(buffer, indices);
     if (!contains) return;
     const point = this.b.clone();
     const normal = this.tempPlane.normal.clone();
-    this.includedVertices.push({ point, normal });
+
+    const faceBuffer = this.getFaceBuffer(shell, profileId, buffer);
+
+    this.includedVertices.push({
+      point,
+      normal,
+      facePoints: faceBuffer.points,
+      faceIndices: faceBuffer.indices,
+    });
   }
 
   private newOrthoNormalBasis() {
@@ -300,5 +318,64 @@ export class ShellFaceRaycaster {
     const z = data[end + 2];
     this.k.set(x, y, z);
     this.k.sub(this.b);
+  }
+
+  private getTriangleBuffer(buffer: DataBuffer, indices: DataBuffer) {
+    const points: number[] = [];
+    const newIndices: number[] = [];
+    for (let i = 0; i < indices.length; i++) {
+      const index = indices[i] * 3;
+      points.push(buffer[index], buffer[index + 1], buffer[index + 2]);
+      newIndices.push(i);
+    }
+
+    return { points: new Float32Array(points), indices: newIndices };
+  }
+
+  private getFaceBuffer(shell: Shell, profileId: number, buffer: DataBuffer) {
+    const indices = ShellUtils.getProfileIndices(shell, profileId);
+    const { outer, inners } = indices;
+
+    const points: number[] = [];
+    for (let i = 0; i < outer.length; i++) {
+      const index = outer[i] * 3;
+      points.push(buffer[index], buffer[index + 1], buffer[index + 2]);
+    }
+
+    const holesIndices = [];
+
+    for (let i = 0; i < inners.length; i++) {
+      const currentHole = inners[i];
+      holesIndices.push(points.length / 3);
+      for (let j = 0; j < currentHole.length; j++) {
+        const index = currentHole[j] * 3;
+        points.push(buffer[index], buffer[index + 1], buffer[index + 2]);
+      }
+    }
+
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    a.set(points[0], points[1], points[2]);
+    b.set(points[3], points[4], points[5]);
+    c.set(points[6], points[7], points[8]);
+    const tri = new THREE.Triangle();
+    tri.set(a, b, c);
+    const normal = new THREE.Vector3();
+    tri.getNormal(normal);
+
+    const [dim1, dim2] = FaceUtils.getEarcutDimensions(normal);
+
+    const projectedPoints = [];
+    for (let i = 0; i < points.length; i += 3) {
+      const x = points[i];
+      const y = points[i + 1];
+      const z = points[i + 2];
+      const point = [x, y, z];
+      projectedPoints.push(point[dim1], point[dim2]);
+    }
+
+    const result = earcut(projectedPoints, holesIndices);
+    return { points: new Float32Array(points), indices: result };
   }
 }

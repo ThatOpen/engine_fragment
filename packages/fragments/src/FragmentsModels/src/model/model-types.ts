@@ -69,7 +69,8 @@ export interface RelsModifyChange {
 export type RelsChange = RelsModifyChange;
 
 /**
- * Type representing a unique identifier for a model item. This can be either a string or a number.
+ * Type representing a unique identifier for a model item.
+ * This can be either a string or a number.
  */
 export type Identifier = string | number;
 
@@ -116,6 +117,12 @@ export type MaterialDefinition = {
   transparent: boolean;
   /** An optional custom ID for the material */
   customId?: string;
+  /**
+   * Whether to have depth test enabled when rendering this material. When the depth test is disabled, the depth write
+   * will also be implicitly disabled.
+   * @default true
+   */
+  depthTest?: boolean;
 };
 export interface MaterialData {
   data: MaterialDefinition;
@@ -298,6 +305,10 @@ export interface RaycastResult {
   snappedEdgeP1?: THREE.Vector3;
   /** The second edge of the snapped edge */
   snappedEdgeP2?: THREE.Vector3;
+  /** The points of the raycasted face */
+  facePoints?: Float32Array;
+  /** The indices of the raycasted face */
+  faceIndices?: Uint16Array;
 }
 
 /**
@@ -358,6 +369,8 @@ export type AlignmentCurve = {
 
 export type AlignmentData = {
   absolute: AlignmentCurve[];
+  horizontal: AlignmentCurve[];
+  vertical: AlignmentCurve[];
 };
 
 /**
@@ -493,3 +506,52 @@ export interface MappedInformationResult {
  */
 export type InformationResultType<T extends ItemInformationType> =
   MappedInformationResult[T];
+
+export type QueryAggregation = "exclusive" | "inclusive";
+
+export type GetItemsByAttributeParams = {
+  name: RegExp; // Making it a RegExp we can match attribues like Name and LongName in one single attribute query
+  value?: RegExp | RegExp[] | number | boolean; // By making the value optional it means the attribute must exist regardless the value
+  // condition?: any; // set this here to not forget about conditions for numerical values (>, >=, <, <=)
+  type?: RegExp;
+  negate?: boolean;
+  itemIds?: number[];
+};
+
+export type GetItemsByRelationParams = {
+  /** Relation tag on the *source* item (e.g. "IsDefinedBy") */
+  name: string;
+  /** Set of *target* item localIds that must appear in the chosen relation */
+  targetItemIds?: Set<number>;
+  /** Optional subset of candidate *source* items; if omitted all items are scanned. */
+  sourceItemIds?: Iterable<number>;
+};
+
+export type ItemsQueryParams = {
+  categories?: RegExp[];
+  attributes?: {
+    aggregation?: QueryAggregation;
+    queries: GetItemsByAttributeParams[];
+  };
+  relation?: {
+    name: string;
+    query?: ItemsQueryParams; // By making the query optional it means the item must have the given relation regardless of its items (e.g. To take items that have property sets )
+  };
+};
+
+export interface AttributesUniqueValuesParams {
+  key?: string; // the key name to be used in the result
+  get: RegExp; // the attribute name whose value to take
+  categories?: RegExp[];
+  // the queries an attribute set must match to be considered
+  attributes?: {
+    aggregation?: QueryAggregation;
+    queries: GetItemsByAttributeParams[];
+  };
+}
+
+export interface ModelSection {
+  buffer: Float32Array;
+  index: number;
+  fillsIndices: number[];
+}

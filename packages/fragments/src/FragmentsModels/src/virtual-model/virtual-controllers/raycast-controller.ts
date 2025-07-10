@@ -33,6 +33,8 @@ export class RaycastController {
     frustum: new THREE.Frustum(),
     m1: new THREE.Matrix4(),
     m2: new THREE.Matrix4(),
+    m3: new THREE.Matrix4(),
+    v1: new THREE.Vector3(),
     planes: [] as THREE.Plane[],
   };
 
@@ -322,6 +324,21 @@ export class RaycastController {
 
       if (result.normal) {
         result.normal.transformDirection(this._temp.m1);
+      }
+
+      if ("facePoints" in result) {
+        const sample = this._meshes.samples(id, this._temp.sample)!;
+        TransformHelper.get(sample, this._meshes, this._temp.m3);
+        for (let i = 0; i < result.facePoints.length; i += 3) {
+          const x = result.facePoints[i];
+          const y = result.facePoints[i + 1];
+          const z = result.facePoints[i + 2];
+          this._temp.v1.set(x, y, z);
+          this._temp.v1.applyMatrix4(this._temp.m3);
+          result.facePoints[i] = this._temp.v1.x;
+          result.facePoints[i + 1] = this._temp.v1.y;
+          result.facePoints[i + 2] = this._temp.v1.z;
+        }
       }
 
       result.sampleId = id;

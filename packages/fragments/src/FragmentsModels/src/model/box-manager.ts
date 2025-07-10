@@ -12,7 +12,8 @@ export class BoxManager {
 
   async getMergedBox(model: FragmentsModel, localIds: number[]) {
     const request = this.getBoxRequest(model, [localIds]);
-    const [box] = await model.threads.fetch(request);
+    const { boxes } = await model.threads.fetch(request);
+    const [box] = boxes;
     return this.getAbsoluteBox(box, model);
   }
 

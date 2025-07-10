@@ -56,9 +56,12 @@ export class VirtualMemoryController {
   }
 
   private static computeCapacity(): number {
-    const deviceMemory = (navigator as any).deviceMemory;
+    const deviceMemory =
+      globalThis.navigator && "deviceMemory" in globalThis.navigator
+        ? (globalThis.navigator.deviceMemory as number)
+        : null;
     const fallbackMemory = 2;
-    const baseMemory = deviceMemory ?? fallbackMemory;
+    const baseMemory = deviceMemory !== null ? deviceMemory : fallbackMemory;
     const result = this.oneHundredMb * baseMemory;
     return Math.trunc(result);
   }

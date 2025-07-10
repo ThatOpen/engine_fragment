@@ -4,9 +4,6 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { GeometryClass } from './geometry-class.js';
-
-
 export class GeometrySample {
   bb: flatbuffers.ByteBuffer|null = null;
   bb_pos = 0;
@@ -16,43 +13,32 @@ export class GeometrySample {
   return this;
 }
 
-geometryClass():GeometryClass {
-  return this.bb!.readInt8(this.bb_pos);
-}
-
-mutate_geometry_class(value:GeometryClass):boolean {
-  this.bb!.writeInt8(this.bb_pos + 0, value);
-  return true;
-}
-
 id():number {
-  return this.bb!.readUint32(this.bb_pos + 4);
+  return this.bb!.readUint32(this.bb_pos);
 }
 
 mutate_id(value:number):boolean {
-  this.bb!.writeUint32(this.bb_pos + 4, value);
+  this.bb!.writeUint32(this.bb_pos + 0, value);
   return true;
 }
 
 transform():number {
-  return this.bb!.readUint32(this.bb_pos + 8);
+  return this.bb!.readUint32(this.bb_pos + 4);
 }
 
 mutate_transform(value:number):boolean {
-  this.bb!.writeUint32(this.bb_pos + 8, value);
+  this.bb!.writeUint32(this.bb_pos + 4, value);
   return true;
 }
 
 static sizeOf():number {
-  return 12;
+  return 8;
 }
 
-static createGeometrySample(builder:flatbuffers.Builder, geometry_class: GeometryClass, id: number, transform: number):flatbuffers.Offset {
-  builder.prep(4, 12);
+static createGeometrySample(builder:flatbuffers.Builder, id: number, transform: number):flatbuffers.Offset {
+  builder.prep(4, 8);
   builder.writeInt32(transform);
   builder.writeInt32(id);
-  builder.pad(3);
-  builder.writeInt8(geometry_class);
   return builder.offset();
 }
 

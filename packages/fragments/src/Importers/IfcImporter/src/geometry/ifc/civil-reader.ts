@@ -10,25 +10,79 @@ export class CivilReader {
       const allAlignments: AlignmentData[] = [];
 
       for (const alignment of alignments) {
-        const points3d = alignment.curve3D[0].points;
-        let pointCounter = 0;
-
         const currentAlignment: AlignmentData = {
           absolute: [],
+          horizontal: [],
+          vertical: [],
         };
         allAlignments.push(currentAlignment);
 
+        let pointsCounter = 0;
+
         for (let i = 0; i < alignment.horizontal.length; i++) {
-          const curve = alignment.horizontal[i];
-          const type = this.getCurveType(curve.data[1]);
-          const points: number[] = [];
-          for (const _point of curve.points) {
-            const { x, y, z } = points3d[pointCounter++];
-            points.push(x, y, z);
+          const points3d = alignment.curve3D[0].points;
+          const curveHorizontal = alignment.horizontal[i];
+
+          const result3d: number[] = [];
+          const resultHorizontal: number[] = [];
+
+          const type = this.getCurveType(curveHorizontal.data[1]);
+          const points3DReversed: number[][] = [];
+          const pointsHorizontalReversed: number[][] = [];
+
+          for (const point of curveHorizontal.points) {
+            const { x, y, z } = points3d[pointsCounter++];
+            points3DReversed.push([x, y, z]);
+            pointsHorizontalReversed.push([point.x, point.y]);
           }
-          const pointsBuffer = new Float32Array(points);
+
+          points3DReversed.reverse();
+          pointsHorizontalReversed.reverse();
+
+          for (const [x, y, z] of points3DReversed) {
+            result3d.push(x, y, z);
+          }
+
+          for (const [x, y] of pointsHorizontalReversed) {
+            resultHorizontal.push(x, 0, -y);
+          }
+
+          const buffer3d = new Float32Array(result3d);
+          const bufferHorizontal = new Float32Array(resultHorizontal);
+
           currentAlignment.absolute.push({
-            points: pointsBuffer,
+            points: buffer3d,
+            type,
+          });
+
+          currentAlignment.horizontal.push({
+            points: bufferHorizontal,
+            type,
+          });
+        }
+
+        for (let i = 0; i < alignment.vertical.length; i++) {
+          const curveVertical = alignment.vertical[i];
+
+          const resultVertical: number[] = [];
+
+          const type = this.getCurveType(curveVertical.data[1]);
+          const pointsVerticalReversed: number[][] = [];
+
+          for (const point of curveVertical.points) {
+            pointsVerticalReversed.push([point.x, point.y]);
+          }
+
+          pointsVerticalReversed.reverse();
+
+          for (const [x, y] of pointsVerticalReversed) {
+            resultVertical.push(x, y, 0);
+          }
+
+          const bufferVertical = new Float32Array(resultVertical);
+
+          currentAlignment.vertical.push({
+            points: bufferVertical,
             type,
           });
         }

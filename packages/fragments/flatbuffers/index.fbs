@@ -1,188 +1,233 @@
 // MESHES
 
 enum RenderedFaces:byte {
-    ONE = 0,
-    TWO = 1
+    ONE = 0, // One rendered face
+    TWO = 1 // Two rendered faces
 }
 
 enum Stroke:byte {
-    DEFAULT = 0
+    DEFAULT = 0 // Default line type
 }
 
 enum AxisPartClass:byte {
-    NONE = 0,
-    WIRE = 1,
-    WIRE_SET = 2,
-    CIRCLE_CURVE = 3
+    NONE = 0, // No axis part class
+    WIRE = 1, // Straight line axis part class
+    WIRE_SET = 2, // Straight line set axis part class
+    CIRCLE_CURVE = 3 // Circular arc axis part class
 }
 
 enum RepresentationClass:byte {
-    NONE = 0,
-    SHELL = 1,
-    CIRCLE_EXTRUSION = 2,
+    NONE = 0, // No representation class
+    SHELL = 1, // Shell (brep) representation class
+    CIRCLE_EXTRUSION = 2, // Circle extrusion representation class (used for reinforcement bars)
+}
+
+enum ShellType:byte {
+    NONE = 0, // Default shell type (less than 65535 points)
+    BIG = 1, // Big shell type (less than 4294967295 points)
 }
 
 struct FloatVector {
-    x: float;
-    y: float;
-    z: float;
+    x: float; // x coordinate, max value 10^30
+    y: float; // y coordinate, max value 10^30
+    z: float; // z coordinate, max value 10^30
 }
 
 struct DoubleVector {
-    x: double;
-    y: double;
-    z: double;
+    x: double; // x coordinate, max value 10^308
+    y: double; // y coordinate, max value 10^308
+    z: double; // z coordinate, max value 10^308
 }
 
 struct Transform {
-    position: DoubleVector;
-    x_direction: FloatVector;
-    y_direction: FloatVector;
+    position: DoubleVector; // Position of the transform
+    x_direction: FloatVector; // X axis of the transform
+    y_direction: FloatVector; // Y axis of the transform
 }
 
 struct Material {
-    r: ubyte;
-    g: ubyte;
-    b: ubyte;
-    a: ubyte;
-    rendered_faces: RenderedFaces;
-    stroke: Stroke;
+    r: ubyte; // Red color value
+    g: ubyte; // Green color value
+    b: ubyte; // Blue color value
+    a: ubyte; // Alpha color value
+    rendered_faces: RenderedFaces; // Number of rendered faces
+    stroke: Stroke; // Line stroke type
 }
 
 struct BoundingBox {
-    min: FloatVector;
-    max: FloatVector;
+    min: FloatVector; // Minimum point of the bounding box
+    max: FloatVector; // Maximum point of the bounding box
 }
 
 struct Wire {
-    p1: FloatVector;
-    p2: FloatVector;
+    p1: FloatVector; // First point of the wire
+    p2: FloatVector; // Last point of the wire
 }
 
 table WireSet {
-    ps: [FloatVector];
+    ps: [FloatVector]; // Ordered points of the wire set
 }
 
 struct CircleCurve {
-    aperture: float;
-    position: FloatVector;
-    radius: float;
-    x_direction: FloatVector;
-    y_direction: FloatVector;
+    aperture: float; // Angle of the arc
+    position: FloatVector; // Center of the arc
+    radius: float; // Radius of the arc
+    x_direction: FloatVector; // X axis of the arc
+    y_direction: FloatVector; // Y axis of the arc
 }
 
 table ShellHole {
-    indices: [ushort] (required);
-    profile_id: ushort;
+    indices: [ushort] (required); // Indices of the points of the hole
+    profile_id: ushort; // Index of the profile to which the hole belongs
 }
 
 table ShellProfile {
-    indices: [ushort] (required);
+    indices: [ushort] (required); // Indices of the points of the profile
+}
+
+table BigShellHole {
+    indices: [uint] (required); // Indices of the points of the hole
+    profile_id: ushort; // Index of the profile to which the hole belongs
+}
+
+table BigShellProfile {
+    indices: [uint] (required); // Indices of the points of the profile
 }
 
 table Axis {
-    wires: [Wire] (required);
-    order: [uint] (required);
-    parts: [AxisPartClass] (required);
-    wire_sets: [WireSet] (required);
-    circle_curves: [CircleCurve] (required);
+    wires: [Wire] (required); // Straight lines of the axis
+    order: [uint] (required); // Indices of the axis parts
+    parts: [AxisPartClass] (required); // Class of the axis parts
+    wire_sets: [WireSet] (required); // Straight line sets of the axis
+    circle_curves: [CircleCurve] (required); // Circular arcs of the axis
 }
 
 struct Representation {
-    id: uint;
-    bbox: BoundingBox;
-    representation_class: RepresentationClass;
+    id: uint; // The index of the geometry in its corresponding array
+    bbox: BoundingBox; // The bounding box of the geometry
+    representation_class: RepresentationClass; // The class of the geometry (in which array it belongs: shells, circleExtrusions, etc.)
 }
 
 struct Sample {
-    item: uint;
-    material: uint;
-    representation: uint;
-    local_transform: uint;
+    item: uint; // The index of the global transform and item in meshesItems
+    material: uint; // The index of the material in materials
+    representation: uint; // The index of the representation in representations
+    local_transform: uint; // The index of the local transform in localTransforms
 }
 
 table Shell {
-    profiles: [ShellProfile] (required);
-    holes: [ShellHole] (required);
-    points: [FloatVector] (required);
+    profiles: [ShellProfile] (required); // Exterior profiles of the shell
+    holes: [ShellHole] (required); // Holes of the shell
+    points: [FloatVector] (required); // Points of the shell
+    big_profiles: [BigShellProfile] (required); // Exterior profiles of the shell (if the shell has more than 65535 points)
+    big_holes: [BigShellHole] (required); // Holes of the shell (if the shell has more than 65535 points)
+    type: ShellType; // Type of the shell (less than 65535 points or more than 65535 points)
 }
 
 table CircleExtrusion {
-    radius: [double] (required);
-    axes: [Axis] (required);
+    radius: [double] (required); // Half of the thickness of the circle extrusion
+    axes: [Axis] (required); // Axes of the circle extrusion
 }
 
 table Meshes {
-    coordinates: Transform (required);
+    coordinates: Transform (required); // The global coordinates of the model. Usually used in BIM models to locate the model geographically.
     meshes_items: [uint] (required); // An array that works as an indexation matching localIds indices with meshes.
-    samples: [Sample] (required);
-    representations: [Representation] (required);
-    materials: [Material] (required);
-    circle_extrusions: [CircleExtrusion] (required);
-    shells: [Shell] (required);
-    local_transforms: [Transform] (required);
-    global_transforms: [Transform] (required);
+    samples: [Sample] (required); // An array of all instances of meshes in this model.
+    representations: [Representation] (required); // Representations are a common interface for all geometry types. Each representation is an abstraction of a geometry and has its basic information. 
+    materials: [Material] (required); // The list of unique geometry materials in this model.
+    circle_extrusions: [CircleExtrusion] (required); // The list of geometries defined as a wire with thickness. Used mainly for reinforcement bars.
+    shells: [Shell] (required); // The list of geometries defined as faces and holes (breps).
+    local_transforms: [Transform] (required); // Local transforms of the samples
+    global_transforms: [Transform] (required); // A set of local transformations for geometry samples. Each global transformation is assigned to a local id by meshes_items.
 }
 
 table Attribute {
-    data: [string] (required);
+    data: [string] (required); // The attributes of an item, represented as an array of strings
 }
 
 table Relation {
-    data: [string] (required);
+    data: [string] (required); // The relation of an item, represented as an array of strings
 }
 
 table SpatialStructure {
-    local_id: uint = null;
-    category: string;
-    children: [SpatialStructure];
+    local_id: uint = null; // Local id of the current spatial node
+    category: string; // Category of the current spatial node
+    children: [SpatialStructure]; // Child spatial nodes of the current spatial node
 }
 
 table Alignment {
-    absolute: [uint];
+    absolute: [uint]; // Geometry representation ids for the absolute respresentation of this alignment
+    horizontal: [uint]; // Geometry representation ids for the horizontal respresentation of this alignment
+    vertical: [uint]; // Geometry representation ids for the vertical respresentation of this alignment
 }
 
 // IMPLICIT GEOMETRIES
+// Implicit geometries' only goal is to create mesh representations
+// Implicit geometries main object are samples. Samples are made of:
+// - A representation (a common interface for all implicit geometries)
+// - A transform that defines the geometry's transformation
+// Not all samples are used to create mesh representations. For example, a wall
+// with some holes might be made using multiple samples, but in the end only the
+// end sample will be used to create the mesh representation.
 
 enum GeometryClass:byte {
-    NONE = 0,
-    LINES = 1,
-    ELLIPSE_ARC = 2,
-    CLOTHOID = 3,
-    PARABOLA = 4,
+    NONE = 0, // No geometry class
+    LINES = 1, // Simple lines geometry class
+    ELLIPSE_ARC = 2, // Ellipse arc geometry class
+    CLOTHOID = 3, // Clothoid geometry class
+    PARABOLA = 4, // Parabola geometry class
+    WALLS = 5, // Walls geometry class
 }
 
 struct GeometrySample {
-    geometry_class: GeometryClass;
-    id: uint;
-    transform: uint;
+    id: uint; // The index of the geometry in the representations array
+    transform: uint; // The index of the transform in transforms
 }
 
-// TODO: Simply make this a float array?
+struct GeometryRepresentation {
+    id: uint; // The index of the geometry in its corresponding array
+    geometry_class: GeometryClass; // The class of the geometry
+}
+
 table GeometryLines {
-    points: [FloatVector] (required);
+    points: [float] (required); // Points of the line
+}
+
+struct GeometryWall {
+    start: FloatVector; // Start point of the wall
+    end: FloatVector; // End point of the wall
+    height: float; // Height of the wall
+    width: float; // Width of the wall
+    offset: float; // Offset of the wall
 }
 
 table Geometries {
-    samples: [GeometrySample] (required);
-    transforms: [Transform] (required);
-    lines: [GeometryLines] (required);
+    samples: [GeometrySample] (required); // An array of implicit geometry samples
+    sample_ids: [uint]; // An array of ids for the implicit geometry samples
+    representations: [GeometryRepresentation] (required); // An array of implicit geometry representations
+    representation_ids: [uint]; // An array of ids for the implicit geometry representations
+    transforms: [Transform] (required); // An array of implicit geometry transforms
+    transform_ids: [uint]; // An array of ids for the implicit geometry transforms
+    representations_samples: [uint]; // An array of id pairs that work as an indexation matching mesh representations ids with implicit samples ids
+    lines: [GeometryLines] (required); // An array of implicit geometry lines
+    walls: [GeometryWall]; // An array of implicit geometry walls
 }
 
 // MODELS
 
+// The main object and the entry point of all Fragment files. Each Fragments file has just one model, and it contains all the information of the file.
 table Model {
     metadata: string; // JSON string for generic data about the file
 
     guids: [string] (required); // An array of Global Unique Identifiers of items. Not all items may have a guid.
     guids_items: [uint] (required); // An array that works as an indexation matching localIds indices with guids.
 
-    max_local_id: uint; // The last localID converted when serializing. Used to know the next localID when adding a new item.
+    max_local_id: uint; // The smallest localID available when serializing. Used to know the next localID when adding a new item.
     local_ids: [uint] (required); // File specific identification for each item.
 
     categories: [string] (required); // An array of all item categories found in the file, stored as strings.
 
-    meshes: Meshes (required);
+    meshes: Meshes (required); // The object containing all explicit geometries of the model.
 
     attributes: [Attribute]; // An array of items data stored as an array of arrays.
 
@@ -191,11 +236,14 @@ table Model {
 
     guid: string (required); // An global ID that identifies this model uniquely.
 
-    spatial_structure: SpatialStructure;
+    spatial_structure: SpatialStructure; // A tree representing the spatial relation between elements.
 
-    alignments: [Alignment];
+    alignments: [Alignment]; // A set of civil alignments for this model
 
-    geometries: Geometries;
+    geometries: Geometries; // The object containing all implicit geometries of the model.
+    
+    unique_attributes: [string]; // An array of unique item attributes in this model.
+    relation_names: [string]; // An array of unique relation names in this model.
 }
 
 file_identifier "0001";

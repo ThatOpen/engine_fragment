@@ -14,7 +14,9 @@ import {
   AttrsChange,
   Identifier,
   RelsChange,
+  ItemsQueryParams,
   MeshData,
+  AttributesUniqueValuesParams,
 } from "./model-types";
 
 import { MiscHelper } from "../utils";
@@ -36,7 +38,14 @@ import { DataManager } from "./data-manager";
 import { SequenceManager } from "./sequence-manager";
 
 /**
- * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
+ * The main class for managing a 3D model loaded from a fragments file.
+ * Handles geometry, materials, visibility, highlighting, sections, and more.
+ *
+ * This class orchestrates multiple specialized managers to handle different aspects
+ * of the model like mesh management, item data, raycasting, etc. It maintains the
+ * overall state and provides the main interface for interacting with the model.
+ *
+ * The model data is loaded and processed asynchronously across multiple threads.
  */
 export class FragmentsModel {
   /**
@@ -203,11 +212,22 @@ export class FragmentsModel {
     return this._dataManager.getCategories(this);
   }
 
+  async getItemsWithGeometryCategories() {
+    return this._dataManager.getItemsWithGeometryCategories(this);
+  }
+
   /**
    * Get all the items of the model that have geometry.
    */
   async getItemsWithGeometry() {
     return this._dataManager.getItemsWithGeometry(this);
+  }
+
+  /**
+   * Get all the items ids of the model that have geometry.
+   */
+  async getItemsIdsWithGeometry() {
+    return this._dataManager.getItemsIdsWithGeometry(this);
   }
 
   /**
@@ -237,8 +257,46 @@ export class FragmentsModel {
    * Get all the items of the model that belong to the specified category.
    * @param category - The category to look up.
    */
-  async getItemsOfCategory(category: string) {
-    return this._dataManager.getItemsOfCategory(this, category);
+  async getItemsOfCategories(categories: RegExp[]) {
+    return this._dataManager.getItemsOfCategories(this, categories);
+  }
+
+  async getGuids() {
+    const guids = (await this.threads.invoke(
+      this.modelId,
+      "getGuids",
+      [],
+    )) as string[];
+    return guids;
+  }
+
+  async getLocalIds() {
+    const localIds = (await this.threads.invoke(
+      this.modelId,
+      "getLocalIds",
+      [],
+    )) as number[];
+    return localIds;
+  }
+
+  /**
+   * Retrieves items based on the specified query parameters.
+   *
+   * @param params - The query parameters used to filter and retrieve items.
+   * @returns A promise that resolves to the items matching the query.
+   */
+  async getItemsByQuery(params: ItemsQueryParams) {
+    return this._dataManager.getItemsByQuery(this, params);
+  }
+
+  // TODO: Fix, this is wrong
+  async getItemsMaterialDefinition(localIds: number[]) {
+    const result = (await this.threads.invoke(
+      this.modelId,
+      "getItemsMaterialDefinition",
+      [localIds],
+    )) as { definition: MaterialDefinition; localIds: number[] }[];
+    return result;
   }
 
   /**
@@ -256,6 +314,84 @@ export class FragmentsModel {
       [localIds],
     )) as MeshData[][];
     return geometries;
+  }
+
+  /**
+   * Retrieves the total volume of items based on their local IDs.
+   *
+   * @param localIds An array of local IDs representing the items.
+   * @returns A promise that resolves to the total volume of the specified items.
+   */
+  async getItemsVolume(localIds: number[]) {
+    const volume = (await this.threads.invoke(this.modelId, "getItemsVolume", [
+      localIds,
+    ])) as number;
+    return volume;
+  }
+
+  /**
+   * Retrieves the names of all attributes associated with the model.
+   *
+   * @returns A promise that resolves to an array of strings, where each string is the name of an attribute.
+   */
+  async getAttributeNames() {
+    const names = (await this.threads.invoke(
+      this.modelId,
+      "getAttributeNames",
+      [],
+    )) as string[];
+    return names;
+  }
+
+  /**
+   * Retrieves the attribute values associated with the model.
+   *
+   * @returns A promise that resolves to an array of attribute values.
+   */
+  async getAttributeValues() {
+    const values = (await this.threads.invoke(
+      this.modelId,
+      "getAttributeValues",
+      [],
+    )) as any[];
+    return values;
+  }
+
+  async getAttributesUniqueValues(params: AttributesUniqueValuesParams[]) {
+    const values = (await this.threads.invoke(
+      this.modelId,
+      "getAttributesUniqueValues",
+      [params],
+    )) as Record<string, any[]>;
+    return values;
+  }
+
+  /**
+   * Retrieves the attribute types associated with the model.
+   *
+   * @returns A promise that resolves to an array of attribute types.
+   */
+  async getAttributeTypes() {
+    const types = (await this.threads.invoke(
+      this.modelId,
+      "getAttributeTypes",
+      [],
+    )) as string[];
+    return types;
+  }
+
+  /**
+   * Retrieves the names of all relations associated with this model.
+   *
+   * @returns A promise that resolves to an array of strings, where each string is the name of a relation.
+   */
+  async getRelationNames() {
+    const names = (await this.threads.invoke(
+      this.modelId,
+      "getRelationNames",
+      [],
+    )) as string[];
+    return names;
   }
 
   /**
@@ -332,10 +468,24 @@ export class FragmentsModel {
   }
 
   /**
-   * Get the civil alignments of the model (if any).
+   * Get the absolute alignments of the model (if any).
    */
   async getAlignments() {
     return this._alignmentsManager.getAlignments();
+  }
+
+  /**
+   * Get the horizontal alignments of the model (if any).
+   */
+  async getHorizontalAlignments() {
+    return this._alignmentsManager.getHorizontalAlignments();
+  }
+
+  /**
+   * Get the vertical alignments of the model (if any).
+   */
+  async getVerticalAlignments() {
+    return this._alignmentsManager.getVerticalAlignments();
   }
 
   /**
@@ -459,8 +609,8 @@ export class FragmentsModel {
    * Gets the section (edges and fills) between the model and a given clipping plane.
    * @param plane - The plane to get the section of.
    */
-  async getSection(plane: THREE.Plane) {
-    return this._sectionManager.getSection(this, plane);
+  async getSection(plane: THREE.Plane, localIds?: number[]) {
+    return this._sectionManager.getSection(this, plane, localIds);
   }
 
   /**

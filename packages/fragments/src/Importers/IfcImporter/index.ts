@@ -3,7 +3,12 @@ import { MathUtils } from "three";
 import pako from "pako";
 import * as WEBIFC from "web-ifc";
 import * as TFB from "../../Schema";
-import { IfcPropertyProcessor, IfcGeometryProcessor, ifcClasses } from "./src";
+import {
+  IfcPropertyProcessor,
+  IfcGeometryProcessor,
+  ifcClasses,
+  ProcessData,
+} from "./src";
 import { DataSet } from "../../Utils";
 
 /**
@@ -30,6 +35,17 @@ export class IfcImporter {
     "OwnerHistory",
   ]);
 
+  /**
+   * @summary Defines the relationships between IFC entities.
+   * @description This map defines the relationships between IFC entities, specifying the relationship type,
+   * and the properties that define the relationship in both directions.
+   *
+   * The keys of the map are IFC relationship types (e.g., `IFCRELDEFINESBYPROPERTIES`).
+   * The values are objects that define the properties for relating and related entities.
+   *
+   * - `forRelating`: The property name on the relating entity.
+   * - `forRelated`: The property name on the related entity.
+   */
   relations = new Map([
     [
       WEBIFC.IFCRELDEFINESBYPROPERTIES,
@@ -49,15 +65,36 @@ export class IfcImporter {
     ],
   ]);
 
+  /**
+   * @summary A map containing sets of IFC classes, categorized into 'elements' and 'abstract'.
+   * @remarks The 'elements' category contains a set of IFC classes representing physical elements.
+   * The 'abstract' category contains a set of abstract IFC classes, including materials, properties, classifications, etc.
+   */
   classes = {
     elements: new DataSet<number>([...ifcClasses.elements]),
     abstract: new DataSet<number>([
-      ...ifcClasses.units,
       ...ifcClasses.base,
       ...ifcClasses.materials,
       ...ifcClasses.properties,
     ]),
   };
+
+  /**
+   * Whether to include unique attributes from the imported IFC data.
+   */
+  includeUniqueAttributes = false;
+
+  /**
+   * Whether to include relation names from the imported IFC data.
+   */
+  includeRelationNames = false;
+
+  /**
+   * Whether to replace the IfcBuildingStorey.Elevation with the absolute storey elevation.
+   * @remarks The value is calculated taking into consideration the relative positions between entities
+   * and it is always given in meters.
+   */
+  replaceStoreyElevation = true;
 
   private get builder() {
     if (!this._builder) {
@@ -74,12 +111,7 @@ export class IfcImporter {
    * @param data.readFromCallback Whether to read data from a callback function. Useful for node.js.
    * @param data.readCallback Callback function to read IFC data. Useful for node.js.
    */
-  async process(data: {
-    readFromCallback?: boolean;
-    bytes?: Uint8Array;
-    readCallback?: any;
-    raw?: boolean;
-  }) {
+  async process(data: ProcessData) {
     this._builder = new fb.Builder(1024);
 
     // Get geometry
@@ -112,16 +144,19 @@ export class IfcImporter {
       spatialStrutureOffset,
       attributesVector,
       categoriesVector,
+      uniqueAttributesVector,
+      relNamesVector,
     } = propsData;
 
-    // TODO: Allow user to pass a guid
-    const guid = MathUtils.generateUUID();
+    const guid = data.id ?? MathUtils.generateUUID();
     const guidRef = this.builder.createString(guid);
 
     TFB.Model.startModel(this.builder);
     TFB.Model.addMeshes(this.builder, modelMesh);
     TFB.Model.addMetadata(this.builder, metadataOffset);
     TFB.Model.addAttributes(this.builder, attributesVector);
+    TFB.Model.addUniqueAttributes(this.builder, uniqueAttributesVector);
+    TFB.Model.addRelationNames(this.builder, relNamesVector);
     TFB.Model.addLocalIds(this.builder, localIdsVector);
     TFB.Model.addCategories(this.builder, categoriesVector);
     TFB.Model.addRelationsItems(this.builder, relIndicesVector);
@@ -140,6 +175,12 @@ export class IfcImporter {
     this.clean();
 
     const content = data.raw ? outBytes : pako.deflate(outBytes);
+
+    data.progressCallback?.(1, {
+      process: "conversion",
+      state: "finish",
+    });
+
     return content;
   }
 
@@ -148,3 +189,5 @@ export class IfcImporter {
     this._builder = null;
   }
 }
+
+export * from "./src/types";
