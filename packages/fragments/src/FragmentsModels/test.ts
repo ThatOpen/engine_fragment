@@ -44,7 +44,7 @@ async function main() {
   // Get fragments model
 
   // prettier-ignore
-  const workerUrl = "./src/multithreading/fragments-thread.ts";
+  const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
   // const workerUrl = "../../dist/Worker/worker.mjs";
   const fragments = new FragmentsModels(workerUrl);
 
@@ -108,7 +108,9 @@ async function main() {
   //   item.value.transparent = true;
   // });
 
-  const model = await loadModel("/resources/frags/school_arq.frag");
+  const model = await loadModel(
+    "https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag",
+  );
   const mouse = new THREE.Vector2();
 
   // const columIds = await model.getItemsByQuery({

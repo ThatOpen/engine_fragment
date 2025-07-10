@@ -80,7 +80,7 @@ const convertIFC = async () => {
 // and provide the relative path in `workerUrl`
 // We use here the internal route of the worker in the library for simplicity purposes
 const workerUrl =
-  "../../FragmentsModels/src/multithreading/fragments-thread.ts";
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 

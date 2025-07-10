@@ -131,7 +131,7 @@ const run = async (serialize: boolean) => {
     // Model loading
 
     // prettier-ignore
-    const workerUrl = "../../FragmentsModels/src/multithreading/fragments-thread.ts";
+    const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
     // const workerUrl = "../../../dist/Worker/worker.mjs";
     const fragments = new FragmentsModels(workerUrl);
 

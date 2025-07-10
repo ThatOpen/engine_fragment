@@ -56,7 +56,8 @@ grids.create(world);
 // You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
 // We use here the internal route of the worker in the library for simplicity purposes
-const workerUrl = "../../src/multithreading/fragments-thread.ts";
+const workerUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 
@@ -82,7 +83,9 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
   :::
 */
 
-const file = await fetch("/resources/frags/school_arq.frag");
+const file = await fetch(
+  "https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag",
+);
 const buffer = await file.arrayBuffer();
 const model = await fragments.load(buffer, { modelId: "example" });
 
