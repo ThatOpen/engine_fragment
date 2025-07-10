@@ -110,6 +110,10 @@ async function loadIfcFile(fileUrl: string, raw: boolean) {
   const ifcBuffer = await ifcFile.arrayBuffer();
   const typedArray = new Uint8Array(ifcBuffer);
   const serializer = new FRAGS.IfcImporter();
+  serializer.wasm = {
+    absolute: true,
+    path: "https://unpkg.com/web-ifc@0.0.69/",
+  };
   const bytes = await serializer.process({ bytes: typedArray, raw: true });
 
   model = await fragments.load(bytes, {
