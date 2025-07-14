@@ -1,11 +1,5 @@
 /**
- * Recursively converts a Flatbuffers object into a plain JavaScript object.
- * This function traverses the prototype chain of the Flatbuffers object and extracts all properties
- * and their values, handling both primitive values and nested objects/arrays.
- *
- * @param obj - The Flatbuffers object to convert
- * @param result - The target plain JavaScript object where the converted properties will be stored
- *
+ * Recursively converts a Flatbuffers object into a plain JavaScript object. This function traverses the prototype chain of the Flatbuffers object and extracts all properties and their values, handling both primitive values and nested objects/arrays.
  */
 export function getObject(obj: any, result: any) {
   const proto = Object.getPrototypeOf(obj);

@@ -9,16 +9,7 @@ import { Event } from "../Utils";
 export * from "./src";
 
 /**
- * The main class for managing multiple 3D models loaded from fragments files.
- * Handles loading, disposing, updating, raycasting, highlighting and coordinating multiple FragmentsModel instances.
- *
- * This class acts as the main entry point for working with fragments models. It:
- * - Manages loading and disposing of models
- * - Coordinates updates across all loaded models
- * - Handles raycasting and hit testing
- * - Manages highlighting across models
- * - Handles base coordinate systems
- *
+ * The main class for managing multiple 3D models loaded from fragments files. Handles loading, disposing, updating, raycasting, highlighting and coordinating multiple FragmentsModel instances. This class acts as the main entry point for working with fragments models.
  */
 export class FragmentsModels {
   /**
