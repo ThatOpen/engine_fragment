@@ -14,7 +14,7 @@ const restructureExamples = () => {
 
       for (const file of files) {
         const urlPath = file
-          .split("examples")[1]
+          .split(/^examples/)[1]
           .slice(1)
           .replace(".html", ".ts")
           .replace(/\\/g, "/");
