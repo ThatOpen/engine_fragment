@@ -303,7 +303,7 @@ export class IfcPropertyProcessor {
           unitHandle.value,
         );
 
-        const value = unit.UnitType.value;
+        const value = unit.UnitType?.value;
         if (value !== "LENGTHUNIT") continue;
 
         let factor = 1;
