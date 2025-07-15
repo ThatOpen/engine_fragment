@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.2.0](https://github.com/ThatOpen/engine_fragment/compare/v3.1.0...v3.2.0) (2025-07-15)
+
+
+### Features
+
+* fix tutorials paths ([7496f56](https://github.com/ThatOpen/engine_fragment/commit/7496f562ab7f5a24e2e23348ce64f0355ca4b701))
+
+
+### Bug Fixes
+
+* handle optional chaining for UnitType in IfcPropertyProcessor ([3f00edb](https://github.com/ThatOpen/engine_fragment/commit/3f00edbf3d7fa7097c954d8f20a1ded4ff43ff5f))
+
+
+### Miscellaneous Chores
+
+* release 3.2.0 ([f4faa23](https://github.com/ThatOpen/engine_fragment/commit/f4faa236c38a9281c3e19c561c831aee77d6dc60))
+
 ## [3.1.0](https://github.com/ThatOpen/engine_fragment/compare/v3.0.0...v3.1.0) (2025-07-10)
 
 
