@@ -130,8 +130,14 @@ const run = async (serialize: boolean) => {
 
     // Model loading
 
-    // prettier-ignore
-    const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+    const githubUrl =
+      "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+    const fetchedUrl = await fetch(githubUrl);
+    const workerBlob = await fetchedUrl.blob();
+    const workerFile = new File([workerBlob], "worker.mjs", {
+      type: "text/javascript",
+    });
+    const workerUrl = URL.createObjectURL(workerFile);
     // const workerUrl = "../../../dist/Worker/worker.mjs";
     const fragments = new FragmentsModels(workerUrl);
 

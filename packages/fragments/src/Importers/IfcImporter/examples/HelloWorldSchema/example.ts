@@ -60,8 +60,14 @@ world.renderer.onAfterUpdate.add(() => stats.end());
   Now we will set up Fragments for this app. If you are not familiar with Fragments, you can check out the other Fragments related tutorails in this documentation.
 */
 
-// prettier-ignore
-const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const githubUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("control", () => fragments.update());
 

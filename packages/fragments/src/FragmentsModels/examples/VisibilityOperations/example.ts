@@ -56,8 +56,14 @@ grids.create(world);
 // You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
 // We use here the internal route of the worker in the library for simplicity purposes
-const workerUrl =
+const githubUrl =
   "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 
