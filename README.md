@@ -22,6 +22,7 @@ Fragments is an open-source library designed to store, display, navigate, and ed
 
 This repository contains the format and a whole toolkit to start building on top.
 
+
 ## 🤝 Want our help?
 Are you developing a project with our technology and would like our help?
 Apply now to join [That Open Accelerator Program](https://thatopen.com/accelerator)!
