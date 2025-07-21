@@ -654,7 +654,7 @@ export class FragmentsModel {
    */
   async _setup(data: ArrayBuffer, raw?: boolean, config?: VirtualModelConfig) {
     if (this._isSetup) return;
-    this._setupManager.setup(this, this._bbox, data, raw, config);
+    await this._setupManager.setup(this, this._bbox, data, raw, config);
     this._isLoaded = true;
     this._isProcessing = true;
     this._isSetup = true;
