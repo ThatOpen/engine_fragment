@@ -189,6 +189,12 @@ export function getShellData(geometry: {
     const profile = new Profiles(face.plane);
     const openEdges = face.getOpenEdges();
 
+    if (openEdges.length === 0) {
+      // TODO: Something went wrong with geometry generation. Just return raw data
+      console.log("No open edges found. Using raw geometry.");
+      return getRawShellData(index, position, bbox);
+    }
+
     for (const edge of openEdges) {
       profile.add(edge);
     }

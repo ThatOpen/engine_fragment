@@ -69,6 +69,7 @@ export class MeshManager {
     const model = this.list.get(modelId);
     if (!model) return;
     if (tileRequestClass === TileRequestClass.CREATE) {
+      if (request.objectClass === undefined) return;
       const tile = this.create(request);
       this.setTileData(tile, request);
       model.tiles.set(tile.userData.tileId, tile);
