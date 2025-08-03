@@ -23,7 +23,11 @@ export class IfcGeometryProcessor {
     absolute: false,
   };
 
-  constructor(private _serializer: IfcImporter) {}
+  private _serializer: IfcImporter;
+
+  constructor(_serializer: IfcImporter) {
+    this._serializer = _serializer;
+  }
 
   async process(data: GeometriesProcessData) {
     const { builder } = data;

@@ -91,9 +91,6 @@ export class IfcFileReader {
     WEBIFC.IFCEARTHWORKSCUT,
   ]);
 
-  // TODO: Expose this value?
-  distanceThreshold = 100000; // 100 km
-
   scene: THREE.Scene | null = null;
 
   isolatedMeshes: Set<number> | null = null;
@@ -189,17 +186,20 @@ export class IfcFileReader {
       const { transformWithoutScale } = this.removeScale(transformArray);
 
       // Check that the object is not too far away
-      tempPosition.set(0, 0, 0);
-      tempPosition.applyMatrix4(transformWithoutScale);
-      if (
-        tempPosition.x > this.distanceThreshold ||
-        tempPosition.y > this.distanceThreshold ||
-        tempPosition.z > this.distanceThreshold
-      ) {
-        console.log(
-          `Object ${element.id} is more than ${this.distanceThreshold} meters away from the origin and will be skipped.`,
-        );
-        return;
+      const distanceThreshold = this._serializer.distanceThreshold;
+      if (distanceThreshold !== null) {
+        tempPosition.set(0, 0, 0);
+        tempPosition.applyMatrix4(transformWithoutScale);
+        if (
+          tempPosition.x > distanceThreshold ||
+          tempPosition.y > distanceThreshold ||
+          tempPosition.z > distanceThreshold
+        ) {
+          console.log(
+            `Object ${element.id} is more than ${distanceThreshold} meters away from the origin and will be skipped.`,
+          );
+          return;
+        }
       }
 
       for (let i = 0; i < geometryCount; i++) {

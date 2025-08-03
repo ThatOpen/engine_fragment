@@ -96,6 +96,15 @@ export class IfcImporter {
    */
   replaceStoreyElevation = true;
 
+  /**
+   * If set, ignores the items that are further away to the origin than this value.
+   * Keep in mind that if your IFC is correctly georreferenced, this value should never
+   * be too high. If it's too high, it's either because your file uses absolute coordinates,
+   * (which is a very bad idea, and usually due to a poor IFC export) or because there are
+   * objects that are very, very far away (very unlikely).
+   */
+  distanceThreshold: number | null = 100000;
+
   private get builder() {
     if (!this._builder) {
       throw new Error("Fragments: Builder not initialized");

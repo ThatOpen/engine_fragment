@@ -32,7 +32,7 @@ const run = async (serialize: boolean) => {
 
     // Read the file
     // const ifcFile = fs.readFileSync(`${name}${extension}`)
-    const url = "/resources/ifc/test/small-civil-q2.ifc";
+    const url = "/resources/ifc/test/125_C3D_BIM_M1_K.ifc";
     const ifcFile = await fetch(url);
     const ifcBuffer = await ifcFile.arrayBuffer();
     const typedArray = new Uint8Array(ifcBuffer);
@@ -40,6 +40,7 @@ const run = async (serialize: boolean) => {
     // Serialize the data
     // const serializationStart = performance.now()
     const serializer = new IfcImporter(); // The serializer can be other than IFC
+    serializer.distanceThreshold = null;
     // serializer.classesToInclude = [{entities: [WEBIFC.IFCWALLSTANDARDCASE, WEBIFC.IFCBUILDINGSTOREY], rels: [WEBIFC.IFCRELCONTAINEDINSPATIALSTRUCTURE]}]
     const raw = false;
     const conversionStart = performance.now();
