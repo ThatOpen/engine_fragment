@@ -61,7 +61,7 @@ export class IfcPropertyProcessor {
   constructor(
     private _serializer: IfcImporter,
     private _builder: Builder,
-  ) {}
+  ) { }
 
   async process(data: PropertiesProcessData) {
     // Open the IFC
@@ -349,7 +349,7 @@ export class IfcPropertyProcessor {
 
     let index = 0;
     for (const [attrName, attrValue] of Object.entries(attrs)) {
-      if (typeof attrValue === "number") continue;
+      if (typeof attrValue === "number" || typeof attrValue === "boolean") continue;
       if (
         this._serializer.attributesToExclude.has(attrName) ||
         attrValue === null ||
