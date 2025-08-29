@@ -1,5 +1,6 @@
 import * as FB from "flatbuffers";
 import * as THREE from "three";
+import * as WEBIFC from "web-ifc";
 import * as TFB from "../../../../Schema";
 import {
   GeometryData,
@@ -22,6 +23,8 @@ export class IfcGeometryProcessor {
     path: "../../../../node_modules/web-ifc/",
     absolute: false,
   };
+
+  webIfcSettings: WEBIFC.LoaderSettings = {};
 
   private _serializer: IfcImporter;
 
@@ -65,6 +68,7 @@ export class IfcGeometryProcessor {
 
     const reader = new IfcFileReader(this._serializer);
     reader.wasm = this.wasm;
+    reader.webIfcSettings = this.webIfcSettings;
 
     // reader.isolatedMeshes = new Set([127787]);
 

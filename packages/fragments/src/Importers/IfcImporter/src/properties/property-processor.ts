@@ -25,6 +25,8 @@ export class IfcPropertyProcessor {
     absolute: false,
   };
 
+  webIfcSettings: WEBIFC.LoaderSettings = {};
+
   readonly expressIDs: number[] = [];
 
   readonly classes: string[] = [];
@@ -68,13 +70,9 @@ export class IfcPropertyProcessor {
     const ifcApi = await this.getIfcApi();
 
     if (data.readFromCallback) {
-      ifcApi.OpenModelFromCallback(data.readCallback, {
-        COORDINATE_TO_ORIGIN: true,
-      });
+      ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
     } else if (data.bytes) {
-      await ifcApi.OpenModel(data.bytes, {
-        COORDINATE_TO_ORIGIN: true,
-      });
+      await ifcApi.OpenModel(data.bytes, this.webIfcSettings);
     } else {
       throw new Error("Fragments: No data provided");
     }

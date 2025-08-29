@@ -68,6 +68,8 @@ export class IfcFileReader {
     absolute: false,
   };
 
+  webIfcSettings: WEBIFC.LoaderSettings = {};
+
   private _tempObject1 = new THREE.Object3D();
   private _tempObject2 = new THREE.Object3D();
   private _tempMatrix1 = new THREE.Matrix4();
@@ -131,13 +133,12 @@ export class IfcFileReader {
     let modelID = 0;
 
     if (data.readFromCallback && data.readCallback) {
-      modelID = this._ifcAPI.OpenModelFromCallback(data.readCallback, {
-        COORDINATE_TO_ORIGIN: true,
-      });
+      modelID = this._ifcAPI.OpenModelFromCallback(
+        data.readCallback,
+        this.webIfcSettings,
+      );
     } else if (data.bytes) {
-      modelID = await this._ifcAPI.OpenModel(data.bytes, {
-        COORDINATE_TO_ORIGIN: true,
-      });
+      modelID = await this._ifcAPI.OpenModel(data.bytes, this.webIfcSettings);
     } else {
       throw new Error("Fragments: No data provided");
     }

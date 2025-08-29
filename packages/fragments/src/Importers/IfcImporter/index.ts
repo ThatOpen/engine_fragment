@@ -26,6 +26,13 @@ export class IfcImporter {
     absolute: false,
   };
 
+  /**
+   * The settings for loading IFC models using our library web-ifc.
+   */
+  webIfcSettings: WEBIFC.LoaderSettings = {
+    COORDINATE_TO_ORIGIN: true,
+  };
+
   /** A set of attribute names to exclude from serialization.
    */
   attributesToExclude = new Set([
@@ -127,6 +134,7 @@ export class IfcImporter {
 
     const geometryProcessor = new IfcGeometryProcessor(this);
     geometryProcessor.wasm = this.wasm;
+    geometryProcessor.webIfcSettings = this.webIfcSettings;
     const geomData = { ...data, builder: this.builder };
     const geoms = await geometryProcessor.process(geomData);
     const {
@@ -141,6 +149,7 @@ export class IfcImporter {
 
     const properties = new IfcPropertyProcessor(this, this.builder);
     properties.wasm = this.wasm;
+    properties.webIfcSettings = this.webIfcSettings;
     const propsArgs = { ...data, geometryProcessedLocalIDs: localIDs };
     const propsData = await properties.process(propsArgs);
     const {
