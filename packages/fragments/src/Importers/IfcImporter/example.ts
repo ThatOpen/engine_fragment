@@ -54,7 +54,7 @@ grids.create(world);
   */
 
 const serializer = new FRAGS.IfcImporter();
-serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.70/" };
+serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.71/" };
 // A convenient variable to hold the ArrayBuffer data loaded into memory
 let fragmentBytes: ArrayBuffer | null = null;
 let onConversionFinish = () => {};
