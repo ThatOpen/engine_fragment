@@ -1,5 +1,29 @@
 # Changelog
 
+## [3.2.1](https://github.com/ThatOpen/engine_fragment/compare/v3.1.0...v3.2.1) (2025-10-23)
+
+
+### Features
+
+* add ifc road to ifc element list ([5b6fec9](https://github.com/ThatOpen/engine_fragment/commit/5b6fec9b104ee9a61bb5247d01df40385cd0d77a))
+* allow to disable guard to ignore objects far away from the origin ([50c837c](https://github.com/ThatOpen/engine_fragment/commit/50c837c126d437f1aa6fee801db02b622c13c6c1))
+* expose web-ifc config ([98cb3f3](https://github.com/ThatOpen/engine_fragment/commit/98cb3f35fe53a2b89105e4ffab77f76e0fe0fad8))
+* fix tutorials paths ([7496f56](https://github.com/ThatOpen/engine_fragment/commit/7496f562ab7f5a24e2e23348ce64f0355ca4b701))
+* release edit api ([f8b23b1](https://github.com/ThatOpen/engine_fragment/commit/f8b23b15e7e796722ef18d7bd3634fe727c19daa))
+
+
+### Bug Fixes
+
+* await set up model ([d86d799](https://github.com/ThatOpen/engine_fragment/commit/d86d79952f4b0bfde590bea938a56b5c52ab0a0c))
+* handle optional chaining for UnitType in IfcPropertyProcessor ([3f00edb](https://github.com/ThatOpen/engine_fragment/commit/3f00edbf3d7fa7097c954d8f20a1ded4ff43ff5f))
+* return raw geometry when profiles could not be generated ([5bc880b](https://github.com/ThatOpen/engine_fragment/commit/5bc880b9bf493914a06ae7ecb93d3e2b127486eb))
+
+
+### Miscellaneous Chores
+
+* release 3.2.0 ([f4faa23](https://github.com/ThatOpen/engine_fragment/commit/f4faa236c38a9281c3e19c561c831aee77d6dc60))
+* release 3.2.1 ([885826d](https://github.com/ThatOpen/engine_fragment/commit/885826d5eaa170a9bdb04ea92980b18e38f12683))
+
 ## [3.1.0](https://github.com/ThatOpen/engine_fragment/compare/v3.0.0...v3.1.0) (2025-07-10)
 
 
