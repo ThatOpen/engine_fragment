@@ -3,6 +3,13 @@
   "packages/fragments/src/Importers/IfcImporter/examples/HelloWorldSchema/example.ts",
   "packages/fragments/src/FragmentsModels/example.ts",
   "packages/fragments/src/FragmentsModels/examples/VisibilityOperations/example.ts",
+  "packages/fragments/src/FragmentsModels/examples/SteelDetailing/example.ts",
+  "packages/fragments/src/FragmentsModels/examples/Rebars/example.ts",
   "packages/fragments/src/FragmentsModels/examples/Raycasting/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/ModelInformation/example.ts"
+  "packages/fragments/src/FragmentsModels/examples/ModelInformation/example.ts",
+  "packages/fragments/src/FragmentsModels/examples/Materials/example.ts",
+  "packages/fragments/src/FragmentsModels/examples/EditProperties/example.ts",
+  "packages/fragments/src/FragmentsModels/examples/EditElements/example.ts",
+  "packages/fragments/src/FragmentsModels/examples/EditApi/example.ts",
+  "packages/fragments/src/FragmentsModels/examples/BuildingConfigurator/example.ts"
 ]
