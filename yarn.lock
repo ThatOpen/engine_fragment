@@ -1507,43 +1507,43 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/components-front@npm:^3.1.0":
-  version: 3.1.0
-  resolution: "@thatopen/components-front@npm:3.1.0"
+"@thatopen/components-front@npm:~3.2.0":
+  version: 3.2.0
+  resolution: "@thatopen/components-front@npm:3.2.0"
   dependencies:
-    "@thatopen/components": ~3.1.0
+    "@thatopen/components": ~3.2.0
   peerDependencies:
-    "@thatopen/fragments": ~3.1.0
+    "@thatopen/fragments": ~3.2.0
     three: ">=0.175.0"
-    web-ifc: 0.0.69
-  checksum: 976052ec6363246e3e9f2de603ff1e95d6bca79980515601ccd39ece13c7b864f37ba744329087aa483ad294a99a0b0734503eec5d92052777d536489c21a68a
+    web-ifc: ">=0.0.72"
+  checksum: 0752d5d4dccf0a89a268c60e9f7021c6422825644e37cc79d5375d60a5f0fb16348eb745ef30e302c19ba8be778ce823c09447bb06bb84e25f074af771020a47
   languageName: node
   linkType: hard
 
-"@thatopen/components@npm:~3.1.0":
-  version: 3.1.0
-  resolution: "@thatopen/components@npm:3.1.0"
+"@thatopen/components@npm:~3.2.0":
+  version: 3.2.0
+  resolution: "@thatopen/components@npm:3.2.0"
   dependencies:
     camera-controls: ^2.9.0
     fast-xml-parser: 4.4.1
     jszip: 3.10.1
     three-mesh-bvh: 0.7.0
   peerDependencies:
-    "@thatopen/fragments": ~3.1.0
+    "@thatopen/fragments": ~3.2.0
     three: ">=0.175.0"
-    web-ifc: 0.0.69
-  checksum: 49dcc5836b21f814a4181150239008af3c9ad1331519ed4d3a515d7209101ae835daa6257f57af32b821ce712bab33f331dc62a58516d1786c9509f4df34ba69
+    web-ifc: ">=0.0.72"
+  checksum: 042bd912baf270f90e0d3bf30ea062b7a9f29049dd9c7ed0558d6b08e2db2b70925c99259c5f8ea6da528861214c974a8c4ccc65ec40c35e2b48c8b9d2138147
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@^3.1.0, @thatopen/fragments@workspace:packages/fragments":
+"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.2.0":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
     "@andypf/json-viewer": ^2.1.10
-    "@thatopen/components": ~3.1.0
-    "@thatopen/components-front": ^3.1.0
-    "@thatopen/fragments": ^3.1.0
+    "@thatopen/components": ~3.2.0
+    "@thatopen/components-front": ~3.2.0
+    "@thatopen/fragments": ~3.2.0
     "@types/earcut": ^3.0.0
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
