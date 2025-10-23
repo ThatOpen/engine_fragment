@@ -105,7 +105,7 @@ fragments.init(workerUrl);
 // Temp until we publish the libraries, to be able to use postproduction
 // @ts-ignore
 
-fragments.settings.graphicsQuality = 1;
+fragments.core.settings.graphicsQuality = 1;
 
 world.camera.controls.addEventListener("control", () => {
   fragments.core.update();
