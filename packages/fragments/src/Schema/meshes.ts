@@ -120,8 +120,83 @@ globalTransformsLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
+materialIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 22);
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+materialIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 22);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+materialIdsArray():Uint32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 22);
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
+representationIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+representationIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+representationIdsArray():Uint32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 24);
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
+sampleIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 26);
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+sampleIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 26);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+sampleIdsArray():Uint32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 26);
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
+localTransformIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 28);
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+localTransformIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 28);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+localTransformIdsArray():Uint32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 28);
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
+globalTransformIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 30);
+  return offset ? this.bb!.readUint32(this.bb!.__vector(this.bb_pos + offset) + index * 4) : 0;
+}
+
+globalTransformIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 30);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+globalTransformIdsArray():Uint32Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 30);
+  return offset ? new Uint32Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
 static startMeshes(builder:flatbuffers.Builder) {
-  builder.startObject(9);
+  builder.startObject(14);
 }
 
 static addCoordinates(builder:flatbuffers.Builder, coordinatesOffset:flatbuffers.Offset) {
@@ -221,6 +296,111 @@ static startGlobalTransformsVector(builder:flatbuffers.Builder, numElems:number)
   builder.startVector(48, numElems, 8);
 }
 
+static addMaterialIds(builder:flatbuffers.Builder, materialIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(9, materialIdsOffset, 0);
+}
+
+static createMaterialIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createMaterialIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createMaterialIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startMaterialIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addRepresentationIds(builder:flatbuffers.Builder, representationIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(10, representationIdsOffset, 0);
+}
+
+static createRepresentationIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createRepresentationIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createRepresentationIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startRepresentationIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addSampleIds(builder:flatbuffers.Builder, sampleIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(11, sampleIdsOffset, 0);
+}
+
+static createSampleIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createSampleIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createSampleIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startSampleIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addLocalTransformIds(builder:flatbuffers.Builder, localTransformIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(12, localTransformIdsOffset, 0);
+}
+
+static createLocalTransformIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createLocalTransformIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createLocalTransformIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startLocalTransformIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addGlobalTransformIds(builder:flatbuffers.Builder, globalTransformIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(13, globalTransformIdsOffset, 0);
+}
+
+static createGlobalTransformIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createGlobalTransformIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createGlobalTransformIdsVector(builder:flatbuffers.Builder, data:number[]|Uint32Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt32(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startGlobalTransformIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
 static endMeshes(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   builder.requiredField(offset, 4) // coordinates
@@ -235,7 +415,7 @@ static endMeshes(builder:flatbuffers.Builder):flatbuffers.Offset {
   return offset;
 }
 
-static createMeshes(builder:flatbuffers.Builder, coordinatesOffset:flatbuffers.Offset, meshesItemsOffset:flatbuffers.Offset, samplesOffset:flatbuffers.Offset, representationsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, circleExtrusionsOffset:flatbuffers.Offset, shellsOffset:flatbuffers.Offset, localTransformsOffset:flatbuffers.Offset, globalTransformsOffset:flatbuffers.Offset):flatbuffers.Offset {
+static createMeshes(builder:flatbuffers.Builder, coordinatesOffset:flatbuffers.Offset, meshesItemsOffset:flatbuffers.Offset, samplesOffset:flatbuffers.Offset, representationsOffset:flatbuffers.Offset, materialsOffset:flatbuffers.Offset, circleExtrusionsOffset:flatbuffers.Offset, shellsOffset:flatbuffers.Offset, localTransformsOffset:flatbuffers.Offset, globalTransformsOffset:flatbuffers.Offset, materialIdsOffset:flatbuffers.Offset, representationIdsOffset:flatbuffers.Offset, sampleIdsOffset:flatbuffers.Offset, localTransformIdsOffset:flatbuffers.Offset, globalTransformIdsOffset:flatbuffers.Offset):flatbuffers.Offset {
   Meshes.startMeshes(builder);
   Meshes.addCoordinates(builder, coordinatesOffset);
   Meshes.addMeshesItems(builder, meshesItemsOffset);
@@ -246,6 +426,11 @@ static createMeshes(builder:flatbuffers.Builder, coordinatesOffset:flatbuffers.O
   Meshes.addShells(builder, shellsOffset);
   Meshes.addLocalTransforms(builder, localTransformsOffset);
   Meshes.addGlobalTransforms(builder, globalTransformsOffset);
+  Meshes.addMaterialIds(builder, materialIdsOffset);
+  Meshes.addRepresentationIds(builder, representationIdsOffset);
+  Meshes.addSampleIds(builder, sampleIdsOffset);
+  Meshes.addLocalTransformIds(builder, localTransformIdsOffset);
+  Meshes.addGlobalTransformIds(builder, globalTransformIdsOffset);
   return Meshes.endMeshes(builder);
 }
 }

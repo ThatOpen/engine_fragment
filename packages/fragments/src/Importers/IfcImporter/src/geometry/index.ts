@@ -13,6 +13,7 @@ import { ifcCategoryMap } from "../../../../Utils";
 import { AlignmentData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
+import { GeomsFbUtils } from "../../../../Utils/shells";
 
 interface GeometriesProcessData extends ProcessData {
   builder: FB.Builder;
@@ -35,7 +36,7 @@ export class IfcGeometryProcessor {
   async process(data: GeometriesProcessData) {
     const { builder } = data;
 
-    let maxLocalID = 0;
+    let nextId = 0;
 
     const localIDs: number[] = [];
 
@@ -70,7 +71,7 @@ export class IfcGeometryProcessor {
     reader.wasm = this.wasm;
     reader.webIfcSettings = this.webIfcSettings;
 
-    // reader.isolatedMeshes = new Set([127787]);
+    // reader.isolatedMeshes = new Set([186559]);
 
     reader.onGeometryLoaded = (geometry) => {
       geometries.push(geometry);
@@ -88,8 +89,8 @@ export class IfcGeometryProcessor {
       coordinates = coords;
     };
 
-    reader.onMaxIdFound = (maxId) => {
-      maxLocalID = maxId;
+    reader.onNextIdFound = (foundNextId) => {
+      nextId = foundNextId;
     };
 
     reader.onAlignmentsLoaded = (data) => {
@@ -106,6 +107,8 @@ export class IfcGeometryProcessor {
     let itemCounter = 0;
 
     TFB.Meshes.startGlobalTransformsVector(builder, items.length);
+
+    const gtLocalIds: number[] = [];
 
     const itemCategories = new Map<string, number>();
     const categoriesIds: number[] = [];
@@ -131,6 +134,8 @@ export class IfcGeometryProcessor {
       if (!itemCategories.has(category)) {
         itemCategories.set(category, itemCategories.size);
       }
+
+      gtLocalIds.unshift(nextId++);
 
       // prettier-ignore
       TFB.Transform.createTransform(
@@ -159,10 +164,10 @@ export class IfcGeometryProcessor {
         continue;
       }
 
-      const { points, profiles, holes } = geometryData.geometry;
+      const { points, profiles, holes, profilesFaceIds } =
+        geometryData.geometry;
 
-      const ushortMaxValue = 65000; // It's 65535, but we leave some margin
-      const isBigShell = points.length > ushortMaxValue;
+      const isBigShell = points.length > GeomsFbUtils.ushortMaxValue;
 
       const shellType = isBigShell ? TFB.ShellType.BIG : TFB.ShellType.NONE;
 
@@ -258,6 +263,11 @@ export class IfcGeometryProcessor {
         holesOffsets,
       );
 
+      const shellFaceIdsOffset = TFB.Shell.createProfilesFaceIdsVector(
+        builder,
+        profilesFaceIds,
+      );
+
       const shellOffset = TFB.Shell.createShell(
         builder,
         shellProfilesOffset,
@@ -266,6 +276,7 @@ export class IfcGeometryProcessor {
         bigShellProfilesOffset,
         bigShellHolesOffset,
         shellType,
+        shellFaceIdsOffset,
       );
 
       shellsOffsets.push(shellOffset);
@@ -361,6 +372,8 @@ export class IfcGeometryProcessor {
 
     // Create representations
 
+    const representationsLocalIds: number[] = [];
+
     TFB.Meshes.startRepresentationsVector(builder, geometries.length);
 
     const geometryClassesCounter = new Map<number, number>();
@@ -408,6 +421,8 @@ export class IfcGeometryProcessor {
         bbox.max.z = 0.1;
       }
 
+      representationsLocalIds.unshift(nextId++);
+
       // prettier-ignore
       TFB.Representation.createRepresentation(
         builder,
@@ -433,12 +448,16 @@ export class IfcGeometryProcessor {
 
     TFB.Meshes.startMaterialsVector(builder, materialIDMap.size);
 
+    const materialsLocalIds: number[] = [];
+
     const materialMapKeys = Array.from(materialIDMap.keys());
 
     for (let i = 0; i < materialMapKeys.length; i++) {
       const key = materialMapKeys[materialMapKeys.length - 1 - i];
       const { color } = materialIDMap.get(key)!;
       const [r, g, b, a] = color;
+
+      materialsLocalIds.push(nextId++);
 
       TFB.Material.createMaterial(
         builder,
@@ -460,6 +479,8 @@ export class IfcGeometryProcessor {
 
     TFB.Meshes.startSamplesVector(builder, sampleCount);
 
+    const samplesLocalIds: number[] = [];
+
     for (let g = 0; g < items.length; g++) {
       const currentItem = items[items.length - 1 - g];
 
@@ -471,6 +492,8 @@ export class IfcGeometryProcessor {
         const geometryID = geometryIDMap.get(geometry.id)!;
         const materialID = materialIDMap.get(geometry.color.toString())!.id;
         const transformID = geometry.localTransformID || 0;
+
+        samplesLocalIds.push(nextId++);
 
         TFB.Sample.createSample(
           builder,
@@ -486,9 +509,14 @@ export class IfcGeometryProcessor {
 
     TFB.Meshes.startLocalTransformsVector(builder, localTransforms.length);
 
+    const localTransformsLocalIds: number[] = [];
+
     for (let i = 0; i < localTransforms.length; i++) {
       const transform = localTransforms[localTransforms.length - 1 - i];
       const [ox, oy, oz, x1, x2, x3, y1, y2, y3] = transform.data;
+
+      localTransformsLocalIds.push(nextId++);
+
       // prettier-ignore
       TFB.Transform.createTransform(
         builder,
@@ -503,6 +531,31 @@ export class IfcGeometryProcessor {
     const meshesItemsOffset = TFB.Meshes.createMeshesItemsVector(
       builder,
       geometriesItems,
+    );
+
+    const reprLocalIdsOffset = TFB.Meshes.createRepresentationIdsVector(
+      builder,
+      representationsLocalIds,
+    );
+
+    const sampleLocalIdsOffset = TFB.Meshes.createSampleIdsVector(
+      builder,
+      samplesLocalIds,
+    );
+
+    const materialLocalIdsOffset = TFB.Meshes.createMaterialIdsVector(
+      builder,
+      materialsLocalIds,
+    );
+
+    const ltLocalIdsOffset = TFB.Meshes.createLocalTransformIdsVector(
+      builder,
+      localTransformsLocalIds,
+    );
+
+    const gtLocalIdsOffset = TFB.Meshes.createGlobalTransformIdsVector(
+      builder,
+      gtLocalIds,
     );
 
     // prettier-ignore
@@ -521,6 +574,11 @@ export class IfcGeometryProcessor {
     TFB.Meshes.addMaterials(builder, materials);
     TFB.Meshes.addCircleExtrusions(builder, circleExtrusions);
     TFB.Meshes.addMeshesItems(builder, meshesItemsOffset);
+    TFB.Meshes.addRepresentationIds(builder, reprLocalIdsOffset);
+    TFB.Meshes.addSampleIds(builder, sampleLocalIdsOffset);
+    TFB.Meshes.addMaterialIds(builder, materialLocalIdsOffset);
+    TFB.Meshes.addLocalTransformIds(builder, ltLocalIdsOffset);
+    TFB.Meshes.addGlobalTransformIds(builder, gtLocalIdsOffset);
     const modelMesh = TFB.Meshes.endMeshes(builder);
 
     // GEOMETRY
@@ -529,272 +587,11 @@ export class IfcGeometryProcessor {
     // When we save other implicit data, we might need to move this
     // to a different file and sort things better
 
-    const linesOffsets: number[] = [];
-    const absoluteCurvesMap = new Map<number, number[]>();
-    const horizontalCurvesMap = new Map<number, number[]>();
-    const verticalCurvesMap = new Map<number, number[]>();
-    let curveCounter = 0;
-
-    for (let i = 0; i < alignments.length; i++) {
-      const index = i;
-      const alignment = alignments[index];
-
-      const absoluteCurvesIndices: number[] = [];
-      absoluteCurvesMap.set(index, absoluteCurvesIndices);
-
-      const horizontalCurvesIndices: number[] = [];
-      horizontalCurvesMap.set(index, horizontalCurvesIndices);
-
-      const verticalCurvesIndices: number[] = [];
-      verticalCurvesMap.set(index, verticalCurvesIndices);
-
-      for (let j = 0; j < alignment.absolute.length; j++) {
-        const curve = alignment.absolute[alignment.absolute.length - 1 - j];
-        const { points } = curve;
-
-        const pointsOffset = TFB.GeometryLines.createPointsVector(
-          builder,
-          points,
-        );
-
-        TFB.GeometryLines.startGeometryLines(builder);
-        TFB.GeometryLines.addPoints(builder, pointsOffset);
-        const geometryLinesOffset = TFB.GeometryLines.endGeometryLines(builder);
-        linesOffsets.push(geometryLinesOffset);
-
-        absoluteCurvesIndices.push(curveCounter++);
-      }
-
-      for (let j = 0; j < alignment.horizontal.length; j++) {
-        const curve = alignment.horizontal[alignment.horizontal.length - 1 - j];
-        const { points } = curve;
-
-        const pointsOffset = TFB.GeometryLines.createPointsVector(
-          builder,
-          points,
-        );
-
-        TFB.GeometryLines.startGeometryLines(builder);
-        TFB.GeometryLines.addPoints(builder, pointsOffset);
-        const geometryLinesOffset = TFB.GeometryLines.endGeometryLines(builder);
-        linesOffsets.push(geometryLinesOffset);
-
-        horizontalCurvesIndices.push(curveCounter++);
-      }
-
-      for (let j = 0; j < alignment.vertical.length; j++) {
-        const curve = alignment.vertical[alignment.vertical.length - 1 - j];
-        const { points } = curve;
-
-        const pointsOffset = TFB.GeometryLines.createPointsVector(
-          builder,
-          points,
-        );
-
-        TFB.GeometryLines.startGeometryLines(builder);
-        TFB.GeometryLines.addPoints(builder, pointsOffset);
-        const geometryLinesOffset = TFB.GeometryLines.endGeometryLines(builder);
-        linesOffsets.push(geometryLinesOffset);
-
-        verticalCurvesIndices.push(curveCounter++);
-      }
-    }
-
-    const linesVectorOffset = TFB.Geometries.createLinesVector(
-      builder,
-      linesOffsets,
-    );
-
-    let geomReprCounter = curveCounter;
-    TFB.Geometries.startRepresentationsVector(builder, geomReprCounter);
-    const geomReprIds: number[] = [];
-
-    geomReprCounter--;
-    for (let i = 0; i < alignments.length; i++) {
-      const index = alignments.length - 1 - i;
-      const alignment = alignments[index];
-
-      for (let j = 0; j < alignment.absolute.length; j++) {
-        const curve = alignment.absolute[alignment.absolute.length - 1 - j];
-        const { type } = curve;
-
-        geomReprIds.unshift(maxLocalID++);
-
-        const id = geomReprCounter--;
-        TFB.GeometryRepresentation.createGeometryRepresentation(
-          builder,
-          id,
-          type,
-        );
-      }
-
-      for (let j = 0; j < alignment.horizontal.length; j++) {
-        const curve = alignment.horizontal[alignment.horizontal.length - 1 - j];
-        const { type } = curve;
-
-        geomReprIds.unshift(maxLocalID++);
-
-        const id = geomReprCounter--;
-        TFB.GeometryRepresentation.createGeometryRepresentation(
-          builder,
-          id,
-          type,
-        );
-      }
-
-      for (let j = 0; j < alignment.vertical.length; j++) {
-        const curve = alignment.vertical[alignment.vertical.length - 1 - j];
-        const { type } = curve;
-
-        geomReprIds.unshift(maxLocalID++);
-
-        const id = geomReprCounter--;
-        TFB.GeometryRepresentation.createGeometryRepresentation(
-          builder,
-          id,
-          type,
-        );
-      }
-    }
-
-    const geomRepresentationsOffset = builder.endVector();
-
-    let samplesCounter = curveCounter;
-    const samplesIds: number[] = [];
-    TFB.Geometries.startSamplesVector(builder, samplesCounter);
-
-    samplesCounter--;
-    for (let i = 0; i < alignments.length; i++) {
-      const index = alignments.length - 1 - i;
-      const alignment = alignments[index];
-
-      for (let j = 0; j < alignment.absolute.length; j++) {
-        const id = samplesCounter--;
-        samplesIds.unshift(maxLocalID++);
-        TFB.GeometrySample.createGeometrySample(builder, id, 0);
-      }
-
-      for (let j = 0; j < alignment.horizontal.length; j++) {
-        const id = samplesCounter--;
-        samplesIds.unshift(maxLocalID++);
-        TFB.GeometrySample.createGeometrySample(builder, id, 0);
-      }
-
-      for (let j = 0; j < alignment.vertical.length; j++) {
-        const id = samplesCounter--;
-        samplesIds.unshift(maxLocalID++);
-        TFB.GeometrySample.createGeometrySample(builder, id, 0);
-      }
-    }
-
-    const geometrySamplesOffset = builder.endVector();
-
-    TFB.Geometries.startTransformsVector(builder, 1);
-
-    // prettier-ignore
-    TFB.Transform.createTransform(
-      builder,
-      0, 0, 0,
-      1, 0, 0,
-      0, 1, 0,
-    );
-    const geometryTransformsOffset = builder.endVector();
-
-    const geomTransformsIds = [maxLocalID++];
-
-    TFB.Geometries.startWallsVector(builder, 0);
-    const geometryWallsOffset = builder.endVector();
-
-    TFB.Geometries.startRepresentationsSamplesVector(builder, 0);
-    const geomReprSampVec = builder.endVector();
-
-    const geomReprIdsOffset = TFB.Geometries.createRepresentationIdsVector(
-      builder,
-      geomReprIds,
-    );
-
-    const geomSampleIdsOffset = TFB.Geometries.createSampleIdsVector(
-      builder,
-      samplesIds,
-    );
-
-    const geomTransfomsIdsOffset =
-      TFB.Geometries.createRepresentationsSamplesVector(
-        builder,
-        geomTransformsIds,
-      );
-
-    TFB.Geometries.startGeometries(builder);
-
-    TFB.Geometries.addSamples(builder, geometrySamplesOffset);
-    TFB.Geometries.addSampleIds(builder, geomSampleIdsOffset);
-
-    TFB.Geometries.addRepresentations(builder, geomRepresentationsOffset);
-    TFB.Geometries.addRepresentationIds(builder, geomReprIdsOffset);
-
-    TFB.Geometries.addTransforms(builder, geometryTransformsOffset);
-    TFB.Geometries.addTransformIds(builder, geomTransfomsIdsOffset);
-
-    TFB.Geometries.addRepresentationsSamples(builder, geomReprSampVec);
-
-    TFB.Geometries.addLines(builder, linesVectorOffset);
-    TFB.Geometries.addWalls(builder, geometryWallsOffset);
-
-    const modelGeometries = TFB.Geometries.endGeometries(builder);
-
-    // ALIGNMENTS
-
-    const alignmentsOffsets: number[] = [];
-
-    for (let i = 0; i < alignments.length; i++) {
-      const absoluteCurves = absoluteCurvesMap.get(i);
-      const horizontalCurves = horizontalCurvesMap.get(i);
-      const verticalCurves = verticalCurvesMap.get(i);
-
-      if (
-        absoluteCurves === undefined ||
-        horizontalCurves === undefined ||
-        verticalCurves === undefined
-      ) {
-        throw new Error("Fragments: Malformed alignment definition");
-      }
-
-      const absolutes = TFB.Alignment.createAbsoluteVector(
-        builder,
-        absoluteCurves,
-      );
-
-      const horizontal = TFB.Alignment.createHorizontalVector(
-        builder,
-        horizontalCurves,
-      );
-
-      const vertical = TFB.Alignment.createVerticalVector(
-        builder,
-        verticalCurves,
-      );
-
-      const alignmentOffset = TFB.Alignment.createAlignment(
-        builder,
-        absolutes,
-        horizontal,
-        vertical,
-      );
-
-      alignmentsOffsets.push(alignmentOffset);
-    }
-
-    const modelAlignments = TFB.Model.createAlignmentsVector(
-      builder,
-      alignmentsOffsets,
-    );
-
     return {
       modelMesh,
       localIDs,
-      maxLocalID,
-      modelGeometries,
-      modelAlignments,
+      maxLocalID: nextId,
+      alignments,
     };
   }
 }

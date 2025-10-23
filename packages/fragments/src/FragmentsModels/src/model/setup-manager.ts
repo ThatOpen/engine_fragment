@@ -6,7 +6,7 @@ export class SetupManager {
   async setup(
     model: FragmentsModel,
     bbox: THREE.Box3,
-    modelData: ArrayBuffer,
+    modelData: ArrayBuffer | Uint8Array,
     raw?: boolean,
     config?: VirtualModelConfig,
   ) {
@@ -16,7 +16,7 @@ export class SetupManager {
     this.updateBox(bbox, result);
   }
 
-  private formatModelData(modelData: ArrayBuffer) {
+  private formatModelData(modelData: ArrayBuffer | Uint8Array) {
     if (modelData instanceof ArrayBuffer) {
       return [modelData];
     }
@@ -30,7 +30,7 @@ export class SetupManager {
 
   private getCreateModelMessage(
     model: FragmentsModel,
-    modelData: ArrayBuffer,
+    modelData: ArrayBuffer | Uint8Array,
     raw: boolean | undefined,
     config: VirtualModelConfig | undefined,
   ) {

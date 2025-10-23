@@ -1,6 +1,8 @@
 import * as WEBIFC from "web-ifc";
-import { GeometryClass } from "../../../../../Schema";
-import { AlignmentData } from "../../../../../FragmentsModels";
+import {
+  AlignmentCurveType,
+  AlignmentData,
+} from "../../../../../FragmentsModels";
 
 export class CivilReader {
   read(webIfc: WEBIFC.IfcAPI) {
@@ -47,16 +49,13 @@ export class CivilReader {
             resultHorizontal.push(x, 0, -y);
           }
 
-          const buffer3d = new Float32Array(result3d);
-          const bufferHorizontal = new Float32Array(resultHorizontal);
-
           currentAlignment.absolute.push({
-            points: buffer3d,
+            points: result3d,
             type,
           });
 
           currentAlignment.horizontal.push({
-            points: bufferHorizontal,
+            points: resultHorizontal,
             type,
           });
         }
@@ -79,10 +78,8 @@ export class CivilReader {
             resultVertical.push(x, y, 0);
           }
 
-          const bufferVertical = new Float32Array(resultVertical);
-
           currentAlignment.vertical.push({
-            points: bufferVertical,
+            points: resultVertical,
             type,
           });
         }
@@ -96,16 +93,16 @@ export class CivilReader {
 
   private getCurveType(data: string) {
     if (data.includes("CIRCULARARC")) {
-      return GeometryClass.ELLIPSE_ARC;
+      return AlignmentCurveType.ELLIPSE_ARC;
     }
     if (data.includes("LINE") || data.includes("GRADIENT")) {
-      return GeometryClass.LINES;
+      return AlignmentCurveType.LINES;
     }
     if (data.includes("CLOTHOID")) {
-      return GeometryClass.CLOTHOID;
+      return AlignmentCurveType.CLOTHOID;
     }
     if (data.includes("PARABOLICARC")) {
-      return GeometryClass.PARABOLA;
+      return AlignmentCurveType.PARABOLA;
     }
     throw new Error(`Fragments: Unknown curve type: ${data}`);
   }

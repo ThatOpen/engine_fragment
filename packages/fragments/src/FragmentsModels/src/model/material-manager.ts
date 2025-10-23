@@ -156,8 +156,9 @@ export class MaterialManager {
         color: data.color,
         transparent: data.opacity < 1,
         opacity: data.opacity,
-        userData: { customId: data.customId },
+        userData: { customId: data.customId, localId: data.localId },
         depthTest: data.depthTest ?? true,
+        side: data.renderedFaces === 1 ? THREE.DoubleSide : THREE.FrontSide,
       });
     } else if (objectClass === ObjectClass.LINE) {
       material = this.newLODMaterial(
@@ -207,11 +208,11 @@ export class MaterialManager {
     request: any,
   ) {
     const modelId = request.modelId;
-    let material = this.list.get(id);
+    const material = this.list.get(id);
     if (material) return material;
-    material = this.new(data, request);
-    this.list.set(id, material);
+    const newMaterial = this.new(data, request);
+    this.list.set(id, newMaterial);
     this.addMaterialToModel(modelId, id);
-    return material;
+    return this.list.get(id)!;
   }
 }

@@ -37,8 +37,7 @@ export class ShellConstructor {
   };
 
   private _tileData!: TileData;
-
-  private _nextFaceId = 1;
+  private _faceIdPerProfile = new Map<number, number>();
 
   construct(shell: Shell, meshData: TileData | TileData[]) {
     this.resetConstructData(meshData);
@@ -118,7 +117,7 @@ export class ShellConstructor {
     data: Float32Array,
     id: number,
   ) {
-    const faceId = this.getNextFaceId();
+    const faceId = this._faceIdPerProfile.get(id)!;
     ShellFace4.create(
       indices,
       data,
@@ -160,7 +159,7 @@ export class ShellConstructor {
     const notAHole = !this.interiorProfiles.has(id);
     const isFace3 = indexAmount === PolygonSize.three;
     if (isFace3 && notAHole) {
-      this.constructFace3(indices, data);
+      this.constructFace3(indices, data, id);
       return;
     }
     const isFace4 = indexAmount === PolygonSize.four;
@@ -197,8 +196,9 @@ export class ShellConstructor {
   private constructFace3(
     indices: Uint16Array | Uint32Array,
     data: Float32Array,
+    id: number,
   ) {
-    const faceId = this.getNextFaceId();
+    const faceId = this._faceIdPerProfile.get(id)!;
     ShellFace3.create(
       indices,
       data,
@@ -250,7 +250,9 @@ export class ShellConstructor {
   }
 
   private getNextFaceId() {
-    return this._nextFaceId++;
+    // Random uint32 value
+    const maxUint32 = 4294967295;
+    return Math.random() * maxUint32;
   }
 
   private newShellInteriorProfiles(shell: Shell) {
@@ -290,6 +292,8 @@ export class ShellConstructor {
     data: Float32Array,
     meshData: AnyTileData,
   ) {
+    this.getFaceIds(shell);
+    // this._faceIdPerProfile.delete(4); // For debugging, draws this face black
     const count = ShellUtils.getProfilesLength(shell);
     for (let id = 0; id < count; id++) {
       const indices = this.getIndices(shell, id);
@@ -304,7 +308,7 @@ export class ShellConstructor {
     data: Float32Array,
     id: number,
   ) {
-    const faceId = this.getNextFaceId();
+    const faceId = this._faceIdPerProfile.get(id)!;
     ShellFaceX.create(
       indices,
       data,
@@ -329,5 +333,30 @@ export class ShellConstructor {
       return this._bigShellHole;
     }
     return this._shellHole;
+  }
+
+  private getFaceIds(shell: Shell) {
+    this._faceIdPerProfile.clear();
+
+    const faceIds = shell.profilesFaceIdsArray();
+
+    const colors = new Map<number, number>();
+
+    if (faceIds && faceIds.length > 0) {
+      for (let i = 0; i < faceIds.length; i++) {
+        const rawFaceId = faceIds[i]!;
+        if (!colors.has(rawFaceId)) {
+          colors.set(rawFaceId, this.getNextFaceId());
+        }
+        const faceId = colors.get(rawFaceId)!;
+        this._faceIdPerProfile.set(i, faceId);
+      }
+      return;
+    }
+
+    // Default case: assign a face per profile
+    for (let i = 0; i < shell.profilesLength(); i++) {
+      this._faceIdPerProfile.set(i, this.getNextFaceId());
+    }
   }
 }

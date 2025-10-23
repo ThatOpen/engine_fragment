@@ -1,10 +1,9 @@
 import * as WEBIFC from "web-ifc";
 import * as THREE from "three";
-import { ShellData, getShellData } from "./geometry/geometry-processor";
-import { round } from "./geometry/utils";
+import { ShellData, ifcCategoryMap, GeomsFbUtils } from "../../../../Utils";
+
 import * as TFB from "../../../../Schema";
-import { getAABB } from "./geometry/bbox";
-import { ifcCategoryMap } from "../../../../Utils";
+
 import { CivilReader } from "./ifc/civil-reader";
 import { AlignmentData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
@@ -86,7 +85,7 @@ export class IfcFileReader {
 
   private _civilReader = new CivilReader();
 
-  private _maxId = 0;
+  private _nextId = 0;
 
   private _rawCategories = new Set<number>([
     WEBIFC.IFCEARTHWORKSFILL,
@@ -112,7 +111,7 @@ export class IfcFileReader {
   onLocalTransformLoaded: (localTransform: IfcLocalTransform) => void =
     () => {};
 
-  onMaxIdFound: (maxId: number) => void = () => {};
+  onNextIdFound: (maxId: number) => void = () => {};
 
   onCoordinatesLoaded: (data: TransformData) => void = () => {};
 
@@ -145,7 +144,7 @@ export class IfcFileReader {
 
     this._ifcAPI.SetLogLevel(WEBIFC.LogLevel.LOG_LEVEL_OFF);
 
-    this._maxId = this._ifcAPI.GetMaxExpressID(modelID);
+    this._nextId = this._ifcAPI.GetMaxExpressID(modelID) + 1;
 
     // First local transform is the no-transform
 
@@ -247,9 +246,19 @@ export class IfcFileReader {
       const modelClasses = this._ifcAPI
         .GetAllTypesOfModel(modelID)
         .map((entry) => entry.typeID);
+
       const toProcess = modelClasses.filter((type) =>
         this._serializer.classes.elements.has(type),
       );
+
+      // Force ifc annotations to be processed last because
+      // they can cause some problems with coordination matrix
+      // e.g. when there is an annotation at the 0,0
+      if(toProcess.includes(WEBIFC.IFCANNOTATION)) {
+        toProcess.splice(toProcess.indexOf(WEBIFC.IFCANNOTATION), 1);
+      }
+      toProcess.push(WEBIFC.IFCANNOTATION);
+
       const categoryPercentage = 0.5 / toProcess.length;
       for (const [index, category] of toProcess.entries()) {
         const state = (() => {
@@ -277,7 +286,7 @@ export class IfcFileReader {
     const alignments = this._civilReader.read(this._ifcAPI);
     this.onAlignmentsLoaded(alignments);
 
-    this.onMaxIdFound(this._maxId);
+    this.onNextIdFound(this._nextId);
 
     this._ifcAPI.Dispose();
     this._ifcAPI = null;
@@ -288,7 +297,7 @@ export class IfcFileReader {
     this._previousGeometries.clear();
     this._previousGeometriesIDs.clear();
     this._previousGeometriesScales.clear();
-    this._maxId = 0;
+    this._nextId = 0;
     this._previousLocalTransforms.clear();
     this._problematicGeometries.clear();
     this._problematicGeometriesHashes.clear();
@@ -492,7 +501,7 @@ export class IfcFileReader {
       position[i + 2] *= units.z;
     }
 
-    const bbox = getAABB(position);
+    const bbox = GeomsFbUtils.getAABB(position);
 
     // TODO: This might fail? What units should we use?
     const radius = circleExtrusion.profileRadius * units.x;
@@ -577,7 +586,7 @@ export class IfcFileReader {
         return;
       }
       // This geometry has a different scale, so we need to consider it as a new geometry
-      const newId = ++this._maxId;
+      const newId = this._nextId++;
       this._previousGeometriesScales.set(newId, scaleHash);
       geometryData.id = newId;
     }
@@ -653,17 +662,17 @@ export class IfcFileReader {
     v3.set(position[6], position[7], position[8]);
 
     const p = 10000;
-    const hashAreaSum = round(areaSum, p);
-    const hashBigArea = round(biggestArea, p);
-    const hashVolume = round(volume, p);
+    const hashAreaSum = GeomsFbUtils.round(areaSum, p);
+    const hashBigArea = GeomsFbUtils.round(biggestArea, p);
+    const hashVolume = GeomsFbUtils.round(volume, p);
 
-    const x1 = round(v1.x, p);
-    const y1 = round(v1.y, p);
-    const z1 = round(v1.z, p);
+    const x1 = GeomsFbUtils.round(v1.x, p);
+    const y1 = GeomsFbUtils.round(v1.y, p);
+    const z1 = GeomsFbUtils.round(v1.z, p);
 
-    const cx = round(centroid.x, p);
-    const cy = round(centroid.x, p);
-    const cz = round(centroid.x, p);
+    const cx = GeomsFbUtils.round(centroid.x, p);
+    const cy = GeomsFbUtils.round(centroid.x, p);
+    const cz = GeomsFbUtils.round(centroid.x, p);
 
     const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${x1}-${y1}-${z1}`;
 
@@ -705,7 +714,13 @@ export class IfcFileReader {
     // Only compute geometry data that hasn't been computed before
     if (isNewGeometry) {
       try {
-        const geomData = getShellData({ position, normals, index, raw });
+        const geomData = GeomsFbUtils.getShellData({
+          position,
+          normals,
+          index,
+          raw,
+          settings: this._serializer.geometryProcessSettings,
+        });
         this.onGeometryLoaded({
           id: geometryData.id,
           geometry: geomData,
@@ -802,18 +817,18 @@ export class IfcFileReader {
   private decompose(transform: THREE.Matrix4) {
     const p = 1000;
     const ap = 100000;
-    const dxx = round(transform.elements[0], p);
-    const dxy = round(transform.elements[1], p);
-    const dxz = round(transform.elements[2], p);
-    const dyx = round(transform.elements[4], ap);
-    const dyy = round(transform.elements[5], ap);
-    const dyz = round(transform.elements[6], ap);
-    const dzx = round(transform.elements[8], ap);
-    const dzy = round(transform.elements[9], ap);
-    const dzz = round(transform.elements[10], ap);
-    const px = round(transform.elements[12], ap);
-    const py = round(transform.elements[13], ap);
-    const pz = round(transform.elements[14], ap);
+    const dxx = GeomsFbUtils.round(transform.elements[0], p);
+    const dxy = GeomsFbUtils.round(transform.elements[1], p);
+    const dxz = GeomsFbUtils.round(transform.elements[2], p);
+    const dyx = GeomsFbUtils.round(transform.elements[4], ap);
+    const dyy = GeomsFbUtils.round(transform.elements[5], ap);
+    const dyz = GeomsFbUtils.round(transform.elements[6], ap);
+    const dzx = GeomsFbUtils.round(transform.elements[8], ap);
+    const dzy = GeomsFbUtils.round(transform.elements[9], ap);
+    const dzz = GeomsFbUtils.round(transform.elements[10], ap);
+    const px = GeomsFbUtils.round(transform.elements[12], ap);
+    const py = GeomsFbUtils.round(transform.elements[13], ap);
+    const pz = GeomsFbUtils.round(transform.elements[14], ap);
     return { dxx, dxy, dxz, dyx, dyy, dyz, dzx, dzy, dzz, px, py, pz };
   }
 

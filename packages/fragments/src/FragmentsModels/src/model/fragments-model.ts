@@ -15,8 +15,9 @@ import {
   Identifier,
   RelsChange,
   ItemsQueryParams,
-  MeshData,
   AttributesUniqueValuesParams,
+  CurrentLod,
+  ItemsQueryConfig,
 } from "./model-types";
 
 import { MiscHelper } from "../utils";
@@ -24,7 +25,7 @@ import { FragmentsConnection } from "../multithreading/fragments-connection";
 import { MeshManager } from "./mesh-manager";
 
 import { AlignmentsManager } from "./alignments-manager";
-import { DataMap } from "../../../Utils";
+import { DataMap, EditRequest } from "../../../Utils";
 import { SetupManager } from "./setup-manager";
 import { BoxManager } from "./box-manager";
 import { CoordinatesManager } from "./coordinates-manager";
@@ -36,6 +37,8 @@ import { HighlightManager } from "./highlight-manager";
 import { SectionManager } from "./section-manager";
 import { DataManager } from "./data-manager";
 import { SequenceManager } from "./sequence-manager";
+import { EditManager } from "./edit-manager";
+import { Editor } from "../edit";
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -74,6 +77,8 @@ export class FragmentsModel {
    */
   graphicsQuality = 0;
 
+  deltaModelId: string | null = null;
+
   private readonly _boxManager = new BoxManager();
   private readonly _itemsManager = new ItemsManager();
   private readonly _coordinatesManager = new CoordinatesManager();
@@ -88,11 +93,16 @@ export class FragmentsModel {
   private readonly _bbox = new THREE.Box3();
   private readonly _alignmentsManager: AlignmentsManager;
   private readonly _meshManager: MeshManager;
+  private readonly _editManager = new EditManager();
+  private readonly _editor: Editor;
 
   private _isProcessing = false;
   private _isLoaded = false;
   private _frozen = false;
   private _isSetup = false;
+
+  private static _deltaModelId = "isDeltaModel";
+  private _parentModelId: string | null = null;
 
   /**
    * The ID of the model.
@@ -149,6 +159,18 @@ export class FragmentsModel {
     this._viewManager.getClippingPlanesEvent = value;
   }
 
+  get camera() {
+    return this._viewManager.currentCamera;
+  }
+
+  get isDeltaModel() {
+    return this.object.userData[FragmentsModel._deltaModelId];
+  }
+
+  get parentModelId() {
+    return this._parentModelId;
+  }
+
   /**
    * The constructor of the fragments model. Don't use this directly. Use the {@link FragmentsModels.load} instead.
    */
@@ -156,11 +178,13 @@ export class FragmentsModel {
     modelId: string,
     meshManager: MeshManager,
     threads: FragmentsConnection,
+    editor: Editor,
   ) {
     this.object.name = modelId;
     this.object.up.set(0, 0, 1);
     this._meshManager = meshManager;
     this.threads = threads;
+    this._editor = editor;
     this._alignmentsManager = new AlignmentsManager(this);
     this.tiles.onItemSet.add(({ value: mesh }) => this.object.add(mesh));
     this.tiles.onBeforeDelete.add(({ value: mesh }) => {
@@ -278,8 +302,8 @@ export class FragmentsModel {
    * @param params - The query parameters used to filter and retrieve items.
    * @returns A promise that resolves to the items matching the query.
    */
-  async getItemsByQuery(params: ItemsQueryParams) {
-    return this._dataManager.getItemsByQuery(this, params);
+  async getItemsByQuery(params: ItemsQueryParams, config?: ItemsQueryConfig) {
+    return this._dataManager.getItemsByQuery(this, params, config);
   }
 
   // TODO: Fix, this is wrong
@@ -300,13 +324,12 @@ export class FragmentsModel {
    *
    * @param localIds - An array of local IDs for which the geometry data is requested.
    */
-  async getItemsGeometry(localIds: number[]) {
-    const geometries = (await this.threads.invoke(
-      this.modelId,
-      "getItemsGeometry",
-      [localIds],
-    )) as MeshData[][];
-    return geometries;
+  async getItemsGeometry(localIds: number[], lod = CurrentLod.GEOMETRY) {
+    return this._editManager.getItemsGeometry(this, localIds, lod);
+  }
+
+  async getGeometries(ids: number[]) {
+    return this._editManager.getGeometries(this, ids);
   }
 
   /**
@@ -607,6 +630,119 @@ export class FragmentsModel {
   }
 
   /**
+   * Gets all the materials IDs of the model.
+   */
+  async getMaterialsIds() {
+    return this._editManager.getMaterialsIds(this);
+  }
+
+  /**
+   * Gets the materials of the model.
+   * @param localIds - The local IDs of the materials to get. If undefined, it will return all materials.
+   */
+  async getMaterials(localIds?: Iterable<number>) {
+    return this._editManager.getMaterials(this, localIds);
+  }
+
+  /**
+   * Gets all the representations IDs of the model.
+   */
+  async getRepresentationsIds() {
+    return this._editManager.getRepresentationsIds(this);
+  }
+
+  /**
+   * Gets the representations of the model.
+   * @param localIds - The local IDs of the representations to get. If undefined, it will return all representations.
+   */
+  async getRepresentations(localIds?: Iterable<number>) {
+    return this._editManager.getRepresentations(this, localIds);
+  }
+
+  /**
+   * Gets all the local transforms IDs of the model.
+   */
+  async getLocalTransformsIds() {
+    return this._editManager.getLocalTransformsIds(this);
+  }
+
+  /**
+   * Gets the local transforms of the model.
+   * @param localIds - The local IDs of the local transforms to get. If undefined, it will return all local transforms.
+   */
+  async getLocalTransforms(localIds?: Iterable<number>) {
+    return this._editManager.getLocalTransforms(this, localIds);
+  }
+
+  /**
+   * Gets all the global transforms IDs of the model.
+   */
+  async getGlobalTransformsIds() {
+    return this._editManager.getGlobalTransformsIds(this);
+  }
+
+  /**
+   * Gets the global transforms of the model.
+   * @param localIds - The local IDs of the global transforms to get. If undefined, it will return all global transforms.
+   */
+  async getGlobalTransforms(localIds?: Iterable<number>) {
+    return this._editManager.getGlobalTransforms(this, localIds);
+  }
+
+  /**
+   * Gets all the samples IDs of the model.
+   */
+  async getSamplesIds() {
+    return this._editManager.getSamplesIds(this);
+  }
+
+  /**
+   * Gets the samples of the model.
+   * @param localIds - The local IDs of the samples to get. If undefined, it will return all samples.
+   */
+  async getSamples(localIds?: Iterable<number>) {
+    return this._editManager.getSamples(this, localIds);
+  }
+
+  /**
+   * Gets all the items IDs of the model.
+   */
+  async getItemsIds() {
+    return this._editManager.getItemsIds(this);
+  }
+
+  /**
+   * Gets the items of the model.
+   * @param localIds - The local IDs of the items to get. If undefined, it will return all items.
+   */
+  async getItems(localIds?: Iterable<number>) {
+    return this._editManager.getItems(this, localIds);
+  }
+
+  /**
+   * Gets the relations of the model.
+   * @param localIds - The local IDs of the relations to get. If undefined, it will return all relations.
+   */
+  async getRelations(localIds?: number[]) {
+    return this._editManager.getRelations(this, localIds);
+  }
+
+  /**
+   * Gets the global transforms IDs of the items of the model.
+   * @param ids - The local IDs of the items to get the global transforms IDs of.
+   */
+  async getGlobalTranformsIdsOfItems(ids: number[]) {
+    return this._editManager.getGlobalTranformsIdsOfItems(this, ids);
+  }
+
+  /**
+   * Gets the edited elements of the model.
+   */
+  async getEditedElements() {
+    return this._editManager.getEditedElements(this);
+  }
+
+  /**
    * Processes a sequence of actions in the worker and computes the result based on the provided input.
    *
    * @param result - The type of item information to compute, used to select the appropriate result function.
@@ -633,11 +769,20 @@ export class FragmentsModel {
     await this._meshManager.requests.handleRequest(this._meshManager, request);
   }
 
+  async _getElements(localIds: Iterable<number>) {
+    return this._editManager.getElements(this, localIds);
+  }
+
   /**
    * Internal method to finish processing. Don't use this directly.
    */
   _finishProcessing() {
     this._isProcessing = false;
+  }
+
+  _setDeltaModel(modelId: string) {
+    this.object.userData[FragmentsModel._deltaModelId] = true;
+    this._parentModelId = modelId;
   }
 
   /**
@@ -646,17 +791,71 @@ export class FragmentsModel {
   async _refreshView() {
     if (this.frozen) return;
     this._isProcessing = true;
-    await this._viewManager.refreshView(this, this._meshManager);
+    const mainPromise = this._viewManager.refreshView(this, this._meshManager);
+    const deltaPromise = this._editor._update(this.modelId);
+    await Promise.all([mainPromise, deltaPromise]);
   }
 
   /**
    * Internal method to set up the model. Don't use this directly.
    */
-  async _setup(data: ArrayBuffer, raw?: boolean, config?: VirtualModelConfig) {
+  async _setup(
+    data: ArrayBuffer | Uint8Array,
+    raw?: boolean,
+    config?: VirtualModelConfig,
+  ) {
     if (this._isSetup) return;
     await this._setupManager.setup(this, this._bbox, data, raw, config);
     this._isLoaded = true;
     this._isProcessing = true;
     this._isSetup = true;
+  }
+
+  /**
+   * Internal method to edit the model. Don't use this directly.
+   * @param requests - The requests to edit the model.
+   */
+  async _edit(requests: EditRequest[]) {
+    return this._editManager.edit(this, requests);
+  }
+
+  /**
+   * Internal method to reset the model. Don't use this directly.
+   */
+  async _reset() {
+    return this._editManager.reset(this);
+  }
+
+  /**
+   * Internal method to save the model. Don't use this directly.
+   */
+  async _save() {
+    return this._editManager.save(this);
+  }
+
+  /**
+   * Internal method to get the requests of the model. Don't use this directly.
+   */
+  async _getRequests() {
+    return this._editManager.getRequests(this);
+  }
+
+  /**
+   * Internal method to set the requests of the model. Don't use this directly.
+   * @param data - The data to set the requests of the model.
+   */
+  async _setRequests(data: {
+    requests?: EditRequest[];
+    undoneRequests?: EditRequest[];
+  }) {
+    return this._editManager.setRequests(this, data);
+  }
+
+  /**
+   * Internal method to select a request of the model. Don't use this directly.
+   * @param index - The index of the request to select.
+   */
+  async _selectRequest(index: number) {
+    return this._editManager.selectRequest(this, index);
   }
 }

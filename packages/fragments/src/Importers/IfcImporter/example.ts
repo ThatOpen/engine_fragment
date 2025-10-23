@@ -54,14 +54,13 @@ grids.create(world);
   */
 
 const serializer = new FRAGS.IfcImporter();
-serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.71/" };
+serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.72/" };
 // A convenient variable to hold the ArrayBuffer data loaded into memory
 let fragmentBytes: ArrayBuffer | null = null;
 let onConversionFinish = () => {};
 
 const convertIFC = async () => {
-  const url =
-    "https://thatopen.github.io/engine_fragment/resources/ifc/school_str.ifc";
+  const url = "/resources/ifc/just_wall.ifc";
   const ifcFile = await fetch(url);
   const ifcBuffer = await ifcFile.arrayBuffer();
   const ifcBytes = new Uint8Array(ifcBuffer);
@@ -80,14 +79,8 @@ const convertIFC = async () => {
 // You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
 // We use here the internal route of the worker in the library for simplicity purposes
-const githubUrl =
-  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-const fetchedUrl = await fetch(githubUrl);
-const workerBlob = await fetchedUrl.blob();
-const workerFile = new File([workerBlob], "worker.mjs", {
-  type: "text/javascript",
-});
-const workerUrl = URL.createObjectURL(workerFile);
+const workerUrl =
+  "../../FragmentsModels/src/multithreading/fragments-thread.ts";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 

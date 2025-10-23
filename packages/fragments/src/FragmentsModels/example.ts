@@ -57,14 +57,7 @@ grids.create(world);
 // You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
 // We use here the internal route of the worker in the library for simplicity purposes
-const githubUrl =
-  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-const fetchedUrl = await fetch(githubUrl);
-const workerBlob = await fetchedUrl.blob();
-const workerFile = new File([workerBlob], "worker.mjs", {
-  type: "text/javascript",
-});
-const workerUrl = URL.createObjectURL(workerFile);
+const workerUrl = "../FragmentsModels/src/multithreading/fragments-thread.ts";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 
@@ -153,10 +146,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       if (ids.includes(id)) {
         await disposeModels([id]);
       } else {
-        await loadFragmentFile(
-          `https://thatopen.github.io/engine_fragment/resources/frags/${id}.frag`,
-          id,
-        );
+        await loadFragmentFile(`/resources/frags/${id}.frag`, id);
       }
       target.loading = false;
     };
@@ -183,11 +173,9 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
 
     const arqLoaded = ids.some((id) => id.includes("arq"));
     const strLoaded = ids.some((id) => id.includes("str"));
-    const mepLoaded = ids.some((id) => id.includes("mep"));
 
     const arqLabel = arqLoaded ? "Remove Architecture" : "Load Architecture";
     const strLabel = strLoaded ? "Remove Structure" : "Load Structure";
-    const mepLabel = mepLoaded ? "Remove Systems" : "Load Systems";
 
     return BUI.html`
     <bim-panel id="controls-panel" active label="Fragments Models" class="options-menu">
@@ -199,10 +187,6 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
         <div style="display: flex; gap: 0.25rem">
           <bim-button data-name="str" label=${strLabel} @click=${onLoadModel}></bim-button>
           ${strLoaded ? BUI.html`<bim-button data-name="str" label="Download" @click=${onDownloadModel}></bim-button>` : null}
-        </div>
-        <div style="display: flex; gap: 0.25rem">
-          <bim-button data-name="mep" label=${mepLabel} @click=${onLoadModel}></bim-button>
-          ${mepLoaded ? BUI.html`<bim-button data-name="mep" label="Download" @click=${onDownloadModel}></bim-button>` : null}
         </div>
         <bim-button ?disabled=${ids.length === 0} label="Remove All" @click=${onDisposeModels}></bim-button>
       </bim-panel-section>

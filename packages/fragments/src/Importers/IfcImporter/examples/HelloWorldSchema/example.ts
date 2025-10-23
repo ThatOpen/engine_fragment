@@ -20,7 +20,7 @@ import * as OBC from "@thatopen/components";
 import * as THREE from "three";
 import Stats from "stats.js";
 import * as BUI from "@thatopen/ui";
-import * as FRAGS from "../../../../..";
+import * as FRAGS from "../../../../index";
 
 /* MD
   ### 🌎 Setting up a Simple Scene
@@ -60,14 +60,8 @@ world.renderer.onAfterUpdate.add(() => stats.end());
   Now we will set up Fragments for this app. If you are not familiar with Fragments, you can check out the other Fragments related tutorails in this documentation.
 */
 
-const githubUrl =
-  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-const fetchedUrl = await fetch(githubUrl);
-const workerBlob = await fetchedUrl.blob();
-const workerFile = new File([workerBlob], "worker.mjs", {
-  type: "text/javascript",
-});
-const workerUrl = URL.createObjectURL(workerFile);
+// prettier-ignore
+const workerUrl = "../../../../FragmentsModels/src/multithreading/fragments-thread.ts";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("control", () => fragments.update());
 
@@ -116,10 +110,6 @@ async function loadIfcFile(fileUrl: string, raw: boolean) {
   const ifcBuffer = await ifcFile.arrayBuffer();
   const typedArray = new Uint8Array(ifcBuffer);
   const serializer = new FRAGS.IfcImporter();
-  serializer.wasm = {
-    absolute: true,
-    path: "https://unpkg.com/web-ifc@0.0.71/",
-  };
   const bytes = await serializer.process({ bytes: typedArray, raw: true });
 
   model = await fragments.load(bytes, {
@@ -166,8 +156,7 @@ loadFileBtn.addEventListener("click", () => {
 });
 
 loadWallBtn.addEventListener("click", () => {
-  const url =
-    "https://thatopen.github.io/engine_fragment/resources/ifc/just_wall.ifc";
+  const url = "/resources/ifc/just_wall.ifc";
   loadIfcFile(url, true);
 });
 

@@ -2,6 +2,7 @@ import {
   MultiThreadingRequestClass,
   ItemsQueryParams,
   SpatialTreeItem,
+  ItemsQueryConfig,
 } from "./model-types";
 import { AlignmentsManager } from "./alignments-manager";
 import { FragmentsModel } from "./fragments-model";
@@ -16,6 +17,7 @@ export class DataManager {
     meshes.list.delete(model.modelId);
     await this.requestModelDelete(model);
     model.threads.delete(model.modelId);
+    model.object.removeFromParent();
     this.deleteAllTiles(model);
     meshes.materials.dispose(model.modelId);
     alignments.dispose();
@@ -89,8 +91,12 @@ export class DataManager {
     return data;
   }
 
-  async getItemsByQuery(model: FragmentsModel, params: ItemsQueryParams) {
-    const args = [params];
+  async getItemsByQuery(
+    model: FragmentsModel,
+    params: ItemsQueryParams,
+    config?: ItemsQueryConfig,
+  ) {
+    const args = [params, config];
     const localIds = (await model.threads.invoke(
       model.modelId,
       "getItemsByQuery",

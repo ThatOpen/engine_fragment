@@ -29,7 +29,7 @@ export class SingleThreadedFragmentsModel {
 
     this._virtualModel = new VirtualFragmentsModel(
       modelId,
-      data,
+      data as any,
       undefined as any,
     );
   }

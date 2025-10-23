@@ -7,6 +7,9 @@ import { CameraUtils, GPU } from "../utils";
 export class ViewManager {
   getClippingPlanesEvent: () => THREE.Plane[] = () => [];
 
+  currentCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null =
+    null;
+
   private readonly _tempMatrix = new THREE.Matrix4();
   private readonly _tempVec = new THREE.Vector3();
   private readonly _tempFrustum = new THREE.Frustum();
@@ -34,6 +37,7 @@ export class ViewManager {
     this.setCameraFrustum(camera, projScreenMatrix);
     this.setFov(camera);
     this.setOrtho();
+    this.currentCamera = camera;
   }
 
   private getOrthoSize() {

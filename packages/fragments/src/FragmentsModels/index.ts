@@ -5,6 +5,7 @@ import { VirtualModelConfig } from "./src";
 import { FragmentsConnection } from "./src/multithreading/fragments-connection";
 import { ThreadHandler } from "./src/multithreading/connection-handlers";
 import { Event } from "../Utils";
+import { Editor } from "./src/edit";
 
 export * from "./src";
 
@@ -42,6 +43,9 @@ export class FragmentsModels {
   /** Coordinates of the first loaded model, used for coordinate system alignment */
   baseCoordinates: number[] | null = null;
 
+  /** The editor instance for managing model edits and changes */
+  editor: Editor;
+
   private readonly _connection: FragmentsConnection;
 
   private _isDisposed = false;
@@ -57,6 +61,7 @@ export class FragmentsModels {
     const requestEvent = this.newRequestEvent();
     const updateEvent = this.newUpdateEvent();
     this._connection = new FragmentsConnection(requestEvent, workerURL);
+    this.editor = new Editor(this, this._connection);
     this.models = new MeshManager(updateEvent);
     this.models.list.onItemDeleted.add(() => {
       if (this.models.list.size !== 0) return;
@@ -76,7 +81,7 @@ export class FragmentsModels {
    * @returns Promise resolving to the loaded FragmentsModel instance.
    */
   async load(
-    buffer: ArrayBuffer,
+    buffer: ArrayBuffer | Uint8Array,
     options: {
       modelId: string;
       camera?: THREE.PerspectiveCamera | THREE.OrthographicCamera;
@@ -89,6 +94,7 @@ export class FragmentsModels {
       options.modelId,
       this.models,
       this._connection,
+      this.editor,
     );
 
     if (options.userData) {

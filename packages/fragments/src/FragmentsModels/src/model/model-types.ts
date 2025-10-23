@@ -1,10 +1,6 @@
 import * as THREE from "three";
 import { LodMaterial, LODMesh } from "../lod";
-import {
-  GeometryClass,
-  RenderedFaces,
-  RepresentationClass,
-} from "../../../Schema";
+import { RenderedFaces, RepresentationClass } from "../../../Schema";
 import { FragmentsModel } from "./fragments-model";
 
 /**
@@ -122,6 +118,9 @@ export type MaterialDefinition = {
    * @default true
    */
   depthTest?: boolean;
+
+  /** The local ID of the material */
+  localId?: number;
 };
 export interface MaterialData {
   data: MaterialDefinition;
@@ -222,12 +221,18 @@ export type BIMMesh = THREE.Mesh | LODMesh;
 export type MeshData = {
   /** The transformation matrix of the mesh */
   transform: THREE.Matrix4;
+  /** The sample ID of the mesh */
+  sampleId?: number;
   /** The indices of the mesh */
   indices?: Uint8Array | Uint16Array | Uint32Array;
   /** The positions of the mesh */
   positions?: Float32Array | Float64Array;
   /** The normals of the mesh */
   normals?: Int16Array;
+  /** The local ID of the mesh */
+  localId?: number;
+  /** The representation ID of the mesh */
+  representationId?: number;
 };
 
 /**
@@ -361,15 +366,32 @@ export interface ItemsDataConfig {
   relationsDefault: { attributes: boolean; relations: boolean };
 }
 
+export const ALIGNMENT_CATEGORY = "ThatOpenAlignment";
+
+export enum AlignmentCurveType {
+  NONE = 0,
+  LINES = 1,
+  CLOTHOID = 2,
+  ELLIPSE_ARC = 3,
+  PARABOLA = 4,
+}
+
 export type AlignmentCurve = {
-  points: Float32Array;
-  type: GeometryClass;
+  points: Float32Array | number[];
+  type: AlignmentCurveType;
 };
 
 export type AlignmentData = {
   absolute: AlignmentCurve[];
   horizontal: AlignmentCurve[];
   vertical: AlignmentCurve[];
+};
+
+export type AlignmentDataItem = {
+  data: {
+    value: string;
+    type: string;
+  };
 };
 
 /**
@@ -537,6 +559,10 @@ export type ItemsQueryParams = {
     query?: ItemsQueryParams; // By making the query optional it means the item must have the given relation regardless of its items (e.g. To take items that have property sets )
   };
 };
+
+export interface ItemsQueryConfig {
+  localIds?: number[];
+}
 
 export interface AttributesUniqueValuesParams {
   key?: string; // the key name to be used in the result

@@ -164,6 +164,12 @@ export class VirtualTilesController {
     return sample;
   }
 
+  fetchGeometry(id: number) {
+    this.meshes.representations(id, this._temp.representation);
+    const mesh = this.fetchCurrentMesh();
+    return mesh.fetchMeshes(id, true);
+  }
+
   dispose() {
     this._meshConnection.dispose();
     for (const [, mesh] of this._virtualMeshes) {

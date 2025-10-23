@@ -2,7 +2,6 @@
 
 /* eslint-disable @typescript-eslint/no-unused-vars, @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 
-export { Alignment } from './alignment.js';
 export { Attribute } from './attribute.js';
 export { Axis } from './axis.js';
 export { AxisPartClass } from './axis-part-class.js';
@@ -13,12 +12,6 @@ export { CircleCurve } from './circle-curve.js';
 export { CircleExtrusion } from './circle-extrusion.js';
 export { DoubleVector } from './double-vector.js';
 export { FloatVector } from './float-vector.js';
-export { Geometries } from './geometries.js';
-export { GeometryClass } from './geometry-class.js';
-export { GeometryLines } from './geometry-lines.js';
-export { GeometryRepresentation } from './geometry-representation.js';
-export { GeometrySample } from './geometry-sample.js';
-export { GeometryWall } from './geometry-wall.js';
 export { Material } from './material.js';
 export { Meshes } from './meshes.js';
 export { Model } from './model.js';

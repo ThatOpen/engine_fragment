@@ -4,9 +4,7 @@
 
 import * as flatbuffers from 'flatbuffers';
 
-import { Alignment } from './alignment.js';
 import { Attribute } from './attribute.js';
-import { Geometries } from './geometries.js';
 import { Meshes } from './meshes.js';
 import { Relation } from './relation.js';
 import { SpatialStructure } from './spatial-structure.js';
@@ -163,47 +161,32 @@ spatialStructure(obj?:SpatialStructure):SpatialStructure|null {
   return offset ? (obj || new SpatialStructure()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
 }
 
-alignments(index: number, obj?:Alignment):Alignment|null {
-  const offset = this.bb!.__offset(this.bb_pos, 28);
-  return offset ? (obj || new Alignment()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
-}
-
-alignmentsLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 28);
-  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
-}
-
-geometries(obj?:Geometries):Geometries|null {
-  const offset = this.bb!.__offset(this.bb_pos, 30);
-  return offset ? (obj || new Geometries()).__init(this.bb!.__indirect(this.bb_pos + offset), this.bb!) : null;
-}
-
 uniqueAttributes(index: number):string
 uniqueAttributes(index: number,optionalEncoding:flatbuffers.Encoding):string|Uint8Array
 uniqueAttributes(index: number,optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 32);
+  const offset = this.bb!.__offset(this.bb_pos, 28);
   return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
 }
 
 uniqueAttributesLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 32);
+  const offset = this.bb!.__offset(this.bb_pos, 28);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 relationNames(index: number):string
 relationNames(index: number,optionalEncoding:flatbuffers.Encoding):string|Uint8Array
 relationNames(index: number,optionalEncoding?:any):string|Uint8Array|null {
-  const offset = this.bb!.__offset(this.bb_pos, 34);
+  const offset = this.bb!.__offset(this.bb_pos, 30);
   return offset ? this.bb!.__string(this.bb!.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
 }
 
 relationNamesLength():number {
-  const offset = this.bb!.__offset(this.bb_pos, 34);
+  const offset = this.bb!.__offset(this.bb_pos, 30);
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
 static startModel(builder:flatbuffers.Builder) {
-  builder.startObject(16);
+  builder.startObject(14);
 }
 
 static addMetadata(builder:flatbuffers.Builder, metadataOffset:flatbuffers.Offset) {
@@ -353,28 +336,8 @@ static addSpatialStructure(builder:flatbuffers.Builder, spatialStructureOffset:f
   builder.addFieldOffset(11, spatialStructureOffset, 0);
 }
 
-static addAlignments(builder:flatbuffers.Builder, alignmentsOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(12, alignmentsOffset, 0);
-}
-
-static createAlignmentsVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
-  builder.startVector(4, data.length, 4);
-  for (let i = data.length - 1; i >= 0; i--) {
-    builder.addOffset(data[i]!);
-  }
-  return builder.endVector();
-}
-
-static startAlignmentsVector(builder:flatbuffers.Builder, numElems:number) {
-  builder.startVector(4, numElems, 4);
-}
-
-static addGeometries(builder:flatbuffers.Builder, geometriesOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(13, geometriesOffset, 0);
-}
-
 static addUniqueAttributes(builder:flatbuffers.Builder, uniqueAttributesOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(14, uniqueAttributesOffset, 0);
+  builder.addFieldOffset(12, uniqueAttributesOffset, 0);
 }
 
 static createUniqueAttributesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
@@ -390,7 +353,7 @@ static startUniqueAttributesVector(builder:flatbuffers.Builder, numElems:number)
 }
 
 static addRelationNames(builder:flatbuffers.Builder, relationNamesOffset:flatbuffers.Offset) {
-  builder.addFieldOffset(15, relationNamesOffset, 0);
+  builder.addFieldOffset(13, relationNamesOffset, 0);
 }
 
 static createRelationNamesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {

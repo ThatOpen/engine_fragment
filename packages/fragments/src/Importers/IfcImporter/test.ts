@@ -2,6 +2,7 @@
 import * as FB from "flatbuffers";
 import pako from "pako";
 import * as OBC from "@thatopen/components";
+import * as OBF from "@thatopen/components-front";
 import * as THREE from "three";
 import Stats from "stats.js";
 // import { FragmentsModels, IfcSerializer, getObject } from "../../../dist";
@@ -32,7 +33,7 @@ const run = async (serialize: boolean) => {
 
     // Read the file
     // const ifcFile = fs.readFileSync(`${name}${extension}`)
-    const url = "/resources/ifc/test/125_C3D_BIM_M1_K.ifc";
+    const url = "/resources/ifc/test/medium_test.ifc";
     const ifcFile = await fetch(url);
     const ifcBuffer = await ifcFile.arrayBuffer();
     const typedArray = new Uint8Array(ifcBuffer);
@@ -40,7 +41,6 @@ const run = async (serialize: boolean) => {
     // Serialize the data
     // const serializationStart = performance.now()
     const serializer = new IfcImporter(); // The serializer can be other than IFC
-    serializer.distanceThreshold = null;
     // serializer.classesToInclude = [{entities: [WEBIFC.IFCWALLSTANDARDCASE, WEBIFC.IFCBUILDINGSTOREY], rels: [WEBIFC.IFCRELCONTAINEDINSPATIALSTRUCTURE]}]
     const raw = false;
     const conversionStart = performance.now();
@@ -107,14 +107,17 @@ const run = async (serialize: boolean) => {
     const world = worlds.create<
       OBC.SimpleScene,
       OBC.SimpleCamera,
-      OBC.SimpleRenderer
+      OBF.PostproductionRenderer
     >();
 
     world.scene = new OBC.SimpleScene(components);
-    world.renderer = new OBC.SimpleRenderer(components, container);
+    world.renderer = new OBF.PostproductionRenderer(components, container);
     world.camera = new OBC.SimpleCamera(components);
 
     components.init();
+
+    world.renderer.postproduction.enabled = true;
+    world.renderer.postproduction.style = OBF.PostproductionAspect.PEN;
 
     world.scene.setup();
     // world.camera.three.far = 10000;
@@ -131,14 +134,8 @@ const run = async (serialize: boolean) => {
 
     // Model loading
 
-    const githubUrl =
-      "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-    const fetchedUrl = await fetch(githubUrl);
-    const workerBlob = await fetchedUrl.blob();
-    const workerFile = new File([workerBlob], "worker.mjs", {
-      type: "text/javascript",
-    });
-    const workerUrl = URL.createObjectURL(workerFile);
+    // prettier-ignore
+    const workerUrl = "../../FragmentsModels/src/multithreading/fragments-thread.ts";
     // const workerUrl = "../../../dist/Worker/worker.mjs";
     const fragments = new FragmentsModels(workerUrl);
 
@@ -147,6 +144,8 @@ const run = async (serialize: boolean) => {
       camera: world.camera.three,
       raw,
     });
+
+    world.scene.three.add(model.object);
 
     const absoluteAlignments = await model.getAlignments();
     world.scene.three.add(absoluteAlignments);

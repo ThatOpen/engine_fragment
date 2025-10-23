@@ -5,6 +5,7 @@
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",
     "Juan Hoyos (https://github.com/HoyosJuan)"
   ],
+  "private": true,
   "scripts": {
     "dev": "vite --host",
     "build-core": "yarn workspace @thatopen/fragments build",

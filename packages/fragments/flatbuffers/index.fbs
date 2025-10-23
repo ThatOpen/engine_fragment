@@ -122,6 +122,7 @@ table Shell {
     big_profiles: [BigShellProfile] (required); // Exterior profiles of the shell (if the shell has more than 65535 points)
     big_holes: [BigShellHole] (required); // Holes of the shell (if the shell has more than 65535 points)
     type: ShellType; // Type of the shell (less than 65535 points or more than 65535 points)
+    profiles_face_ids: [ushort] (required); // An array of face ids for the profiles
 }
 
 table CircleExtrusion {
@@ -139,6 +140,11 @@ table Meshes {
     shells: [Shell] (required); // The list of geometries defined as faces and holes (breps).
     local_transforms: [Transform] (required); // Local transforms of the samples
     global_transforms: [Transform] (required); // A set of local transformations for geometry samples. Each global transformation is assigned to a local id by meshes_items.
+    material_ids: [uint]; // An array of local ids for the materials
+    representation_ids: [uint]; // An array of local ids for the representations
+    sample_ids: [uint]; // An array of local ids for the samples
+    local_transform_ids: [uint]; // An array of local ids for the local transforms
+    global_transform_ids: [uint]; // An array of local ids for the global transforms
 }
 
 table Attribute {
@@ -153,64 +159,6 @@ table SpatialStructure {
     local_id: uint = null; // Local id of the current spatial node
     category: string; // Category of the current spatial node
     children: [SpatialStructure]; // Child spatial nodes of the current spatial node
-}
-
-table Alignment {
-    absolute: [uint]; // Geometry representation ids for the absolute respresentation of this alignment
-    horizontal: [uint]; // Geometry representation ids for the horizontal respresentation of this alignment
-    vertical: [uint]; // Geometry representation ids for the vertical respresentation of this alignment
-}
-
-// IMPLICIT GEOMETRIES
-// Implicit geometries' only goal is to create mesh representations
-// Implicit geometries main object are samples. Samples are made of:
-// - A representation (a common interface for all implicit geometries)
-// - A transform that defines the geometry's transformation
-// Not all samples are used to create mesh representations. For example, a wall
-// with some holes might be made using multiple samples, but in the end only the
-// end sample will be used to create the mesh representation.
-
-enum GeometryClass:byte {
-    NONE = 0, // No geometry class
-    LINES = 1, // Simple lines geometry class
-    ELLIPSE_ARC = 2, // Ellipse arc geometry class
-    CLOTHOID = 3, // Clothoid geometry class
-    PARABOLA = 4, // Parabola geometry class
-    WALLS = 5, // Walls geometry class
-}
-
-struct GeometrySample {
-    id: uint; // The index of the geometry in the representations array
-    transform: uint; // The index of the transform in transforms
-}
-
-struct GeometryRepresentation {
-    id: uint; // The index of the geometry in its corresponding array
-    geometry_class: GeometryClass; // The class of the geometry
-}
-
-table GeometryLines {
-    points: [float] (required); // Points of the line
-}
-
-struct GeometryWall {
-    start: FloatVector; // Start point of the wall
-    end: FloatVector; // End point of the wall
-    height: float; // Height of the wall
-    width: float; // Width of the wall
-    offset: float; // Offset of the wall
-}
-
-table Geometries {
-    samples: [GeometrySample] (required); // An array of implicit geometry samples
-    sample_ids: [uint]; // An array of ids for the implicit geometry samples
-    representations: [GeometryRepresentation] (required); // An array of implicit geometry representations
-    representation_ids: [uint]; // An array of ids for the implicit geometry representations
-    transforms: [Transform] (required); // An array of implicit geometry transforms
-    transform_ids: [uint]; // An array of ids for the implicit geometry transforms
-    representations_samples: [uint]; // An array of id pairs that work as an indexation matching mesh representations ids with implicit samples ids
-    lines: [GeometryLines] (required); // An array of implicit geometry lines
-    walls: [GeometryWall]; // An array of implicit geometry walls
 }
 
 // MODELS
@@ -238,10 +186,6 @@ table Model {
 
     spatial_structure: SpatialStructure; // A tree representing the spatial relation between elements.
 
-    alignments: [Alignment]; // A set of civil alignments for this model
-
-    geometries: Geometries; // The object containing all implicit geometries of the model.
-    
     unique_attributes: [string]; // An array of unique item attributes in this model.
     relation_names: [string]; // An array of unique relation names in this model.
 }

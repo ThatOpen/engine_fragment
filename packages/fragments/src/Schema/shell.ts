@@ -96,8 +96,23 @@ mutate_type(value:ShellType):boolean {
   return true;
 }
 
+profilesFaceIds(index: number):number|null {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? this.bb!.readUint16(this.bb!.__vector(this.bb_pos + offset) + index * 2) : 0;
+}
+
+profilesFaceIdsLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
+profilesFaceIdsArray():Uint16Array|null {
+  const offset = this.bb!.__offset(this.bb_pos, 16);
+  return offset ? new Uint16Array(this.bb!.bytes().buffer, this.bb!.bytes().byteOffset + this.bb!.__vector(this.bb_pos + offset), this.bb!.__vector_len(this.bb_pos + offset)) : null;
+}
+
 static startShell(builder:flatbuffers.Builder) {
-  builder.startObject(6);
+  builder.startObject(7);
 }
 
 static addProfiles(builder:flatbuffers.Builder, profilesOffset:flatbuffers.Offset) {
@@ -176,6 +191,27 @@ static addType(builder:flatbuffers.Builder, type:ShellType) {
   builder.addFieldInt8(5, type, ShellType.NONE);
 }
 
+static addProfilesFaceIds(builder:flatbuffers.Builder, profilesFaceIdsOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(6, profilesFaceIdsOffset, 0);
+}
+
+static createProfilesFaceIdsVector(builder:flatbuffers.Builder, data:number[]|Uint16Array):flatbuffers.Offset;
+/**
+ * @deprecated This Uint8Array overload will be removed in the future.
+ */
+static createProfilesFaceIdsVector(builder:flatbuffers.Builder, data:number[]|Uint8Array):flatbuffers.Offset;
+static createProfilesFaceIdsVector(builder:flatbuffers.Builder, data:number[]|Uint16Array|Uint8Array):flatbuffers.Offset {
+  builder.startVector(2, data.length, 2);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addInt16(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startProfilesFaceIdsVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(2, numElems, 2);
+}
+
 static endShell(builder:flatbuffers.Builder):flatbuffers.Offset {
   const offset = builder.endObject();
   builder.requiredField(offset, 4) // profiles
@@ -183,10 +219,11 @@ static endShell(builder:flatbuffers.Builder):flatbuffers.Offset {
   builder.requiredField(offset, 8) // points
   builder.requiredField(offset, 10) // big_profiles
   builder.requiredField(offset, 12) // big_holes
+  builder.requiredField(offset, 16) // profiles_face_ids
   return offset;
 }
 
-static createShell(builder:flatbuffers.Builder, profilesOffset:flatbuffers.Offset, holesOffset:flatbuffers.Offset, pointsOffset:flatbuffers.Offset, bigProfilesOffset:flatbuffers.Offset, bigHolesOffset:flatbuffers.Offset, type:ShellType):flatbuffers.Offset {
+static createShell(builder:flatbuffers.Builder, profilesOffset:flatbuffers.Offset, holesOffset:flatbuffers.Offset, pointsOffset:flatbuffers.Offset, bigProfilesOffset:flatbuffers.Offset, bigHolesOffset:flatbuffers.Offset, type:ShellType, profilesFaceIdsOffset:flatbuffers.Offset):flatbuffers.Offset {
   Shell.startShell(builder);
   Shell.addProfiles(builder, profilesOffset);
   Shell.addHoles(builder, holesOffset);
@@ -194,6 +231,7 @@ static createShell(builder:flatbuffers.Builder, profilesOffset:flatbuffers.Offse
   Shell.addBigProfiles(builder, bigProfilesOffset);
   Shell.addBigHoles(builder, bigHolesOffset);
   Shell.addType(builder, type);
+  Shell.addProfilesFaceIds(builder, profilesFaceIdsOffset);
   return Shell.endShell(builder);
 }
 }

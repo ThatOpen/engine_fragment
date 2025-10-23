@@ -28,6 +28,8 @@ import {
   ItemsQueryParams,
   MeshData,
   AttributesUniqueValuesParams,
+  CurrentLod,
+  ItemsQueryConfig,
 } from "../model/model-types";
 
 import { VirtualBoxController } from "../bounding-boxes";
@@ -45,6 +47,8 @@ import {
   SequenceHelper,
   VisibilityHelper,
 } from "./virtual-helpers";
+import { EditRequest, EditRequestType, EditUtils } from "../../../Utils";
+import { TileData } from "./virtual-meshes";
 
 export class VirtualFragmentsModel {
   data: Model;
@@ -55,6 +59,8 @@ export class VirtualFragmentsModel {
   materials: VirtualMaterialController;
   tiles: VirtualTilesController;
   boxes: VirtualBoxController;
+
+  requests: EditRequest[] = [];
 
   private _raycastHelper = new RaycastHelper();
   private _coordinatesHelper = new CoordinatesHelper();
@@ -71,6 +77,11 @@ export class VirtualFragmentsModel {
   private _alignments: AlignmentsController;
   private _connection: Connection;
 
+  private _reprIdMap = new Map<number, number>();
+  private _nextId = 0;
+
+  private _requestsForRedo: EditRequest[] = [];
+
   constructor(
     modelId: string,
     data: ArrayBuffer,
@@ -83,12 +94,13 @@ export class VirtualFragmentsModel {
     this.data = this.setupModel(data);
     this.boxes = new VirtualBoxController(this.data);
     this.materials = this.setupMaterials(modelId);
-    this._alignments = new AlignmentsController(this.data);
+    this._alignments = new AlignmentsController(this);
     this.itemConfig = this.setupItemsConfig();
     this.tiles = this.setupTiles();
     this.properties = this.setupProperties();
     this.raycaster = this.setupRaycaster();
     this.setupBVH();
+    this._nextId = this.getMaxLocalId();
   }
 
   getItemsByConfig(condition: (item: number) => boolean) {
@@ -131,8 +143,8 @@ export class VirtualFragmentsModel {
     return this.properties.getItemsWithGeometryCategories();
   }
 
-  getItemsByQuery(params: ItemsQueryParams) {
-    return this.properties.getItemsByQuery(params);
+  getItemsByQuery(params: ItemsQueryParams, config?: ItemsQueryConfig) {
+    return this.properties.getItemsByQuery(params, config);
   }
 
   getItemRelations(id: number) {
@@ -140,6 +152,14 @@ export class VirtualFragmentsModel {
   }
 
   getSpatialStructure() {
+    // If there are any changes to the spatial structure, return the changed spatial structure
+    const found = EditUtils.applyChangesToSpecialData(
+      this.requests,
+      "SPATIAL_STRUCTURE",
+    );
+    if (found) {
+      return found;
+    }
     return this.properties.getSpatialStructure();
   }
 
@@ -152,6 +172,16 @@ export class VirtualFragmentsModel {
   }
 
   getMetadata() {
+    // If there are any changes to the metadata, return the changed metadata
+    const found = EditUtils.applyChangesToSpecialData(
+      this.requests,
+      "METADATA",
+    );
+    if (found) {
+      return found;
+    }
+
+    // Otherwise, return the original metadata
     return this.properties.getMetadata();
   }
 
@@ -210,14 +240,56 @@ export class VirtualFragmentsModel {
     return this.properties.getLocalIds();
   }
 
-  getItemsGeometry(localIds: number[]) {
+  getItemsGeometry(localIds: number[], lod = CurrentLod.GEOMETRY) {
     const indices = this.properties.getItemIdsFromLocalIds(localIds);
     const geometries: MeshData[][] = [];
     for (const index of indices) {
-      const geometry = this._geometryHelper.getGeometry(this, index);
+      const geometry = this._geometryHelper.getSampleGeometry(this, index, lod);
       geometries.push(geometry);
     }
     return geometries;
+  }
+
+  getGeometries(reprsLocalIds: number[]) {
+    if (this._reprIdMap.size === 0) {
+      const meshes = this.data.meshes()!;
+      for (let i = 0; i < meshes.representationsLength(); i++) {
+        const localId = meshes.representationIds(i)!;
+        this._reprIdMap.set(localId, i);
+      }
+    }
+
+    const indices = new Map<number, number>();
+    for (const localId of reprsLocalIds) {
+      if (this._reprIdMap.has(localId)) {
+        indices.set(localId, this._reprIdMap.get(localId)!);
+      }
+    }
+
+    const meshes = this.data.meshes()!;
+
+    const reprsIndices = Array.from(indices.values());
+
+    const result: MeshData[] = [];
+    for (const index of reprsIndices) {
+      const geoms = this.tiles.fetchGeometry(index) as TileData | TileData[];
+      const items = Array.isArray(geoms) ? geoms : [geoms];
+      for (const found of items) {
+        const indices = found.indexBuffer as Uint16Array;
+        const positions = found.positionBuffer as Float32Array;
+        const normals = found.normalBuffer as Int16Array;
+        const representationId = meshes.representationIds(index)!;
+        result.push({
+          transform: new THREE.Matrix4(),
+          indices,
+          positions,
+          normals,
+          representationId,
+        });
+      }
+    }
+
+    return result;
   }
 
   getItemsVolume(localIds: number[]) {
@@ -295,7 +367,7 @@ export class VirtualFragmentsModel {
     const bb = this.data.bb as ByteBuffer;
     const bytes = bb.bytes();
     const buffer = bytes.buffer;
-    return raw ? buffer : pako.deflate(buffer);
+    return raw ? buffer : pako.deflate(buffer as ArrayBuffer);
   }
 
   dispose() {
@@ -312,6 +384,10 @@ export class VirtualFragmentsModel {
 
   getVisible(items: number[]) {
     return this._visibilityHelper.getVisible(this, items);
+  }
+
+  hideForEdit(localIds: number[]) {
+    this._visibilityHelper.hideForEdit(this, localIds);
   }
 
   getItemsChildren(ids: Identifier[]) {
@@ -346,6 +422,199 @@ export class VirtualFragmentsModel {
     return this.tiles.tilesUpdated;
   }
 
+  edit(requests: EditRequest[]) {
+    const ids = EditUtils.solveIds(requests, this._nextId);
+    this._nextId += ids.length;
+    for (const request of requests) {
+      this.requests.push(request);
+    }
+    const { model, items } = EditUtils.edit(this.data, this.requests, {
+      raw: true,
+      delta: true,
+    });
+    this._visibilityHelper.hideForEdit(this, items);
+    return { deltaModelBuffer: model, ids };
+  }
+
+  reset() {
+    this.requests = [];
+    this._requestsForRedo = [];
+    this._nextId = this.getMaxLocalId();
+  }
+
+  save() {
+    this.requests.push({
+      type: EditRequestType.UPDATE_MAX_LOCAL_ID,
+      localId: this._nextId,
+    });
+    const { model } = EditUtils.edit(this.data, this.requests, {
+      raw: true,
+      delta: false,
+    });
+    return model;
+  }
+
+  undo() {
+    if (this.requests.length === 0) {
+      return;
+    }
+    const lastRequest = this.requests.pop();
+    if (!lastRequest) {
+      return;
+    }
+    this._requestsForRedo.unshift(lastRequest);
+  }
+
+  redo() {
+    if (this._requestsForRedo.length === 0) {
+      return;
+    }
+    const lastUndoneRequest = this._requestsForRedo.shift();
+    if (!lastUndoneRequest) {
+      return;
+    }
+    this.requests.push(lastUndoneRequest);
+  }
+
+  getRequests() {
+    return {
+      requests: this.requests,
+      undoneRequests: this._requestsForRedo,
+    };
+  }
+
+  setRequests(data: {
+    requests?: EditRequest[];
+    undoneRequests?: EditRequest[];
+  }) {
+    if (data.requests) {
+      this.requests = data.requests;
+    }
+    if (data.undoneRequests) {
+      this._requestsForRedo = data.undoneRequests;
+    }
+  }
+
+  selectRequest(index: number) {
+    const allRequests: EditRequest[] = [];
+    for (const request of this.requests) {
+      allRequests.push(request);
+    }
+    for (const request of this._requestsForRedo) {
+      allRequests.push(request);
+    }
+
+    this.requests = [];
+    this._requestsForRedo = [];
+
+    for (let i = 0; i < allRequests.length; i++) {
+      if (i <= index) {
+        this.requests.push(allRequests[i]);
+      } else {
+        this._requestsForRedo.push(allRequests[i]);
+      }
+    }
+  }
+
+  getMaterialsIds() {
+    const ids = EditUtils.getMaterialsIds(this.data);
+    return EditUtils.applyChangesToIds(this.requests, ids, "MATERIAL", true);
+  }
+
+  getMaterials(ids?: Iterable<number>) {
+    const found = EditUtils.getMaterials(this.data, ids);
+    EditUtils.applyChangesToRawData(this.requests, found, "MATERIAL");
+    return found;
+  }
+
+  getRepresentationsIds() {
+    const ids = EditUtils.getRepresentationsIds(this.data);
+    return EditUtils.applyChangesToIds(
+      this.requests,
+      ids,
+      "REPRESENTATION",
+      true,
+    );
+  }
+
+  getRepresentations(ids?: Iterable<number>) {
+    const found = EditUtils.getRepresentations(this.data, ids);
+    EditUtils.applyChangesToRawData(this.requests, found, "REPRESENTATION");
+    return found;
+  }
+
+  getLocalTransformsIds() {
+    const ids = EditUtils.getLocalTransformsIds(this.data);
+    return EditUtils.applyChangesToIds(
+      this.requests,
+      ids,
+      "LOCAL_TRANSFORM",
+      true,
+    );
+  }
+
+  getLocalTransforms(ids?: Iterable<number>) {
+    const found = EditUtils.getLocalTransforms(this.data, ids);
+    EditUtils.applyChangesToRawData(this.requests, found, "LOCAL_TRANSFORM");
+    return found;
+  }
+
+  getGlobalTransformsIds() {
+    const ids = EditUtils.getGlobalTransformsIds(this.data);
+    return EditUtils.applyChangesToIds(
+      this.requests,
+      ids,
+      "GLOBAL_TRANSFORM",
+      true,
+    );
+  }
+
+  getGlobalTransforms(ids?: Iterable<number>) {
+    const found = EditUtils.getGlobalTransforms(this.data, ids);
+    EditUtils.applyChangesToRawData(this.requests, found, "GLOBAL_TRANSFORM");
+    return found;
+  }
+
+  getSamplesIds() {
+    const ids = EditUtils.getSamplesIds(this.data);
+    return EditUtils.applyChangesToIds(this.requests, ids, "SAMPLE", true);
+  }
+
+  getSamples(ids?: Iterable<number>) {
+    const result = EditUtils.getSamples(this.data, ids);
+    EditUtils.applyChangesToRawData(this.requests, result, "SAMPLE");
+    return result;
+  }
+
+  getItemsIds() {
+    const ids = EditUtils.getItemsIds(this.data);
+    return EditUtils.applyChangesToIds(this.requests, ids, "ITEM", true);
+  }
+
+  getItems(ids?: Iterable<number>) {
+    const itemIds = this.properties.getItemIdsFromLocalIds(ids);
+    const found = EditUtils.getItems(this.data, itemIds);
+    const filter = ids ? new Set(ids) : undefined;
+    EditUtils.applyChangesToRawData(this.requests, found, "ITEM", filter);
+    return found;
+  }
+
+  getRelations(ids?: number[]) {
+    const found = this.properties.getRawRelations(ids);
+    EditUtils.applyChangesToRawData(this.requests, found, "RELATION");
+    return found;
+  }
+
+  getGlobalTranformsIdsOfItems(ids: number[]) {
+    return EditUtils.getGlobalTranformsIdsOfItems(this.data, ids);
+  }
+
+  getElementsData(ids: Iterable<number>) {
+    const filtered = new Set(ids);
+    EditUtils.applyChangesToIds(this.requests, filtered, "ITEM", false);
+    return EditUtils.getElementsData(this, filtered);
+  }
+
   private setupBVH() {
     // @ts-ignore
     THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -357,7 +626,7 @@ export class VirtualFragmentsModel {
 
   private setupProperties() {
     return new VirtualPropertiesController(
-      this.data,
+      this,
       this.boxes,
       this._config.properties,
     );

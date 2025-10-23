@@ -26,9 +26,6 @@ export class IfcImporter {
     absolute: false,
   };
 
-  /**
-   * The settings for loading IFC models using our library web-ifc.
-   */
   webIfcSettings: WEBIFC.LoaderSettings = {
     COORDINATE_TO_ORIGIN: true,
   };
@@ -41,6 +38,15 @@ export class IfcImporter {
     "CompositionType",
     "OwnerHistory",
   ]);
+
+  geometryProcessSettings = {
+    // TODO: Test to see if this is the correct threshold
+    // if not applied, some geometries take too long to process
+    threshold: 3000,
+    precision: 1000000,
+    normalPrecision: 10000000,
+    planePrecision: 1000,
+  };
 
   /**
    * @summary Defines the relationships between IFC entities.
@@ -137,20 +143,19 @@ export class IfcImporter {
     geometryProcessor.webIfcSettings = this.webIfcSettings;
     const geomData = { ...data, builder: this.builder };
     const geoms = await geometryProcessor.process(geomData);
-    const {
-      modelMesh,
-      maxLocalID,
-      localIDs,
-      modelGeometries,
-      modelAlignments,
-    } = geoms;
+    const { modelMesh, maxLocalID, localIDs, alignments } = geoms;
 
     // Get properties
 
     const properties = new IfcPropertyProcessor(this, this.builder);
     properties.wasm = this.wasm;
     properties.webIfcSettings = this.webIfcSettings;
-    const propsArgs = { ...data, geometryProcessedLocalIDs: localIDs };
+    const propsArgs = {
+      ...data,
+      geometryProcessedLocalIDs: localIDs,
+      alignments,
+      maxLocalID,
+    };
     const propsData = await properties.process(propsArgs);
     const {
       relIndicesVector,
@@ -164,6 +169,7 @@ export class IfcImporter {
       categoriesVector,
       uniqueAttributesVector,
       relNamesVector,
+      newMaxLocalID,
     } = propsData;
 
     const guid = data.id ?? MathUtils.generateUUID();
@@ -183,9 +189,7 @@ export class IfcImporter {
     TFB.Model.addGuids(this.builder, guidsVector);
     TFB.Model.addSpatialStructure(this.builder, spatialStrutureOffset);
     TFB.Model.addGuid(this.builder, guidRef);
-    TFB.Model.addMaxLocalId(this.builder, maxLocalID);
-    TFB.Model.addGeometries(this.builder, modelGeometries);
-    TFB.Model.addAlignments(this.builder, modelAlignments);
+    TFB.Model.addMaxLocalId(this.builder, newMaxLocalID);
     const outData = TFB.Model.endModel(this.builder);
 
     this.builder.finish(outData);

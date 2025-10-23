@@ -43,14 +43,8 @@ async function main() {
 
   // Get fragments model
 
-  const githubUrl =
-    "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-  const fetchedUrl = await fetch(githubUrl);
-  const workerBlob = await fetchedUrl.blob();
-  const workerFile = new File([workerBlob], "worker.mjs", {
-    type: "text/javascript",
-  });
-  const workerUrl = URL.createObjectURL(workerFile);
+  // prettier-ignore
+  const workerUrl = "./src/multithreading/fragments-thread.ts";
   // const workerUrl = "../../dist/Worker/worker.mjs";
   const fragments = new FragmentsModels(workerUrl);
 
@@ -114,9 +108,7 @@ async function main() {
   //   item.value.transparent = true;
   // });
 
-  const model = await loadModel(
-    "https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag",
-  );
+  const model = await loadModel("/resources/frags/test/medium_test.frag");
   const mouse = new THREE.Vector2();
 
   // const columIds = await model.getItemsByQuery({
@@ -228,9 +220,16 @@ async function main() {
     // const item = model.getItem(result.localId);
     // console.log(item);
 
-    // Attributes
-    // const attributes = await item.getAttributes();
-    // console.log(attributes);
+    // Data
+    const resultData = await model.getItemsData([result.localId], {
+      attributesDefault: false,
+      attributes: ["Name", "NominalValue"],
+      relations: {
+        IsDefinedBy: { attributes: true, relations: true },
+        DefinesOcurrence: { attributes: false, relations: false },
+      },
+    });
+    console.log(resultData);
 
     // GET GEOMETRY
     // const tempMaterial = new THREE.MeshBasicMaterial({

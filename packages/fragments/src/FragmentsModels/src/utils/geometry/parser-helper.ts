@@ -27,7 +27,13 @@ export class ParserHelper {
     const transparent = material.a() < 255;
     const color = new THREE.Color(r, g, b);
     const renderedFaces = material.renderedFaces();
-    return { color, renderedFaces, opacity, transparent };
+    return {
+      color,
+      renderedFaces,
+      opacity,
+      transparent,
+      localId: undefined as number | undefined,
+    };
   }
 
   static parseBox(data: BoundingBox, box: THREE.Box3) {

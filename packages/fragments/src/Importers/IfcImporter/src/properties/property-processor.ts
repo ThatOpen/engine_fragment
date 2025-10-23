@@ -5,9 +5,12 @@ import { RawEntityAttrs } from "./types";
 import { IfcImporter } from "../..";
 import { ifcCategoryMap } from "../../../../Utils";
 import { ProcessData } from "../types";
+import { ALIGNMENT_CATEGORY, AlignmentData } from "../../../../FragmentsModels";
 
 export interface PropertiesProcessData extends ProcessData {
   geometryProcessedLocalIDs: number[];
+  alignments?: AlignmentData[];
+  maxLocalID: number;
 }
 
 export class IfcPropertyProcessor {
@@ -18,6 +21,7 @@ export class IfcPropertyProcessor {
   private _guidsItems: number[] = [];
   private _uniqueAttributes = new Set<string>();
   private _uniqueRelNames = new Set<string>();
+  private _maxLocalID = 0;
 
   private _ifcApi: WEBIFC.IfcAPI | null = null;
   wasm = {
@@ -68,6 +72,7 @@ export class IfcPropertyProcessor {
   async process(data: PropertiesProcessData) {
     // Open the IFC
     const ifcApi = await this.getIfcApi();
+    this._maxLocalID = data.maxLocalID + 1;
 
     if (data.readFromCallback) {
       ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
@@ -131,6 +136,13 @@ export class IfcPropertyProcessor {
       });
     }
 
+    // Now process alignments
+
+    const alignments = data.alignments;
+    if (alignments) {
+      this.processAlignments(alignments);
+    }
+
     const relations = new Set([...this._serializer.relations.keys()]);
     const relsToProcess = modelClasses.filter((type) => relations.has(type));
     const relsPercentage = 0.15 / relsToProcess.length;
@@ -179,6 +191,7 @@ export class IfcPropertyProcessor {
       spatialStrutureOffset,
       uniqueAttributesVector,
       relNamesVector,
+      newMaxLocalID: this._maxLocalID,
     };
   }
 
@@ -187,10 +200,7 @@ export class IfcPropertyProcessor {
     for (let index = 0; index < items.length; index++) {
       const expressID = items[index];
       try {
-        const attrs = (await ifcApi.properties.getItemProperties(
-          0,
-          expressID,
-        )) as RawEntityAttrs;
+        const attrs = ifcApi.GetLine(0, expressID) as RawEntityAttrs;
         if (!attrs) continue;
 
         // @ts-ignore
@@ -206,6 +216,34 @@ export class IfcPropertyProcessor {
         });
         continue;
       }
+    }
+  }
+
+  private async processAlignments(alignments: AlignmentData[]) {
+    for (const alignment of alignments) {
+      const expressID = this._maxLocalID++;
+      const attrValue = JSON.stringify(alignment);
+      const attrName = "data";
+      const attrType = "UNDEFINED";
+      const hash = JSON.stringify([attrName, attrValue, attrType]);
+      const attrOffset = this._builder.createSharedString(hash);
+      if (this._serializer.includeUniqueAttributes) {
+        this._uniqueAttributes.add(hash);
+      }
+
+      const dataVector = TFB.Attribute.createDataVector(this._builder, [
+        attrOffset,
+      ]);
+
+      const attributesOffset = TFB.Attribute.createAttribute(
+        this._builder,
+        dataVector,
+      );
+
+      // @ts-ignore
+      this.classes.push(ALIGNMENT_CATEGORY);
+      this.expressIDs.push(expressID);
+      this._attributesOffsets.push(attributesOffset);
     }
   }
 
@@ -227,10 +265,7 @@ export class IfcPropertyProcessor {
   ) {
     const ifcApi = await this.getIfcApi();
 
-    const localPlacementAttrs = await ifcApi.properties.getItemProperties(
-      0,
-      placement,
-    );
+    const localPlacementAttrs = ifcApi.GetLine(0, placement);
 
     let relPlacementAttrs: RawEntityAttrs | undefined;
 
@@ -239,7 +274,7 @@ export class IfcPropertyProcessor {
       "value" in localPlacementAttrs.RelativePlacement &&
       typeof localPlacementAttrs.RelativePlacement.value === "number"
     ) {
-      relPlacementAttrs = await ifcApi.properties.getItemProperties(
+      relPlacementAttrs = ifcApi.GetLine(
         0,
         localPlacementAttrs.RelativePlacement.value,
       );
@@ -252,10 +287,7 @@ export class IfcPropertyProcessor {
       "value" in relPlacementAttrs.Location &&
       typeof relPlacementAttrs.Location.value === "number"
     ) {
-      locationAttrs = await ifcApi.properties.getItemProperties(
-        0,
-        relPlacementAttrs.Location.value,
-      );
+      locationAttrs = ifcApi.GetLine(0, relPlacementAttrs.Location.value);
     }
 
     if (
@@ -290,16 +322,10 @@ export class IfcPropertyProcessor {
 
     for (let i = 0; i < unitAssignmentIds.size(); i++) {
       const assignmentId = unitAssignmentIds.get(i);
-      const assignmentAttrs = await ifcApi.properties.getItemProperties(
-        0,
-        assignmentId,
-      );
+      const assignmentAttrs = ifcApi.GetLine(0, assignmentId);
 
       for (const unitHandle of assignmentAttrs.Units) {
-        const unit = await ifcApi.properties.getItemProperties(
-          0,
-          unitHandle.value,
-        );
+        const unit = ifcApi.GetLine(0, unitHandle.value);
 
         const value = unit.UnitType?.value;
         if (value !== "LENGTHUNIT") continue;
@@ -494,24 +520,32 @@ export class IfcPropertyProcessor {
       if (classEntities.size() === 0) continue;
       for (let index = 0; index < classEntities.size(); index++) {
         const expressID = classEntities.get(index);
-        const attrs = (await ifcApi.properties.getItemProperties(
-          0,
-          expressID,
-        )) as Record<string, any>;
-        if (!attrs) continue;
-        const attrKeys = Object.keys(attrs);
-        const relatingKey = attrKeys.find((attr) =>
-          attr.startsWith("Relating"),
-        );
-        const relatedKey = attrKeys.find((attr) => attr.startsWith("Related"));
-        if (!(relatingKey && relatedKey)) continue;
-        const relatingID = attrs[relatingKey].value;
-        const relatedIDs = attrs[relatedKey].map(
-          ({ value }: { value: number }) => value,
-        );
-        this.addRelation(relatingID, forRelating, relatedIDs);
-        for (const relatedID of relatedIDs) {
-          this.addRelation(relatedID, forRelated, [relatingID]);
+        try {
+          const attrs = ifcApi.GetLine(0, expressID) as Record<string, any>;
+          if (!attrs) continue;
+          const attrKeys = Object.keys(attrs);
+          const relatingKey = attrKeys.find((attr) =>
+            attr.startsWith("Relating"),
+          );
+          const relatedKey = attrKeys.find((attr) =>
+            attr.startsWith("Related"),
+          );
+          if (!(relatingKey && relatedKey)) continue;
+          const relatingID = attrs[relatingKey].value;
+          const relatedIDs = attrs[relatedKey].map(
+            ({ value }: { value: number }) => value,
+          );
+          this.addRelation(relatingID, forRelating, relatedIDs);
+          for (const relatedID of relatedIDs) {
+            this.addRelation(relatedID, forRelated, [relatingID]);
+          }
+        } catch (e) {
+          console.log(`Problem reading relations for ${expressID}`);
+          console.log(e);
+          await new Promise((resolve) => {
+            setTimeout(resolve, 100);
+          });
+          continue;
         }
       }
     }

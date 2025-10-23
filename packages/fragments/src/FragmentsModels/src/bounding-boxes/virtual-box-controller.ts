@@ -5,7 +5,7 @@ import { TransformHelper } from "../utils";
 import { DataBuffer } from "../model/model-types";
 
 export class VirtualBoxController {
-  lookup: VirtualBoxStructure;
+  lookup: VirtualBoxStructure | null = null;
 
   private readonly _boxSize = 6;
   private readonly _pointSize = 3;
@@ -94,6 +94,11 @@ export class VirtualBoxController {
   private newLookup() {
     const sampleCount = this._meshes.samplesLength();
     const itemsCount = this._meshes.globalTransformsLength();
+
+    // Empty model
+    if (sampleCount === 0) {
+      return null;
+    }
 
     for (let i = 0; i < sampleCount; i++) {
       this.fetchSampleAndRepresentation(i);

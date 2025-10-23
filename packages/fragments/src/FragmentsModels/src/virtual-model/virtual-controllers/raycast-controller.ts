@@ -115,6 +115,9 @@ export class RaycastController {
     fullyInside: boolean,
   ) {
     const lookup = this._boxes.lookup;
+    if (!lookup) {
+      return [];
+    }
     const itemIds = lookup.collideFrustum(planes, frustum, fullyInside);
     const raycastedItemIds = this.filterVisible(itemIds);
     return this.localIdsFromItemIds(raycastedItemIds);
@@ -213,6 +216,9 @@ export class RaycastController {
 
   private castBox(input: THREE.Ray | THREE.Frustum, planes: THREE.Plane[]) {
     const lookup = this._boxes.lookup;
+    if (!lookup) {
+      return [];
+    }
     if (input instanceof THREE.Ray) {
       const result = lookup.collideRay(planes, input);
       return this.filterVisible(result);

@@ -97,6 +97,7 @@ export class VirtualMaterialController {
     for (let i = 0; i < count; i++) {
       const matData = meshes.materials(i) as Material;
       const definition = ParserHelper.parseMaterial(matData);
+      definition.localId = meshes.materialIds(i)!;
       materialDefinitions.push(definition);
     }
     return this.transfer(materialDefinitions);

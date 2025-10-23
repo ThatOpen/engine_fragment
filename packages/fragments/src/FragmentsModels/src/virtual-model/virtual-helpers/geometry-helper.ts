@@ -12,23 +12,42 @@ export class GeometryHelper {
     return model.data.meshes()!.globalTransformsLength();
   }
 
-  getGeometry(model: VirtualFragmentsModel, itemIndex: number): MeshData[] {
-    const sampleIds = model.boxes.sampleOf(itemIndex);
+  getSampleGeometry(
+    model: VirtualFragmentsModel,
+    itemIndex: number,
+    lod: CurrentLod,
+  ): MeshData[] {
+    const sampleIndices = model.boxes.sampleOf(itemIndex);
     const result: MeshData[] = [];
-    if (!sampleIds) return result;
+    if (!sampleIndices) return result;
 
-    for (const sampleId of sampleIds) {
-      const sample = model.tiles.fetchSample(sampleId, CurrentLod.GEOMETRY);
+    const meshes = model.data.meshes()!;
+
+    for (const sampleIndex of sampleIndices) {
+      const sample = model.tiles.fetchSample(sampleIndex, lod);
+      const sampleId = meshes.sampleIds(sampleIndex) as number;
       const geometries = Array.isArray(sample.geometries)
         ? sample.geometries
         : [sample.geometries];
 
+      const sampleData = meshes.samples(sampleIndex)!;
+      const localIdIndex = meshes.meshesItems(sampleData.item()!)!;
+      const localId = model.data.localIds(localIdIndex)!;
+
       for (const geometry of geometries) {
+        // We need to clone it when using LOD because it uses referenced internal data
+        const pos =
+          lod === CurrentLod.GEOMETRY
+            ? geometry.positionBuffer
+            : new Float32Array(geometry.positionBuffer);
+
         result.push({
           transform: sample.transform.clone(),
           indices: geometry.indexBuffer,
-          positions: geometry.positionBuffer,
+          positions: pos,
           normals: geometry.normalBuffer,
+          sampleId,
+          localId,
         });
       }
     }
@@ -42,7 +61,7 @@ export class GeometryHelper {
     const p2: Vector3 = { x: 0, y: 0, z: 0 };
     const p3: Vector3 = { x: 0, y: 0, z: 0 };
 
-    const geometries = this.getGeometry(model, id);
+    const geometries = this.getSampleGeometry(model, id, CurrentLod.GEOMETRY);
     for (const { indices, positions } of geometries) {
       if (!(indices && positions)) continue;
       for (let i = 0; i < indices.length - 2; i += 3) {

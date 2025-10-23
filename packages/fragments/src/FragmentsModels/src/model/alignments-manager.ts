@@ -3,8 +3,11 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { FragmentsModel } from "./fragments-model";
-import { AlignmentCurve, AlignmentData } from "./model-types";
-import { GeometryClass } from "../../../Schema";
+import {
+  AlignmentCurveType,
+  AlignmentCurve,
+  AlignmentData,
+} from "./model-types";
 
 export class AlignmentsManager {
   private model: FragmentsModel;
@@ -29,9 +32,9 @@ export class AlignmentsManager {
   private _horizontalAlignments = new THREE.Group();
   private _verticalAlignments = new THREE.Group();
 
-  private _alignmentMaterials = new Map<GeometryClass, LineMaterial>([
+  private _alignmentMaterials = new Map<AlignmentCurveType, LineMaterial>([
     [
-      GeometryClass.NONE,
+      AlignmentCurveType.NONE,
       new LineMaterial({
         color: 0xffffff,
         linewidth: 5,
@@ -39,7 +42,7 @@ export class AlignmentsManager {
       }),
     ],
     [
-      GeometryClass.LINES,
+      AlignmentCurveType.LINES,
       new LineMaterial({
         color: 0xff00ff,
         linewidth: 5,
@@ -47,7 +50,7 @@ export class AlignmentsManager {
       }),
     ],
     [
-      GeometryClass.CLOTHOID,
+      AlignmentCurveType.CLOTHOID,
       new LineMaterial({
         color: 0xff0000,
         linewidth: 5,
@@ -55,7 +58,7 @@ export class AlignmentsManager {
       }),
     ],
     [
-      GeometryClass.ELLIPSE_ARC,
+      AlignmentCurveType.ELLIPSE_ARC,
       new LineMaterial({
         color: 0x00ffff,
         linewidth: 5,
@@ -63,7 +66,7 @@ export class AlignmentsManager {
       }),
     ],
     [
-      GeometryClass.PARABOLA,
+      AlignmentCurveType.PARABOLA,
       new LineMaterial({
         color: 0x0000ff,
         linewidth: 5,
