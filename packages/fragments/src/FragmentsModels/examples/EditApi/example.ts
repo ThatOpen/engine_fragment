@@ -132,7 +132,7 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
 */
 
 const modelId = "test";
-const fetched = await fetch("/resources/frags/school_arq.frag");
+const fetched = await fetch("https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag");
 const buffer = await fetched.arrayBuffer();
 const model = await fragments.load(buffer, { modelId });
 await fragments.update(true);

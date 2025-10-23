@@ -108,7 +108,9 @@ async function main() {
   //   item.value.transparent = true;
   // });
 
-  const model = await loadModel("/resources/frags/test/medium_test.frag");
+  const model = await loadModel(
+    "https://thatopen.github.io/engine_fragment/resources/frags/test/medium_test.frag",
+  );
   const mouse = new THREE.Vector2();
 
   // const columIds = await model.getItemsByQuery({

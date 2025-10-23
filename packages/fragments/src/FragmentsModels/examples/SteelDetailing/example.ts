@@ -115,7 +115,7 @@ const processTextures = (texture: THREE.Texture) => {
 const textureLoader = new THREE.TextureLoader();
 
 const roughnessMap = textureLoader.load(
-  "/resources/textures/concrete/Concrete012_2K-JPG_Roughness.jpg",
+  "https://thatopen.github.io/engine_fragment/resources/textures/concrete/Concrete012_2K-JPG_Roughness.jpg",
 );
 processTextures(roughnessMap);
 
@@ -260,7 +260,7 @@ const geometryEngine = new FRAGS.GeometryEngine(api);
 
 const hdriLoader = new RGBELoader();
 hdriLoader.load(
-  "/resources/textures/envmaps/san_giuseppe_bridge_2k.hdr",
+  "https://thatopen.github.io/engine_fragment/resources/textures/envmaps/san_giuseppe_bridge_2k.hdr",
   (texture) => {
     texture.mapping = THREE.EquirectangularReflectionMapping;
     // world.scene.three.background = texture;

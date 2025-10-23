@@ -96,7 +96,7 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
   :::
 */
 
-const fetched = await fetch("/resources/frags/test/medium_test.frag");
+const fetched = await fetch("https://thatopen.github.io/engine_fragment/resources/frags/test/medium_test.frag");
 const buffer = await fetched.arrayBuffer();
 const model = await fragments.load(buffer, {
   modelId: "medium_test",

@@ -71,7 +71,7 @@ world.camera.controls.addEventListener("rest", async () => {
 
 const hdriLoader = new RGBELoader();
 hdriLoader.load(
-  "/resources/textures/envmaps/san_giuseppe_bridge_2k.hdr",
+  "https://thatopen.github.io/engine_fragment/resources/textures/envmaps/san_giuseppe_bridge_2k.hdr",
   (texture) => {
     texture.mapping = THREE.EquirectangularReflectionMapping;
     // world.scene.three.background = texture;
@@ -103,19 +103,19 @@ const processTextures = (texture: THREE.Texture) => {
 
 const textureLoader = new THREE.TextureLoader();
 const colorTexture = textureLoader.load(
-  "/resources/textures/concrete/Concrete012_2K-JPG_Color.jpg",
+  "https://thatopen.github.io/engine_fragment/resources/textures/concrete/Concrete012_2K-JPG_Color.jpg",
 );
 colorTexture.colorSpace = THREE.SRGBColorSpace;
 
 processTextures(colorTexture);
 
 const normalMap = textureLoader.load(
-  "/resources/textures/concrete/Concrete012_2K-JPG_NormalGL.jpg",
+  "https://thatopen.github.io/engine_fragment/resources/textures/concrete/Concrete012_2K-JPG_NormalGL.jpg",
 );
 processTextures(normalMap);
 
 const roughnessMap = textureLoader.load(
-  "/resources/textures/concrete/Concrete012_2K-JPG_Roughness.jpg",
+  "https://thatopen.github.io/engine_fragment/resources/textures/concrete/Concrete012_2K-JPG_Roughness.jpg",
 );
 processTextures(roughnessMap);
 
@@ -235,7 +235,9 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
   :::
 */
 
-const fetched = await fetch("/resources/frags/school_str.frag");
+const fetched = await fetch(
+  "https://thatopen.github.io/engine_fragment/resources/frags/school_str.frag",
+);
 const buffer = await fetched.arrayBuffer();
 
 const model = await fragments.load(buffer, {

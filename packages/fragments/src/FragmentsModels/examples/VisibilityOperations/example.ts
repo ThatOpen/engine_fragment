@@ -82,7 +82,7 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
   :::
 */
 
-const file = await fetch("/resources/frags/school_arq.frag");
+const file = await fetch("https://thatopen.github.io/engine_fragment/resources/frags/school_arq.frag");
 const buffer = await file.arrayBuffer();
 const model = await fragments.load(buffer, { modelId: "example" });
 
