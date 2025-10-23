@@ -64,11 +64,13 @@ world.scene.three.add(axesHelper);
 */
 
 // prettier-ignore
-const workerUrl = "../../src/multithreading/fragments-thread.ts";
+const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
 // const workerUrl = "../../dist/Worker/worker.mjs";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 
 world.camera.controls.addEventListener("control", () => fragments.update());
+
+console.log("hey");
 
 fragments.models.list.onItemSet.add(({ value: model }) => {
   model.tiles.onItemSet.add(({ value: mesh }) => {

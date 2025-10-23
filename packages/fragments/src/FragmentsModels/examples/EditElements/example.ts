@@ -70,7 +70,7 @@ world.camera.controls.addEventListener("rest", async () => {
 // You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
 // We use here the internal route of the worker in the library for simplicity purposes
-const workerUrl = "../../src/multithreading/fragments-thread.ts";
+const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("control", () => fragments.update());
 

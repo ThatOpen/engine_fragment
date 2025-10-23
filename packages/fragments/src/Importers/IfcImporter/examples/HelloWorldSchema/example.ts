@@ -61,7 +61,7 @@ world.renderer.onAfterUpdate.add(() => stats.end());
 */
 
 // prettier-ignore
-const workerUrl = "../../../../FragmentsModels/src/multithreading/fragments-thread.ts";
+const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("control", () => fragments.update());
 

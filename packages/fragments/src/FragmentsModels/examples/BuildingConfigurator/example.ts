@@ -98,7 +98,7 @@ const settings = {
   Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start manipulating them with ease:
 */
 
-const workerUrl = "../../src/multithreading/fragments-thread.ts";
+const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
 const fragments = components.get(OBC.FragmentsManager);
 fragments.init(workerUrl);
 
