@@ -248,7 +248,7 @@ await fragments.core.update(true);
 */
 
 const api = new WEBIFC.IfcAPI();
-api.SetWasmPath("/node_modules/web-ifc/", false);
+api.SetWasmPath("https://unpkg.com/web-ifc@0.0.72/", true);
 await api.Init();
 
 const geometryEngine = new FRAGS.GeometryEngine(api);

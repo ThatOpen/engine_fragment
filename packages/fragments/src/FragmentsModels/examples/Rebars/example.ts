@@ -65,8 +65,11 @@ world.scene.three.add(axesHelper);
 
 // prettier-ignore
 const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedWorker = await fetch(workerUrl);
+const workerBytes = await fetchedWorker.arrayBuffer();
+const localWorkerUrl = URL.createObjectURL(new Blob([workerBytes]));
 // const workerUrl = "../../dist/Worker/worker.mjs";
-const fragments = new FRAGS.FragmentsModels(workerUrl);
+const fragments = new FRAGS.FragmentsModels(localWorkerUrl);
 
 world.camera.controls.addEventListener("control", () => fragments.update());
 
@@ -115,7 +118,7 @@ await fragments.update(true);
 */
 
 const api = new WEBIFC.IfcAPI();
-api.SetWasmPath("/node_modules/web-ifc/", false);
+api.SetWasmPath("https://unpkg.com/web-ifc@0.0.72/", true);
 await api.Init();
 const geometryEngine = new FRAGS.GeometryEngine(api);
 
