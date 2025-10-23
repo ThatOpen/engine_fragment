@@ -99,22 +99,21 @@ const settings = {
 */
 
 const workerUrl = "../../src/multithreading/fragments-thread.ts";
-const fragments = new FRAGS.FragmentsModels(workerUrl);
-const fragmentsManager = components.get(OBC.FragmentsManager);
+const fragments = components.get(OBC.FragmentsManager);
+fragments.init(workerUrl);
 
 // Temp until we publish the libraries, to be able to use postproduction
 // @ts-ignore
-fragmentsManager._core = fragments;
 
 fragments.settings.graphicsQuality = 1;
 
 world.camera.controls.addEventListener("control", () => {
-  fragments.update();
+  fragments.core.update();
 });
 
 // Once a model is available in the list, we can tell it
 // to use shadows and to use the clipping planes we are using
-fragments.models.list.onItemSet.add(({ value: model }) => {
+fragments.core.models.list.onItemSet.add(({ value: model }) => {
   model.tiles.onItemSet.add(({ value: mesh }) => {
     if ("isMesh" in mesh) {
       const mat = mesh.material as THREE.MeshStandardMaterial[];
@@ -210,14 +209,14 @@ const updateClipPlane = () => {
 */
 
 const bytes = FRAGS.EditUtils.newModel({ raw: true });
-const model = await fragments.load(bytes, {
+const model = await fragments.core.load(bytes, {
   modelId: "example",
   camera: world.camera.three,
   raw: true,
 });
 
 world.scene.three.add(model.object);
-await fragments.update(true);
+await fragments.core.update(true);
 
 /* MD
   ### 🧊 Setting up the Geometry Engine
@@ -294,7 +293,7 @@ const staircaseHoleMesh = new THREE.Mesh(staircaseHoleGeometry);
 const regenerateFragments = async () => {
   const elementsData: FRAGS.NewElementData[] = [];
 
-  await fragments.editor.reset(model.modelId);
+  await fragments.core.editor.reset(model.modelId);
 
   // Create floor
 
@@ -323,7 +322,7 @@ const regenerateFragments = async () => {
 
   // Create base items
 
-  const matId = fragments.editor.createMaterial(
+  const matId = fragments.core.editor.createMaterial(
     model.modelId,
     new THREE.MeshLambertMaterial({
       color: new THREE.Color(1, 1, 1),
@@ -331,7 +330,7 @@ const regenerateFragments = async () => {
     }),
   );
 
-  const ltId = fragments.editor.createLocalTransform(
+  const ltId = fragments.core.editor.createLocalTransform(
     model.modelId,
     new THREE.Matrix4().identity(),
   );
@@ -381,7 +380,7 @@ const regenerateFragments = async () => {
     length: settings.floorHeight,
   });
 
-  const extColumnGeoId = fragments.editor.createShell(
+  const extColumnGeoId = fragments.core.editor.createShell(
     model.modelId,
     exteriorColumnGeometry,
   );
@@ -406,7 +405,7 @@ const regenerateFragments = async () => {
     length: settings.floorHeight,
   });
 
-  const cornerWallGeoId = fragments.editor.createShell(
+  const cornerWallGeoId = fragments.core.editor.createShell(
     model.modelId,
     cornerWallGeometry,
   );
@@ -433,7 +432,7 @@ const regenerateFragments = async () => {
     length: settings.floorHeight - settings.floorThickness,
   });
 
-  const intColumnGeoId = fragments.editor.createShell(
+  const intColumnGeoId = fragments.core.editor.createShell(
     model.modelId,
     interiorColumnGeometry,
   );
@@ -474,7 +473,7 @@ const regenerateFragments = async () => {
     height: settings.floorHeight - settings.floorThickness,
   });
 
-  const staircaseWall1GeoId = fragments.editor.createShell(
+  const staircaseWall1GeoId = fragments.core.editor.createShell(
     model.modelId,
     staircaseWallGeometry1,
   );
@@ -492,7 +491,7 @@ const regenerateFragments = async () => {
     height: settings.floorHeight - settings.floorThickness,
   });
 
-  const staircaseWall2GeoId = fragments.editor.createShell(
+  const staircaseWall2GeoId = fragments.core.editor.createShell(
     model.modelId,
     staircaseWallGeometry2,
   );
@@ -540,7 +539,7 @@ const regenerateFragments = async () => {
   world.scene.three.add(tempMesh6);
   tempMesh6.position.y += 10;
 
-  const floorGeoId = fragments.editor.createShell(
+  const floorGeoId = fragments.core.editor.createShell(
     model.modelId,
     cutFloorGeometry,
   );
@@ -565,7 +564,7 @@ const regenerateFragments = async () => {
     ],
   });
 
-  const windowFrameGeoId = fragments.editor.createShell(
+  const windowFrameGeoId = fragments.core.editor.createShell(
     model.modelId,
     windowFrameGeometry,
   );
@@ -587,7 +586,7 @@ const regenerateFragments = async () => {
       length: settings.floorThickness,
     });
 
-  const windowTopGeoId = fragments.editor.createShell(
+  const windowTopGeoId = fragments.core.editor.createShell(
     model.modelId,
     windowTopGeometry,
   );
@@ -614,7 +613,7 @@ const regenerateFragments = async () => {
     ],
   });
 
-  const roofTopGeoId = fragments.editor.createShell(
+  const roofTopGeoId = fragments.core.editor.createShell(
     model.modelId,
     roofTopGeometry,
   );
@@ -988,11 +987,11 @@ const regenerateFragments = async () => {
     }
   }
 
-  await fragments.editor.createElements(model.modelId, elementsData);
+  await fragments.core.editor.createElements(model.modelId, elementsData);
 
   clearEdges();
 
-  await fragments.update(true);
+  await fragments.core.update(true);
 
   processing = false;
 };
@@ -1043,7 +1042,7 @@ const viewModes: [ViewMode, string][] = [
 const updateCamera = (
   camera: THREE.PerspectiveCamera | THREE.OrthographicCamera,
 ) => {
-  for (const [, model] of fragments.models.list) {
+  for (const [, model] of fragments.core.models.list) {
     model.useCamera(camera);
   }
   world.renderer!.postproduction.updateCamera();

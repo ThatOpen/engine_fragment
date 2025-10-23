@@ -14,6 +14,7 @@ import * as BUI from "@thatopen/ui";
 import * as WEBIFC from "web-ifc";
 import Stats from "stats.js";
 import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+// You have to import * as FRAGS from "@thatopen/fragments"
 import * as FRAGS from "../../../index";
 
 /* MD
@@ -97,11 +98,9 @@ const settings = {
   Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start working with steel structures:
 */
 
-// prettier-ignore
 const workerUrl = "../../src/multithreading/fragments-thread.ts";
-// const workerUrl = "../../dist/Worker/worker.mjs";
-const fragments = new FRAGS.FragmentsModels(workerUrl);
-
+const fragments = components.get(OBC.FragmentsManager);
+fragments.init(workerUrl);
 /* MD
   ### 🖼️ Material and Texture Setup
   We'll set up materials and textures for our steel structures. This includes processing textures and configuring material properties for realistic steel appearance:
@@ -120,7 +119,7 @@ const roughnessMap = textureLoader.load(
 );
 processTextures(roughnessMap);
 
-fragments.models.materials.list.onItemSet.add(
+fragments.core.models.materials.list.onItemSet.add(
   ({ key: id, value: material }) => {
     if ("map" in material) {
       const standardMaterial = new THREE.MeshStandardMaterial({
@@ -130,29 +129,25 @@ fragments.models.materials.list.onItemSet.add(
         // roughness: 1,
         side: THREE.DoubleSide,
       }) as any;
-      fragments.models.materials.list.set(id, standardMaterial);
+      fragments.core.models.materials.list.set(id, standardMaterial);
     }
   },
 );
 
-fragments.models.materials.list.onItemSet.add(({ value: material }) => {
+fragments.core.models.materials.list.onItemSet.add(({ value: material }) => {
   const isLod = "isLodMaterial" in material && material.isLodMaterial;
   if (isLod) {
     world.renderer!.postproduction.basePass.isolatedMaterials.push(material);
   }
 });
 
-const fragmentsManager = components.get(OBC.FragmentsManager);
-// @ts-ignore
-fragmentsManager._core = fragments;
-
-fragments.settings.graphicsQuality = 1;
+fragments.core.settings.graphicsQuality = 1;
 
 world.camera.controls.addEventListener("control", () => {
-  fragments.update();
+  fragments.core.update();
 });
 
-fragments.models.list.onItemSet.add(({ value: model }) => {
+fragments.core.models.list.onItemSet.add(({ value: model }) => {
   model.tiles.onItemSet.add(({ value: mesh }) => {
     if (!("isLODGeometry" in mesh.geometry)) {
       const geometry = mesh.geometry as THREE.BufferGeometry;
@@ -209,7 +204,7 @@ fragments.models.list.onItemSet.add(({ value: model }) => {
   });
 });
 
-fragments.models.list.onItemSet.add(({ value: model }) => {
+fragments.core.models.list.onItemSet.add(({ value: model }) => {
   model.tiles.onItemSet.add(({ value: mesh }) => {
     if ("isMesh" in mesh) {
       const mat = mesh.material as THREE.MeshStandardMaterial[];
@@ -241,7 +236,7 @@ const model = await fragments.load(bytes, {
 
 world.scene.three.add(model.object);
 
-await fragments.update(true);
+await fragments.core.update(true);
 
 /* MD
   ### 🧊 Setting up the Geometry Engine
@@ -413,9 +408,9 @@ const regenerateFragments = async () => {
 
   const elementsData: FRAGS.NewElementData[] = [];
 
-  await fragments.editor.reset(model.modelId);
+  await fragments.core.editor.reset(model.modelId);
 
-  const matId = fragments.editor.createMaterial(
+  const matId = fragments.core.editor.createMaterial(
     model.modelId,
     new THREE.MeshLambertMaterial({
       color: new THREE.Color(1, 1, 1),
@@ -423,7 +418,7 @@ const regenerateFragments = async () => {
     }),
   );
 
-  const ltId = fragments.editor.createLocalTransform(
+  const ltId = fragments.core.editor.createLocalTransform(
     model.modelId,
     new THREE.Matrix4().identity(),
   );
@@ -431,25 +426,25 @@ const regenerateFragments = async () => {
   // GEOMETRIES
 
   const basePlateGeom = basePlateMesh.geometry;
-  const basePlateGeomId = fragments.editor.createShell(
+  const basePlateGeomId = fragments.core.editor.createShell(
     model.modelId,
     basePlateGeom,
   );
 
   const baseCrossPlateGeom = baseCrossPlateMesh.geometry;
-  const baseCrossPlateGeomId = fragments.editor.createShell(
+  const baseCrossPlateGeomId = fragments.core.editor.createShell(
     model.modelId,
     baseCrossPlateGeom,
   );
 
   const cornerPlateGeom = cornerPlateMesh.geometry;
-  const cornerPlateGeomId = fragments.editor.createShell(
+  const cornerPlateGeomId = fragments.core.editor.createShell(
     model.modelId,
     cornerPlateGeom,
   );
 
   const baseBoltGeom = boltHeadMesh.geometry;
-  const baseBoltGeomId = fragments.editor.createShell(
+  const baseBoltGeomId = fragments.core.editor.createShell(
     model.modelId,
     baseBoltGeom,
   );
@@ -486,7 +481,7 @@ const regenerateFragments = async () => {
   yDirection2.applyMatrix4(tempObject.matrix);
 
   // prettier-ignore
-  const baseHookGeomId = fragments.editor.createCircleExtrusion(
+  const baseHookGeomId = fragments.core.editor.createCircleExtrusion(
     model.modelId,
     {
       radius: [baseHookThickness],
@@ -693,7 +688,7 @@ const regenerateFragments = async () => {
       length: p1.distanceTo(p2),
     });
 
-    const steelElementGeomId = fragments.editor.createShell(
+    const steelElementGeomId = fragments.core.editor.createShell(
       model.modelId,
       steelElementGeometry,
     );
@@ -719,9 +714,9 @@ const regenerateFragments = async () => {
     });
   }
 
-  await fragments.editor.createElements(model.modelId, elementsData);
+  await fragments.core.editor.createElements(model.modelId, elementsData);
 
-  await fragments.update(true);
+  await fragments.core.update(true);
 
   processing = false;
 };
