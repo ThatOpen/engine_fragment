@@ -36,5 +36,5 @@
     "vite": "5.1.6",
     "vite-plugin-dts": "3.7.3"
   },
-  "version": "3.2.1"
+  "version": "3.3.0"
 }

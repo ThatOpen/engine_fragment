@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.0](https://github.com/ThatOpen/engine_fragment/compare/v3.2.1...v3.3.0) (2025-10-23)
+
+
+### Miscellaneous Chores
+
+* release 3.3.0 ([95846b7](https://github.com/ThatOpen/engine_fragment/commit/95846b7de60d600eb520db3a06a545e68f2d1c38))
+
 ## [3.2.1](https://github.com/ThatOpen/engine_fragment/compare/v3.1.0...v3.2.1) (2025-10-23)
 
 
