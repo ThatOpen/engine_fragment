@@ -228,7 +228,7 @@ fragments.core.models.list.onItemSet.add(({ value: model }) => {
 const bytes = FRAGS.EditUtils.newModel({ raw: true });
 
 // @ts-ignore
-const model = await fragments.load(bytes, {
+const model = await fragments.core.load(bytes, {
   modelId: "example",
   camera: world.camera.three,
   raw: true,
