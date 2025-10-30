@@ -254,10 +254,10 @@ export class IfcFileReader {
       // Force ifc annotations to be processed last because
       // they can cause some problems with coordination matrix
       // e.g. when there is an annotation at the 0,0
-      if(toProcess.includes(WEBIFC.IFCANNOTATION)) {
+      if (toProcess.includes(WEBIFC.IFCANNOTATION)) {
         toProcess.splice(toProcess.indexOf(WEBIFC.IFCANNOTATION), 1);
+        toProcess.push(WEBIFC.IFCANNOTATION);
       }
-      toProcess.push(WEBIFC.IFCANNOTATION);
 
       const categoryPercentage = 0.5 / toProcess.length;
       for (const [index, category] of toProcess.entries()) {
