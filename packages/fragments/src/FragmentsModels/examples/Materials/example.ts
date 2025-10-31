@@ -131,7 +131,7 @@ processTextures(roughnessMap);
 fragments.models.materials.list.onItemSet.add(
   ({ key: id, value: material }) => {
     if ("map" in material) {
-      // Steel material; we can also use material.localId to identify the material
+      // Steel material; we can also use material.userData.localId to identify the material
       if (
         material.color.r === 1 &&
         material.color.g === 0 &&
