@@ -2,7 +2,7 @@
   ## Hello World Schema 📋
   ---
   
-  In this demo we will create a simple app that allows us to navigate the Fragments schema of IFC STEP files. This is not something you will usually need to do in your apps, but it will serve as a demonstration and
+  In this demo we will create a simple app that allows us to navigate the Fragments schema of IFC STEP files. This is not something you will usually need to do in your apps, but it will serve as a demonstration
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this little example work:
