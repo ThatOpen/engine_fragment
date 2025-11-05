@@ -57,6 +57,29 @@ export class RaycastManager {
     return null;
   }
 
+  async raycastAll(model: FragmentsModel, data: RaycastData) {
+    const { frustum, ray } = this.getRayAndFrustum(data);
+    const request = this.getRequest(model, frustum, ray);
+    if (!request) return null;
+    request.returnAll = true;
+    const allResults: RaycastResult[] = [];
+    const response = await model.threads.fetch(request);
+    if (response.results && response.results.length) {
+      for (const hit of response.results) {
+        allResults.push(
+          this.getResult({
+            hit,
+            frustum,
+            ray,
+            model,
+          }),
+        );
+      }
+      return allResults;
+    }
+    return null;
+  }
+
   async rectangleRaycast(
     model: FragmentsModel,
     meshes: MeshManager,

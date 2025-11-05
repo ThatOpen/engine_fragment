@@ -11,6 +11,7 @@ type CastData = {
   frustum: THREE.Frustum;
   planes: THREE.Plane[];
   snap?: SnappingClass;
+  returnAll?: boolean;
 };
 
 type Snap = SnappingClass;
@@ -79,8 +80,13 @@ export class RaycastController {
     return undefined;
   }
 
-  raycast(ray: THREE.Ray, frustum: THREE.Frustum, planes: THREE.Plane[]) {
-    const data: CastData = { ray, frustum, planes };
+  raycast(
+    ray: THREE.Ray,
+    frustum: THREE.Frustum,
+    planes: THREE.Plane[],
+    returnAll?: boolean,
+  ) {
+    const data: CastData = { ray, frustum, planes, returnAll };
     const ids = this.castBox(frustum, planes);
     if (ids.length) {
       return this.computeRaycastList(ids, data);
@@ -317,6 +323,12 @@ export class RaycastController {
     const byRay = this.castBox(data.ray, data.planes);
     const results = this.findAll(sorted, byRay, data);
     if (results.length) {
+      if (data.returnAll) {
+        for (const result of results) {
+          this.addLocalId(result);
+        }
+        return results;
+      }
       const result = this.getNearest(results);
       this.addLocalId(result);
       return result;

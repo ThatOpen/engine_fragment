@@ -338,8 +338,8 @@ export class VirtualFragmentsModel {
     return this._visibilityHelper.getItemsByVisibility(this, visible);
   }
 
-  raycast(ray: THREE.Ray, frustum: THREE.Frustum): any {
-    return this._raycastHelper.raycast(this, ray, frustum);
+  raycast(ray: THREE.Ray, frustum: THREE.Frustum, returnAll?: boolean): any {
+    return this._raycastHelper.raycast(this, ray, frustum, returnAll);
   }
 
   snapRaycast(

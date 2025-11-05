@@ -537,6 +537,14 @@ export class FragmentsModel {
   }
 
   /**
+   * Performs a raycast on the model and returns all the results.
+   * @param data - The data of the raycast.
+   */
+  async raycastAll(data: RaycastData) {
+    return this._raycastManager.raycastAll(this, data);
+  }
+
+  /**
    * Performs a raycast on the model with snapping.
    * @param data - The data of the raycast.
    */

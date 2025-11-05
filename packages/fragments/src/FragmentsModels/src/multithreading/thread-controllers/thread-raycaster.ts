@@ -65,9 +65,10 @@ export class ThreadRaycaster extends ThreadController {
     const model = this.thread.getModel(input.modelId);
     const beam = MultithreadingHelper.beam(input.ray);
     const frustum = MultithreadingHelper.frustum(input.frustum);
-    const hit = model.raycast(beam, frustum);
+    const returnAll = input.returnAll || false;
+    const hit = model.raycast(beam, frustum, returnAll);
     if (hit) {
-      input.results = [hit];
+      input.results = Array.isArray(hit) ? hit : [hit];
     }
   }
 }

@@ -7,9 +7,15 @@ export class RaycastHelper {
     model: VirtualFragmentsModel,
     ray: THREE.Ray,
     frustum: THREE.Frustum,
+    returnAll?: boolean,
   ): any {
     if (model.view) {
-      return model.raycaster.raycast(ray, frustum, model.view.clippingPlanes);
+      return model.raycaster.raycast(
+        ray,
+        frustum,
+        model.view.clippingPlanes,
+        returnAll,
+      );
     }
     return undefined;
   }
