@@ -39,12 +39,25 @@ export class IfcImporter {
     "OwnerHistory",
   ]);
 
+  /**
+   * Settings for the processing of geometry.
+   */
   geometryProcessSettings = {
-    // TODO: Test to see if this is the correct threshold
-    // if not applied, some geometries take too long to process
+    /*
+     * Maximum number of vertices to try to define a brep shell. If the number of vertices is greater than the threshold, the geometry will be saved as raw data, consuming more space.
+     */
     threshold: 3000,
+    /*
+     * Precision of the vertices when computing breps.
+     */
     precision: 1000000,
+    /*
+     * Precision of the normals when computing breps.
+     */
     normalPrecision: 10000000,
+    /*
+     * Precision of the plane constants for coplanarity when computing breps.
+     */
     planePrecision: 1000,
   };
 
