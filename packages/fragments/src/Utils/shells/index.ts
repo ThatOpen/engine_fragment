@@ -291,6 +291,17 @@ export class GeomsFbUtils {
 
     const bbox = this.getAABB(position);
 
+    if (
+      bbox.min.x === 0 &&
+      bbox.min.y === 0 &&
+      bbox.min.z === 0 &&
+      bbox.max.x === 0 &&
+      bbox.max.y === 0 &&
+      bbox.max.z === 0
+    ) {
+      throw new Error("Bbox is not valid");
+    }
+
     if (raw || tooBigToShell) {
       // Just generate a profile per triangle
       // useful for big irregular surfaces like terrains

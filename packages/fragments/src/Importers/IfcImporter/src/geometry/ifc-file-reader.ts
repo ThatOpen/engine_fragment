@@ -544,7 +544,9 @@ export class IfcFileReader {
     const { units } = this.removeScale(transformArray);
 
     if (this._problematicGeometries.has(geometryRef.geometryExpressID)) {
-      console.log(` Problematic geometry: ${geometryRef.geometryExpressID}`);
+      console.log(
+        `Fragments: Problematic geometry: ${geometryRef.geometryExpressID}`,
+      );
       return;
     }
 
@@ -677,7 +679,7 @@ export class IfcFileReader {
     const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${x1}-${y1}-${z1}`;
 
     if (this._problematicGeometriesHashes.has(hash)) {
-      console.log(`Problematic geometry: ${geometryData.id}`);
+      console.log(`Fragments: Problematic geometry: ${geometryData.id}`);
       element.geometries.pop();
       this._problematicGeometries.add(geometryData.id);
       this._problematicGeometriesHashes.add(hash);
@@ -726,7 +728,7 @@ export class IfcFileReader {
           geometry: geomData,
         });
       } catch (error) {
-        console.error(`Fragments: Problematic geometry: ${geometryData.id}`);
+        console.log(`Fragments: Problematic geometry: ${geometryData.id}`);
         element.geometries.pop();
         this._problematicGeometries.add(geometryData.id);
         this._problematicGeometriesHashes.add(hash);
