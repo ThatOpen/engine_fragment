@@ -51,6 +51,11 @@ grids.create(world);
 
   ### Converting IFCs 🚀
   The IfcImporter is your gateway to converting IFC files into Fragments, enabling you to build high-performance BIM applications effortlessly. With just a few lines of code, you can transform complex IFC data into lightweight, modern Fragments. Let's dive in and make it happen!
+
+  :::warning What elements of IFC get converted to Fragments?
+
+  For memory efficiency reasons, we don't convert each an every element to fragments by default. You can see the list in IfcImporter.classes and check out the full list [here](https://github.com/ThatOpen/engine_fragment/blob/main/packages/fragments/src/Importers/IfcImporter/src/classes.ts). If you convert an IFC to fragments and miss some elements, you probably need to add their IFC classes to the list.
+  :::
   */
 
 const serializer = new FRAGS.IfcImporter();
