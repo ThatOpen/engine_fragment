@@ -67,7 +67,7 @@ export class IfcPropertyProcessor {
   constructor(
     private _serializer: IfcImporter,
     private _builder: Builder,
-  ) { }
+  ) {}
 
   async process(data: PropertiesProcessData) {
     // Open the IFC
@@ -373,7 +373,8 @@ export class IfcPropertyProcessor {
 
     let index = 0;
     for (const [attrName, attrValue] of Object.entries(attrs)) {
-      if (typeof attrValue === "number" || typeof attrValue === "boolean") continue;
+      if (typeof attrValue === "number" || typeof attrValue === "boolean")
+        continue;
       if (
         this._serializer.attributesToExclude.has(attrName) ||
         attrValue === null ||
@@ -599,9 +600,31 @@ export class IfcPropertyProcessor {
   async getMetadataOffset() {
     const ifcApi = await this.getIfcApi();
     const schema = ifcApi.GetModelSchema(0);
-    const metadata = { schema };
+
+    const rawNames = ifcApi.GetHeaderLine(0, WEBIFC.FILE_NAME);
+    const rawDescription = ifcApi.GetHeaderLine(0, WEBIFC.FILE_DESCRIPTION);
+
+    const names: string[] = [];
+    this.getMetadataRecursively(rawNames.arguments, names);
+
+    const descriptions: string[] = [];
+    this.getMetadataRecursively(rawDescription.arguments, descriptions);
+
+    const metadata = { schema, names, descriptions } as any;
+
     const metadataOffset = this._builder.createString(JSON.stringify(metadata));
     return metadataOffset;
+  }
+
+  private getMetadataRecursively(source: any[], target: string[]) {
+    for (const item of source) {
+      if (Array.isArray(item)) {
+        this.getMetadataRecursively(item, target);
+      }
+      if ("value" in item && typeof item.value === "string") {
+        target.push(item.value);
+      }
+    }
   }
 
   private getEntityDecomposition(
