@@ -533,9 +533,17 @@ export class IfcPropertyProcessor {
           );
           if (!(relatingKey && relatedKey)) continue;
           const relatingID = attrs[relatingKey].value;
-          const relatedIDs = attrs[relatedKey].map(
-            ({ value }: { value: number }) => value,
-          );
+
+          const rawRelatedIDs = attrs[relatedKey];
+          let relatedIDs: number[] = [];
+          if (Array.isArray(rawRelatedIDs)) {
+            relatedIDs = rawRelatedIDs.map(
+              ({ value }: { value: number }) => value,
+            );
+          } else {
+            relatedIDs = [rawRelatedIDs.value];
+          }
+
           this.addRelation(relatingID, forRelating, relatedIDs);
           for (const relatedID of relatedIDs) {
             this.addRelation(relatedID, forRelated, [relatingID]);
