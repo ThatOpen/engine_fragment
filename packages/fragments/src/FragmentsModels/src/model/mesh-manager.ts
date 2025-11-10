@@ -33,17 +33,24 @@ export class MeshManager {
     this.requests.onFinish = () => (this._updateFinished = true);
   }
 
-  forceUpdateFinish(rate = 200) {
-    const result = new Promise<void>((resolve) => {
-      this._updateFinished = false;
-      const interval = setInterval(() => {
-        this.update();
-        if (!this._updateFinished) return;
-        clearInterval(interval);
-        resolve();
-      }, rate);
-    });
-    return result;
+  async forceUpdateFinish(rate = 200, buffer = 500) {
+    let finished = false;
+    while (!finished) {
+      await new Promise<void>((resolve) => {
+        this._updateFinished = false;
+        const interval = setInterval(() => {
+          this.update();
+          if (!this._updateFinished) return;
+          clearInterval(interval);
+          resolve();
+        }, rate);
+      });
+      // Extra buffer to ensure the update finished
+      await new Promise((resolve) => {
+        setTimeout(resolve, buffer);
+      });
+      finished = this._updateFinished;
+    }
   }
 
   update() {

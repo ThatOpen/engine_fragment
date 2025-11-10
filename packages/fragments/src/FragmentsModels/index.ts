@@ -38,6 +38,10 @@ export class FragmentsModels {
     maxUpdateRate: 100,
     /** Graphics quality level - 0 is low quality, 1 is high quality */
     graphicsQuality: 0,
+    /** Force update rate in milliseconds */
+    forceUpdateRate: 200,
+    /** Force update buffer time in milliseconds */
+    forceUpdateBuffer: 200,
   };
 
   /** Coordinates of the first loaded model, used for coordinate system alignment */
@@ -192,7 +196,10 @@ export class FragmentsModels {
 
     // This might not be ideal
     if (force) {
-      await this.models.forceUpdateFinish();
+      await this.models.forceUpdateFinish(
+        this.settings.forceUpdateRate,
+        this.settings.forceUpdateBuffer,
+      );
     } else {
       this.models.update();
     }
