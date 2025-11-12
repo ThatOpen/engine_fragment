@@ -156,6 +156,8 @@ export class IfcFileReader {
 
     const tempPosition = new THREE.Vector3();
 
+    let currentCategory: number | null = null;
+
     const callback = (mesh: WEBIFC.FlatMesh) => {
       if (this._ifcAPI === null) {
         throw new Error("Fragments: IfcAPI not initialized");
@@ -218,6 +220,7 @@ export class IfcFileReader {
             mesh,
             i,
             transformWithoutScale.elements,
+            currentCategory,
           );
         }
       }
@@ -266,6 +269,9 @@ export class IfcFileReader {
           if (index + 1 === toProcess.length) return "finish";
           return "inProgress";
         })();
+
+        currentCategory = category;
+
         const idsVector = this._ifcAPI.GetLineIDsWithType(modelID, category);
         const ids: number[] = [];
         for (let i = 0; i < idsVector.size(); i++) {
@@ -530,6 +536,7 @@ export class IfcFileReader {
     mesh: WEBIFC.FlatMesh,
     geometryIndex: number,
     elementTransform: number[],
+    category: number | null,
   ) {
     if (this._ifcAPI === null) {
       throw new Error("Fragments: IfcAPI not initialized");
@@ -550,7 +557,16 @@ export class IfcFileReader {
       return;
     }
 
-    const { x, y, z, w } = geometryRef.color;
+    const { x, y, z } = geometryRef.color;
+    let w = geometryRef.color.w;
+
+    if (
+      this._serializer.geometryProcessSettings.forceTransparentSpaces &&
+      category === WEBIFC.IFCSPACE &&
+      w === 1
+    ) {
+      w = 0.5;
+    }
 
     const geometryData: IfcGeometryInstance = {
       id: geometryRef.geometryExpressID,

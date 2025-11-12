@@ -59,6 +59,10 @@ export class IfcImporter {
      * Precision of the plane constants for coplanarity when computing breps.
      */
     planePrecision: 1000,
+    /*
+     * Whether to force ifc spaces to be transparent.
+     */
+    forceTransparentSpaces: true,
   };
 
   /**
