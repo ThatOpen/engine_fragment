@@ -465,7 +465,10 @@ export class VirtualPropertiesController {
       const data: Record<string, { value: any; type?: string }> = {};
       for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
         const request = this._virtualModel.requests[i];
-        if (request.type === EditRequestType.CREATE_ITEM) {
+        if (
+          request.type === EditRequestType.CREATE_ITEM ||
+          request.type === EditRequestType.UPDATE_ITEM
+        ) {
           if (request.localId === localId) {
             for (const name in request.data.data) {
               const found = request.data.data[name];
@@ -574,11 +577,26 @@ export class VirtualPropertiesController {
       return {};
     }
 
-    const category =
+    let category =
       localId !== null ? this._items.get(localId)?.category ?? null : null;
 
-    const guid =
-      typeof id === "string" ? id : this._items.get(id)?.guid ?? null;
+    let guid = typeof id === "string" ? id : this._items.get(id)?.guid ?? null;
+
+    // If an item was created or updated, get its category and guid
+    for (let i = 0; i < this._virtualModel.requests.length; i++) {
+      const request = this._virtualModel.requests[i];
+      if (
+        request.type === EditRequestType.CREATE_ITEM ||
+        request.type === EditRequestType.UPDATE_ITEM
+      ) {
+        if (request.localId === localId) {
+          category = request.data.category;
+          if (request.data.guid) {
+            guid = request.data.guid;
+          }
+        }
+      }
+    }
 
     const data: ItemData = {
       _category: { value: category },
@@ -745,7 +763,10 @@ export class VirtualPropertiesController {
       }
     }
 
-    for (const request of this._virtualModel.requests) {
+    const addedItems = new Set<number>();
+
+    for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
+      const request = this._virtualModel.requests[i];
       // Include created / updated items, if any
       if (
         request.type === EditRequestType.CREATE_ITEM ||
@@ -754,11 +775,19 @@ export class VirtualPropertiesController {
         if (deletedItems.has(request.localId as number)) {
           continue;
         }
+
+        const localId = request.localId as number;
+        if (addedItems.has(localId)) {
+          continue;
+        }
+
         for (const categoryRegex of categories) {
           if (categoryRegex.test(request.data.category)) {
             if (!result[request.data.category]) {
               result[request.data.category] = [];
             }
+
+            addedItems.add(localId);
             result[request.data.category].push(request.localId as number);
           }
         }
@@ -917,7 +946,7 @@ export class VirtualPropertiesController {
     const { categories, attributes, relation } = params;
 
     //  Category pre‑filter (if any)
-    let candidateIds = config?.localIds
+    let candidateIds = config?.localIds;
     if (!candidateIds) {
       candidateIds = categories?.filter(Boolean)?.length
         ? Object.values(this.getItemsOfCategories(categories)).flat()
