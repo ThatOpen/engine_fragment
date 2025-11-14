@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.3.0](https://github.com/ThatOpen/engine_fragment/compare/v3.2.1...v3.3.0) (2025-11-14)
+
+
+### Features
+
+* add all ifc metadata info to fragments ([6fb2e6c](https://github.com/ThatOpen/engine_fragment/commit/6fb2e6ccf841f526265b4e9b30090d0303860964))
+* add ifc bridge part to default ifc elements ([1468c6d](https://github.com/ThatOpen/engine_fragment/commit/1468c6d4ed5aed77ccfd2bf88c218d1f911c434f))
+* allow to return all raycast results ([7012998](https://github.com/ThatOpen/engine_fragment/commit/701299806cb3462ba0163dd1802f3730b2c7dfc3))
+* force ifc spaces to be transparent by default ([2bdd447](https://github.com/ThatOpen/engine_fragment/commit/2bdd44792f49b96d38ef807ee58ba9f96c8a332d))
+* implement lod mode ([95bb163](https://github.com/ThatOpen/engine_fragment/commit/95bb163e5b1b38cba04f04a65dc0b05c59b50239))
+
+
+### Bug Fixes
+
+* correct await force update behavior ([92b7f8d](https://github.com/ThatOpen/engine_fragment/commit/92b7f8d99d50caa302f68265a9ad1f01280d539b))
+* correct error when importing certain relations ([14aea10](https://github.com/ThatOpen/engine_fragment/commit/14aea10c5e118fc800919e74b730a5f4a05e236c))
+* correct small harmless error in ifc importer ([2e9a276](https://github.com/ThatOpen/engine_fragment/commit/2e9a27615751f259093eff510b988f4dfbea64aa))
+* correct various bugs when getting edited items data ([e39a652](https://github.com/ThatOpen/engine_fragment/commit/e39a652d529e931d1ff61ec506427e067180385d))
+* **ifc-importer:** exclude boolean from attribute serialization process ([#96](https://github.com/ThatOpen/engine_fragment/issues/96)) ([db3b785](https://github.com/ThatOpen/engine_fragment/commit/db3b785e781c8dddfadbd984ddac88f941e0406a))
+* skip geometries with zero bounding box ([b5e7e21](https://github.com/ThatOpen/engine_fragment/commit/b5e7e2141bdac3d0c761c8b142521ac1ecdf0a4b))
+
+
+### Miscellaneous Chores
+
+* release 3.3.0 ([95846b7](https://github.com/ThatOpen/engine_fragment/commit/95846b7de60d600eb520db3a06a545e68f2d1c38))
+
 ## [3.2.1](https://github.com/ThatOpen/engine_fragment/compare/v3.1.0...v3.2.1) (2025-10-23)
 
 
