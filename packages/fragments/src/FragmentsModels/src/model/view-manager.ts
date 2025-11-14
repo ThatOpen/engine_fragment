@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { MultiThreadingRequestClass } from "./model-types";
+import { LodMode, MultiThreadingRequestClass } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 import { MeshManager } from "./mesh-manager";
 import { CameraUtils, GPU } from "../utils";
@@ -38,6 +38,12 @@ export class ViewManager {
     this.setFov(camera);
     this.setOrtho();
     this.currentCamera = camera;
+  }
+
+  async setLodMode(model: FragmentsModel, lodMode: LodMode) {
+    return model.threads.invoke(model.modelId, "setLodMode", [
+      lodMode,
+    ]) as Promise<void>;
   }
 
   private getOrthoSize() {

@@ -580,3 +580,15 @@ export interface ModelSection {
   index: number;
   fillsIndices: number[];
 }
+
+/**
+ * Enum representing the mode of the LOD / culling system.
+ */
+export enum LodMode {
+  /** Hides invisible items, displays far away items as LOD geometry, displays close items as full geometry */
+  DEFAULT = 0,
+  /** Displays all items as full geometry */
+  ALL_VISIBLE = 1,
+  /** Hides invisible items, displays the rest as full geometry */
+  ALL_GEOMETRY = 2,
+}

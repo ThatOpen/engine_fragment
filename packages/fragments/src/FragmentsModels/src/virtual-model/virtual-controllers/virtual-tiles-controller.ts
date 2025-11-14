@@ -14,6 +14,7 @@ import {
   limitOf2Bytes,
   TileRequestClass,
   SnappingClass,
+  LodMode,
 } from "../../model/model-types";
 import { VirtualBoxController } from "../../bounding-boxes";
 import {
@@ -132,6 +133,8 @@ export class VirtualTilesController {
   private _changedSamples = 0;
   private _virtualView: any;
 
+  private _lodMode = LodMode.DEFAULT;
+
   constructor(data: VirtualTileData) {
     this._modelId = data.modelId;
     this._boxes = data.boxes;
@@ -241,6 +244,11 @@ export class VirtualTilesController {
     const mesh = this._virtualMeshes.get(rClass) as VirtualMeshManager;
     this.manageRaycast(mesh, representation, ray, frustum, snap);
     return this._temp.raycastPoints;
+  }
+
+  setLodMode(lodMode: LodMode) {
+    this._lodMode = lodMode;
+    this.restart();
   }
 
   private init() {
@@ -765,6 +773,10 @@ export class VirtualTilesController {
   }
 
   private fetchLodLevel(sample: number) {
+    if (this._lodMode === LodMode.ALL_VISIBLE) {
+      return CurrentLod.GEOMETRY;
+    }
+
     const item = this._boxes.get(sample);
     const notClipped = CameraUtils.collides(item, this._virtualPlanes);
     if (!notClipped) {
@@ -801,6 +813,10 @@ export class VirtualTilesController {
 
     if (smallAndFar || largeAndVeryFar) {
       return CurrentLod.INVISIBLE;
+    }
+
+    if (this._lodMode === LodMode.ALL_GEOMETRY) {
+      return CurrentLod.GEOMETRY;
     }
 
     if (smallAndClose || largeAndFar) {

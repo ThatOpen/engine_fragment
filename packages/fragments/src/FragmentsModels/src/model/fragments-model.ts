@@ -18,6 +18,7 @@ import {
   AttributesUniqueValuesParams,
   CurrentLod,
   ItemsQueryConfig,
+  LodMode,
 } from "./model-types";
 
 import { MiscHelper } from "../utils";
@@ -518,6 +519,14 @@ export class FragmentsModel {
    */
   useCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
     this._viewManager.useCamera(camera);
+  }
+
+  /**
+   * Sets the LOD / culling mode of the model.
+   * @param lodMode - The LOD / culling mode to set.
+   */
+  async setLodMode(lodMode: LodMode) {
+    return this._viewManager.setLodMode(this, lodMode);
   }
 
   /**

@@ -30,6 +30,7 @@ import {
   AttributesUniqueValuesParams,
   CurrentLod,
   ItemsQueryConfig,
+  LodMode,
 } from "../model/model-types";
 
 import { VirtualBoxController } from "../bounding-boxes";
@@ -613,6 +614,10 @@ export class VirtualFragmentsModel {
     const filtered = new Set(ids);
     EditUtils.applyChangesToIds(this.requests, filtered, "ITEM", false);
     return EditUtils.getElementsData(this, filtered);
+  }
+
+  setLodMode(lodMode: LodMode) {
+    this.tiles.setLodMode(lodMode);
   }
 
   private setupBVH() {
