@@ -626,6 +626,7 @@ export class IfcPropertyProcessor {
 
   private getMetadataRecursively(source: any[], target: string[]) {
     for (const item of source) {
+      if (item === null || item === undefined) continue;
       if (Array.isArray(item)) {
         this.getMetadataRecursively(item, target);
       }
