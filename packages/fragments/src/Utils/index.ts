@@ -6,3 +6,4 @@ export * from "./data-map";
 export * from "./data-set";
 export * from "./edit";
 export * from "./shells";
+export * from "./ifc-utils";

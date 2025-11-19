@@ -50,6 +50,7 @@ import {
 } from "./virtual-helpers";
 import { EditRequest, EditRequestType, EditUtils } from "../../../Utils";
 import { TileData } from "./virtual-meshes";
+import { GridsController } from "./virtual-controllers/grids-controller";
 
 export class VirtualFragmentsModel {
   data: Model;
@@ -76,6 +77,7 @@ export class VirtualFragmentsModel {
   private _modelId: string;
 
   private _alignments: AlignmentsController;
+  private _grids: GridsController;
   private _connection: Connection;
 
   private _reprIdMap = new Map<number, number>();
@@ -96,6 +98,7 @@ export class VirtualFragmentsModel {
     this.boxes = new VirtualBoxController(this.data);
     this.materials = this.setupMaterials(modelId);
     this._alignments = new AlignmentsController(this);
+    this._grids = new GridsController(this);
     this.itemConfig = this.setupItemsConfig();
     this.tiles = this.setupTiles();
     this.properties = this.setupProperties();
@@ -362,6 +365,10 @@ export class VirtualFragmentsModel {
 
   async getAlignments() {
     return this._alignments.getAlignments();
+  }
+
+  async getGrids() {
+    return this._grids.getGrids();
   }
 
   getBuffer(raw: boolean) {

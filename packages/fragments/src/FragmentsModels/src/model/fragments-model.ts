@@ -40,6 +40,7 @@ import { DataManager } from "./data-manager";
 import { SequenceManager } from "./sequence-manager";
 import { EditManager } from "./edit-manager";
 import { Editor } from "../edit";
+import { GridsManager } from "./grids-manager";
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -93,6 +94,7 @@ export class FragmentsModel {
   private readonly _sequenceManager = new SequenceManager();
   private readonly _bbox = new THREE.Box3();
   private readonly _alignmentsManager: AlignmentsManager;
+  private readonly _gridsManager: GridsManager;
   private readonly _meshManager: MeshManager;
   private readonly _editManager = new EditManager();
   private readonly _editor: Editor;
@@ -187,6 +189,7 @@ export class FragmentsModel {
     this.threads = threads;
     this._editor = editor;
     this._alignmentsManager = new AlignmentsManager(this);
+    this._gridsManager = new GridsManager(this);
     this.tiles.onItemSet.add(({ value: mesh }) => this.object.add(mesh));
     this.tiles.onBeforeDelete.add(({ value: mesh }) => {
       this.object.remove(mesh);
@@ -205,6 +208,7 @@ export class FragmentsModel {
       this,
       this._meshManager,
       this._alignmentsManager,
+      this._gridsManager,
     );
   }
 
@@ -510,6 +514,13 @@ export class FragmentsModel {
    */
   getAlignmentStyles() {
     return this._alignmentsManager.getAlignmentStyles();
+  }
+
+  /**
+   * Get the grids of the model (if any).
+   */
+  async getGrids() {
+    return this._gridsManager.getGrids();
   }
 
   /**

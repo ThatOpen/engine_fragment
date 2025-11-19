@@ -368,6 +368,8 @@ export interface ItemsDataConfig {
 
 export const ALIGNMENT_CATEGORY = "ThatOpenAlignment";
 
+export const GRID_CATEGORY = "ThatOpenGrid";
+
 export enum AlignmentCurveType {
   NONE = 0,
   LINES = 1,
@@ -387,7 +389,20 @@ export type AlignmentData = {
   vertical: AlignmentCurve[];
 };
 
-export type AlignmentDataItem = {
+export type GridAxisData = {
+  tag: string;
+  curve: number[];
+};
+
+export type GridData = {
+  id: number;
+  transform: number[];
+  uAxes: GridAxisData[];
+  vAxes: GridAxisData[];
+  wAxes: GridAxisData[];
+};
+
+export type CustomDataItem = {
   data: {
     value: string;
     type: string;

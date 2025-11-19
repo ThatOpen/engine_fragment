@@ -160,7 +160,7 @@ export class IfcImporter {
     geometryProcessor.webIfcSettings = this.webIfcSettings;
     const geomData = { ...data, builder: this.builder };
     const geoms = await geometryProcessor.process(geomData);
-    const { modelMesh, maxLocalID, localIDs, alignments } = geoms;
+    const { modelMesh, maxLocalID, localIDs, alignments, grids } = geoms;
 
     // Get properties
 
@@ -171,6 +171,7 @@ export class IfcImporter {
       ...data,
       geometryProcessedLocalIDs: localIDs,
       alignments,
+      grids,
       maxLocalID,
     };
     const propsData = await properties.process(propsArgs);

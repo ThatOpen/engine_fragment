@@ -5,9 +5,10 @@ import { ShellData, ifcCategoryMap, GeomsFbUtils } from "../../../../Utils";
 import * as TFB from "../../../../Schema";
 
 import { CivilReader } from "./ifc/civil-reader";
-import { AlignmentData } from "../../../../FragmentsModels";
+import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
+import { GridReader } from "./grid-reader";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -84,6 +85,7 @@ export class IfcFileReader {
   private _coordinatesInitialized = false;
 
   private _civilReader = new CivilReader();
+  private _gridReader = new GridReader();
 
   private _nextId = 0;
 
@@ -116,6 +118,8 @@ export class IfcFileReader {
   onCoordinatesLoaded: (data: TransformData) => void = () => {};
 
   onAlignmentsLoaded: (data: AlignmentData[]) => void = () => {};
+
+  onGridsLoaded: (data: GridData[]) => void = () => {};
 
   async load(data: ProcessData) {
     data.progressCallback?.(0, {
@@ -291,6 +295,9 @@ export class IfcFileReader {
 
     const alignments = this._civilReader.read(this._ifcAPI);
     this.onAlignmentsLoaded(alignments);
+
+    const grids = this._gridReader.read(this._ifcAPI);
+    this.onGridsLoaded(grids);
 
     this.onNextIdFound(this._nextId);
 

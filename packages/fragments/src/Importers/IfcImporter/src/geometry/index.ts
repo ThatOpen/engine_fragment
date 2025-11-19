@@ -10,7 +10,7 @@ import {
   TransformData,
 } from "./ifc-file-reader";
 import { ifcCategoryMap } from "../../../../Utils";
-import { AlignmentData } from "../../../../FragmentsModels";
+import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GeomsFbUtils } from "../../../../Utils/shells";
@@ -53,6 +53,7 @@ export class IfcGeometryProcessor {
     }[] = [];
 
     const alignments: AlignmentData[] = [];
+    const grids: GridData[] = [];
 
     const items: {
       element: IfcElement;
@@ -96,6 +97,12 @@ export class IfcGeometryProcessor {
     reader.onAlignmentsLoaded = (data) => {
       for (const alignment of data) {
         alignments.push(alignment);
+      }
+    };
+
+    reader.onGridsLoaded = (data: GridData[]) => {
+      for (const grid of data) {
+        grids.push(grid);
       }
     };
 
@@ -592,6 +599,7 @@ export class IfcGeometryProcessor {
       localIDs,
       maxLocalID: nextId,
       alignments,
+      grids,
     };
   }
 }

@@ -2,7 +2,7 @@ import { VirtualFragmentsModel } from "..";
 import {
   ALIGNMENT_CATEGORY,
   AlignmentData,
-  AlignmentDataItem,
+  CustomDataItem,
 } from "../../model/model-types";
 
 export class AlignmentsController {
@@ -30,7 +30,7 @@ export class AlignmentsController {
     const alignmentsItems = this._fragments.getItemsData(
       itemsIds,
       {},
-    ) as AlignmentDataItem[];
+    ) as CustomDataItem[];
 
     for (const item of alignmentsItems) {
       const data = JSON.parse(item.data.value) as AlignmentData;

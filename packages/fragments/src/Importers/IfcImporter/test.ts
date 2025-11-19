@@ -150,6 +150,9 @@ const run = async (serialize: boolean) => {
     const absoluteAlignments = await model.getAlignments();
     world.scene.three.add(absoluteAlignments);
 
+    const grids = await model.getGrids();
+    world.scene.three.add(grids);
+
     // const horizontalAlignments = await model.getHorizontalAlignments();
     // world.scene.three.add(horizontalAlignments);
 

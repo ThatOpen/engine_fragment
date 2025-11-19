@@ -7,12 +7,14 @@ import {
 import { AlignmentsManager } from "./alignments-manager";
 import { FragmentsModel } from "./fragments-model";
 import { MeshManager } from "./mesh-manager";
+import { GridsManager } from "./grids-manager";
 
 export class DataManager {
   async dispose(
     model: FragmentsModel,
     meshes: MeshManager,
     alignments: AlignmentsManager,
+    grids: GridsManager,
   ) {
     meshes.list.delete(model.modelId);
     await this.requestModelDelete(model);
@@ -21,6 +23,7 @@ export class DataManager {
     this.deleteAllTiles(model);
     meshes.materials.dispose(model.modelId);
     alignments.dispose();
+    grids.dispose();
   }
 
   async getBuffer(model: FragmentsModel, raw: boolean) {

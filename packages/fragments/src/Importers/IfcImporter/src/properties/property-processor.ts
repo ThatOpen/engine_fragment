@@ -3,13 +3,19 @@ import { Builder } from "flatbuffers";
 import * as TFB from "../../../../Schema";
 import { RawEntityAttrs } from "./types";
 import { IfcImporter } from "../..";
-import { ifcCategoryMap } from "../../../../Utils";
+import { FragmentsIfcUtils, ifcCategoryMap } from "../../../../Utils";
 import { ProcessData } from "../types";
-import { ALIGNMENT_CATEGORY, AlignmentData } from "../../../../FragmentsModels";
+import {
+  ALIGNMENT_CATEGORY,
+  AlignmentData,
+  GRID_CATEGORY,
+  GridData,
+} from "../../../../FragmentsModels";
 
 export interface PropertiesProcessData extends ProcessData {
   geometryProcessedLocalIDs: number[];
   alignments?: AlignmentData[];
+  grids?: GridData[];
   maxLocalID: number;
 }
 
@@ -140,7 +146,13 @@ export class IfcPropertyProcessor {
 
     const alignments = data.alignments;
     if (alignments) {
-      this.processAlignments(alignments);
+      this.processCustomItems(alignments, ALIGNMENT_CATEGORY);
+    }
+
+    // Now process grids
+    const grids = data.grids;
+    if (grids) {
+      this.processCustomItems(grids, GRID_CATEGORY);
     }
 
     const relations = new Set([...this._serializer.relations.keys()]);
@@ -219,10 +231,13 @@ export class IfcPropertyProcessor {
     }
   }
 
-  private async processAlignments(alignments: AlignmentData[]) {
-    for (const alignment of alignments) {
+  private async processCustomItems(
+    customItems: AlignmentData[] | GridData[],
+    category: string,
+  ) {
+    for (const customItem of customItems) {
       const expressID = this._maxLocalID++;
-      const attrValue = JSON.stringify(alignment);
+      const attrValue = JSON.stringify(customItem);
       const attrName = "data";
       const attrType = "UNDEFINED";
       const hash = JSON.stringify([attrName, attrValue, attrType]);
@@ -241,7 +256,7 @@ export class IfcPropertyProcessor {
       );
 
       // @ts-ignore
-      this.classes.push(ALIGNMENT_CATEGORY);
+      this.classes.push(category);
       this.expressIDs.push(expressID);
       this._attributesOffsets.push(attributesOffset);
     }
@@ -313,39 +328,7 @@ export class IfcPropertyProcessor {
 
   async setLengthUnitsFactor() {
     const ifcApi = await this.getIfcApi();
-    const unitAssignmentIds = ifcApi.GetLineIDsWithType(
-      0,
-      WEBIFC.IFCUNITASSIGNMENT,
-    );
-
-    if (unitAssignmentIds.size() === 0) return;
-
-    for (let i = 0; i < unitAssignmentIds.size(); i++) {
-      const assignmentId = unitAssignmentIds.get(i);
-      const assignmentAttrs = ifcApi.GetLine(0, assignmentId);
-
-      for (const unitHandle of assignmentAttrs.Units) {
-        const unit = ifcApi.GetLine(0, unitHandle.value);
-
-        const value = unit.UnitType?.value;
-        if (value !== "LENGTHUNIT") continue;
-
-        let factor = 1;
-        let unitValue = 1;
-        if (unit.Name.value === "METRE") unitValue = 1;
-        if (unit.Name.value === "FOOT") unitValue = 0.3048;
-
-        if (unit.Prefix?.value === "MILLI") {
-          factor = 0.001;
-        } else if (unit.Prefix?.value === "CENTI") {
-          factor = 0.01;
-        } else if (unit.Prefix?.value === "DECI") {
-          factor = 0.1;
-        }
-
-        this._lengthUnitsFactor = unitValue * factor;
-      }
-    }
+    this._lengthUnitsFactor = FragmentsIfcUtils.getUnitsFactor(ifcApi);
   }
 
   async serializeAttributes(expressID: number, attrs: RawEntityAttrs) {
