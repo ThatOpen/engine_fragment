@@ -33,7 +33,7 @@ const run = async (serialize: boolean) => {
 
     // Read the file
     // const ifcFile = fs.readFileSync(`${name}${extension}`)
-    const url = "/resources/ifc/test/test.ifc";
+    const url = "/resources/ifc/test/metal.ifc";
     const ifcFile = await fetch(url);
     const ifcBuffer = await ifcFile.arrayBuffer();
     const typedArray = new Uint8Array(ifcBuffer);

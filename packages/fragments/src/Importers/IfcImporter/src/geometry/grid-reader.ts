@@ -72,6 +72,9 @@ export class GridReader {
         continue;
       }
       const pointsId = curve.Points.value;
+      if (!pointsId) {
+        continue;
+      }
       const ifcPoints = webIfc.GetLine(0, pointsId);
       if (ifcPoints.CoordList) {
         for (const coordinates of ifcPoints.CoordList) {
