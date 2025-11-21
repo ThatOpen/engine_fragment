@@ -38,8 +38,8 @@ export class CivilReader {
             pointsHorizontalReversed.push([point.x, point.y]);
           }
 
-          points3DReversed.reverse();
-          pointsHorizontalReversed.reverse();
+          // points3DReversed.reverse();
+          // pointsHorizontalReversed.reverse();
 
           for (const [x, y, z] of points3DReversed) {
             result3d.push(x, y, z);
@@ -72,7 +72,7 @@ export class CivilReader {
             pointsVerticalReversed.push([point.x, point.y]);
           }
 
-          pointsVerticalReversed.reverse();
+          // pointsVerticalReversed.reverse();
 
           for (const [x, y] of pointsVerticalReversed) {
             resultVertical.push(x, y, 0);
