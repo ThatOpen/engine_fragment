@@ -340,18 +340,15 @@ export class IfcPropertyProcessor {
       attrs.type &&
       typeof attrs.type === "number" &&
       attrs.type === WEBIFC.IFCBUILDINGSTOREY &&
-      attrs.Elevation &&
-      "value" in attrs.Elevation
+      attrs.ObjectPlacement &&
+      "value" in attrs.ObjectPlacement &&
+      typeof attrs.ObjectPlacement.value === "number"
     ) {
       const height = { value: 0 };
-      if (
-        attrs.ObjectPlacement &&
-        "value" in attrs.ObjectPlacement &&
-        typeof attrs.ObjectPlacement.value === "number"
-      ) {
-        await this.getStoreyElevation(attrs.ObjectPlacement.value, height);
-      }
-      attrs.Elevation.value = height.value * this._lengthUnitsFactor;
+      await this.getStoreyElevation(attrs.ObjectPlacement.value, height);
+      attrs.Elevation = new WEBIFC.IFC4X3.IfcLengthMeasure(
+        height.value * this._lengthUnitsFactor,
+      );
     }
 
     let index = 0;
