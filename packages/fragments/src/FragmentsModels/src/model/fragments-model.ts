@@ -292,6 +292,9 @@ export class FragmentsModel {
     return guids;
   }
 
+  /**
+   * Get all the local IDs of the model.
+   */
   async getLocalIds() {
     const localIds = (await this.threads.invoke(
       this.modelId,
@@ -305,6 +308,7 @@ export class FragmentsModel {
    * Retrieves items based on the specified query parameters.
    *
    * @param params - The query parameters used to filter and retrieve items.
+   * @param config - Optional query configuration.
    * @returns A promise that resolves to the items matching the query.
    */
   async getItemsByQuery(params: ItemsQueryParams, config?: ItemsQueryConfig) {
@@ -328,6 +332,7 @@ export class FragmentsModel {
    * which contains the necessary information to reconstruct a `THREE.BufferGeometry`.
    *
    * @param localIds - An array of local IDs for which the geometry data is requested.
+   * @param lod - The level of detail for the geometry (optional).
    */
   async getItemsGeometry(localIds: number[], lod = CurrentLod.GEOMETRY) {
     return this._editManager.getItemsGeometry(this, localIds, lod);
@@ -652,6 +657,7 @@ export class FragmentsModel {
   /**
    * Gets the section (edges and fills) between the model and a given clipping plane.
    * @param plane - The plane to get the section of.
+   * @param localIds - The local IDs of the items to get the section of. If undefined, it will return the section of all items.
    */
   async getSection(plane: THREE.Plane, localIds?: number[]) {
     return this._sectionManager.getSection(this, plane, localIds);

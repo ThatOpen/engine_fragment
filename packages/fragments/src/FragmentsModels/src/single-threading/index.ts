@@ -1,5 +1,12 @@
+import * as THREE from "three";
 import pako from "pako";
-import { Identifier, ItemsDataConfig } from "../model";
+import {
+  CurrentLod,
+  Identifier,
+  ItemsDataConfig,
+  ItemsQueryConfig,
+  ItemsQueryParams,
+} from "../model";
 import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 
 /**
@@ -140,5 +147,145 @@ export class SingleThreadedFragmentsModel {
    */
   getCoordinates() {
     return this._virtualModel.getCoordinates();
+  }
+
+  /**
+   * Get geometry data for the specified items.
+   * @param localIds - The local IDs of the items to get geometry for.
+   * @param lod - The level of detail for the geometry (optional).
+   */
+  getItemsGeometry(localIds: number[], lod?: CurrentLod) {
+    return this._virtualModel.getItemsGeometry(localIds, lod);
+  }
+
+  /**
+   * Query items based on specified parameters.
+   * @param params - The query parameters.
+   * @param config - Optional query configuration.
+   */
+  getItemsByQuery(params: ItemsQueryParams, config?: ItemsQueryConfig) {
+    return this._virtualModel.getItemsByQuery(params, config);
+  }
+
+  /**
+   * Gets the section (edges and fills) between the model and a given clipping plane.
+   * @param plane - The plane to get the section of.
+   * @param localIds - The local IDs of the items to get the section of. If undefined, it will return the section of all items.
+   */
+  async getSection(plane: THREE.Plane, localIds?: number[]) {
+    return this._virtualModel.getSection(plane, localIds);
+  }
+
+  /**
+   * Get all the local IDs of the model.
+   */
+  async getLocalIds() {
+    return this._virtualModel.getLocalIds();
+  }
+
+  /**
+   * Gets all the materials IDs of the model.
+   */
+  async getMaterialsIds() {
+    return this._virtualModel.getMaterialsIds();
+  }
+
+  /**
+   * Gets the materials of the model.
+   * @param localIds - The local IDs of the materials to get. If undefined, it will return all materials.
+   */
+  async getMaterials(localIds?: Iterable<number>) {
+    return this._virtualModel.getMaterials(localIds);
+  }
+
+  /**
+   * Gets all the representations IDs of the model.
+   */
+  async getRepresentationsIds() {
+    return this._virtualModel.getRepresentationsIds();
+  }
+
+  /**
+   * Gets the representations of the model.
+   * @param localIds - The local IDs of the representations to get. If undefined, it will return all representations.
+   */
+  async getRepresentations(localIds?: Iterable<number>) {
+    return this._virtualModel.getRepresentations(localIds);
+  }
+
+  /**
+   * Gets all the local transforms IDs of the model.
+   */
+  async getLocalTransformsIds() {
+    return this._virtualModel.getLocalTransformsIds();
+  }
+
+  /**
+   * Gets the local transforms of the model.
+   * @param localIds - The local IDs of the local transforms to get. If undefined, it will return all local transforms.
+   */
+  async getLocalTransforms(localIds?: Iterable<number>) {
+    return this._virtualModel.getLocalTransforms(localIds);
+  }
+
+  /**
+   * Gets all the global transforms IDs of the model.
+   */
+  async getGlobalTransformsIds() {
+    return this._virtualModel.getGlobalTransformsIds();
+  }
+
+  /**
+   * Gets the global transforms of the model.
+   * @param localIds - The local IDs of the global transforms to get. If undefined, it will return all global transforms.
+   */
+  async getGlobalTransforms(localIds?: Iterable<number>) {
+    return this._virtualModel.getGlobalTransforms(localIds);
+  }
+
+  /**
+   * Gets all the samples IDs of the model.
+   */
+  async getSamplesIds() {
+    return this._virtualModel.getSamplesIds();
+  }
+
+  /**
+   * Gets the samples of the model.
+   * @param localIds - The local IDs of the samples to get. If undefined, it will return all samples.
+   */
+  async getSamples(localIds?: Iterable<number>) {
+    return this._virtualModel.getSamples(localIds);
+  }
+
+  /**
+   * Gets all the items IDs of the model.
+   */
+  async getItemsIds() {
+    return this._virtualModel.getItemsIds();
+  }
+
+  /**
+   * Gets the items of the model.
+   * @param localIds - The local IDs of the items to get. If undefined, it will return all items.
+   */
+  async getItems(localIds?: Iterable<number>) {
+    return this._virtualModel.getItems(localIds);
+  }
+
+  /**
+   * Gets the relations of the model.
+   * @param localIds - The local IDs of the relations to get. If undefined, it will return all relations.
+   */
+  async getRelations(localIds?: number[]) {
+    return this._virtualModel.getRelations(localIds);
+  }
+
+  /**
+   * Gets the global transforms IDs of the items of the model.
+   * @param ids - The local IDs of the items to get the global transforms IDs of.
+   */
+  async getGlobalTranformsIdsOfItems(ids: number[]) {
+    return this._virtualModel.getGlobalTranformsIdsOfItems(ids);
   }
 }
