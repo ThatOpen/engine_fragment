@@ -9,7 +9,13 @@ import {
   ifcClasses,
   ProcessData,
 } from "./src";
-import { DataSet } from "../../Utils";
+import {
+  DataSet,
+  GeometryProcessSettings,
+  ifcCategoryMap,
+  ifcRelationsMap,
+  geometryTypes,
+} from "../../Utils";
 
 /**
  * An objet to convert IFC files into fragments.
@@ -42,7 +48,7 @@ export class IfcImporter {
   /**
    * Settings for the processing of geometry.
    */
-  geometryProcessSettings = {
+  geometryProcessSettings: GeometryProcessSettings = {
     /*
      * Maximum number of vertices to try to define a brep shell. If the number of vertices is greater than the threshold, the geometry will be saved as raw data, consuming more space.
      */
@@ -222,6 +228,26 @@ export class IfcImporter {
     });
 
     return content;
+  }
+
+  /**
+   * Adds all attributes to the classes. Use this with precaution because it can increase the size of the output fragments.
+   */
+  addAllAttributes() {
+    for (const categoryString in ifcCategoryMap) {
+      const category = parseInt(categoryString, 10);
+      if (geometryTypes.has(category)) {
+        continue;
+      }
+      this.classes.abstract.add(category);
+    }
+  }
+
+  /**
+   * Adds all relations to the relations map. Use this with precaution because it can increase the size of the output fragments.
+   */
+  addAllRelations() {
+    this.relations = new Map(ifcRelationsMap);
   }
 
   private clean() {

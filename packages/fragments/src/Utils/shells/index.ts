@@ -31,6 +31,7 @@ export type GeometryProcessSettings = {
   precision: number;
   normalPrecision: number;
   planePrecision: number;
+  forceTransparentSpaces: boolean;
 };
 
 export class GeomsFbUtils {
@@ -160,6 +161,7 @@ export class GeomsFbUtils {
       precision: 1000000,
       normalPrecision: 10000000,
       planePrecision: 1000,
+      forceTransparentSpaces: true,
     },
   ) {
     const positionAttr = newRepresentation.getAttribute("position")!;

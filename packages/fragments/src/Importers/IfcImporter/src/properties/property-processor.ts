@@ -221,7 +221,9 @@ export class IfcPropertyProcessor {
         this.expressIDs.push(expressID);
         await this.serializeAttributes(expressID, attrs);
       } catch (e) {
-        console.log(`Problem reading properties for ${expressID}`);
+        console.log(
+          `Problem reading properties for ${expressID}. If many items are problematic, it may be a problem with the category you are trying to process. You can remove it and try again.`,
+        );
         console.log(e);
         await new Promise((resolve) => {
           setTimeout(resolve, 100);
