@@ -39,6 +39,8 @@ export class SingleThreadedFragmentsModel {
       data as any,
       undefined as any,
     );
+
+    this._virtualModel.setupData();
   }
 
   /**
