@@ -26,7 +26,13 @@ export class MaterialManager {
       const { color } = definition;
       if (color.isColor) continue;
       const { r, g, b } = color;
-      definition.color = new THREE.Color(r, g, b);
+      // IFC colors are stored in sRBG color space
+      definition.color = new THREE.Color().setRGB(
+        r,
+        g,
+        b,
+        THREE.SRGBColorSpace
+      );
     }
   }
 
@@ -47,7 +53,7 @@ export class MaterialManager {
     const { modelId, objectClass, currentLod, templateId } = request;
     if (!(modelId && objectClass !== undefined && currentLod !== undefined)) {
       throw new Error(
-        "Fragments: material definition information is missing to create the material.",
+        "Fragments: material definition information is missing to create the material."
       );
     }
 
@@ -96,7 +102,7 @@ export class MaterialManager {
         materialDefinitions,
         index,
         request,
-        materials,
+        materials
       );
       const first = highlightData.position[i];
       const value = highlightData.size[i];
@@ -163,7 +169,7 @@ export class MaterialManager {
     } else if (objectClass === ObjectClass.LINE) {
       material = this.newLODMaterial(
         { data, instancing: templateId !== undefined },
-        request,
+        request
       );
     } else {
       throw new Error("Fragments: Unsupported object class");
@@ -187,7 +193,7 @@ export class MaterialManager {
     materialDefinitions: MaterialDefinition[],
     index: any,
     request: any,
-    materials: THREE.Material[],
+    materials: THREE.Material[]
   ) {
     if (!localMap.has(highlightIndex)) {
       const originalDefinition = materialDefinitions[index];
@@ -205,7 +211,7 @@ export class MaterialManager {
   private getUniqueMaterial(
     id: number,
     data: MaterialDefinition,
-    request: any,
+    request: any
   ) {
     const modelId = request.modelId;
     const material = this.list.get(id);
