@@ -25,7 +25,9 @@ export class ParserHelper {
     const b = material.b() / 255;
     const opacity = material.a() / 255;
     const transparent = material.a() < 255;
-    const color = new THREE.Color(r, g, b);
+    // IFC colors are stored in sRGB color space, so we need to tell Three.js
+    // to convert them to linear color space.
+    const color = new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
     const renderedFaces = material.renderedFaces();
     return {
       color,
@@ -67,7 +69,7 @@ export class ParserHelper {
   private static getBox(
     data: BoundingBox,
     box: THREE.Box3,
-    point: "min" | "max",
+    point: "min" | "max"
   ) {
     data[point](this._floatVector);
     const x = this._floatVector.x();
@@ -81,7 +83,7 @@ export class ParserHelper {
   private static getVector(
     transform: Transform,
     name: "position" | "xDirection" | "yDirection",
-    vector: DoubleVector | FloatVector,
+    vector: DoubleVector | FloatVector
   ) {
     transform[name](vector);
     const parsed = this._temp[name] as THREE.Vector3;
@@ -96,7 +98,7 @@ export class ParserHelper {
   private static computeZVector() {
     this._temp.zDirection.crossVectors(
       this._temp.xDirection,
-      this._temp.yDirection,
+      this._temp.yDirection
     );
   }
 }
