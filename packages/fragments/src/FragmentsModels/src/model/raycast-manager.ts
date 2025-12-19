@@ -154,9 +154,14 @@ export class RaycastManager {
   }
 
   private setEnds(camera: THREE.Camera) {
-    this._n.constant = camera.position.length();
+    if (camera instanceof THREE.OrthographicCamera) {
+      this._n.constant = camera.near;
+      this._f.constant = camera.far;
+    } else {
+      this._n.constant = camera.position.length();
+      this._f.constant = Infinity;
+    }
     this._f.normal = this._n.normal;
-    this._f.constant = Infinity;
   }
 
   private screenToCast(p: Point, element: any, result = new THREE.Vector2()) {
