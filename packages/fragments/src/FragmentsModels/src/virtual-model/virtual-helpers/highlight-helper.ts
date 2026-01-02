@@ -50,6 +50,18 @@ export class HighlightHelper {
     model.tiles.updateVirtualMeshes(itemIds);
   }
 
+  setColor(
+    model: VirtualFragmentsModel,
+    items: number[],
+    color: MaterialDefinition["color"],
+  ) {
+    const material = {
+      color,
+      preserveOriginalMaterial: true,
+    } as MaterialDefinition;
+    this.highlight(model, items, material);
+  }
+
   private getFetchEvent(
     model: VirtualFragmentsModel,
     found: MaterialDefinition[],

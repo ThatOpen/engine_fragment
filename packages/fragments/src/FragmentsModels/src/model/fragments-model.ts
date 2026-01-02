@@ -632,6 +632,18 @@ export class FragmentsModel {
   }
 
   /**
+   * Applies a color to the specified items while preserving original material properties.
+   * @param localIds - The local IDs of the items to color. If undefined, all items will be colored.
+   * @param color - The color to apply.
+   */
+  async setColor(
+    localIds: number[] | undefined,
+    color: MaterialDefinition["color"],
+  ) {
+    return this._highlightManager.setColor(this, localIds, color);
+  }
+
+  /**
    * Gets the highlight of the specified items.
    * @param localIds - The local IDs of the items to get the highlight of. If undefined, it will return the highlight of all items.
    */

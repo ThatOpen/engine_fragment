@@ -192,9 +192,12 @@ export class MaterialManager {
     if (!localMap.has(highlightIndex)) {
       const originalDefinition = materialDefinitions[index];
       const newDefinition = materialDefinitions[highlightIndex];
+      const { preserveOriginalMaterial, ...highlightDefinition } = newDefinition;
       const combinedDefinition: MaterialDefinition = {
         ...originalDefinition,
-        ...newDefinition,
+        ...(preserveOriginalMaterial
+          ? { color: highlightDefinition.color }
+          : highlightDefinition),
       };
       const material = this.get(combinedDefinition, request);
       materials.push(material);
