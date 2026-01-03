@@ -193,12 +193,46 @@ export class MaterialManager {
       const originalDefinition = materialDefinitions[index];
       const newDefinition = materialDefinitions[highlightIndex];
       const { preserveOriginalMaterial, ...highlightDefinition } = newDefinition;
-      const combinedDefinition: MaterialDefinition = {
-        ...originalDefinition,
-        ...(preserveOriginalMaterial
-          ? { color: highlightDefinition.color }
-          : highlightDefinition),
-      };
+      const combinedDefinition: MaterialDefinition = { ...originalDefinition };
+      if (preserveOriginalMaterial) {
+        combinedDefinition.color = highlightDefinition.color;
+        if (highlightDefinition.renderedFaces !== undefined) {
+          combinedDefinition.renderedFaces = highlightDefinition.renderedFaces;
+        }
+
+        const baseMaterial = materials[index] ?? materials[0];
+        const definitionOpacity = combinedDefinition.opacity;
+        const definitionTransparent = combinedDefinition.transparent;
+        const baseOpacity =
+          baseMaterial && "opacity" in baseMaterial
+            ? (baseMaterial as THREE.Material & { opacity: number }).opacity
+            : undefined;
+        const baseTransparent =
+          baseMaterial && "transparent" in baseMaterial
+            ? (baseMaterial as THREE.Material & { transparent: boolean }).transparent
+            : undefined;
+
+        combinedDefinition.opacity = baseOpacity !== undefined ? baseOpacity : definitionOpacity;
+
+        const transparentFromOpacity = combinedDefinition.opacity < 1;
+        const highlightHasExplicitTransparent = highlightDefinition.transparent !== undefined;
+        if (highlightHasExplicitTransparent) {
+          combinedDefinition.transparent = highlightDefinition.transparent;
+        } else {
+          combinedDefinition.transparent =
+            transparentFromOpacity || definitionTransparent || baseTransparent || false;
+        }
+
+        if (highlightDefinition.depthTest !== undefined) {
+          combinedDefinition.depthTest = highlightDefinition.depthTest;
+        } else if (baseMaterial && "depthTest" in baseMaterial) {
+          combinedDefinition.depthTest = (
+            baseMaterial as THREE.Material & { depthTest: boolean }
+          ).depthTest;
+        }
+      } else {
+        Object.assign(combinedDefinition, highlightDefinition);
+      }
       const material = this.get(combinedDefinition, request);
       materials.push(material);
       localMap.set(highlightIndex, materials.length - 1);
