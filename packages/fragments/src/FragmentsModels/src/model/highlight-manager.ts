@@ -24,6 +24,14 @@ export class HighlightManager {
     ]);
   }
 
+  async setColor(
+    model: FragmentsModel,
+    localIds: number[] | undefined,
+    color: MaterialDefinition["color"],
+  ) {
+    await model.threads.invoke(model.modelId, "setColor", [localIds, color]);
+  }
+
   async getHighlightItemIds(model: FragmentsModel) {
     return model.threads.invoke(
       model.modelId,

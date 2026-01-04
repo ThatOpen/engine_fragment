@@ -65,6 +65,12 @@ export class VirtualMaterialController {
   }
 
   private checkMaterialExists(material: MaterialDefinition, ids: number[]) {
+    // Don't deduplicate materials with preserveOriginalMaterial flag,
+    // as they need to preserve original material properties (like opacity)
+    // which may differ from existing materials with the same color
+    if (material.preserveOriginalMaterial) {
+      return false;
+    }
     const count = this._list.length;
     for (let i = 0; i < count; i++) {
       const current = this._list[i];
