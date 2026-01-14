@@ -113,11 +113,17 @@ export type MaterialDefinition = {
   /** An optional custom ID for the material */
   customId?: string;
   /**
-   * Whether to have depth test enabled when rendering this material. When the depth test is disabled, the depth write
-   * will also be implicitly disabled.
+   * Whether to have depth test enabled when rendering this material.
    * @default true
    */
   depthTest?: boolean;
+
+  /**
+   * Whether to write to the depth buffer. Set to false for transparent objects
+   * that shouldn't occlude other geometry
+   * @default true
+   */
+  depthWrite?: boolean;
 
   /** The local ID of the material */
   localId?: number;
