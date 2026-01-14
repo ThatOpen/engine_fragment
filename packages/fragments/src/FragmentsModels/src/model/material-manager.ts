@@ -158,6 +158,7 @@ export class MaterialManager {
         opacity: data.opacity,
         userData: { customId: data.customId, localId: data.localId },
         depthTest: data.depthTest ?? true,
+        depthWrite: data.depthWrite ?? true,
         side: data.renderedFaces === 1 ? THREE.DoubleSide : THREE.FrontSide,
       });
     } else if (objectClass === ObjectClass.LINE) {
@@ -202,6 +203,9 @@ export class MaterialManager {
 
         if (highlightDefinition.depthTest !== undefined) {
           combinedDefinition.depthTest = highlightDefinition.depthTest;
+        }
+        if (highlightDefinition.depthWrite !== undefined) {
+          combinedDefinition.depthWrite = highlightDefinition.depthWrite;
         }
       } else {
         Object.assign(combinedDefinition, highlightDefinition);
