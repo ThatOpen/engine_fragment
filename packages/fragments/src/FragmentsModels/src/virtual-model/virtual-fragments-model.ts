@@ -212,6 +212,10 @@ export class VirtualFragmentsModel {
     this._highlightHelper.highlight(this, items, highlightMaterial);
   }
 
+  setColor(items: number[], color: MaterialDefinition["color"]) {
+    this._highlightHelper.setColor(this, items, color);
+  }
+
   getHighlight(localIds: number[]) {
     return this._highlightHelper.getHighlight(this, localIds);
   }
