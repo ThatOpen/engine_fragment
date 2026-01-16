@@ -149,7 +149,7 @@ export class Element {
   async getData() {
     const result = await this.model.getItemsData(
       [this.localId],
-      this.config.data,
+      this.config.data
     );
     return result[0];
   }
@@ -163,7 +163,7 @@ export class Element {
     config?: {
       disposeGeometry?: boolean;
       disposeMaterial?: boolean;
-    },
+    }
   ) {
     const disposeGeometry = config?.disposeGeometry ?? true;
     const disposeMaterial = config?.disposeMaterial ?? true;
@@ -207,7 +207,7 @@ export class Element {
 
       if (!meshData) {
         throw new Error(
-          `No geometry found for representation ${sample.representation}`,
+          `No geometry found for representation ${sample.representation}`
         );
       }
 
@@ -219,8 +219,14 @@ export class Element {
       // Material
       if (!materialList.has(sample.material)) {
         const { r, g, b, a } = this.core.materials[sample.material];
+        const color = new THREE.Color().setRGB(
+          r / 255,
+          g / 255,
+          b / 255,
+          THREE.SRGBColorSpace
+        );
         const material = new THREE.MeshLambertMaterial({
-          color: new THREE.Color(r / 255, g / 255, b / 255),
+          color,
           transparent: true,
           opacity: a / 255,
         });
@@ -240,7 +246,7 @@ export class Element {
         geometry.setIndex(Array.from(indices));
         geometry.setAttribute(
           "position",
-          new THREE.BufferAttribute(positions, 3),
+          new THREE.BufferAttribute(positions, 3)
         );
         geometry.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
         geometry.userData.localId = sample.representation;
@@ -482,19 +488,19 @@ export class Element {
     // Update the core data to have just the data referenced by the samples
 
     const matsToDelete = new Set<number>(
-      Object.keys(this.core.materials).map(Number),
+      Object.keys(this.core.materials).map(Number)
     );
 
     const ltsToDelete = new Set<number>(
-      Object.keys(this.core.localTransforms).map(Number),
+      Object.keys(this.core.localTransforms).map(Number)
     );
 
     const gtsToDelete = new Set<number>(
-      Object.keys(this.core.globalTransforms).map(Number),
+      Object.keys(this.core.globalTransforms).map(Number)
     );
 
     const repsToDelete = new Set<number>(
-      Object.keys(this.core.representations).map(Number),
+      Object.keys(this.core.representations).map(Number)
     );
 
     const materialsToGet = new Set<number>();
