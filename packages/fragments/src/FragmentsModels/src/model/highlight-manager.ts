@@ -24,6 +24,30 @@ export class HighlightManager {
     ]);
   }
 
+  async setColor(
+    model: FragmentsModel,
+    localIds: number[] | undefined,
+    color: MaterialDefinition["color"],
+  ) {
+    await model.threads.invoke(model.modelId, "setColor", [localIds, color]);
+  }
+
+  async resetColor(model: FragmentsModel, localIds: number[] | undefined) {
+    await model.threads.invoke(model.modelId, "resetColor", [localIds]);
+  }
+
+  async setOpacity(
+    model: FragmentsModel,
+    localIds: number[] | undefined,
+    opacity: number,
+  ) {
+    await model.threads.invoke(model.modelId, "setOpacity", [localIds, opacity]);
+  }
+
+  async resetOpacity(model: FragmentsModel, localIds: number[] | undefined) {
+    await model.threads.invoke(model.modelId, "resetOpacity", [localIds]);
+  }
+
   async getHighlightItemIds(model: FragmentsModel) {
     return model.threads.invoke(
       model.modelId,
