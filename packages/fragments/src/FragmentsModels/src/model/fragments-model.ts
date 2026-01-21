@@ -632,6 +632,43 @@ export class FragmentsModel {
   }
 
   /**
+   * Applies a color to the specified items while preserving original material properties.
+   * @param localIds - The local IDs of the items to color. If undefined, all items will be colored.
+   * @param color - The color to apply.
+   */
+  async setColor(
+    localIds: number[] | undefined,
+    color: MaterialDefinition["color"],
+  ) {
+    return this._highlightManager.setColor(this, localIds, color);
+  }
+
+  /**
+   * Resets the color of the specified items to their original color while preserving other highlight properties (like opacity).
+   * @param localIds - The local IDs of the items to reset color for. If undefined, all items will be affected.
+   */
+  async resetColor(localIds: number[] | undefined) {
+    return this._highlightManager.resetColor(this, localIds);
+  }
+
+  /**
+   * Applies an opacity to the specified items while preserving original material properties (like color).
+   * @param localIds - The local IDs of the items to change opacity for. If undefined, all items will be affected.
+   * @param opacity - The opacity to apply (0 to 1).
+   */
+  async setOpacity(localIds: number[] | undefined, opacity: number) {
+    return this._highlightManager.setOpacity(this, localIds, opacity);
+  }
+
+  /**
+   * Resets the opacity of the specified items to their original opacity while preserving other highlight properties (like color).
+   * @param localIds - The local IDs of the items to reset opacity for. If undefined, all items will be affected.
+   */
+  async resetOpacity(localIds: number[] | undefined) {
+    return this._highlightManager.resetOpacity(this, localIds);
+  }
+
+  /**
    * Gets the highlight of the specified items.
    * @param localIds - The local IDs of the items to get the highlight of. If undefined, it will return the highlight of all items.
    */

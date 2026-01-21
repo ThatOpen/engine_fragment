@@ -110,6 +110,11 @@ export type MaterialDefinition = {
   opacity: number;
   /** Whether the material is transparent */
   transparent: boolean;
+  /**
+   * Internal flag to preserve base material properties when applying highlights.
+   * When true, only explicitly set properties (like color or opacity) are applied.
+   */
+  preserveOriginalMaterial?: boolean;
   /** An optional custom ID for the material */
   customId?: string;
   /**
