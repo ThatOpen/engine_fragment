@@ -1536,7 +1536,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.2.0":
+"@thatopen/fragments@npm:~3.2.0":
+  version: 3.2.13
+  resolution: "@thatopen/fragments@npm:3.2.13"
+  dependencies:
+    earcut: ^3.0.1
+    flatbuffers: 25.2.10
+    lru-cache: 11.1.0
+    pako: 2.1.0
+  peerDependencies:
+    three: ">=0.175"
+    web-ifc: ">=0.0.72"
+  checksum: 8ffe809ecb3b5b3f7714c8350fba391b03abd19fc6c9689e769e83f3530bfaeeee9f7419aca5748b878e0c00b59b48c40f7bdc14014735290a783c9e6dc23a40
+  languageName: node
+  linkType: hard
+
+"@thatopen/fragments@workspace:packages/fragments":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
@@ -1568,10 +1583,10 @@ __metadata:
     ts-node: ^10.0.0
     tsx: ^4.19.2
     typescript: 5.4.2
-    web-ifc: 0.0.73
+    web-ifc: 0.0.74
   peerDependencies:
     three: ">=0.175"
-    web-ifc: ">=0.0.72"
+    web-ifc: ">=0.0.74"
   languageName: unknown
   linkType: soft
 
@@ -7751,10 +7766,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"web-ifc@npm:0.0.73":
-  version: 0.0.73
-  resolution: "web-ifc@npm:0.0.73"
-  checksum: a162e3db0568b03265a76b52cbffb1a8d643f1280b8a7d869c110354a14eb10d784d3f790e59474e65fcb1bfcabf6b9a40cc63e944233b52fd3b695ce46c2c4f
+"web-ifc@npm:0.0.74":
+  version: 0.0.74
+  resolution: "web-ifc@npm:0.0.74"
+  checksum: 9ee3a72dc7ce62128be13cf3ecce57db2967736765ef2695d31b11cf2d42ab8a836ed698b12f2f21f8dfa8429738ce75a3238dac473ec2654fb829519cd326d5
   languageName: node
   linkType: hard
 
