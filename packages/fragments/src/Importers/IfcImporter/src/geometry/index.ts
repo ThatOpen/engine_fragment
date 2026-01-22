@@ -72,7 +72,7 @@ export class IfcGeometryProcessor {
     reader.wasm = this.wasm;
     reader.webIfcSettings = this.webIfcSettings;
 
-    // reader.isolatedMeshes = new Set([186559]);
+    // reader.isolatedMeshes = new Set([22835]);
 
     reader.onGeometryLoaded = (geometry) => {
       geometries.push(geometry);

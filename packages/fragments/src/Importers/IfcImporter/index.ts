@@ -45,29 +45,14 @@ export class IfcImporter {
     "OwnerHistory",
   ]);
 
-  /**
-   * Settings for the processing of geometry.
-   */
   geometryProcessSettings: GeometryProcessSettings = {
-    /*
-     * Maximum number of vertices to try to define a brep shell. If the number of vertices is greater than the threshold, the geometry will be saved as raw data, consuming more space.
-     */
+    // TODO: Test to see if this is the correct threshold
+    // if not applied, some geometries take too long to process
     threshold: 3000,
-    /*
-     * Precision of the vertices when computing breps.
-     */
     precision: 1000000,
-    /*
-     * Precision of the normals when computing breps.
-     */
     normalPrecision: 10000000,
-    /*
-     * Precision of the plane constants for coplanarity when computing breps.
-     */
     planePrecision: 1000,
-    /*
-     * Whether to force ifc spaces to be transparent.
-     */
+    faceThreshold: 0.6,
     forceTransparentSpaces: true,
   };
 
@@ -112,6 +97,7 @@ export class IfcImporter {
       ...ifcClasses.base,
       ...ifcClasses.materials,
       ...ifcClasses.properties,
+      ...ifcClasses.units
     ]),
   };
 
@@ -131,6 +117,13 @@ export class IfcImporter {
    * and it is always given in meters.
    */
   replaceStoreyElevation = true;
+
+  /**
+   * Whether to replace the IfcSite.RefElevation with the absolute site elevation.
+   * @remarks The value is calculated taking into consideration the relative positions between entities
+   * and it is always given in meters.
+   */
+  replaceSiteElevation = true;
 
   /**
    * If set, ignores the items that are further away to the origin than this value.

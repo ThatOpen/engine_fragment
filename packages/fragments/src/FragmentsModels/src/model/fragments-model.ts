@@ -388,7 +388,7 @@ export class FragmentsModel {
       this.modelId,
       "getAttributesUniqueValues",
       [params],
-    )) as Record<string, any[]>;
+    )) as Record<string, { value: any, localIds: number[] }[]>;
     return values;
   }
 
