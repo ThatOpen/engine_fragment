@@ -1507,58 +1507,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/components-front@npm:~3.2.0":
-  version: 3.2.0
-  resolution: "@thatopen/components-front@npm:3.2.0"
+"@thatopen/components-front@npm:~3.3.0":
+  version: 3.3.0
+  resolution: "@thatopen/components-front@npm:3.3.0"
   dependencies:
-    "@thatopen/components": ~3.2.0
+    "@thatopen/components": ~3.3.0
+    earcut: ^3.0.1
   peerDependencies:
-    "@thatopen/fragments": ~3.2.0
+    "@thatopen/fragments": ~3.3.0
     three: ">=0.175.0"
-    web-ifc: ">=0.0.72"
-  checksum: 0752d5d4dccf0a89a268c60e9f7021c6422825644e37cc79d5375d60a5f0fb16348eb745ef30e302c19ba8be778ce823c09447bb06bb84e25f074af771020a47
+    web-ifc: ">=0.0.74"
+  checksum: a9b8d8275de24d67b0f410d56a6e58ab66d1b205c6c4480f6e4d7df589b81d898bf26ae08925e46d636c730fad6f6b51eda3ea5bc4109c6b7a25531288b332ad
   languageName: node
   linkType: hard
 
-"@thatopen/components@npm:~3.2.0":
-  version: 3.2.0
-  resolution: "@thatopen/components@npm:3.2.0"
+"@thatopen/components@npm:~3.3.0":
+  version: 3.3.0
+  resolution: "@thatopen/components@npm:3.3.0"
   dependencies:
     camera-controls: ^2.9.0
     fast-xml-parser: 4.4.1
     jszip: 3.10.1
     three-mesh-bvh: 0.7.0
   peerDependencies:
-    "@thatopen/fragments": ~3.2.0
+    "@thatopen/fragments": ~3.3.0
     three: ">=0.175.0"
-    web-ifc: ">=0.0.72"
-  checksum: 042bd912baf270f90e0d3bf30ea062b7a9f29049dd9c7ed0558d6b08e2db2b70925c99259c5f8ea6da528861214c974a8c4ccc65ec40c35e2b48c8b9d2138147
+    web-ifc: ">=0.0.74"
+  checksum: a172795295db56c07fce071ee93ae18e847a311967d40cf2360dfaba7c9ab831df03a25606971cc436c256558979db1482b89e766e1d2a1ea802183567d14255
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@npm:~3.2.0":
-  version: 3.2.13
-  resolution: "@thatopen/fragments@npm:3.2.13"
-  dependencies:
-    earcut: ^3.0.1
-    flatbuffers: 25.2.10
-    lru-cache: 11.1.0
-    pako: 2.1.0
-  peerDependencies:
-    three: ">=0.175"
-    web-ifc: ">=0.0.72"
-  checksum: 8ffe809ecb3b5b3f7714c8350fba391b03abd19fc6c9689e769e83f3530bfaeeee9f7419aca5748b878e0c00b59b48c40f7bdc14014735290a783c9e6dc23a40
-  languageName: node
-  linkType: hard
-
-"@thatopen/fragments@workspace:packages/fragments":
+"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.3.0":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
     "@andypf/json-viewer": ^2.1.10
-    "@thatopen/components": ~3.2.0
-    "@thatopen/components-front": ~3.2.0
-    "@thatopen/fragments": ~3.2.0
+    "@thatopen/components": ~3.3.0
+    "@thatopen/components-front": ~3.3.0
+    "@thatopen/fragments": ~3.3.0
     "@types/earcut": ^3.0.0
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
