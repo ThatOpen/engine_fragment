@@ -236,7 +236,18 @@ export class VirtualPropertiesController {
     for (const id of ids) {
       const localId = this.convertToLocalId(id);
       if (localId === null) continue;
-      const category = this._items.get(localId)?.category ?? null;
+      let category = this._items.get(localId)?.category ?? null;
+      if (category === null) {
+        // If the item was created, return the created category
+        for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
+          const request = this._virtualModel.requests[i];
+          if (request.type === EditRequestType.CREATE_ITEM) {
+            if (request.localId === localId) {
+              category = request.data.category
+            }
+          }
+        }
+      }
       result.push(category);
     }
 
@@ -288,7 +299,8 @@ export class VirtualPropertiesController {
   }
 
   getAttributesUniqueValues(params: AttributesUniqueValuesParams[]) {
-    const map = new Map<string, Set<any>>();
+    // Map: attribute name -> Map: value -> Set of item indices
+    const map = new Map<string, Map<any, Set<number>>>();
 
     // All param entries must have the category
     // define to used them as a filter.
@@ -307,6 +319,8 @@ export class VirtualPropertiesController {
     // instead of attributes because each set of attributes
     // always belong to a category, and the indices always match.
     for (let i = 0; i < this._model.categoriesLength(); i++) {
+      const localId = this._model.localIds(i)
+      if (localId === null) continue
       let valid = true;
       if (areCategoriesDefined) {
         const category = this._model.categories(i);
@@ -379,20 +393,32 @@ export class VirtualPropertiesController {
           const key = keys.find((key) => get.test(key));
           if (!(key && attributeSet[key]?.value !== undefined)) continue;
           const mapKey = resultKey ?? key;
-          let values = map.get(mapKey);
-          if (!values) {
-            values = new Set();
-            map.set(mapKey, values);
+          const value = attributeSet[key]?.value;
+
+          if (!map.has(mapKey)) {
+            map.set(mapKey, new Map<any, Set<number>>());
           }
-          values.add(attributeSet[key]?.value);
+          const valueMap = map.get(mapKey)!;
+          if (!valueMap.has(value)) {
+            valueMap.set(value, new Set<number>());
+          }
+          valueMap.get(value)!.add(localId);
         }
       }
     }
 
-    const result: { [name: string]: any[] } = {};
-    for (const [name, values] of map) {
-      result[name] = Array.from(values);
+    // Format result
+    const result: Record<string, { value: any, localIds: number[] }[]> = {};
+    for (const [name, valueMap] of map) {
+      result[name] = [];
+      for (const [value, itemsSet] of valueMap) {
+        result[name].push({
+          value,
+          localIds: Array.from(itemsSet),
+        });
+      }
     }
+    
     return result;
   }
 
@@ -465,10 +491,7 @@ export class VirtualPropertiesController {
       const data: Record<string, { value: any; type?: string }> = {};
       for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
         const request = this._virtualModel.requests[i];
-        if (
-          request.type === EditRequestType.CREATE_ITEM ||
-          request.type === EditRequestType.UPDATE_ITEM
-        ) {
+        if (request.type === EditRequestType.CREATE_ITEM) {
           if (request.localId === localId) {
             for (const name in request.data.data) {
               const found = request.data.data[name];
@@ -577,26 +600,10 @@ export class VirtualPropertiesController {
       return {};
     }
 
-    let category =
-      localId !== null ? this._items.get(localId)?.category ?? null : null;
+    const [category] = this.getItemsCategories([localId])
 
-    let guid = typeof id === "string" ? id : this._items.get(id)?.guid ?? null;
-
-    // If an item was created or updated, get its category and guid
-    for (let i = 0; i < this._virtualModel.requests.length; i++) {
-      const request = this._virtualModel.requests[i];
-      if (
-        request.type === EditRequestType.CREATE_ITEM ||
-        request.type === EditRequestType.UPDATE_ITEM
-      ) {
-        if (request.localId === localId) {
-          category = request.data.category;
-          if (request.data.guid) {
-            guid = request.data.guid;
-          }
-        }
-      }
-    }
+    const guid =
+      typeof id === "string" ? id : this._items.get(id)?.guid ?? null;
 
     const data: ItemData = {
       _category: { value: category },
@@ -763,10 +770,7 @@ export class VirtualPropertiesController {
       }
     }
 
-    const addedItems = new Set<number>();
-
-    for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
-      const request = this._virtualModel.requests[i];
+    for (const request of this._virtualModel.requests) {
       // Include created / updated items, if any
       if (
         request.type === EditRequestType.CREATE_ITEM ||
@@ -775,19 +779,11 @@ export class VirtualPropertiesController {
         if (deletedItems.has(request.localId as number)) {
           continue;
         }
-
-        const localId = request.localId as number;
-        if (addedItems.has(localId)) {
-          continue;
-        }
-
         for (const categoryRegex of categories) {
           if (categoryRegex.test(request.data.category)) {
             if (!result[request.data.category]) {
               result[request.data.category] = [];
             }
-
-            addedItems.add(localId);
             result[request.data.category].push(request.localId as number);
           }
         }
@@ -843,6 +839,39 @@ export class VirtualPropertiesController {
     return categories;
   }
 
+  private checkAttribute(attr: { name: string, value: any, type?: string }, { name, value, type }: Pick<GetItemsByAttributeParams, "name" | "value" | "type">) {
+    const { name: attrName, value: val, type: typeValue } = attr
+
+    let pass = false;
+
+    if (name.test(attrName)) {
+      // The check automatically passes if there is no value and type to check
+      pass = value === undefined && type === undefined;
+
+      // If the initial pass value is false, it means there is a value or type to check
+      if (!pass) {
+        if (value !== undefined) {
+          if (Array.isArray(value)) {
+            pass = value.some(
+              (regex) => typeof val === "string" && regex.test(val),
+            );
+          } else if (value instanceof RegExp) {
+            pass = typeof val === "string" && value.test(val);
+          } else {
+            pass = val === value;
+          }
+        }
+
+        if (type !== undefined) {
+          pass =
+            pass && typeof typeValue === "string" && type.test(typeValue);
+        }
+      }
+    }
+
+    return pass
+  }
+
   getItemsByAttribute({
     name,
     value,
@@ -854,9 +883,12 @@ export class VirtualPropertiesController {
 
     const res: number[] = [];
 
+    const missingItemsToIterate = new Set<number>(itemIds)
+
     for (let i = 0; i < allAttributesLength; i++) {
       const localId = this._model.localIds(i);
       if (localId === null) continue;
+      missingItemsToIterate.delete(localId)
       if (itemIds?.length && !itemIds.includes(localId)) continue;
       const attribute = this._model.attributes(i);
       if (!attribute) continue;
@@ -875,39 +907,88 @@ export class VirtualPropertiesController {
           string?,
         ];
 
-        if (name.test(attrName)) {
-          // The check automatically passes if there is no value and type to check
-          let pass = value === undefined && type === undefined;
+        const pass = this.checkAttribute({
+          name: attrName,
+          value: val,
+          type: typeValue
+        }, { name, value, type })
 
-          // If the initial pass value is false, it means there is a value or type to check
-          if (!pass) {
-            if (value !== undefined) {
-              if (Array.isArray(value)) {
-                pass = value.some(
-                  (regex) => typeof val === "string" && regex.test(val),
-                );
-              } else if (value instanceof RegExp) {
-                pass = typeof val === "string" && value.test(val);
-              } else {
-                pass = val === value;
-              }
-            }
-
-            if (type !== undefined) {
-              pass =
-                pass && typeof typeValue === "string" && type.test(typeValue);
-            }
-          }
-
-          if (pass) {
-            itemPasses = true;
-            break;
-          }
+        if (pass) {
+          itemPasses = true;
+          break;
         }
       }
 
       if (negate ? !itemPasses : itemPasses) {
         res.push(localId);
+      }
+    }
+
+    // Missing items are probably the ones in delta models
+    if (!itemIds) {
+      for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
+        const request = this._virtualModel.requests[i];
+        if (request.type === EditRequestType.CREATE_ITEM && request.localId !== undefined) {
+          const data: Record<string, { value: any; type?: string }> = {};
+          for (const name in request.data.data) {
+            const found = request.data.data[name];
+            data[name] = { value: found.value, type: found.type };
+          }
+
+          // Check if it passes
+          let itemPasses = false;
+          for (const [attrName, {value: val, type: typeValue}] of Object.entries(data)) {
+            const pass = this.checkAttribute({
+              name: attrName,
+              value: val,
+              type: typeValue
+            }, { name, value, type })
+    
+            if (pass) {
+              itemPasses = true;
+              break;
+            }
+          }
+    
+          if (negate ? !itemPasses : itemPasses) {
+            res.push(Number(request.localId));
+          }
+        }
+      }
+    } else {
+      for (const localId of missingItemsToIterate) {
+        // If the item was created, return the created data
+        for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
+          const request = this._virtualModel.requests[i];
+          if (request.type === EditRequestType.CREATE_ITEM) {
+            if (request.localId !== localId) continue
+            // Collect item data
+            const data: Record<string, { value: any; type?: string }> = {};
+            for (const name in request.data.data) {
+              const found = request.data.data[name];
+              data[name] = { value: found.value, type: found.type };
+            }
+  
+            // Check if it passes
+            let itemPasses = false;
+            for (const [attrName, {value: val, type: typeValue}] of Object.entries(data)) {
+              const pass = this.checkAttribute({
+                name: attrName,
+                value: val,
+                type: typeValue
+              }, { name, value, type })
+      
+              if (pass) {
+                itemPasses = true;
+                break;
+              }
+            }
+      
+            if (negate ? !itemPasses : itemPasses) {
+              res.push(localId);
+            }
+          }
+        }
       }
     }
 
@@ -946,8 +1027,19 @@ export class VirtualPropertiesController {
     const { categories, attributes, relation } = params;
 
     //  Category pre‑filter (if any)
-    let candidateIds = config?.localIds;
-    if (!candidateIds) {
+    let candidateIds = config?.localIds
+    if (candidateIds) {
+      // Filter the candidateIds based on the provided categories
+      if (categories) {
+        const itemsCategories = this.getItemsCategories(candidateIds)
+        candidateIds = candidateIds.filter((_, index) => {
+          const category = itemsCategories[index]
+          if (!category) return null
+          return categories.some(entry => entry.test(category))
+        })
+      }
+    } else {
+      // If no localIds where given, take the localIds matching the categories provided.
       candidateIds = categories?.filter(Boolean)?.length
         ? Object.values(this.getItemsOfCategories(categories)).flat()
         : undefined;

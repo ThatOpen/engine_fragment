@@ -112,7 +112,7 @@ async function loadIfcFile(fileUrl: string, raw: boolean) {
   const serializer = new FRAGS.IfcImporter();
   serializer.wasm = {
     absolute: true,
-    path: "https://unpkg.com/web-ifc@0.0.72/",
+    path: "https://unpkg.com/web-ifc@0.0.74/",
   };
 
   const bytes = await serializer.process({ bytes: typedArray, raw: true });

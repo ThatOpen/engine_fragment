@@ -1,13 +1,16 @@
+import { MathUtils } from "three";
 import { Event } from "./event";
 
+// TODO: Implement bulk operations (set, update, delete) with the corresponding events
+
 export class DataMap<K, V> extends Map<K, V> {
+  readonly onBeforeSet = new Event<{ key: K; value: V }>();
   readonly onItemSet = new Event<{ key: K; value: V }>();
 
   readonly onItemUpdated = new Event<{ key: K; value: V }>();
 
-  readonly onItemDeleted = new Event<K>();
-
   readonly onBeforeDelete = new Event<{ key: K; value: V }>();
+  readonly onItemDeleted = new Event<K>();
 
   readonly onCleared = new Event();
 
@@ -36,6 +39,10 @@ export class DataMap<K, V> extends Map<K, V> {
     const guard = this.guard ?? (() => true);
     const isValid = guard(key, value);
     if (!isValid) return this;
+    if (!triggerUpdate) {
+      // First time the item is in the Map
+      this.onBeforeSet.trigger({ key, value });
+    }
     const result = super.set(key, value);
     if (triggerUpdate) {
       if (!this.onItemUpdated) {
@@ -52,10 +59,13 @@ export class DataMap<K, V> extends Map<K, V> {
   }
 
   guard: (key: K, value: V) => boolean = () => true;
+  deleteGuard: (key: K, value: V) => boolean = () => true;
+  updateGuard: (key: K, value: V) => boolean = () => true;
 
   delete(key: K) {
     const value = this.get(key);
     if (!value) return false;
+    if (!this.deleteGuard(key, value)) return false;
     this.onBeforeDelete.trigger({ key, value });
     const deleted = super.delete(key);
     if (deleted) this.onItemDeleted.trigger(key);
@@ -70,13 +80,28 @@ export class DataMap<K, V> extends Map<K, V> {
   }
 
   /**
+   * Sets the value in the map with a randomly generated uuidv4 key.
+   * Only use this if your keys are strings
+   *
+   * @param value - The value of the item to set.
+   * @returns The key used.
+   */
+  add(value: V) {
+    const key = MathUtils.generateUUID().toLowerCase() as K;
+    this.set(key, value);
+    return key;
+  }
+
+  /**
    * Updates an item in the data map, triggering the corresponding event.
    *
    * @param item - The item to update.
    */
   update(item: V) {
     const key = this.getKey(item);
-    if (key) this.set(key, item);
+    if (key && this.updateGuard(key, item)) {
+      this.set(key, item)
+    };
   }
 
   /**

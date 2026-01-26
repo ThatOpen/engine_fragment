@@ -1,5 +1,7 @@
 import { Event } from "./event";
 
+// TODO: Implement bulk operations (set, update, delete) with the corresponding events
+
 export class DataSet<T> extends Set<T> {
   readonly onUpdated = new Event<undefined>();
 
@@ -49,10 +51,12 @@ export class DataSet<T> extends Set<T> {
   }
 
   guard: (value: T) => boolean = () => true;
+  deleteGuard: (value: T) => boolean = () => true;
 
   delete(value: T) {
     const exist = this.has(value);
     if (!exist) return false;
+    if (!this.deleteGuard(value)) return false;
     this.onBeforeDelete.trigger(value);
     const deleted = super.delete(value);
     if (deleted) {

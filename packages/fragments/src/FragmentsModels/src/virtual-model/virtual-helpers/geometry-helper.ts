@@ -48,6 +48,7 @@ export class GeometryHelper {
           normals: geometry.normalBuffer,
           sampleId,
           localId,
+          representationId: sample.representationId,
         });
       }
     }

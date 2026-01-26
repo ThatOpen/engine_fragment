@@ -276,7 +276,7 @@ export class IfcPropertyProcessor {
     }
   }
 
-  private async getStoreyElevation(
+  private async getAbsoluteElevation(
     placement: number,
     height: { value: number },
   ) {
@@ -321,7 +321,7 @@ export class IfcPropertyProcessor {
       "value" in localPlacementAttrs.PlacementRelTo &&
       typeof localPlacementAttrs.PlacementRelTo.value === "number"
     ) {
-      await this.getStoreyElevation(
+      await this.getAbsoluteElevation(
         localPlacementAttrs.PlacementRelTo.value,
         height,
       );
@@ -338,6 +338,22 @@ export class IfcPropertyProcessor {
     let guid: string | null = null;
 
     if (
+      this._serializer.replaceSiteElevation &&
+      attrs.type &&
+      typeof attrs.type === "number" &&
+      attrs.type === WEBIFC.IFCSITE &&
+      attrs.ObjectPlacement &&
+      "value" in attrs.ObjectPlacement &&
+      typeof attrs.ObjectPlacement.value === "number"
+    ) {
+      const height = { value: 0 };
+      await this.getAbsoluteElevation(attrs.ObjectPlacement.value, height);
+      attrs.RefElevation = new WEBIFC.IFC4X3.IfcLengthMeasure(
+        height.value * this._lengthUnitsFactor,
+      );
+    }
+
+    if (
       this._serializer.replaceStoreyElevation &&
       attrs.type &&
       typeof attrs.type === "number" &&
@@ -347,7 +363,7 @@ export class IfcPropertyProcessor {
       typeof attrs.ObjectPlacement.value === "number"
     ) {
       const height = { value: 0 };
-      await this.getStoreyElevation(attrs.ObjectPlacement.value, height);
+      await this.getAbsoluteElevation(attrs.ObjectPlacement.value, height);
       attrs.Elevation = new WEBIFC.IFC4X3.IfcLengthMeasure(
         height.value * this._lengthUnitsFactor,
       );

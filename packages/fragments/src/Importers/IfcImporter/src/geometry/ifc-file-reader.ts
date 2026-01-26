@@ -160,7 +160,7 @@ export class IfcFileReader {
 
     const tempPosition = new THREE.Vector3();
 
-    let currentCategory: number | null = null;
+    let currentCategory = 0;
 
     const callback = (mesh: WEBIFC.FlatMesh) => {
       if (this._ifcAPI === null) {
@@ -202,7 +202,7 @@ export class IfcFileReader {
           tempPosition.z > distanceThreshold
         ) {
           console.log(
-            `Object ${element.id} is more than ${distanceThreshold} meters away from the origin and will be skipped.`,
+            `Fragments: Object ${element.id} is more than ${distanceThreshold} meters away from the origin and will be skipped.`,
           );
           return;
         }
@@ -268,14 +268,12 @@ export class IfcFileReader {
 
       const categoryPercentage = 0.5 / toProcess.length;
       for (const [index, category] of toProcess.entries()) {
+        currentCategory = category;
         const state = (() => {
           if (index === 0) return "start";
           if (index + 1 === toProcess.length) return "finish";
           return "inProgress";
         })();
-
-        currentCategory = category;
-
         const idsVector = this._ifcAPI.GetLineIDsWithType(modelID, category);
         const ids: number[] = [];
         for (let i = 0; i < idsVector.size(); i++) {
@@ -500,7 +498,7 @@ export class IfcFileReader {
 
     const buffers = this.getGeometryBuffers(modelID, geometryRef);
     if (buffers === null) {
-      console.log(`Zero length geometry: ${geometryData.id}`);
+      console.log(`Fragments: Zero length geometry: ${geometryData.id}`);
       element.geometries.pop();
       this._problematicGeometries.add(geometryData.id);
       return;
@@ -543,7 +541,7 @@ export class IfcFileReader {
     mesh: WEBIFC.FlatMesh,
     geometryIndex: number,
     elementTransform: number[],
-    category: number | null,
+    category: number,
   ) {
     if (this._ifcAPI === null) {
       throw new Error("Fragments: IfcAPI not initialized");
@@ -621,7 +619,7 @@ export class IfcFileReader {
 
     const buffers = this.getGeometryBuffers(modelID, geometryRef);
     if (buffers === null) {
-      console.log(`Zero length geometry: ${geometryData.id}`);
+      console.log(`Fragments: Zero length geometry: ${geometryData.id}`);
       element.geometries.pop();
       this._problematicGeometries.add(geometryData.id);
       return;
@@ -745,6 +743,7 @@ export class IfcFileReader {
           index,
           raw,
           settings: this._serializer.geometryProcessSettings,
+          category,
         });
         this.onGeometryLoaded({
           id: geometryData.id,
