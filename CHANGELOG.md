@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.2](https://github.com/ThatOpen/engine_fragment/compare/v3.3.0...v3.3.2) (2026-01-27)
+
+
+### Miscellaneous Chores
+
+* release 3.3.2 ([a902c96](https://github.com/ThatOpen/engine_fragment/commit/a902c96e22d1f37becf78341426ce0bb554a61f9))
+
 ## [3.3.0](https://github.com/ThatOpen/engine_fragment/compare/v3.2.1...v3.3.0) (2026-01-22)
 
 
