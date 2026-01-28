@@ -143,7 +143,7 @@ fragments.core.models.list.onItemSet.add(({ value: model }) => {
 });
 
 world.renderer.postproduction.enabled = true;
-world.renderer.postproduction.style = OBF.PostproductionAspect.COLOR;
+world.renderer.postproduction.style = OBF.PostproductionAspect.PEN_COLOR;
 
 /* MD
   ### 📐 Setting Up a global clipping plane
