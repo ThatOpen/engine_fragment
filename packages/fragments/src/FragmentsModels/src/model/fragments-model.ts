@@ -445,8 +445,37 @@ export class FragmentsModel {
 
   /**
    * Get all the data of the specified items.
+   *
+   * By default, the API returns the item’s built-in attributes only.
+   * Relations are not traversed unless explicitly enabled via the `config`
+   * parameter.
+   *
    * @param ids - The IDs of the items to look up.
    * @param config - The configuration of the items data.
+   * Default configuration:
+   * ```ts
+   * {
+   *   attributesDefault: true,
+   *   relationsDefault: { attributes: false, relations: false },
+   * }
+   * ```
+   *
+   * @example
+   * // Retrieve all built-in attributes and all related entities (full graph)
+   * await getItemsData(ids, {
+   *   attributesDefault: true,
+   *   relationsDefault: { attributes: true, relations: true },
+   * });
+   *
+   * @example
+   * // Retrieve built-in attributes and Property Sets only (via IsDefinedBy)
+   * await getItemsData(ids, {
+   *   attributesDefault: true,
+   *   relations: {
+   *     IsDefinedBy: { attributes: true, relations: true },
+   *     DefinesOccurrence: { attributes: false, relations: false },
+   *   },
+   * });
    */
   async getItemsData(ids: Identifier[], config?: Partial<ItemsDataConfig>) {
     return this._itemsManager.getItemsData(this, ids, config);
