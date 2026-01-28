@@ -68,7 +68,7 @@
     "ts-node": "^10.0.0",
     "tsx": "^4.19.2",
     "typescript": "5.4.2",
-    "web-ifc": "0.0.74"
+    "web-ifc": "0.0.75"
   },
   "peerDependencies": {
     "three": ">=0.175",
