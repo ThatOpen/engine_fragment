@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.3](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.3.3) (2026-01-30)
+
+
+### Bug Fixes
+
+* **materials:** Fix setColor and setOpacity ([#148](https://github.com/ThatOpen/engine_fragment/issues/148)) ([08289d3](https://github.com/ThatOpen/engine_fragment/commit/08289d3a3f1e5da52cef90ebf09aca9d8f7d81ea))
+
 ## [3.3.2](https://github.com/ThatOpen/engine_fragment/compare/v3.3.0...v3.3.2) (2026-01-27)
 
 
