@@ -132,6 +132,13 @@ export type MaterialDefinition = {
 
   /** The local ID of the material */
   localId?: number;
+  
+  /**
+   * Internal array tracking which properties were explicitly set by the caller.
+   * Used with preserveOriginalMaterial to avoid overwriting original material 
+   * properties with default values during serialization.
+   */
+  _explicitProps?: string[];
 };
 export interface MaterialData {
   data: MaterialDefinition;
