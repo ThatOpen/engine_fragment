@@ -86,9 +86,25 @@ hdriLoader.load(
 */
 
 // prettier-ignore
-const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const githubUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("control", () => fragments.update());
+
+// Remove z fighting
+fragments.models.materials.list.onItemSet.add(({ value: material }) => {
+  if (!("isLodMaterial" in material && material.isLodMaterial)) {
+    material.polygonOffset = true;
+    material.polygonOffsetUnits = 1;
+    material.polygonOffsetFactor = Math.random();
+  }
+});
 
 /* MD
   ### 🖼️ Loading and Processing Textures

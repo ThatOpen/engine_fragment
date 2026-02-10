@@ -70,9 +70,25 @@ world.camera.controls.addEventListener("rest", async () => {
 // You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
 // We use here the internal route of the worker in the library for simplicity purposes
-const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const githubUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("control", () => fragments.update());
+
+// Remove z fighting
+fragments.models.materials.list.onItemSet.add(({ value: material }) => {
+  if (!("isLodMaterial" in material && material.isLodMaterial)) {
+    material.polygonOffset = true;
+    material.polygonOffsetUnits = 1;
+    material.polygonOffsetFactor = Math.random();
+  }
+});
 
 // Once a model is available in the list, we can tell what camera to use
 // in order to perform the culling and LOD operations.
@@ -734,7 +750,11 @@ const updateHistoryMenu = async () => {
 
   const allRequests = [...requests, ...undoneRequests];
 
-  historyMenu.innerHTML = "";
+  const children = [...historyMenu.children];
+  for (const child of children) {
+    historyMenu.removeChild(child);
+    child.remove();
+  }
 
   let selectedButton: BUI.Button | null = null;
 

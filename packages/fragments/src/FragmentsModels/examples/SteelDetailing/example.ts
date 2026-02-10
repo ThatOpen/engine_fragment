@@ -38,9 +38,6 @@ world.scene = new OBC.ShadowedScene(components);
 world.renderer = new OBF.PostproductionRenderer(components, container);
 world.camera = new OBC.OrthoPerspectiveCamera(components);
 
-world.renderer.postproduction.enabled = true;
-world.renderer.postproduction.style = OBF.PostproductionAspect.COLOR_PEN;
-
 components.init();
 
 world.camera.controls.setLookAt(12, 6, 8, 0, 0, -10);
@@ -98,9 +95,20 @@ const settings = {
   Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start working with steel structures:
 */
 
-const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const githubUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = components.get(OBC.FragmentsManager);
 fragments.init(workerUrl);
+
+world.renderer.postproduction.enabled = true;
+world.renderer.postproduction.style = OBF.PostproductionAspect.COLOR_PEN;
+
 /* MD
   ### 🖼️ Material and Texture Setup
   We'll set up materials and textures for our steel structures. This includes processing textures and configuring material properties for realistic steel appearance:
@@ -248,7 +256,7 @@ await fragments.core.update(true);
 */
 
 const api = new WEBIFC.IfcAPI();
-api.SetWasmPath("https://unpkg.com/web-ifc@0.0.72/", true);
+api.SetWasmPath("https://unpkg.com/web-ifc@0.0.75/", true);
 await api.Init();
 
 const geometryEngine = new FRAGS.GeometryEngine(api);

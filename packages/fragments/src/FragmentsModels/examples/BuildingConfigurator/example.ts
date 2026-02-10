@@ -37,12 +37,9 @@ world.scene = new OBC.ShadowedScene(components);
 world.renderer = new OBF.PostproductionRenderer(components, container);
 world.camera = new OBC.OrthoPerspectiveCamera(components);
 
-world.renderer.postproduction.enabled = true;
-world.renderer.postproduction.style = OBF.PostproductionAspect.COLOR_PEN;
-
 components.init();
 
-world.camera.controls.setLookAt(12, 6, 8, 0, 0, -10);
+world.camera.controls.setLookAt(50, 50, 50, 0, 0, 0);
 
 world.renderer.three.shadowMap.enabled = true;
 world.renderer.three.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -81,7 +78,7 @@ const settings = {
   interiorColumnLength: 0.25,
   floorThickness: 0.3,
   numberOfFloors: 10,
-  clipPlaneHeight: 1.5,
+  clipPlaneHeight: 13.5,
   windowHeight: 2,
   windowWidth: 1,
   roofHeight: 2,
@@ -98,9 +95,25 @@ const settings = {
   Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start manipulating them with ease:
 */
 
-const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const githubUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = components.get(OBC.FragmentsManager);
 fragments.init(workerUrl);
+
+// Remove z fighting
+fragments.core.models.materials.list.onItemSet.add(({ value: material }) => {
+  if (!("isLodMaterial" in material && material.isLodMaterial)) {
+    material.polygonOffset = true;
+    material.polygonOffsetUnits = 1;
+    material.polygonOffsetFactor = Math.random();
+  }
+});
 
 // Temp until we publish the libraries, to be able to use postproduction
 // @ts-ignore
@@ -128,6 +141,9 @@ fragments.core.models.list.onItemSet.add(({ value: model }) => {
     return Array.from(world.renderer!.three.clippingPlanes) || [];
   };
 });
+
+world.renderer.postproduction.enabled = true;
+world.renderer.postproduction.style = OBF.PostproductionAspect.COLOR_PEN;
 
 /* MD
   ### 📐 Setting Up a global clipping plane
@@ -231,7 +247,7 @@ await fragments.core.update(true);
 */
 
 const api = new WEBIFC.IfcAPI();
-api.SetWasmPath("https://unpkg.com/web-ifc@0.0.72/", true);
+api.SetWasmPath("https://unpkg.com/web-ifc@0.0.75/", true);
 await api.Init();
 const geometryEngine = new FRAGS.GeometryEngine(api);
 
@@ -242,7 +258,10 @@ const geometryEngine = new FRAGS.GeometryEngine(api);
 
 // Materials
 
-const defaultMat = new THREE.MeshLambertMaterial({ color: "white", side: 2 });
+const defaultMat = new THREE.MeshLambertMaterial({
+  color: "white",
+  side: THREE.DoubleSide,
+});
 
 // Floor
 
@@ -252,8 +271,6 @@ const ground = new THREE.Mesh<
 >(new THREE.BufferGeometry(), defaultMat);
 
 world.scene.three.add(ground);
-ground.receiveShadow = true;
-ground.frustumCulled = false;
 
 // Grid
 
@@ -1052,7 +1069,7 @@ let viewMode = ViewMode.MODEL;
 const setViewMode = async (mode: ViewMode) => {
   viewMode = mode;
   if (viewMode === ViewMode.MODEL) {
-    world.camera.controls.setLookAt(5, 5, 5, 0, 0, 0);
+    world.camera.controls.setLookAt(50, 50, 50, 0, 0, 0);
     await world.camera.projection.set("Perspective");
     await world.camera.set("Orbit");
     world.scene.three.background = prevBackground;

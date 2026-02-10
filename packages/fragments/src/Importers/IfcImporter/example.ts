@@ -59,7 +59,7 @@ grids.create(world);
   */
 
 const serializer = new FRAGS.IfcImporter();
-serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.72/" };
+serializer.wasm = { absolute: true, path: "https://unpkg.com/web-ifc@0.0.75/" };
 // A convenient variable to hold the ArrayBuffer data loaded into memory
 let fragmentBytes: ArrayBuffer | null = null;
 let onConversionFinish = () => {};
@@ -84,11 +84,25 @@ const convertIFC = async () => {
 
 // You have to copy `/node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
 // and provide the relative path in `workerUrl`
-// We use here the internal route of the worker in the library for simplicity purposes
-const workerUrl =
+const githubUrl =
   "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = new FRAGS.FragmentsModels(workerUrl);
-world.camera.controls.addEventListener("rest", () => fragments.update(true));
+world.camera.controls.addEventListener("update", () => fragments.update());
+
+// Remove z fighting
+fragments.models.materials.list.onItemSet.add(({ value: material }) => {
+  if (!("isLodMaterial" in material && material.isLodMaterial)) {
+    material.polygonOffset = true;
+    material.polygonOffsetUnits = 1;
+    material.polygonOffsetFactor = Math.random();
+  }
+});
 
 /* MD
   ### Loading a Fragments Model 🚧

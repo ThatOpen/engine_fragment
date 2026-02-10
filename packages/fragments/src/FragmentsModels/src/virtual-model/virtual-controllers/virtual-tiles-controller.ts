@@ -641,6 +641,11 @@ export class VirtualTilesController {
     this._temp.sampleGeometry.transform = this._temp.transform;
     this._temp.sampleGeometry.aabb = this._temp.boundingBox;
     delete this._temp.sampleGeometry.geometries;
+
+    const reprIndex = this._temp.sample.representation();
+    const reprId = this.meshes.representationIds(reprIndex);
+    this._temp.sampleGeometry.representationId = reprId;
+
     return this._temp.sampleGeometry;
   }
 

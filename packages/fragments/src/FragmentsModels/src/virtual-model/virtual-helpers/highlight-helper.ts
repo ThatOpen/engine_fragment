@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { MaterialDefinition } from "../../model/model-types";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
 
@@ -50,6 +51,104 @@ export class HighlightHelper {
     model.tiles.updateVirtualMeshes(itemIds);
   }
 
+  private hasEffectiveProperties(material: Partial<MaterialDefinition>) {
+    const { preserveOriginalMaterial, ...rest } = material;
+    return Object.keys(rest).length > 0;
+  }
+
+  private updateHighlightDefinition(
+    model: VirtualFragmentsModel,
+    items: number[],
+    updateFn: (current: MaterialDefinition) => Partial<MaterialDefinition>,
+  ) {
+    const itemIds = model.properties.getItemIdsFromLocalIds(items);
+    const itemsToUpdate: number[] = [];
+    const itemsToClear: number[] = [];
+    const materials: MaterialDefinition[] = [];
+
+    for (const itemId of itemIds) {
+      const highlightId = model.itemConfig.getHighlight(itemId);
+      if (highlightId) {
+        const currentHighlight = model.materials.fetch(highlightId);
+        const updated = updateFn(currentHighlight);
+        if (this.hasEffectiveProperties(updated)) {
+          const newMaterial = {
+            ...updated,
+            preserveOriginalMaterial: true,
+          } as MaterialDefinition;
+          materials.push(newMaterial);
+          itemsToUpdate.push(itemId);
+        } else {
+          itemsToClear.push(itemId);
+        }
+      }
+    }
+
+    if (itemsToClear.length > 0) {
+      for (const itemId of itemsToClear) {
+        model.itemConfig.setHighlight(itemId, 0);
+      }
+    }
+
+    if (itemsToUpdate.length > 0) {
+      const ids = model.materials.transfer(materials);
+      const createEvent = this.getCreateEvent(model, ids);
+      model.traverse(itemsToUpdate, createEvent);
+    }
+
+    model.tiles.updateVirtualMeshes(itemIds);
+  }
+
+  setColor(
+    model: VirtualFragmentsModel,
+    items: number[],
+    color: MaterialDefinition["color"],
+  ) {
+    let normalizedColor = color;
+    if (color && !color.isColor && typeof color.r === "number") {
+      normalizedColor = new THREE.Color().setRGB(
+        color.r,
+        color.g,
+        color.b,
+        THREE.SRGBColorSpace
+      );
+    }
+    const material = {
+      color: normalizedColor,
+      preserveOriginalMaterial: true,
+      _explicitProps: ['color'],
+    } as MaterialDefinition;
+    this.highlight(model, items, material);
+  }
+
+  resetColor(model: VirtualFragmentsModel, items: number[]) {
+    this.updateHighlightDefinition(model, items, (current) => {
+      const { color: _, ...rest } = current;
+      return rest;
+    });
+  }
+
+  setOpacity(
+    model: VirtualFragmentsModel,
+    items: number[],
+    opacity: number,
+  ) {
+    const material = {
+      opacity,
+      transparent: opacity < 1,
+      preserveOriginalMaterial: true,
+      _explicitProps: ['opacity', 'transparent'],
+    } as MaterialDefinition;
+    this.highlight(model, items, material);
+  }
+
+  resetOpacity(model: VirtualFragmentsModel, items: number[]) {
+    this.updateHighlightDefinition(model, items, (current) => {
+      const { opacity: _o, transparent: _t, ...rest } = current;
+      return rest;
+    });
+  }
+
   private getFetchEvent(
     model: VirtualFragmentsModel,
     found: MaterialDefinition[],
@@ -82,9 +181,24 @@ export class HighlightHelper {
   ) {
     const pastHigh = model.materials.fetch(past);
     const newHigh = { ...highlightMaterial } as MaterialDefinition;
-    for (const prop of this._highlightProps) {
-      this.setHighlightProperty(newHigh, pastHigh, prop as any);
+
+    const pastExplicit: string[] = (pastHigh as any)._explicitProps || [];
+    const newExplicit: string[] = (highlightMaterial as any)._explicitProps || [];
+
+    if (pastExplicit.length > 0 || newExplicit.length > 0) {
+      for (const prop of pastExplicit) {
+        const key = prop as keyof MaterialDefinition;
+        if (!newExplicit.includes(prop) && pastHigh[key] !== undefined) {
+          (newHigh as any)[prop] = pastHigh[key];
+        }
+      }
+      (newHigh as any)._explicitProps = [...new Set([...pastExplicit, ...newExplicit])];
+    } else {
+      for (const prop of this._highlightProps) {
+        this.setHighlightProperty(newHigh, pastHigh, prop as keyof MaterialDefinition);
+      }
     }
+
     return newHigh;
   }
 

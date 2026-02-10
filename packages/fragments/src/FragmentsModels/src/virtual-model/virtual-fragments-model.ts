@@ -212,6 +212,22 @@ export class VirtualFragmentsModel {
     this._highlightHelper.highlight(this, items, highlightMaterial);
   }
 
+  setColor(items: number[], color: MaterialDefinition["color"]) {
+    this._highlightHelper.setColor(this, items, color);
+  }
+
+  resetColor(items: number[]) {
+    this._highlightHelper.resetColor(this, items);
+  }
+
+  setOpacity(items: number[], opacity: number) {
+    this._highlightHelper.setOpacity(this, items, opacity);
+  }
+
+  resetOpacity(items: number[]) {
+    this._highlightHelper.resetOpacity(this, items);
+  }
+
   getHighlight(localIds: number[]) {
     return this._highlightHelper.getHighlight(this, localIds);
   }

@@ -110,6 +110,11 @@ export type MaterialDefinition = {
   opacity: number;
   /** Whether the material is transparent */
   transparent: boolean;
+  /**
+   * Internal flag to preserve base material properties when applying highlights.
+   * When true, only explicitly set properties (like color or opacity) are applied.
+   */
+  preserveOriginalMaterial?: boolean;
   /** An optional custom ID for the material */
   customId?: string;
   /**
@@ -127,6 +132,13 @@ export type MaterialDefinition = {
 
   /** The local ID of the material */
   localId?: number;
+  
+  /**
+   * Internal array tracking which properties were explicitly set by the caller.
+   * Used with preserveOriginalMaterial to avoid overwriting original material 
+   * properties with default values during serialization.
+   */
+  _explicitProps?: string[];
 };
 export interface MaterialData {
   data: MaterialDefinition;
