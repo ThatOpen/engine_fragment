@@ -9,7 +9,6 @@ import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GridReader } from "./grid-reader";
-// import ts from "typescript";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -331,9 +330,6 @@ export class IfcFileReader {
     geometryIndex: number,
     elementTransform: number[],
   ) {
-    console.log(
-      `Loading circle extrusion geometry at index ${geometryIndex} and for element ${element.id}`,
-    );
     if (this._ifcAPI === null) {
       throw new Error("Fragments: IfcAPI not initialized");
     }
@@ -383,15 +379,6 @@ export class IfcFileReader {
 
     // @ts-ignore
     const circleExtrusion = geometry.GetSweptDiskSolid();
-    if (!circleExtrusion) {
-      console.error(
-        `[ERROR] Failed to get SweptDiskSolid for geometry ID: ${geometryData.id}`,
-      );
-      element.geometries.pop();
-      this._problematicGeometries.add(geometryData.id);
-      geometry.delete();
-      return;
-    }
     const circleCurves: number[][] = [];
     const axisPoints: any[][] = [];
 
@@ -539,10 +526,6 @@ export class IfcFileReader {
     const radius = circleExtrusion.profileRadius * units.x;
 
     this._previousGeometriesIDs.set(geometryData.id, geometryData.id);
-
-    console.log(
-      `[DEBUG] Circle extrusion created, radius: ${radius}, segments: ${segments.length}`,
-    );
 
     this.onGeometryLoaded({
       id: geometryData.id,
