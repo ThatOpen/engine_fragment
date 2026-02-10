@@ -9,6 +9,7 @@ import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GridReader } from "./grid-reader";
+// import ts from "typescript";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -209,15 +210,15 @@ export class IfcFileReader {
       }
 
       for (let i = 0; i < geometryCount; i++) {
+        let geometryMode: "Shell" | "CircleExtrusion" = "Shell";
+
         if (element.type === WEBIFC.IFCREINFORCINGBAR) {
-          this.loadCircleExtrusionGeometry(
-            modelID,
-            element,
-            mesh,
-            i,
-            transformWithoutScale.elements,
-          );
-        } else {
+          // Rebars can be SweptDiskSolid, FacetedBrep, Tessellated, ...
+          // if it doesn't have a directrix, it's not a SweptDiskSolid shape representation
+          if (this.hasSweptDiskDirectrix(modelID, mesh, i))
+            geometryMode = "CircleExtrusion";
+        }
+        if (geometryMode === "Shell") {
           this.loadShellGeometry(
             modelID,
             element,
@@ -225,6 +226,14 @@ export class IfcFileReader {
             i,
             transformWithoutScale.elements,
             currentCategory,
+          );
+        } else if (geometryMode === "CircleExtrusion") {
+          this.loadCircleExtrusionGeometry(
+            modelID,
+            element,
+            mesh,
+            i,
+            transformWithoutScale.elements,
           );
         }
       }
@@ -316,6 +325,7 @@ export class IfcFileReader {
     this._problematicGeometriesHashes.clear();
   }
 
+  // @ts-ignore
   private loadCircleExtrusionGeometry(
     modelID: number,
     element: IfcElement,
@@ -323,6 +333,9 @@ export class IfcFileReader {
     geometryIndex: number,
     elementTransform: number[],
   ) {
+    console.log(
+      `Loading circle extrusion geometry at index ${geometryIndex} and for element ${element.id}`,
+    );
     if (this._ifcAPI === null) {
       throw new Error("Fragments: IfcAPI not initialized");
     }
@@ -372,7 +385,15 @@ export class IfcFileReader {
 
     // @ts-ignore
     const circleExtrusion = geometry.GetSweptDiskSolid();
-
+    if (!circleExtrusion) {
+      console.error(
+        `[ERROR] Failed to get SweptDiskSolid for geometry ID: ${geometryData.id}`,
+      );
+      element.geometries.pop();
+      this._problematicGeometries.add(geometryData.id);
+      geometry.delete();
+      return;
+    }
     const circleCurves: number[][] = [];
     const axisPoints: any[][] = [];
 
@@ -520,6 +541,10 @@ export class IfcFileReader {
     const radius = circleExtrusion.profileRadius * units.x;
 
     this._previousGeometriesIDs.set(geometryData.id, geometryData.id);
+
+    console.log(
+      `[DEBUG] Circle extrusion created, radius: ${radius}, segments: ${segments.length}`,
+    );
 
     this.onGeometryLoaded({
       id: geometryData.id,
@@ -1068,5 +1093,31 @@ export class IfcFileReader {
       initialTangent,
       angle: (angle * 180) / Math.PI, // Convert to degrees
     };
+  }
+
+  private hasSweptDiskDirectrix(
+    modelID: number,
+    mesh: any,
+    geometryIndex: number,
+  ): boolean {
+    try {
+      if (!this._ifcAPI) return false;
+
+      const geometryRef = mesh.geometries.get(geometryIndex);
+      if (!geometryRef) return false;
+
+      const geometry = this._ifcAPI.GetGeometry(
+        modelID,
+        geometryRef.geometryExpressID,
+      );
+
+      if (!geometry?.GetSweptDiskSolid) return false;
+
+      const swept = geometry.GetSweptDiskSolid();
+      // @ts-ignore
+      return !!swept?.axis && swept.axis.size() > 0;
+    } catch {
+      return false;
+    }
   }
 }

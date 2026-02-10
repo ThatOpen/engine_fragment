@@ -27,7 +27,7 @@ export class FragmentsConnection extends Connection {
     return response.result;
   }
 
-  protected override async fetchConnection(input: any) {
+  protected override async fetchConnection(input: any): Promise<MessagePort> {
     const thread = this._data.getAndCheckThread(input.modelId);
     if (thread) {
       return this._data.getPort(thread);
@@ -35,7 +35,14 @@ export class FragmentsConnection extends Connection {
     return this.setupNewThread(input);
   }
 
-  private setupNewThread(input: any) {
+  /**
+   * This method either:
+   * - creates a new worker thread (if CPU cores are available)
+   * - assigns the task to an existing worker with the lowest load.
+   * @param input
+   * @returns
+   */
+  private setupNewThread(input: any): MessagePort {
     const helper = MultithreadingHelper;
     this._data.usePlaceholder(input.modelId);
     const currentThreads = this._data.getThreadAmount();
@@ -45,7 +52,13 @@ export class FragmentsConnection extends Connection {
     }
     return this._data.balanceThreadLoad(input);
   }
-
+  /**
+   * Creates a `MessageChannel` to establish a bidirectional
+   * communication link between the main thread and the worker.
+   * - `port1` is kept on the main thread
+   * - `port2` is transferred to the worker via `postMessage`
+   * @param newThread
+   */
   private setupThread(newThread: Thread) {
     const threadChannel = new MessageChannel();
     const p1 = threadChannel.port1;
