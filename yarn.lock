@@ -1507,43 +1507,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/components-front@npm:~3.2.0":
-  version: 3.2.0
-  resolution: "@thatopen/components-front@npm:3.2.0"
+"@thatopen/components-front@npm:~3.3.0":
+  version: 3.3.0
+  resolution: "@thatopen/components-front@npm:3.3.0"
   dependencies:
-    "@thatopen/components": ~3.2.0
+    "@thatopen/components": ~3.3.0
+    earcut: ^3.0.1
   peerDependencies:
-    "@thatopen/fragments": ~3.2.0
+    "@thatopen/fragments": ~3.3.0
     three: ">=0.175.0"
-    web-ifc: ">=0.0.72"
-  checksum: 0752d5d4dccf0a89a268c60e9f7021c6422825644e37cc79d5375d60a5f0fb16348eb745ef30e302c19ba8be778ce823c09447bb06bb84e25f074af771020a47
+    web-ifc: ">=0.0.74"
+  checksum: a9b8d8275de24d67b0f410d56a6e58ab66d1b205c6c4480f6e4d7df589b81d898bf26ae08925e46d636c730fad6f6b51eda3ea5bc4109c6b7a25531288b332ad
   languageName: node
   linkType: hard
 
-"@thatopen/components@npm:~3.2.0":
-  version: 3.2.0
-  resolution: "@thatopen/components@npm:3.2.0"
+"@thatopen/components@npm:~3.3.0":
+  version: 3.3.0
+  resolution: "@thatopen/components@npm:3.3.0"
   dependencies:
     camera-controls: ^2.9.0
     fast-xml-parser: 4.4.1
     jszip: 3.10.1
     three-mesh-bvh: 0.7.0
   peerDependencies:
-    "@thatopen/fragments": ~3.2.0
+    "@thatopen/fragments": ~3.3.0
     three: ">=0.175.0"
-    web-ifc: ">=0.0.72"
-  checksum: 042bd912baf270f90e0d3bf30ea062b7a9f29049dd9c7ed0558d6b08e2db2b70925c99259c5f8ea6da528861214c974a8c4ccc65ec40c35e2b48c8b9d2138147
+    web-ifc: ">=0.0.74"
+  checksum: a172795295db56c07fce071ee93ae18e847a311967d40cf2360dfaba7c9ab831df03a25606971cc436c256558979db1482b89e766e1d2a1ea802183567d14255
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.2.0":
+"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.3.0":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
     "@andypf/json-viewer": ^2.1.10
-    "@thatopen/components": ~3.2.0
-    "@thatopen/components-front": ~3.2.0
-    "@thatopen/fragments": ~3.2.0
+    "@thatopen/components": ~3.3.0
+    "@thatopen/components-front": ~3.3.0
+    "@thatopen/fragments": ~3.3.0
     "@types/earcut": ^3.0.0
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
@@ -1568,10 +1569,10 @@ __metadata:
     ts-node: ^10.0.0
     tsx: ^4.19.2
     typescript: 5.4.2
-    web-ifc: 0.0.73
+    web-ifc: 0.0.75
   peerDependencies:
     three: ">=0.175"
-    web-ifc: ">=0.0.72"
+    web-ifc: ">=0.0.74"
   languageName: unknown
   linkType: soft
 
@@ -7751,10 +7752,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"web-ifc@npm:0.0.73":
-  version: 0.0.73
-  resolution: "web-ifc@npm:0.0.73"
-  checksum: a162e3db0568b03265a76b52cbffb1a8d643f1280b8a7d869c110354a14eb10d784d3f790e59474e65fcb1bfcabf6b9a40cc63e944233b52fd3b695ce46c2c4f
+"web-ifc@npm:0.0.75":
+  version: 0.0.75
+  resolution: "web-ifc@npm:0.0.75"
+  checksum: 2b9a6e45a907223061667e6cc3f6a70cc42ab683177670db7d5190cf087adfbbdb56b8331c32da067fff49bb2aea3e035c45e744ee29bb850b63e6b2a6b7fb38
   languageName: node
   linkType: hard
 

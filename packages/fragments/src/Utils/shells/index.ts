@@ -27,10 +27,33 @@ export type ShellData = {
 export type GeometryProcessSettings = {
   // Geometries larger than this threshold will be processed as raw data
   // a good value seem to be 3000
+  /*
+   * Maximum number of vertices to try to define a brep shell. If the number of vertices is greater than the threshold, the geometry will be saved as raw data, consuming more space.
+   */
   threshold: number;
+  /*
+   * Precision of the vertices when computing breps.
+   */
   precision: number;
+  /*
+   * Precision of the normals when computing breps.
+   */
   normalPrecision: number;
+  /*
+   * Precision of the plane constants for coplanarity when computing breps.
+   */
   planePrecision: number;
+  /*
+   * The threshold use to distinguish hard and smooth faces.
+   */
+  faceThreshold: number;
+  /*
+   * The thresholds use to distinguish hard and smooth faces for each category. It overrides the global faceThreshold.
+   */
+  categoryFaceThresholds?: Map<number, number>;
+  /*
+   * Whether to force ifc spaces to be transparent.
+   */
   forceTransparentSpaces: boolean;
 };
 
@@ -161,6 +184,7 @@ export class GeomsFbUtils {
       precision: 1000000,
       normalPrecision: 10000000,
       planePrecision: 1000,
+      faceThreshold: 0.6,
       forceTransparentSpaces: true,
     },
   ) {
@@ -217,6 +241,8 @@ export class GeomsFbUtils {
       min: { x: number; y: number; z: number };
       max: { x: number; y: number; z: number };
     },
+    settings: GeometryProcessSettings,
+    category?: number,
   ) {
     const pointsMap = new Map<string, number[]>();
     const profiles = new Map<number, number[]>();
@@ -269,9 +295,16 @@ export class GeomsFbUtils {
       profilesFaceIds: [],
     };
 
-    // Quick hack: consider all the faces smooth, because these are usually terrains and low poly surfaces
-    for (let i = 0; i < profiles.size; i++) {
-      result.profilesFaceIds.push(0);
+    if (category && settings.categoryFaceThresholds?.has(category)) {
+      // If this category has a face threshold, we assume the user really wants to try to generate face ids
+      // even if the conversion takes a longer
+      this.computeShellFaceIds(result, settings, category);
+    } else {
+      // If this category doesn't have a face threshold, we assume the user doesn't care a lot about this surface
+      // so we consider all the faces smooth, because these are usually terrains and low poly surfaces
+      for (let i = 0; i < profiles.size; i++) {
+        result.profilesFaceIds.push(0);
+      }
     }
 
     return result;
@@ -283,8 +316,9 @@ export class GeomsFbUtils {
     index: Uint32Array;
     raw: boolean;
     settings: GeometryProcessSettings;
+    category?: number;
   }): ShellData {
-    const { position, normals, index, raw, settings } = geometry;
+    const { position, normals, index, raw, settings, category } = geometry;
 
     const { threshold, precision, normalPrecision, planePrecision } = settings;
 
@@ -301,7 +335,7 @@ export class GeomsFbUtils {
       bbox.max.y === 0 &&
       bbox.max.z === 0
     ) {
-      throw new Error("Bbox is not valid");
+      throw new Error("Fragments: Bbox is not valid");
     }
 
     if (raw || tooBigToShell) {
@@ -309,7 +343,7 @@ export class GeomsFbUtils {
       // useful for big irregular surfaces like terrains
       // console.log("Too big to Shell");
 
-      return this.getRawShellData(index, position, bbox);
+      return this.getRawShellData(index, position, bbox, settings, category);
     }
 
     // We need to generate unique points, profiles and holes
@@ -395,8 +429,8 @@ export class GeomsFbUtils {
 
       if (openEdges.length === 0) {
         // TODO: Something went wrong with geometry generation. Just return raw data
-        console.log("No open edges found. Using raw geometry.");
-        return this.getRawShellData(index, position, bbox);
+        // console.log("No open edges found. Using raw geometry.");
+        return this.getRawShellData(index, position, bbox, settings, category);
       }
 
       for (const edge of openEdges) {
@@ -439,7 +473,7 @@ export class GeomsFbUtils {
       profilesFaceIds: [],
     };
 
-    this.computeShellFaceIds(result);
+    this.computeShellFaceIds(result, settings, category);
 
     // for(const point of result.points) {
     //   point[0] = point[0] * 1000;
@@ -452,10 +486,16 @@ export class GeomsFbUtils {
     return result;
   }
 
-  private static computeShellFaceIds(shell: ShellData) {
-    // TODO: Make this optional (e.g. for faster ifc processing?)
-    // TODO:  Make this a parameter
-    const threshold = 0.4;
+  private static computeShellFaceIds(
+    shell: ShellData,
+    settings: GeometryProcessSettings,
+    category?: number,
+  ) {
+    let faceThreshold = settings.faceThreshold;
+    if (category && settings.categoryFaceThresholds?.has(category)) {
+      faceThreshold = settings.categoryFaceThresholds.get(category)!;
+    }
+    // TODO: Make this optional e.g. for faster ifc processing?
     const faceIdPerProfile = new Map<number, number>();
     let nextFaceId = 0;
 
@@ -574,7 +614,7 @@ export class GeomsFbUtils {
           const [nx2, ny2, nz2] = profilesNormal.get(currentProfile)!;
           // We use absolute to prevent problems with incorrect (inverted) normals
           const dot = Math.abs(nx1 * nx2 + ny1 * ny2 + nz1 * nz2);
-          const isHard = dot < threshold;
+          const isHard = dot < faceThreshold;
 
           if (faceIdPerProfile.has(currentProfile)) {
             // This face was processed before

@@ -1,25 +1,46 @@
 # .github/workflows/publish-npm.yml
-# This workflow pushes new published releases to https://www.npmjs.com using
-# the Yarn Package Manager.
-name: Publish package to npmjs (using Yarn)
+name: Publish package to npmjs (OIDC)
+
 on:
-  release:
-    types: [published]
   workflow_call:
-    secrets:
-      NPM_TOKEN:
-        required: true
+    inputs:
+      package_dir:
+        description: "Path to the package to publish"
+        required: false
+        type: string
+        default: "packages/fragments"
+
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
+
+    # Required for npm Trusted Publishing (OIDC)
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+
+      # Use a modern Node that can run npm 11+, and/or install npm 11.5.1+ explicitly
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18.16.x' # Use LTS
-          registry-url: 'https://registry.npmjs.org'
-          scope: '@octocat'
-      - run: yarn
-      - run: yarn publish-repo
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      # Ensure the npm version meets the Trusted Publishing requirement
+      - name: Ensure npm >= 11.5.1
+        run: |
+          npm i -g npm@^11.5.1
+          npm --version
+
+      # If you use Yarn (you do), keep it for install/build
+      - name: Install deps
+        run: |
+          corepack enable
+          yarn install --immutable
+
+      # Publish via npm CLI (OIDC happens automatically; no NODE_AUTH_TOKEN)
+      - name: Publish
+        run: npm publish --access public
+        working-directory: ${{ inputs.package_dir }}

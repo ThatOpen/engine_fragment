@@ -199,10 +199,17 @@ export class MaterialManager {
     if (!localMap.has(highlightIndex)) {
       const originalDefinition = materialDefinitions[index];
       const newDefinition = materialDefinitions[highlightIndex];
-      const combinedDefinition: MaterialDefinition = {
-        ...originalDefinition,
-        ...newDefinition,
-      };
+      const { preserveOriginalMaterial, _explicitProps, ...highlightDefinition } = newDefinition;
+      const combinedDefinition: MaterialDefinition = { ...originalDefinition };
+      if (preserveOriginalMaterial) {
+        for (const prop of _explicitProps ?? []) {
+          if ((highlightDefinition as any)[prop] !== undefined) {
+            (combinedDefinition as any)[prop] = (highlightDefinition as any)[prop];
+          }
+        }
+      } else {
+        Object.assign(combinedDefinition, highlightDefinition);
+      }
       const material = this.get(combinedDefinition, request);
       materials.push(material);
       localMap.set(highlightIndex, materials.length - 1);

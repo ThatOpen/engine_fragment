@@ -61,9 +61,25 @@ world.renderer.onAfterUpdate.add(() => stats.end());
 */
 
 // prettier-ignore
-const workerUrl = "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const githubUrl =
+  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
+const fetchedUrl = await fetch(githubUrl);
+const workerBlob = await fetchedUrl.blob();
+const workerFile = new File([workerBlob], "worker.mjs", {
+  type: "text/javascript",
+});
+const workerUrl = URL.createObjectURL(workerFile);
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 world.camera.controls.addEventListener("control", () => fragments.update());
+
+// Remove z fighting
+fragments.models.materials.list.onItemSet.add(({ value: material }) => {
+  if (!("isLodMaterial" in material && material.isLodMaterial)) {
+    material.polygonOffset = true;
+    material.polygonOffsetUnits = 1;
+    material.polygonOffsetFactor = Math.random();
+  }
+});
 
 /* MD
   ### 💅🏻 Setting up the UI
@@ -112,7 +128,7 @@ async function loadIfcFile(fileUrl: string, raw: boolean) {
   const serializer = new FRAGS.IfcImporter();
   serializer.wasm = {
     absolute: true,
-    path: "https://unpkg.com/web-ifc@0.0.72/",
+    path: "https://unpkg.com/web-ifc@0.0.75/",
   };
 
   const bytes = await serializer.process({ bytes: typedArray, raw: true });
