@@ -5,9 +5,11 @@ import { ThreadsData } from "./threads-data";
 
 export class FragmentsConnection extends Connection {
   private readonly _data: ThreadsData;
+  private readonly _classicWorker: boolean;
 
-  constructor(handleInput: ThreadHandler, threadPath: string) {
+  constructor(handleInput: ThreadHandler, threadPath: string, classicWorker?: boolean) {
     super(handleInput);
+    this._classicWorker = classicWorker ?? false;
     this._data = new ThreadsData(threadPath);
   }
 
@@ -56,7 +58,7 @@ export class FragmentsConnection extends Connection {
   }
 
   private newThread(input: any, url: string) {
-    const newThread = MultithreadingHelper.newThread(url);
+    const newThread = MultithreadingHelper.newThread(url, this._classicWorker);
     this.setupThread(newThread);
     this._data.setAmount(newThread, 1);
     this._data.set(input.modelId, newThread);

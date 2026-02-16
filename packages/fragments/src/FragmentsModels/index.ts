@@ -60,11 +60,13 @@ export class FragmentsModels {
    * Creates a new FragmentsModels instance.
    * @param workerURL - The URL of the worker script that will handle the fragments processing.
    * This should point to a copy of the fragments worker file from @thatopen/fragments.
+   * @param options - Optional configuration.
+   * @param options.classicWorker - If true, creates classic (non-module) workers. Use together with `toClassicWorker()`.
    */
-  constructor(workerURL: string) {
+  constructor(workerURL: string, options?: { classicWorker?: boolean }) {
     const requestEvent = this.newRequestEvent();
     const updateEvent = this.newUpdateEvent();
-    this._connection = new FragmentsConnection(requestEvent, workerURL);
+    this._connection = new FragmentsConnection(requestEvent, workerURL, options?.classicWorker);
     this.editor = new Editor(this, this._connection);
     this.models = new MeshManager(updateEvent);
     this.models.list.onItemDeleted.add(() => {

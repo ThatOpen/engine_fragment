@@ -6,6 +6,7 @@ import Stats from "stats.js";
 import * as THREE from "three";
 import { RenderedFaces } from "../Schema";
 import { FragmentsModels } from "./index";
+// import { toClassicWorker } from "../Utils";
 
 async function main() {
   // Set up scene
@@ -47,6 +48,10 @@ async function main() {
   const workerUrl = "./src/multithreading/fragments-thread.ts";
   // const workerUrl = "../../dist/Worker/worker.mjs";
   const fragments = new FragmentsModels(workerUrl);
+
+  // To use classic workers
+  // const classicWorkerUrl = await FragmentsModels.toClassicWorker(workerUrl);
+  // const fragments = new FragmentsModels(classicWorkerUrl, {classicWorker: true});
 
   // Toggle camera projection
   // window.addEventListener("keydown", async (e) => {
@@ -109,7 +114,7 @@ async function main() {
   // });
 
   const model = await loadModel(
-    "https://thatopen.github.io/engine_fragment/resources/frags/test/medium_test.frag",
+    "/resources/frags/school_arq.frag",
   );
   const mouse = new THREE.Vector2();
 

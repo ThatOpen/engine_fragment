@@ -8,8 +8,8 @@ import {
 export type Thread = Worker;
 
 export class MultithreadingHelper {
-  static newThread(url: string) {
-    return new Worker(url, { type: "module" });
+  static newThread(url: string, classic?: boolean) {
+    return classic ? new Worker(url) : new Worker(url, { type: "module" });
   }
 
   static newUpdater(effect: any, rate: number) {
