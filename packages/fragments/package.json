@@ -1,7 +1,7 @@
 {
   "name": "@thatopen/fragments",
   "description": "Simple geometric system built on top of Three.js to display 3D BIM data efficiently.",
-  "version": "3.3.4",
+  "version": "3.3.5",
   "author": "That Open Company",
   "contributors": [
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",

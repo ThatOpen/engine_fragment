@@ -243,7 +243,7 @@ export class VirtualPropertiesController {
           const request = this._virtualModel.requests[i];
           if (request.type === EditRequestType.CREATE_ITEM) {
             if (request.localId === localId) {
-              category = request.data.category
+              category = request.data.category;
             }
           }
         }
@@ -319,8 +319,8 @@ export class VirtualPropertiesController {
     // instead of attributes because each set of attributes
     // always belong to a category, and the indices always match.
     for (let i = 0; i < this._model.categoriesLength(); i++) {
-      const localId = this._model.localIds(i)
-      if (localId === null) continue
+      const localId = this._model.localIds(i);
+      if (localId === null) continue;
       let valid = true;
       if (areCategoriesDefined) {
         const category = this._model.categories(i);
@@ -408,7 +408,7 @@ export class VirtualPropertiesController {
     }
 
     // Format result
-    const result: Record<string, { value: any, localIds: number[] }[]> = {};
+    const result: Record<string, { value: any; localIds: number[] }[]> = {};
     for (const [name, valueMap] of map) {
       result[name] = [];
       for (const [value, itemsSet] of valueMap) {
@@ -418,7 +418,7 @@ export class VirtualPropertiesController {
         });
       }
     }
-    
+
     return result;
   }
 
@@ -491,7 +491,12 @@ export class VirtualPropertiesController {
       const data: Record<string, { value: any; type?: string }> = {};
       for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
         const request = this._virtualModel.requests[i];
-        if (request.type === EditRequestType.CREATE_ITEM) {
+        if (
+          request.type === EditRequestType.CREATE_ITEM ||
+          // DO NOT remove this or editing created items break
+          // if you have problems with this, contact Antonio
+          request.type === EditRequestType.UPDATE_ITEM
+        ) {
           if (request.localId === localId) {
             for (const name in request.data.data) {
               const found = request.data.data[name];
@@ -600,7 +605,7 @@ export class VirtualPropertiesController {
       return {};
     }
 
-    const [category] = this.getItemsCategories([localId])
+    const [category] = this.getItemsCategories([localId]);
 
     const guid =
       typeof id === "string" ? id : this._items.get(id)?.guid ?? null;
@@ -839,8 +844,15 @@ export class VirtualPropertiesController {
     return categories;
   }
 
-  private checkAttribute(attr: { name: string, value: any, type?: string }, { name, value, type }: Pick<GetItemsByAttributeParams, "name" | "value" | "type">) {
-    const { name: attrName, value: val, type: typeValue } = attr
+  private checkAttribute(
+    attr: { name: string; value: any; type?: string },
+    {
+      name,
+      value,
+      type,
+    }: Pick<GetItemsByAttributeParams, "name" | "value" | "type">,
+  ) {
+    const { name: attrName, value: val, type: typeValue } = attr;
 
     let pass = false;
 
@@ -863,13 +875,12 @@ export class VirtualPropertiesController {
         }
 
         if (type !== undefined) {
-          pass =
-            pass && typeof typeValue === "string" && type.test(typeValue);
+          pass = pass && typeof typeValue === "string" && type.test(typeValue);
         }
       }
     }
 
-    return pass
+    return pass;
   }
 
   getItemsByAttribute({
@@ -883,12 +894,12 @@ export class VirtualPropertiesController {
 
     const res: number[] = [];
 
-    const missingItemsToIterate = new Set<number>(itemIds)
+    const missingItemsToIterate = new Set<number>(itemIds);
 
     for (let i = 0; i < allAttributesLength; i++) {
       const localId = this._model.localIds(i);
       if (localId === null) continue;
-      missingItemsToIterate.delete(localId)
+      missingItemsToIterate.delete(localId);
       if (itemIds?.length && !itemIds.includes(localId)) continue;
       const attribute = this._model.attributes(i);
       if (!attribute) continue;
@@ -907,11 +918,14 @@ export class VirtualPropertiesController {
           string?,
         ];
 
-        const pass = this.checkAttribute({
-          name: attrName,
-          value: val,
-          type: typeValue
-        }, { name, value, type })
+        const pass = this.checkAttribute(
+          {
+            name: attrName,
+            value: val,
+            type: typeValue,
+          },
+          { name, value, type },
+        );
 
         if (pass) {
           itemPasses = true;
@@ -928,7 +942,10 @@ export class VirtualPropertiesController {
     if (!itemIds) {
       for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
         const request = this._virtualModel.requests[i];
-        if (request.type === EditRequestType.CREATE_ITEM && request.localId !== undefined) {
+        if (
+          request.type === EditRequestType.CREATE_ITEM &&
+          request.localId !== undefined
+        ) {
           const data: Record<string, { value: any; type?: string }> = {};
           for (const name in request.data.data) {
             const found = request.data.data[name];
@@ -937,19 +954,25 @@ export class VirtualPropertiesController {
 
           // Check if it passes
           let itemPasses = false;
-          for (const [attrName, {value: val, type: typeValue}] of Object.entries(data)) {
-            const pass = this.checkAttribute({
-              name: attrName,
-              value: val,
-              type: typeValue
-            }, { name, value, type })
-    
+          for (const [
+            attrName,
+            { value: val, type: typeValue },
+          ] of Object.entries(data)) {
+            const pass = this.checkAttribute(
+              {
+                name: attrName,
+                value: val,
+                type: typeValue,
+              },
+              { name, value, type },
+            );
+
             if (pass) {
               itemPasses = true;
               break;
             }
           }
-    
+
           if (negate ? !itemPasses : itemPasses) {
             res.push(Number(request.localId));
           }
@@ -961,29 +984,35 @@ export class VirtualPropertiesController {
         for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
           const request = this._virtualModel.requests[i];
           if (request.type === EditRequestType.CREATE_ITEM) {
-            if (request.localId !== localId) continue
+            if (request.localId !== localId) continue;
             // Collect item data
             const data: Record<string, { value: any; type?: string }> = {};
             for (const name in request.data.data) {
               const found = request.data.data[name];
               data[name] = { value: found.value, type: found.type };
             }
-  
+
             // Check if it passes
             let itemPasses = false;
-            for (const [attrName, {value: val, type: typeValue}] of Object.entries(data)) {
-              const pass = this.checkAttribute({
-                name: attrName,
-                value: val,
-                type: typeValue
-              }, { name, value, type })
-      
+            for (const [
+              attrName,
+              { value: val, type: typeValue },
+            ] of Object.entries(data)) {
+              const pass = this.checkAttribute(
+                {
+                  name: attrName,
+                  value: val,
+                  type: typeValue,
+                },
+                { name, value, type },
+              );
+
               if (pass) {
                 itemPasses = true;
                 break;
               }
             }
-      
+
             if (negate ? !itemPasses : itemPasses) {
               res.push(localId);
             }
@@ -1027,16 +1056,16 @@ export class VirtualPropertiesController {
     const { categories, attributes, relation } = params;
 
     //  Category pre‑filter (if any)
-    let candidateIds = config?.localIds
+    let candidateIds = config?.localIds;
     if (candidateIds) {
       // Filter the candidateIds based on the provided categories
       if (categories) {
-        const itemsCategories = this.getItemsCategories(candidateIds)
+        const itemsCategories = this.getItemsCategories(candidateIds);
         candidateIds = candidateIds.filter((_, index) => {
-          const category = itemsCategories[index]
-          if (!category) return null
-          return categories.some(entry => entry.test(category))
-        })
+          const category = itemsCategories[index];
+          if (!category) return null;
+          return categories.some((entry) => entry.test(category));
+        });
       }
     } else {
       // If no localIds where given, take the localIds matching the categories provided.
