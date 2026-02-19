@@ -1,5 +1,18 @@
 # Changelog
 
+## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-02-19)
+
+
+### Features
+
+* implement optional traditional workers ([f976443](https://github.com/ThatOpen/engine_fragment/commit/f97644314ba0b8b19ff671760d5c1dbfc638f015))
+
+
+### Bug Fixes
+
+* correct bug when editing newly created items ([381eb46](https://github.com/ThatOpen/engine_fragment/commit/381eb463925b06662fec7399aab966b8ca5676f7))
+* **materials:** Fix setColor and setOpacity ([#148](https://github.com/ThatOpen/engine_fragment/issues/148)) ([08289d3](https://github.com/ThatOpen/engine_fragment/commit/08289d3a3f1e5da52cef90ebf09aca9d8f7d81ea))
+
 ## [3.3.2](https://github.com/ThatOpen/engine_fragment/compare/v3.3.0...v3.3.2) (2026-01-27)
 
 
