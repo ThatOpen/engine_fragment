@@ -209,15 +209,15 @@ export class IfcFileReader {
       }
 
       for (let i = 0; i < geometryCount; i++) {
+        let geometryMode: "Shell" | "CircleExtrusion" = "Shell";
+
         if (element.type === WEBIFC.IFCREINFORCINGBAR) {
-          this.loadCircleExtrusionGeometry(
-            modelID,
-            element,
-            mesh,
-            i,
-            transformWithoutScale.elements,
-          );
-        } else {
+          // Rebars can be SweptDiskSolid, FacetedBrep, Tessellated, ...
+          // if it doesn't have a directrix, it's not a SweptDiskSolid shape representation
+          if (this.hasSweptDiskDirectrix(modelID, mesh, i))
+            geometryMode = "CircleExtrusion";
+        }
+        if (geometryMode === "Shell") {
           this.loadShellGeometry(
             modelID,
             element,
@@ -225,6 +225,14 @@ export class IfcFileReader {
             i,
             transformWithoutScale.elements,
             currentCategory,
+          );
+        } else if (geometryMode === "CircleExtrusion") {
+          this.loadCircleExtrusionGeometry(
+            modelID,
+            element,
+            mesh,
+            i,
+            transformWithoutScale.elements,
           );
         }
       }
@@ -314,6 +322,7 @@ export class IfcFileReader {
     this._problematicGeometriesHashes.clear();
   }
 
+  // @ts-ignore
   private loadCircleExtrusionGeometry(
     modelID: number,
     element: IfcElement,
@@ -370,7 +379,6 @@ export class IfcFileReader {
 
     // @ts-ignore
     const circleExtrusion = geometry.GetSweptDiskSolid();
-
     const circleCurves: number[][] = [];
     const axisPoints: any[][] = [];
 
@@ -1067,5 +1075,31 @@ export class IfcFileReader {
       initialTangent,
       angle: (angle * 180) / Math.PI, // Convert to degrees
     };
+  }
+
+  private hasSweptDiskDirectrix(
+    modelID: number,
+    mesh: any,
+    geometryIndex: number,
+  ): boolean {
+    try {
+      if (!this._ifcAPI) return false;
+
+      const geometryRef = mesh.geometries.get(geometryIndex);
+      if (!geometryRef) return false;
+
+      const geometry = this._ifcAPI.GetGeometry(
+        modelID,
+        geometryRef.geometryExpressID,
+      );
+
+      if (!geometry?.GetSweptDiskSolid) return false;
+
+      const swept = geometry.GetSweptDiskSolid();
+      // @ts-ignore
+      return !!swept?.axis && swept.axis.size() > 0;
+    } catch {
+      return false;
+    }
   }
 }

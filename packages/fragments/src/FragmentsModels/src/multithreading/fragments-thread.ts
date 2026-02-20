@@ -5,6 +5,8 @@ import { ThreadControllerManager } from "./thread-controllers/thread-controller-
 export class FragmentsThread {
   readonly actions: { [index: number]: any } = {};
   readonly list = new Map<string, VirtualFragmentsModel>();
+
+  // It registers all actions from multithreadingRequestClass
   readonly controllerManager = new ThreadControllerManager(this);
 
   private _connection?: Connection;
