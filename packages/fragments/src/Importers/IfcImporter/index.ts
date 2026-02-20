@@ -97,7 +97,7 @@ export class IfcImporter {
       ...ifcClasses.base,
       ...ifcClasses.materials,
       ...ifcClasses.properties,
-      ...ifcClasses.units
+      ...ifcClasses.units,
     ]),
   };
 
@@ -234,6 +234,7 @@ export class IfcImporter {
       }
       this.classes.abstract.add(category);
     }
+    this.attributesToExclude = new Set();
   }
 
   /**
