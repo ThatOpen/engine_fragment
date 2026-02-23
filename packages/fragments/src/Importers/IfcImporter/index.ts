@@ -234,6 +234,7 @@ export class IfcImporter {
       }
       this.classes.abstract.add(category);
     }
+    this.attributesToExclude = new Set();
   }
 
   /**
