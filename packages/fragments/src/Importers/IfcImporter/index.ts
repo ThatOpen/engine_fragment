@@ -97,7 +97,7 @@ export class IfcImporter {
       ...ifcClasses.base,
       ...ifcClasses.materials,
       ...ifcClasses.properties,
-      ...ifcClasses.units
+      ...ifcClasses.units,
     ]),
   };
 
