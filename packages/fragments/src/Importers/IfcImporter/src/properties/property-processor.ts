@@ -75,6 +75,16 @@ export class IfcPropertyProcessor {
     private _builder: Builder,
   ) {}
 
+  private unwrapValue(value: any): any {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    if (typeof value === "object" && "value" in value) {
+      return this.unwrapValue(value.value);
+    }
+    return value;
+  }
+
   async process(data: PropertiesProcessData) {
     // Open the IFC
     const ifcApi = await this.getIfcApi();
@@ -390,8 +400,8 @@ export class IfcPropertyProcessor {
         const noHandles = attrValue.filter((handle) => handle.type !== 5);
 
         if (noHandles.length > 0) {
-          const noHandlesValue = noHandles.map(
-            (handle) => handle.value,
+          const noHandlesValue = noHandles.map((handle) =>
+            this.unwrapValue(handle.value),
           ) as number[];
 
           const attrData = [attrName, noHandlesValue];
@@ -413,7 +423,27 @@ export class IfcPropertyProcessor {
         continue;
       }
 
-      const { value, type } = attrValue;
+      // Handle both wrapped values (with .value and .type) and unwrapped primitives
+      let value: any;
+      let type: number | undefined;
+
+      if (
+        typeof attrValue === "object" &&
+        attrValue !== null &&
+        "type" in attrValue
+      ) {
+        // Value is wrapped in an object with type information
+        value = attrValue.value;
+        type = attrValue.type;
+      } else if (typeof attrValue === "string") {
+        // Unwrapped string value
+        value = attrValue;
+        type = undefined;
+      } else {
+        // Other cases - treat as unwrapped value
+        value = attrValue;
+        type = undefined;
+      }
 
       if (type === 5) {
         // Type 5 values are references to other entities
@@ -421,19 +451,46 @@ export class IfcPropertyProcessor {
         if (typeof value !== "number") continue;
         this.addRelation(expressID, attrName, [value]);
       } else {
-        if (attrName === "GlobalId" && typeof value === "string") {
-          guid = value;
+        // Unwrap nested value objects (handles IFCREAL(), IFCINTEGER(), etc.)
+        const unwrappedValue = this.unwrapValue(value);
+
+        if (attrName === "GlobalId" && typeof unwrappedValue === "string") {
+          guid = unwrappedValue;
           index++;
           continue;
         }
         // name and value must always be at index 0 and 1
         // other data can be set starting index 2
-        const attrData = [attrName, value];
-        const dataTypeName =
-          "name" in attrValue && attrValue.name
-            ? attrValue.name
-            : attrValue.constructor.name.toUpperCase();
-        attrData.push(dataTypeName !== "OBJECT" ? dataTypeName : "UNDEFINED");
+        const attrData = [attrName, unwrappedValue];
+
+        // Infer type name from the attrValue object or from the actual value type
+        let dataTypeName = "UNDEFINED";
+        if (typeof attrValue === "object" && attrValue !== null) {
+          if ("name" in attrValue && attrValue.name) {
+            dataTypeName = attrValue.name;
+          } else if (
+            attrValue.constructor &&
+            attrValue.constructor.name !== "Object"
+          ) {
+            dataTypeName = attrValue.constructor.name.toUpperCase();
+          }
+        }
+
+        // If still undefined, infer from the unwrapped value's type
+        if (dataTypeName === "UNDEFINED" || dataTypeName === "OBJECT") {
+          if (typeof unwrappedValue === "number") {
+            // Check if it's an integer or real number
+            dataTypeName = Number.isInteger(unwrappedValue)
+              ? "IFCINTEGER"
+              : "IFCREAL";
+          } else if (typeof unwrappedValue === "string") {
+            dataTypeName = "IFCLABEL";
+          } else if (typeof unwrappedValue === "boolean") {
+            dataTypeName = "IFCBOOLEAN";
+          }
+        }
+
+        attrData.push(dataTypeName);
         const hash = JSON.stringify(attrData);
         const attrOffset = this._builder.createSharedString(hash);
         attrOffsets.push(attrOffset);
