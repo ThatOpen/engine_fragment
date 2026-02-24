@@ -155,8 +155,10 @@ export class RaycastManager {
 
   private setEnds(camera: THREE.Camera) {
     if (camera instanceof THREE.OrthographicCamera) {
-      this._n.constant = camera.near;
-      this._f.constant = camera.far;
+      const camPos = camera.position;
+      const normalDotPos = this._n.normal.dot(camPos);
+      this._n.constant = -(normalDotPos + camera.near);
+      this._f.constant = -(normalDotPos - camera.far);
     } else {
       this._n.constant = camera.position.length();
       this._f.constant = Infinity;
