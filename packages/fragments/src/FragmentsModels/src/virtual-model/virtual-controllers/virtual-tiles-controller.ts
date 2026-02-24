@@ -779,6 +779,12 @@ export class VirtualTilesController {
 
   private fetchLodLevel(sample: number) {
     if (this._lodMode === LodMode.ALL_VISIBLE) {
+      this.meshes.samples(sample, this._temp.sample);
+      const itemId = this._temp.sample.item();
+      const isSeen = this._items.visible(itemId);
+      if (!isSeen) {
+        return CurrentLod.INVISIBLE;
+      }
       return CurrentLod.GEOMETRY;
     }
 
