@@ -16,6 +16,17 @@
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./worker": {
+      "import": "./dist/Worker/worker.mjs",
+      "default": "./dist/Worker/worker.mjs"
+    }
+  },
   "files": [
     "dist",
     "README.md"
