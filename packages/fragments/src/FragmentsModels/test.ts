@@ -113,9 +113,7 @@ async function main() {
   //   item.value.transparent = true;
   // });
 
-  const model = await loadModel(
-    "/resources/frags/school_arq.frag",
-  );
+  const model = await loadModel("/resources/frags/school_arq.frag");
   const mouse = new THREE.Vector2();
 
   // const columIds = await model.getItemsByQuery({
@@ -351,26 +349,27 @@ async function main() {
     //   world.renderer!.onAfterUpdate.add(() => updateVisibility(true));
     // }
     // CLIPPING PLANES
-    //   model.getClippingPlanesEvent = () => {
-    //     return Array.from(world.renderer!.three.clippingPlanes) || [];
-    //   };
-    //   const clipper = components.get(OBC.Clipper);
-    //   let firstPlane: OBC.SimplePlane | null = null;
-    //   if (result) {
-    //     const plane = clipper.createFromNormalAndCoplanarPoint(
-    //       world,
-    //       result.normal!.multiplyScalar(-1),
-    //       result.point,
-    //     );
-    //     if (!firstPlane) {
-    //       firstPlane = plane;
-    //     }
+    // model.getClippingPlanesEvent = () => {
+    //   return Array.from(world.renderer!.three.clippingPlanes) || [];
+    // };
+    // const clipper = components.get(OBC.Clipper);
+    // let firstPlane: OBC.SimplePlane | null = null;
+    // if (result) {
+    //   const planeId = clipper.createFromNormalAndCoplanarPoint(
+    //     world,
+    //     result.normal!.multiplyScalar(-1),
+    //     result.point,
+    //   );
+    //   const plane = clipper.list.get(planeId)!;
+    //   if (!firstPlane) {
+    //     firstPlane = plane;
     //   }
-    //   window.addEventListener("keydown", (event) => {
-    //     if (event.code === "KeyP") {
-    //       clipper.delete(world);
-    //     }
-    //   });
+    // }
+    // window.addEventListener("keydown", (event) => {
+    //   if (event.code === "KeyP") {
+    //     clipper.delete(world);
+    //   }
+    // });
 
     //   const edgesGeometry = new THREE.BufferGeometry();
     //   const fillGeometry = new THREE.BufferGeometry();
