@@ -10,6 +10,7 @@ import { FragmentsModel } from "./fragments-model";
 import { DataMap } from "../../../Utils";
 import { RequestsManager } from "./requests-manager";
 import { LODManager } from "./lod-manager";
+import { LODMesh } from "../lod";
 
 /**
  * A class that manages the creation and updating of meshes in a Fragments model.
@@ -133,7 +134,13 @@ export class MeshManager {
     geometry.clearGroups();
     this.lod.processMesh(mesh, request);
 
-    if (!(highlightData && currentLod !== CurrentLod.WIRES)) return;
+    if (!highlightData) return;
+
+    if (currentLod === CurrentLod.WIRES) {
+      this.lod.applyHighlight(mesh as LODMesh, request);
+      return;
+    }
+
     const materials = this.materials.createHighlights(mesh, request);
     mesh.material = materials;
   }

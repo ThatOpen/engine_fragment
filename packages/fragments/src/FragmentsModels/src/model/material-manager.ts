@@ -114,6 +114,34 @@ export class MaterialManager {
     return materials;
   }
 
+  getHighlightProps(
+    highlightIndex: number,
+    originalIndex: number,
+    modelId: string,
+  ) {
+    const materialDefinitions = this._definitions.get(modelId);
+    if (!materialDefinitions) return undefined;
+    const originalDefinition = materialDefinitions[originalIndex];
+    const newDefinition = materialDefinitions[highlightIndex];
+    if (!newDefinition || !originalDefinition) return undefined;
+    const {
+      preserveOriginalMaterial,
+      _explicitProps,
+      ...highlightDefinition
+    } = newDefinition;
+    const combined: MaterialDefinition = { ...originalDefinition };
+    if (preserveOriginalMaterial) {
+      for (const prop of _explicitProps ?? []) {
+        if ((highlightDefinition as any)[prop] !== undefined) {
+          (combined as any)[prop] = (highlightDefinition as any)[prop];
+        }
+      }
+    } else {
+      Object.assign(combined, highlightDefinition);
+    }
+    return combined;
+  }
+
   getFromRequest(request: any) {
     const { material: index, modelId } = request;
     const modelMaterials = this._definitions.get(modelId);

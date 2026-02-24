@@ -64,6 +64,8 @@ export class LodHelper {
       lodColor: { value: new THREE.Color(parameters.color) },
       lodSize: { value: new THREE.Vector2(1, 1) },
       lodOpacity: { value: parameters.opacity ?? 1 },
+      highlightColor: { value: new THREE.Color(1, 1, 1) },
+      highlightOpacity: { value: 1 },
     };
 
     const uniforms = THREE.UniformsUtils.merge([
@@ -91,6 +93,22 @@ export class LodHelper {
         bufferData.fill(1, first);
       } else {
         bufferData.fill(1, first, first + size);
+      }
+    }
+    itemFilter.needsUpdate = true;
+  }
+
+  static setLodHighlight(geometry: LODGeometry, data: any): void {
+    const itemFilter = geometry.getItemFilter();
+    const bufferData = itemFilter.array as Uint8Array;
+
+    for (let i = 0; i < data.position.length; ++i) {
+      const first = data.position[i] / 2;
+      const size = data.size[i] / 2;
+      if (size === 0xffffffff) {
+        bufferData.fill(2, first);
+      } else {
+        bufferData.fill(2, first, first + size);
       }
     }
     itemFilter.needsUpdate = true;

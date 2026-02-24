@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { LODGeometry, LODMesh } from "../lod";
 import { LodHelper } from "../lod/lod-helper";
 import { BIMMesh, CurrentLod } from "./model-types";
-import { MultiBufferData } from "../utils";
 import { MaterialManager } from "./material-manager";
 
 export class LODManager {
@@ -39,13 +38,30 @@ export class LODManager {
     const { visibilityData, highlightData } = status;
     LodHelper.setLodVisibility(geometry, visibilityData);
     if (highlightData) {
-      LodHelper.setLodFilter(geometry, highlightData);
-      MultiBufferData.getComplementary(highlightData, (start, count) => {
-        geometry.addGroup(start, count, 0);
-      });
-    } else {
-      geometry.addGroup(0, Infinity, 0);
+      LodHelper.setLodHighlight(geometry, highlightData);
     }
+    geometry.addGroup(0, Infinity, 0);
+  }
+
+  applyHighlight(mesh: LODMesh, request: any) {
+    const {
+      tileData: { highlightIds },
+      modelId,
+      material: index,
+    } = request;
+
+    const material = mesh.material[0];
+    const definition = this._materials.getHighlightProps(
+      highlightIds[0],
+      index,
+      modelId,
+    );
+    if (!definition) return;
+
+    const color = new THREE.Color(definition.color);
+    material.highlightColor = color;
+    material.highlightOpacity = definition.opacity;
+    material.transparent = definition.opacity < 1 || material.transparent;
   }
 
   processMesh(mesh: BIMMesh, request: any) {

@@ -22,6 +22,30 @@ export class LodMaterial extends THREE.ShaderMaterial {
     return this.uniforms.lodColor.value;
   }
 
+  set lodOpacity(value: number) {
+    this.uniforms.lodOpacity.value = value;
+  }
+
+  get lodOpacity(): number {
+    return this.uniforms.lodOpacity.value;
+  }
+
+  set highlightColor(color: THREE.Color) {
+    this.uniforms.highlightColor.value = color;
+  }
+
+  get highlightColor(): THREE.Color {
+    return this.uniforms.highlightColor.value;
+  }
+
+  set highlightOpacity(value: number) {
+    this.uniforms.highlightOpacity.value = value;
+  }
+
+  get highlightOpacity(): number {
+    return this.uniforms.highlightOpacity.value;
+  }
+
   constructor(parameters: LineMaterialParameters) {
     super(LodHelper.newLodMaterialParams(parameters));
     this.clipping = true;

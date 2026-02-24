@@ -528,7 +528,6 @@ export class VirtualTilesController {
   private updateMesh(sample: number) {
     let current = this.fetchLodLevel(sample);
     const past = this._sampleLodState[sample];
-    // TODO: Highlights don't work with LOD yet; just hide them
     current = this.hideHighlightedLods(current, sample);
     if (current === past) {
       this.updateSampleIfSeen(current, sample);
@@ -551,10 +550,7 @@ export class VirtualTilesController {
     }
   }
 
-  private hideHighlightedLods(current: CurrentLod, sample: number) {
-    if (current === CurrentLod.WIRES && this._samples.getHighlight(sample)) {
-      current = CurrentLod.INVISIBLE;
-    }
+  private hideHighlightedLods(current: CurrentLod, _sample: number) {
     return current;
   }
 

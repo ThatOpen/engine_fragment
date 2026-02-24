@@ -20,11 +20,15 @@ export class LodShaders {
                 second.xyz = mix(first.xyz, second.xyz, cutFilter);
             }
                 
+            varying float vHighlight;
+
             void main() {
                 if (itemFilter == 0.0) {
                     gl_Position = vec4(0,0,0,0);
                     return;
                 }
+
+                vHighlight = itemFilter > 1.5 ? 1.0 : 0.0;
 
                 vec4 rawFirst = vec4(itemFirst, 1.0);
                 vec4 rawLast = vec4(itemLast, 1.0);
@@ -87,10 +91,16 @@ export class LodShaders {
 
             uniform vec3 lodColor;
             uniform float lodOpacity;
+            uniform vec3 highlightColor;
+            uniform float highlightOpacity;
+
+            varying float vHighlight;
 
             void main() {
                 #include <clipping_planes_fragment>
-                gl_FragColor = vec4(lodColor, lodOpacity);
+                vec3 color = mix(lodColor, highlightColor, vHighlight);
+                float alpha = mix(lodOpacity, highlightOpacity, vHighlight);
+                gl_FragColor = vec4(color, alpha);
                 #include <colorspace_fragment>
             }
     `;
