@@ -20,9 +20,9 @@ export class CivilReader {
         allAlignments.push(currentAlignment);
 
         let pointsCounter = 0;
+        const points3d = alignment.curve3D[0]?.points;
 
         for (let i = 0; i < alignment.horizontal.length; i++) {
-          const points3d = alignment.curve3D[0].points;
           const curveHorizontal = alignment.horizontal[i];
 
           const result3d: number[] = [];
@@ -33,8 +33,10 @@ export class CivilReader {
           const pointsHorizontalReversed: number[][] = [];
 
           for (const point of curveHorizontal.points) {
-            const { x, y, z } = points3d[pointsCounter++];
-            points3DReversed.push([x, y, z]);
+            const point3d = points3d?.[pointsCounter++];
+            if (point3d) {
+              points3DReversed.push([point3d.x, point3d.y, point3d.z]);
+            }
             pointsHorizontalReversed.push([point.x, point.y]);
           }
 
@@ -49,10 +51,12 @@ export class CivilReader {
             resultHorizontal.push(x, 0, -y);
           }
 
-          currentAlignment.absolute.push({
-            points: result3d,
-            type,
-          });
+          if (result3d.length) {
+            currentAlignment.absolute.push({
+              points: result3d,
+              type,
+            });
+          }
 
           currentAlignment.horizontal.push({
             points: resultHorizontal,
