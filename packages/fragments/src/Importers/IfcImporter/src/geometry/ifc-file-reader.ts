@@ -702,8 +702,8 @@ export class IfcFileReader {
     const z1 = GeomsFbUtils.round(v1.z, p);
 
     const cx = GeomsFbUtils.round(centroid.x, p);
-    const cy = GeomsFbUtils.round(centroid.x, p);
-    const cz = GeomsFbUtils.round(centroid.x, p);
+    const cy = GeomsFbUtils.round(centroid.y, p);
+    const cz = GeomsFbUtils.round(centroid.z, p);
 
     const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${x1}-${y1}-${z1}`;
 
