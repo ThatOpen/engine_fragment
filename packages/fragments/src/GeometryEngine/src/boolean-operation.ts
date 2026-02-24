@@ -45,7 +45,6 @@ export class BooleanOperation {
       firstData.push(tempVector.z);
     }
 
-
     const secondData = [];
 
     for (const operand of data.operands) {
@@ -54,9 +53,9 @@ export class BooleanOperation {
       const oPos = operand.geometry.attributes.position.array;
 
       for (let i = 0; i < oIndex.length - 2; i += 3) {
-        const i1 = index[i];
-        const i2 = index[i + 1];
-        const i3 = index[i + 2];
+        const i1 = oIndex[i];
+        const i2 = oIndex[i + 1];
+        const i3 = oIndex[i + 2];
 
         tempVector.set(oPos[i1 * 3], oPos[i1 * 3 + 1], oPos[i1 * 3 + 2]);
         tempVector.applyMatrix4(operand.matrixWorld);
