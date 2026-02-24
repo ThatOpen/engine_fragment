@@ -420,6 +420,42 @@ export type GridData = {
   wAxes: GridAxisData[];
 };
 
+/**
+ * Interface representing the Coordinate Reference System (CRS) data
+ * extracted from an IFC model's IFCPROJECTEDCRS and IFCMAPCONVERSION entities.
+ */
+export interface CRSData {
+  /** The CRS name/identifier, e.g. "EPSG:3947" */
+  name: string | null;
+  /** Description of the CRS, e.g. "RGF93_CC47" */
+  description: string | null;
+  /** The geodetic datum name, e.g. "RGF93" */
+  geodeticDatum: string | null;
+  /** The vertical datum name */
+  verticalDatum: string | null;
+  /** The map projection name */
+  mapProjection: string | null;
+  /** The map zone identifier */
+  mapZone: string | null;
+  /** The map unit name, e.g. "METRE" */
+  mapUnit: string | null;
+  /** Map conversion parameters from IFCMAPCONVERSION (null if not present) */
+  mapConversion: {
+    /** Easting coordinate of the map origin */
+    eastings: number;
+    /** Northing coordinate of the map origin */
+    northings: number;
+    /** Orthogonal height of the map origin */
+    orthogonalHeight: number;
+    /** X component of the abscissa of the X axis */
+    xAxisAbscissa: number;
+    /** Y component of the ordinate of the X axis */
+    xAxisOrdinate: number;
+    /** Scale factor applied to the map */
+    scale: number;
+  } | null;
+}
+
 export type CustomDataItem = {
   data: {
     value: string;

@@ -1,4 +1,5 @@
 import {
+  CRSData,
   MultiThreadingRequestClass,
   ItemsQueryParams,
   SpatialTreeItem,
@@ -112,6 +113,14 @@ export class DataManager {
     model: FragmentsModel,
   ) {
     return model.threads.invoke(model.modelId, "getMetadata", []) as Promise<T>;
+  }
+
+  async getCRS(model: FragmentsModel) {
+    return model.threads.invoke(
+      model.modelId,
+      "getCRS",
+      [],
+    ) as Promise<CRSData | null>;
   }
 
   async getGuidsByLocalIds(model: FragmentsModel, localIds: number[]) {

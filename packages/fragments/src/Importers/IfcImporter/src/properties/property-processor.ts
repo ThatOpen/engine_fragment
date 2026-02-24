@@ -673,10 +673,97 @@ export class IfcPropertyProcessor {
     const descriptions: string[] = [];
     this.getMetadataRecursively(rawDescription.arguments, descriptions);
 
-    const metadata = { schema, names, descriptions } as any;
+    const crs = this.extractCRS(ifcApi);
+
+    const metadata = { schema, names, descriptions, crs } as any;
 
     const metadataOffset = this._builder.createString(JSON.stringify(metadata));
     return metadataOffset;
+  }
+
+  private extractCRS(ifcApi: WEBIFC.IfcAPI) {
+    // Try IFCPROJECTEDCRS first, then fall back to IFCCOORDINATEREFERENCESYSTEM
+    let crsEntity: any = null;
+    try {
+      const ids = ifcApi.GetLineIDsWithType(0, WEBIFC.IFCPROJECTEDCRS);
+      if (ids.size() > 0) {
+        crsEntity = ifcApi.GetLine(0, ids.get(0));
+      }
+    } catch {
+      // IFCPROJECTEDCRS may not exist in older IFC schemas
+    }
+
+    if (!crsEntity) {
+      try {
+        const ids = ifcApi.GetLineIDsWithType(
+          0,
+          WEBIFC.IFCCOORDINATEREFERENCESYSTEM,
+        );
+        if (ids.size() > 0) {
+          crsEntity = ifcApi.GetLine(0, ids.get(0));
+        }
+      } catch {
+        // Not available
+      }
+    }
+
+    if (!crsEntity) {
+      return null;
+    }
+
+    const name = this.unwrapValue(crsEntity.Name) ?? null;
+    const description = this.unwrapValue(crsEntity.Description) ?? null;
+    const geodeticDatum = this.unwrapValue(crsEntity.GeodeticDatum) ?? null;
+    const verticalDatum = this.unwrapValue(crsEntity.VerticalDatum) ?? null;
+    const mapProjection = this.unwrapValue(crsEntity.MapProjection) ?? null;
+    const mapZone = this.unwrapValue(crsEntity.MapZone) ?? null;
+
+    // Resolve MapUnit reference to get the unit name
+    let mapUnit: string | null = null;
+    try {
+      const unitRef = crsEntity.MapUnit;
+      if (unitRef && typeof unitRef === "object" && unitRef.type === 5) {
+        const unitEntity = ifcApi.GetLine(0, unitRef.value);
+        if (unitEntity) {
+          const unitName = this.unwrapValue(unitEntity.Name);
+          if (unitName) {
+            mapUnit = String(unitName);
+          }
+        }
+      }
+    } catch {
+      // Unit resolution failed
+    }
+
+    // Extract IFCMAPCONVERSION if present
+    let mapConversion = null;
+    try {
+      const convIds = ifcApi.GetLineIDsWithType(0, WEBIFC.IFCMAPCONVERSION);
+      if (convIds.size() > 0) {
+        const conv = ifcApi.GetLine(0, convIds.get(0));
+        mapConversion = {
+          eastings: this.unwrapValue(conv.Eastings) ?? 0,
+          northings: this.unwrapValue(conv.Northings) ?? 0,
+          orthogonalHeight: this.unwrapValue(conv.OrthogonalHeight) ?? 0,
+          xAxisAbscissa: this.unwrapValue(conv.XAxisAbscissa) ?? 1,
+          xAxisOrdinate: this.unwrapValue(conv.XAxisOrdinate) ?? 0,
+          scale: this.unwrapValue(conv.Scale) ?? 1,
+        };
+      }
+    } catch {
+      // IFCMAPCONVERSION may not exist
+    }
+
+    return {
+      name,
+      description,
+      geodeticDatum,
+      verticalDatum,
+      mapProjection,
+      mapZone,
+      mapUnit,
+      mapConversion,
+    };
   }
 
   private getMetadataRecursively(source: any[], target: string[]) {

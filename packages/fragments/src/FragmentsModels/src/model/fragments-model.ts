@@ -260,6 +260,15 @@ export class FragmentsModel {
   }
 
   /**
+   * Get the Coordinate Reference System (CRS) data of the model, if available.
+   * Returns null if the source IFC file did not contain IFCPROJECTEDCRS
+   * or IFCCOORDINATEREFERENCESYSTEM entities.
+   */
+  async getCRS() {
+    return this._dataManager.getCRS(this);
+  }
+
+  /**
    * Get the GUIDs corresponding to the specified local IDs.
    * @param localIds - Array of local IDs to look up.
    */

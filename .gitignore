@@ -136,3 +136,4 @@ resources/asdf2.frag
 resources/asdf2.json
 
 .DS_Store
+.claude/

@@ -189,6 +189,19 @@ export class VirtualFragmentsModel {
     return this.properties.getMetadata();
   }
 
+  getCRS() {
+    // If there are any changes to the metadata, check there too
+    const found = EditUtils.applyChangesToSpecialData(
+      this.requests,
+      "METADATA",
+    );
+    if (found && found.crs) {
+      return found.crs;
+    }
+
+    return this.properties.getCRS();
+  }
+
   getLocalIdsByGuids(guids: string[]) {
     return this.properties.getLocalIdsByGuids(guids);
   }

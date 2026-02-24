@@ -89,6 +89,13 @@ export class SingleThreadedFragmentsModel {
   }
 
   /**
+   * Get the Coordinate Reference System (CRS) data of the model, if available.
+   */
+  getCRS() {
+    return this._virtualModel.getCRS();
+  }
+
+  /**
    * Get the GUIDs corresponding to the specified local IDs.
    * @param localIds - Array of local IDs to look up.
    */

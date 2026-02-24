@@ -5,6 +5,7 @@ import { Meshes, Model, SpatialStructure } from "../../../../Schema";
 import { Identifier } from "../../model";
 import {
   AttributesUniqueValuesParams,
+  CRSData,
   GetItemsByAttributeParams,
   GetItemsByRelationParams,
   ItemData,
@@ -152,6 +153,14 @@ export class VirtualPropertiesController {
       return null;
     }
     return JSON.parse(metadata);
+  }
+
+  getCRS(): CRSData | null {
+    const metadata = this.getMetadata();
+    if (!metadata || !metadata.crs) {
+      return null;
+    }
+    return metadata.crs as CRSData;
   }
 
   getItemIdsFromLocalIds(localIds?: Iterable<number>): number[] {
