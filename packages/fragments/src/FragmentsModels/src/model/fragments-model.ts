@@ -26,7 +26,7 @@ import { FragmentsConnection } from "../multithreading/fragments-connection";
 import { MeshManager } from "./mesh-manager";
 
 import { AlignmentsManager } from "./alignments-manager";
-import { DataMap, EditRequest } from "../../../Utils";
+import { DataMap, EditRequest, Event } from "../../../Utils";
 import { SetupManager } from "./setup-manager";
 import { BoxManager } from "./box-manager";
 import { CoordinatesManager } from "./coordinates-manager";
@@ -68,6 +68,20 @@ export class FragmentsModel {
    * The key is the tile ID, and the value is the tile.
    */
   readonly tiles = new DataMap<string | number, BIMMesh>();
+
+  /**
+   * Event triggered after a view update cycle finishes processing.
+   * Listeners receive this FragmentsModel instance, allowing queries
+   * like {@link getItemsByVisibility} to retrieve seen/unseen elements.
+   */
+  readonly onViewUpdated = new Event<FragmentsModel>();
+
+  /**
+   * A set of item IDs that are currently visible (i.e. have at least
+   * one tile rendered on screen). Updated automatically as tiles are
+   * created and deleted by the mesh manager.
+   */
+  readonly visibleItems = new Set<number>();
 
   /**
    * The object that represents the model in the Three.js scene.
@@ -204,6 +218,8 @@ export class FragmentsModel {
    */
   async dispose() {
     this._isLoaded = false;
+    this.visibleItems.clear();
+    this.onViewUpdated.reset();
     await this._dataManager.dispose(
       this,
       this._meshManager,
@@ -887,6 +903,7 @@ export class FragmentsModel {
    */
   _finishProcessing() {
     this._isProcessing = false;
+    this.onViewUpdated.trigger(this);
   }
 
   _setDeltaModel(modelId: string) {

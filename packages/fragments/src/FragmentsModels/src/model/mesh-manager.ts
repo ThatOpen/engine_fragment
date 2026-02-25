@@ -80,14 +80,44 @@ export class MeshManager {
       if (request.objectClass === undefined) return;
       const tile = this.create(request);
       this.setTileData(tile, request);
+      const uniqueIds = this.extractUniqueItemIds(request.itemIds);
+      tile.userData.itemIds = uniqueIds;
+      this.trackVisibleItems(model, uniqueIds, true);
       model.tiles.set(tile.userData.tileId, tile);
     } else if (tileRequestClass === TileRequestClass.DELETE) {
+      const tile = model.tiles.get(tileId);
+      if (tile?.userData.itemIds) {
+        this.trackVisibleItems(model, tile.userData.itemIds, false);
+      }
       model.tiles.delete(tileId);
     } else if (tileRequestClass === TileRequestClass.UPDATE) {
       const tileObject = model.tiles.get(tileId);
       if (tileObject) this.updateStatus(tileObject, request);
     } else if (tileRequestClass === TileRequestClass.FINISH) {
       model._finishProcessing();
+    }
+  }
+
+  private extractUniqueItemIds(itemIds: any): Set<number> {
+    const unique = new Set<number>();
+    if (!itemIds) return unique;
+    for (let i = 0; i < itemIds.length; i++) {
+      unique.add(itemIds[i]);
+    }
+    return unique;
+  }
+
+  private trackVisibleItems(
+    model: FragmentsModel,
+    itemIds: Set<number>,
+    added: boolean,
+  ) {
+    for (const itemId of itemIds) {
+      if (added) {
+        model.visibleItems.add(itemId);
+      } else {
+        model.visibleItems.delete(itemId);
+      }
     }
   }
 
