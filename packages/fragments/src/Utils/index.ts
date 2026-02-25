@@ -10,3 +10,4 @@ export * from "./ifc-utils";
 export * from "./ifc-geometries-map";
 export * from "./ifc-relations-map";
 export * from "./worker-utils";
+export * from "./ifc-splitter";
