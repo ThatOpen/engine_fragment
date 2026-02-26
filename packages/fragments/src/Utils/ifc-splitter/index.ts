@@ -3,8 +3,39 @@
 /* eslint-disable no-cond-assign */
 /* eslint-disable no-bitwise */
 
-import * as fs from "fs";
-import * as path from "path";
+// ---------------------------------------------------------------------------
+// Node.js dependency injection (avoids top-level fs/path imports for bundlers)
+// ---------------------------------------------------------------------------
+
+/** Subset of Node.js `fs` used by the splitter. */
+export interface IfcSplitterFs {
+  openSync(path: string, flags: string): number;
+  readSync(
+    fd: number,
+    buffer: any,
+    offset: number,
+    length: number,
+    position: null,
+  ): number;
+  writeSync(fd: number, data: any, offset?: number, length?: number): number;
+  closeSync(fd: number): void;
+  existsSync(path: string): boolean;
+  mkdirSync(path: string, options?: { recursive?: boolean }): void;
+  statSync(path: string): { size: number };
+}
+
+/** Subset of Node.js `path` used by the splitter. */
+export interface IfcSplitterPath {
+  join(...paths: string[]): string;
+  dirname(p: string): string;
+  basename(p: string): string;
+}
+
+/** Dependencies that must be provided by the caller (Node.js modules). */
+export interface IfcSplitterDeps {
+  fs: IfcSplitterFs;
+  path: IfcSplitterPath;
+}
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -227,13 +258,19 @@ function extractArgsString(raw: string | undefined): string | null {
 // ---------------------------------------------------------------------------
 // Synchronous chunked file reader — replaces readline (3-5x faster)
 // ---------------------------------------------------------------------------
-function forEachLine(filePath: string, callback: (line: string) => void): void {
+function forEachLine(
+  fsLike: IfcSplitterFs,
+  filePath: string,
+  callback: (line: string) => void,
+): void {
   const CHUNK = 8 * 1024 * 1024;
-  const fd = fs.openSync(filePath, "r");
+  const fd = fsLike.openSync(filePath, "r");
   const readBuf = Buffer.allocUnsafe(CHUNK);
   let tail = "";
   let bytesRead: number;
-  while ((bytesRead = fs.readSync(fd, readBuf as any, 0, CHUNK, null)) > 0) {
+  while (
+    (bytesRead = fsLike.readSync(fd, readBuf as any, 0, CHUNK, null)) > 0
+  ) {
     const chunk = readBuf.toString("utf-8", 0, bytesRead);
     let start = 0;
     let idx = chunk.indexOf("\n");
@@ -260,20 +297,22 @@ function forEachLine(filePath: string, callback: (line: string) => void): void {
     if (start < chunk.length) tail = chunk.substring(start);
   }
   if (tail) callback(tail);
-  fs.closeSync(fd);
+  fsLike.closeSync(fd);
 }
 
 // ---------------------------------------------------------------------------
 // Buffered synchronous file writer — avoids per-line write() syscalls
 // ---------------------------------------------------------------------------
 class BufferedWriter {
+  private fsLike: IfcSplitterFs;
   private fd: number;
   private buf: Buffer;
   private pos: number;
   private bufSize: number;
 
-  constructor(filePath: string, bufSize: number) {
-    this.fd = fs.openSync(filePath, "w");
+  constructor(fsLike: IfcSplitterFs, filePath: string, bufSize: number) {
+    this.fsLike = fsLike;
+    this.fd = fsLike.openSync(filePath, "w");
     this.buf = Buffer.allocUnsafe(bufSize);
     this.pos = 0;
     this.bufSize = bufSize;
@@ -284,7 +323,7 @@ class BufferedWriter {
     if (this.pos + bytes > this.bufSize) {
       this.flush();
       if (bytes > this.bufSize) {
-        fs.writeSync(this.fd, str);
+        this.fsLike.writeSync(this.fd, str);
         return;
       }
     }
@@ -293,14 +332,14 @@ class BufferedWriter {
 
   flush(): void {
     if (this.pos > 0) {
-      fs.writeSync(this.fd, this.buf as any, 0, this.pos);
+      this.fsLike.writeSync(this.fd, this.buf as any, 0, this.pos);
       this.pos = 0;
     }
   }
 
   close(): void {
     this.flush();
-    fs.closeSync(this.fd);
+    this.fsLike.closeSync(this.fd);
   }
 }
 
@@ -389,7 +428,7 @@ class LineIndex {
 // ---------------------------------------------------------------------------
 // Streaming IFC parser
 // ---------------------------------------------------------------------------
-function parseIfc(filePath: string): ParseResult {
+function parseIfc(fsLike: IfcSplitterFs, filePath: string): ParseResult {
   const header: string[] = [];
   const footer: string[] = [];
   const index = new LineIndex();
@@ -400,7 +439,7 @@ function parseIfc(filePath: string): ParseResult {
 
   console.time("parse");
 
-  forEachLine(filePath, (line: string) => {
+  forEachLine(fsLike, filePath, (line: string) => {
     if (section === "header") {
       header.push(line);
       if (line.trim() === "DATA;") section = "data";
@@ -758,10 +797,12 @@ function resolveStyles(
  * @param outputDir - Directory for output files. Defaults to `output/` next to the input file.
  */
 export function split(
+  deps: IfcSplitterDeps,
   inputPath: string,
   numGroups: number,
   outputDir?: string,
 ): void {
+  const { fs, path } = deps;
   if (!fs.existsSync(inputPath)) {
     console.error(`File not found: ${inputPath}`);
     process.exit(1);
@@ -772,7 +813,7 @@ export function split(
   fs.mkdirSync(resolvedOutputDir, { recursive: true });
 
   // 1. Parse
-  const { header, footer, index } = parseIfc(inputPath);
+  const { header, footer, index } = parseIfc(fs, inputPath);
 
   // 2. Identify spatial structure (shared in all files)
   console.time("spatial");
@@ -1004,6 +1045,7 @@ export function split(
   // 10. Second pass: write output files
   console.time("write");
   writeOutputFiles(
+    deps,
     inputPath,
     resolvedOutputDir,
     header,
@@ -1031,10 +1073,12 @@ export function split(
  * @param outputPath - Path for the output IFC file.
  */
 export function extract(
+  deps: IfcSplitterDeps,
   inputPath: string,
   elementIds: number[],
   outputPath: string,
 ): void {
+  const { fs, path } = deps;
   if (!fs.existsSync(inputPath)) {
     console.error(`File not found: ${inputPath}`);
     process.exit(1);
@@ -1044,7 +1088,7 @@ export function extract(
   fs.mkdirSync(outputDir, { recursive: true });
 
   // 1. Parse
-  const { header, footer, index } = parseIfc(inputPath);
+  const { header, footer, index } = parseIfc(fs, inputPath);
 
   // 2. Identify spatial structure (shared)
   console.time("spatial");
@@ -1181,20 +1225,20 @@ export function extract(
   console.log(`  Total lines in output: ${fileIds.size}`);
 
   // 7. Free index, write output
-  const maxParsedId = index.maxId;
+  // const maxParsedId = index.maxId;
   index.free();
 
   // Build simple inclusion set
   const includeSet = new Set<number>(fileIds);
 
   console.time("write");
-  const bw = new BufferedWriter(outputPath, 4 * 1024 * 1024);
+  const bw = new BufferedWriter(fs, outputPath, 4 * 1024 * 1024);
   bw.write(`${header.join("\n")}\n`);
 
   let section: "header" | "data" | "footer" = "header";
   let accumulator = "";
 
-  forEachLine(inputPath, (line: string) => {
+  forEachLine(fs, inputPath, (line: string) => {
     if (section === "header") {
       if (line.trim() === "DATA;") section = "data";
       return;
@@ -1260,6 +1304,7 @@ function emitSingleLine(
 // Second-pass output writer
 // ---------------------------------------------------------------------------
 function writeOutputFiles(
+  deps: IfcSplitterDeps,
   inputPath: string,
   outputDir: string,
   header: string[],
@@ -1267,6 +1312,7 @@ function writeOutputFiles(
   groupsData: (GroupData | null)[],
   idGroupMask: Uint32Array,
 ): void {
+  const { fs, path } = deps;
   const numGroups = groupsData.length;
 
   const writers: (BufferedWriter | null)[] = [];
@@ -1280,7 +1326,7 @@ function writeOutputFiles(
       outputDir,
       `split_${String(g + 1).padStart(3, "0")}.ifc`,
     );
-    const bw = new BufferedWriter(outName, 4 * 1024 * 1024);
+    const bw = new BufferedWriter(fs, outName, 4 * 1024 * 1024);
     bw.write(headerStr);
     writers.push(bw);
   }
@@ -1288,7 +1334,7 @@ function writeOutputFiles(
   let section: "header" | "data" | "footer" = "header";
   let accumulator = "";
 
-  forEachLine(inputPath, (line: string) => {
+  forEachLine(fs, inputPath, (line: string) => {
     if (section === "header") {
       if (line.trim() === "DATA;") section = "data";
       return;

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import * as fs from "fs";
 import * as path from "path";
-import { split } from "./split";
+import { split } from "./index";
 
 const args = process.argv.slice(2);
 if (args.length < 2) {
@@ -14,7 +15,7 @@ const numGroups = parseInt(args[1], 10);
 const outputDir = args[2] ? path.resolve(args[2]) : undefined;
 
 try {
-  split(inputPath, numGroups, outputDir);
+  split({ fs, path }, inputPath, numGroups, outputDir);
 } catch (err) {
   console.error(err);
   process.exit(1);
