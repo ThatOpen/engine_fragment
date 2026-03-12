@@ -184,8 +184,14 @@ export class EditHelper {
       deltaModel.useCamera(camera);
     }
 
-    // Model has all the data, so it can start updating
-    deltaModel.frozen = false;
+    // Model has all the data, so it can start updating.
+    // Don't use the frozen setter (which fires _refreshView without await).
+    // Instead, unfreeze and explicitly await the view refresh + tile processing
+    // so that new tiles are in the scene BEFORE we return (and the caller
+    // disposes the old delta model).
+    (deltaModel as any)._frozen = false;
+    await deltaModel._refreshView();
+    await this._fragments.models.forceUpdateFinish();
 
     return deltaModel;
   }
