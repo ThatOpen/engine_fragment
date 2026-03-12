@@ -712,11 +712,12 @@ export function edit(
       continue;
     }
 
-    const needsUpdate = shellsToUpdate.has(id);
+    // Check if this newly-created representation also has a pending update
+    // (happens for raw/delta models where CREATE + UPDATE are replayed in the same batch)
+    const needsUpdate = reprsToUpdate.has(id);
     let shellOffset = 0;
     if (needsUpdate) {
-      const reprId = shellsToUpdate.get(id) as number;
-      const repr = reprsToUpdate.get(reprId) as ET.RawRepresentation;
+      const repr = reprsToUpdate.get(id) as ET.RawRepresentation;
       const shell = repr.geometry as ET.RawShell;
       shellOffset = createShell(builder, shell);
     } else {
@@ -765,11 +766,12 @@ export function edit(
       continue;
     }
 
-    const needsUpdate = circleExtrusionsToUpdate.has(id);
+    // Check if this newly-created representation also has a pending update
+    // (happens for raw/delta models where CREATE + UPDATE are replayed in the same batch)
+    const needsUpdate = reprsToUpdate.has(id);
     let circleExtrusionOffset = 0;
     if (needsUpdate) {
-      const reprId = circleExtrusionsToUpdate.get(id) as number;
-      const repr = reprsToUpdate.get(reprId) as ET.RawRepresentation;
+      const repr = reprsToUpdate.get(id) as ET.RawRepresentation;
       const circleExtrusion = repr.geometry as ET.RawCircleExtrusion;
       circleExtrusionOffset = createCircleExtrusion(builder, circleExtrusion);
     } else {
