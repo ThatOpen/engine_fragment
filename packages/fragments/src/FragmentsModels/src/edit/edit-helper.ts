@@ -56,10 +56,11 @@ export class EditHelper {
     this._deltaModels[modelId] = [deltaModel];
     model.deltaModelId = deltaModel.modelId;
 
-    // Dispose old delta models
+    // Dispose old delta models and remove from models list
     const deletePromises = [];
     for (const oldDeltaModel of oldDeltaModels) {
       deletePromises.push(oldDeltaModel.dispose());
+      this._fragments.models.list.delete(oldDeltaModel.modelId);
     }
     await Promise.all(deletePromises);
 

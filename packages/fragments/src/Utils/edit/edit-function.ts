@@ -362,8 +362,18 @@ export function edit(
   const deletedReprCount = delta
     ? deltaDeletedRepresentations
     : reprsToDelete.size;
+  // In delta mode, representations that exist in both deltaReps (from UPDATE)
+  // and reprsToCreate (from replayed CREATE) are double-counted. Subtract overlap.
+  let reprOverlap = 0;
+  if (delta) {
+    for (const [id] of reprsToCreate) {
+      if (deltaReps.has(id)) {
+        reprOverlap++;
+      }
+    }
+  }
   const newReprCount =
-    includedReprCount + reprsToCreate.size - deletedReprCount;
+    includedReprCount + reprsToCreate.size - deletedReprCount - reprOverlap;
 
   const prevShellCount = meshes.shellsLength();
   const includedShellCount = delta ? deltaShells.size : prevShellCount;
