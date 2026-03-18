@@ -58,6 +58,21 @@ export class VisibilityHelper {
     }
   }
 
+  // Remove items from the hidden-for-edit set so future setVisible calls
+  // can control them again. Used when navigating history back to a state
+  // where those items are no longer in the delta.
+  unhideForEdit(localIds: number[]) {
+    for (const id of localIds) {
+      this._hiddenForEdit.delete(id);
+    }
+  }
+
+  // Clear the entire hidden-for-edit set. Used when undoing all edits
+  // so every item can be made visible on the base model again.
+  clearHiddenForEdit() {
+    this._hiddenForEdit.clear();
+  }
+
   private filterHiddenForEdit(localIds: number[]) {
     if (!this._hiddenForEdit.size) {
       return localIds;

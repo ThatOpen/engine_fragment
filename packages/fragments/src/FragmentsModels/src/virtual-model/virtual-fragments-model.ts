@@ -427,6 +427,10 @@ export class VirtualFragmentsModel {
     this._visibilityHelper.hideForEdit(this, localIds);
   }
 
+  clearHiddenForEdit() {
+    this._visibilityHelper.clearHiddenForEdit();
+  }
+
   getItemsChildren(ids: Identifier[]) {
     return this.properties.getItemsChildren(ids);
   }
@@ -469,6 +473,10 @@ export class VirtualFragmentsModel {
       raw: true,
       delta: true,
     });
+    // Clear the previous hidden-for-edit set before applying the new one.
+    // Each edit() rebuilds the delta from all current requests, so `items`
+    // is the complete set of edited items — old entries must not persist.
+    this._visibilityHelper.clearHiddenForEdit();
     this._visibilityHelper.hideForEdit(this, items);
     return { deltaModelBuffer: model, ids };
   }
