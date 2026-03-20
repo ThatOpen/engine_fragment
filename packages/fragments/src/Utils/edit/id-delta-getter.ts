@@ -186,9 +186,13 @@ export function getIdsDelta(model: TFB.Model, requests: ET.EditRequest[]) {
   }
 
   // Also count deleted shells and circle extrusions
+  // Only count representations that were NOT in the base model (i.e., created
+  // in a previous edit request). Base-model representations are not included
+  // in the delta, so deleting them must not affect the delta's shell/extrusion count.
 
   const deletedReprs = EditUtils.getRepresentations(model, deletedRepsIds);
-  for (const [, repr] of deletedReprs) {
+  for (const [id, repr] of deletedReprs) {
+    if (prevRepresentations.has(id)) continue;
     if (repr.representationClass === TFB.RepresentationClass.SHELL) {
       detaDeletedShellsCount++;
     } else if (
