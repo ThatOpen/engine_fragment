@@ -149,7 +149,8 @@ const ELEMENT_TYPES: Set<string> = new Set([
   "IFCSHADINGDEVICE",
   "IFCCHIMNEY",
   "IFCGEOGRAPHICELEMENT",
-  "IFCPROXY",
+  "IFCPROXY", 
+  "IFCMECHANICALFASTENER",
 ]);
 
 const SPATIAL_TYPES: Set<string> = new Set([
