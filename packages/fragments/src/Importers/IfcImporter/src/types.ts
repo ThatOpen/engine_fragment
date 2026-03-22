@@ -1,3 +1,5 @@
+import type { ModelLoadCallback } from "web-ifc";
+
 export interface ProgressData {
   process: "geometries" | "attributes" | "relations" | "conversion";
   state: "start" | "inProgress" | "finish";
@@ -7,9 +9,16 @@ export interface ProgressData {
 
 export interface ProcessData {
   id?: string;
-  readFromCallback?: boolean;
   bytes?: Uint8Array;
-  readCallback?: any;
+  /**
+   * @see {@link readCallback}
+   * @default false
+   */
+  readFromCallback?: boolean;
+  /**
+   * Read ifc file incrementally, use instead of passing {@link bytes}
+   */
+  readCallback?: ModelLoadCallback;
   raw?: boolean;
   progressCallback?: (progress: number, data: ProgressData) => void;
 }
