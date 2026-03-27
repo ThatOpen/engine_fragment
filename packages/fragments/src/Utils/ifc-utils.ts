@@ -1,12 +1,12 @@
-import * as WEBIFC from "web-ifc";
 import * as THREE from "three";
+import * as WEBIFC from "web-ifc";
 
 export class FragmentsIfcUtils {
   static getAbsolutePlacement(
     webIfc: WEBIFC.IfcAPI,
     item: any,
     // We can pass predefined units factor to avoid recalculating it
-    unitsFactor = this.getUnitsFactor(webIfc),
+    unitsFactor = this.getUnitsFactor(webIfc)
   ) {
     const placementId = item.ObjectPlacement.value;
     const placement = webIfc.GetLine(0, placementId);
@@ -16,7 +16,7 @@ export class FragmentsIfcUtils {
       webIfc,
       placement,
       ifcResult,
-      unitsFactor,
+      unitsFactor
     );
 
     // Transforms ifc coord system to three.js coord system
@@ -33,7 +33,7 @@ export class FragmentsIfcUtils {
   static getUnitsFactor(ifcApi: WEBIFC.IfcAPI) {
     const unitAssignmentIds = ifcApi.GetLineIDsWithType(
       0,
-      WEBIFC.IFCUNITASSIGNMENT,
+      WEBIFC.IFCUNITASSIGNMENT
     );
 
     let result = 1;
@@ -74,7 +74,7 @@ export class FragmentsIfcUtils {
     webIfc: WEBIFC.IfcAPI,
     placement: any,
     result: THREE.Matrix4,
-    unitsFactor: number,
+    unitsFactor: number
   ) {
     // Current relative placement
     const relativePlacementId = placement.RelativePlacement.value;
@@ -98,18 +98,22 @@ export class FragmentsIfcUtils {
 
     if (zAxisRef) {
       const zAxisData = webIfc.GetLine(0, zAxisRef.value);
-      const [z1, z2, z3] = zAxisData.DirectionRatios;
-      zAxis.x = z1.value;
-      zAxis.y = z2.value;
-      zAxis.z = z3.value;
+      const [z1, z2, z3] = (
+        zAxisData.DirectionRatios as (number | { value: number })[]
+      ).map((v) => (typeof v === "number" ? v : v.value));
+      zAxis.x = z1;
+      zAxis.y = z2;
+      zAxis.z = z3;
     }
 
     if (xAxisRef) {
       const xAxisData = webIfc.GetLine(0, xAxisRef.value);
-      const [x1, x2, x3] = xAxisData.DirectionRatios;
-      xAxis.x = x1.value;
-      xAxis.y = x2.value;
-      xAxis.z = x3.value;
+      const [x1, x2, x3] = (
+        xAxisData.DirectionRatios as (number | { value: number })[]
+      ).map((v) => (typeof v === "number" ? v : v.value));
+      xAxis.x = x1;
+      xAxis.y = x2;
+      xAxis.z = x3;
     }
 
     const yAxis = zAxis.clone().cross(xAxis);
@@ -130,8 +134,6 @@ export class FragmentsIfcUtils {
 
     result.premultiply(tempMatrix);
 
-    // console.log(relativePlacement);
-
     // Parent placement
     if (!placement.PlacementRelTo || !placement.PlacementRelTo.value) return;
     const parentPlacementId = placement.PlacementRelTo.value;
@@ -140,7 +142,7 @@ export class FragmentsIfcUtils {
       webIfc,
       parentPlacement,
       result,
-      unitsFactor,
+      unitsFactor
     );
   }
 }

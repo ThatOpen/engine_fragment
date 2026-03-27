@@ -1,5 +1,5 @@
-import * as WEBIFC from "web-ifc";
 import * as THREE from "three";
+import * as WEBIFC from "web-ifc";
 import { GridAxisData, GridData } from "../../../../FragmentsModels";
 import { FragmentsIfcUtils } from "../../../../Utils";
 
@@ -23,7 +23,7 @@ export class GridReader {
         const transform = FragmentsIfcUtils.getAbsolutePlacement(
           webIfc,
           grid,
-          units,
+          units
         );
 
         transform.premultiply(coordMatrix);
@@ -55,7 +55,7 @@ export class GridReader {
     units: number,
     ifcKey: "UAxes" | "VAxes" | "WAxes",
     fragKey: "uAxes" | "vAxes" | "wAxes",
-    gridData: GridData,
+    gridData: GridData
   ) {
     if (!ifcGrid[ifcKey]) {
       return;
@@ -71,16 +71,29 @@ export class GridReader {
       if (!curve.Points) {
         continue;
       }
-      const pointsId = curve.Points.value;
-      if (!pointsId) {
-        continue;
-      }
-      const ifcPoints = webIfc.GetLine(0, pointsId);
-      if (ifcPoints.CoordList) {
-        for (const coordinates of ifcPoints.CoordList) {
-          for (const coord of coordinates) {
-            const value = coord.value * units;
-            axisData.curve.push(value);
+
+      if (curve.type === WEBIFC.IFCPOLYLINE) {
+        for (const { value: pointId } of curve.Points) {
+          const ifcPoints = webIfc.GetLine(0, pointId);
+          if (ifcPoints.Coordinates) {
+            for (const coord of ifcPoints.Coordinates) {
+              const value = coord.value * units;
+              axisData.curve.push(value);
+            }
+          }
+        }
+      } else {
+        const pointsId = curve.Points.value;
+        if (!pointsId) {
+          continue;
+        }
+        const ifcPoints = webIfc.GetLine(0, pointsId);
+        if (ifcPoints.CoordList) {
+          for (const coordinates of ifcPoints.CoordList) {
+            for (const coord of coordinates) {
+              const value = coord.value * units;
+              axisData.curve.push(value);
+            }
           }
         }
       }
