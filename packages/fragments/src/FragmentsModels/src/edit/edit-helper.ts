@@ -40,14 +40,17 @@ export class EditHelper {
 
     const { deltaModelBuffer, ids } = await model._edit(actions);
 
-    // Add local ids to actions
-    // This is fragile because it depends tightly on the id solver logic
-    // TODO: Maybe we can do this in a better way?
+    // Add local ids to actions.
+    // The ids array only contains entries for requests that received new
+    // local ids (those that didn't already have one). We must use a
+    // separate counter so that pre-existing localIds (e.g. DELETE requests
+    // prepended to a CREATE batch) don't shift the mapping.
+    let idsIdx = 0;
     for (let i = 0; i < actions.length; i++) {
       if (actions[i].localId !== undefined) {
         continue;
       }
-      actions[i].localId = ids[i];
+      actions[i].localId = ids[idsIdx++];
     }
 
     // Load new delta models
