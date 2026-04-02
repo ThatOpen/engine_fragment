@@ -31,15 +31,11 @@ export class GridReader {
         const data: GridData = {
           id,
           transform: transform.elements,
-          uAxes: [],
-          vAxes: [],
-          wAxes: [],
+          uAxes: this.getGridAxes(grid, webIfc, units, "UAxes"),
+          vAxes: this.getGridAxes(grid, webIfc, units, "VAxes"),
+          wAxes: this.getGridAxes(grid, webIfc, units, "WAxes"),
         };
         result.push(data);
-
-        this.getGridAxes(grid, webIfc, units, "UAxes", "uAxes", data);
-        this.getGridAxes(grid, webIfc, units, "VAxes", "vAxes", data);
-        this.getGridAxes(grid, webIfc, units, "WAxes", "wAxes", data);
       }
 
       return result;
@@ -53,13 +49,13 @@ export class GridReader {
     ifcGrid: any,
     webIfc: WEBIFC.IfcAPI,
     units: number,
-    ifcKey: "UAxes" | "VAxes" | "WAxes",
-    fragKey: "uAxes" | "vAxes" | "wAxes",
-    gridData: GridData
-  ) {
+    ifcKey: "UAxes" | "VAxes" | "WAxes"
+  ): GridAxisData[] {
     if (!ifcGrid[ifcKey]) {
-      return;
+      return [];
     }
+
+    const axisDataArr: GridAxisData[] = [];
     for (const axis of ifcGrid[ifcKey]) {
       const axisCurve = webIfc.GetLine(0, axis.value);
       const curveId = axisCurve.AxisCurve.value;
@@ -97,7 +93,8 @@ export class GridReader {
           }
         }
       }
-      gridData[fragKey].push(axisData);
+      axisDataArr.push(axisData);
     }
+    return axisDataArr;
   }
 }
