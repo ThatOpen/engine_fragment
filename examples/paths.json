@@ -1,15 +1,54 @@
 [
-  "packages/fragments/src/Importers/IfcImporter/example.ts",
-  "packages/fragments/src/Importers/IfcImporter/examples/HelloWorldSchema/example.ts",
-  "packages/fragments/src/FragmentsModels/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/VisibilityOperations/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/SteelDetailing/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/Rebars/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/Raycasting/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/ModelInformation/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/Materials/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/EditProperties/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/EditElements/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/EditApi/example.ts",
-  "packages/fragments/src/FragmentsModels/examples/BuildingConfigurator/example.ts"
+  {
+    "path": "packages/fragments/src/Importers/IfcImporter/example.ts",
+    "description": "In this tutorial, we'll learn how to convert large and complex IFC files into the lightweight, modern binary BIM data that we call Fragments for high-performance applications. Let's get started!"
+  },
+  {
+    "path": "packages/fragments/src/Importers/IfcImporter/examples/HelloWorldSchema/example.ts",
+    "description": "In this demo we will create a simple app that allows us to navigate the Fragments schema of IFC STEP files. This is not something you will usually need to do in your apps, but it will serve as a demonstration"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/example.ts",
+    "description": "Before diving into the world of Fragments, the first step is to load your Fragment Models. This is a crucial step to unlock the full potential of working with Fragments. Let's explore how to do it effectively."
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/VisibilityOperations/example.ts",
+    "description": "Managing visibility—whether it's hiding, showing, or toggling—is a fundamental feature in any 3D application. In this tutorial, you'll learn how to effectively manage the visibility of your Fragments models!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/SteelDetailing/example.ts",
+    "description": "In this tutorial, we'll explore how to create detailed steel structures using the Fragments API. We'll learn how to generate steel frames, base plates, connections, and other structural steel elements with proper geometric relationships and detailing. Let's dive in!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/Rebars/example.ts",
+    "description": "In this tutorial, we'll explore how to create and work with reinforced concrete elements using the Fragments API. We'll learn how to generate column and footing rebars with proper spacing, colors, and geometric relationships. Let's dive in!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/Raycasting/example.ts",
+    "description": "Determining what lies beneath the mouse pointer is one of the most essential operations in any 3D application. Working with Fragments is no exception, and we provide you with convenient tools to achieve this. Let’s dive in!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/ModelInformation/example.ts",
+    "description": "A BIM model is only as valuable as the information it provides. Retrieving specific data efficiently is crucial for any workflow. In this tutorial, you'll learn how to extract and utilize data from Fragments with ease!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/Materials/example.ts",
+    "description": "In this tutorial, we'll explore how to work with materials in Fragments models. We'll learn how to load textures, apply different material properties, and dynamically change materials on specific elements. Let's dive in!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/EditProperties/example.ts",
+    "description": "In this tutorial, we'll explore how to easily edit BIM properties using the Fragments Edit API. We will create, delete, edit and relate properties, register everything in a history that we can revert and more. Let’s dive in!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/EditElements/example.ts",
+    "description": "In this tutorial, we'll explore how to easily edit BIM elements using the Fragments Edit API. We will move things around, change its materials, edit its instance attributes, register everything in a history that we can revert and more. Let’s dive in!"
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/EditApi/example.ts",
+    "description": "Viewing BIM models is cool, but sometimes we also need to edit the information of existing BIM models. In this tutorial, we'll explore how to edit BIM models using the Fragments Edit API, covering most of the edit operations."
+  },
+  {
+    "path": "packages/fragments/src/FragmentsModels/examples/BuildingConfigurator/example.ts",
+    "description": "In this tutorial, we'll learn how to build a configurator using the Fragments API. We'll define some basic parameters (like building width and length) and generate one or multiple floors of a simple building based on them. Let’s dive in!"
+  }
 ]
