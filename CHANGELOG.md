@@ -1,5 +1,38 @@
 # Changelog
 
+## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
+
+
+### Features
+
+* add crs support ([304d56b](https://github.com/ThatOpen/engine_fragment/commit/304d56b61e9d8d1d2a74ff0176d779345399c61d))
+* add ifc file splitter and extractor ([f5ee358](https://github.com/ThatOpen/engine_fragment/commit/f5ee35807f566eff83ae732568ba6ede9727ad5b))
+* implement highlights for lod ([063293d](https://github.com/ThatOpen/engine_fragment/commit/063293d59b5123964145fb3df91e9cdbbb3d4118))
+* implement more ifc properties cases ([b6ed3c1](https://github.com/ThatOpen/engine_fragment/commit/b6ed3c1b007e9f851f661d2d63bd583e4ecea0c0))
+* implement optional traditional workers ([f976443](https://github.com/ThatOpen/engine_fragment/commit/f97644314ba0b8b19ff671760d5c1dbfc638f015))
+* inject ifc splitter dependencies ([1cc799b](https://github.com/ThatOpen/engine_fragment/commit/1cc799b15fb0110e8a33c0eb3617ab3980911661))
+* make worker url optional ([a99d069](https://github.com/ThatOpen/engine_fragment/commit/a99d06981be223b0cb2b0b13b1f300592024a22f))
+* track visible items ([6804110](https://github.com/ThatOpen/engine_fragment/commit/680411030ddb39d5ca64354538a31a688655a53e))
+
+
+### Bug Fixes
+
+* correct boolean operation bug ([8bc50a7](https://github.com/ThatOpen/engine_fragment/commit/8bc50a7c4493a11d13983d6e2e47a154b26a2d33))
+* correct bug when editing newly created items ([381eb46](https://github.com/ThatOpen/engine_fragment/commit/381eb463925b06662fec7399aab966b8ca5676f7))
+* correct deduplication algo bug ([081a1a9](https://github.com/ThatOpen/engine_fragment/commit/081a1a9287f7dfb95094e648016ce4f9742e3338))
+* correct edge case when editing fragments ([282eb0b](https://github.com/ThatOpen/engine_fragment/commit/282eb0b5dc3b2e994ddd24ea8237c7af194333d7))
+* correct edit id conter behavior ([fb9b907](https://github.com/ThatOpen/engine_fragment/commit/fb9b907ac36ae3cb977526efb76d90d020730283))
+* correct edit visibility logic ([e1a94ef](https://github.com/ThatOpen/engine_fragment/commit/e1a94efc5985f21f9b59d6f97f6bb2c86c766d8c))
+* correct editing newly created elements ([663351d](https://github.com/ThatOpen/engine_fragment/commit/663351d755c8df4f5edbf3ca7e3074dcc2ebac2e))
+* correct raycasting frustum for ortho camera ([fda0eca](https://github.com/ThatOpen/engine_fragment/commit/fda0eca55130e7f1ae780ffaf8e6b855fa61572b))
+* correct various edit bugs ([363318e](https://github.com/ThatOpen/engine_fragment/commit/363318e095dd3730a843dadc87620704d589759f))
+* correct visibility control when using all_visible ([b1b32d4](https://github.com/ThatOpen/engine_fragment/commit/b1b32d4241b2ef435ff5078d89a1afb7aaf79344))
+* eliminate visual blink during delta model edits ([0163621](https://github.com/ThatOpen/engine_fragment/commit/01636210b07d6a6ec03e1273fca4324627a0500b))
+* **materials:** Fix setColor and setOpacity ([#148](https://github.com/ThatOpen/engine_fragment/issues/148)) ([08289d3](https://github.com/ThatOpen/engine_fragment/commit/08289d3a3f1e5da52cef90ebf09aca9d8f7d81ea))
+* **rebar:** use shell geometry if rebars are not exported as SweptDiskSolids ([#156](https://github.com/ThatOpen/engine_fragment/issues/156)) ([20c1916](https://github.com/ThatOpen/engine_fragment/commit/20c1916f30f35f0664728d7e3a7e9c2909cb372b))
+* reset attributesToExclude to ensure all attributes are processed ([#159](https://github.com/ThatOpen/engine_fragment/issues/159)) ([1327272](https://github.com/ThatOpen/engine_fragment/commit/132727204b597fbaa521adb5d70f9d10e9d8859a))
+* solve error when loading civil files with empty alignments ([069f944](https://github.com/ThatOpen/engine_fragment/commit/069f944b55b918ac0955aefc97995a313a314c79))
+
 ## [3.3.2](https://github.com/ThatOpen/engine_fragment/compare/v3.3.0...v3.3.2) (2026-01-27)
 
 
