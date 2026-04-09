@@ -301,6 +301,18 @@ export class FragmentsModel {
   }
 
   /**
+   * Get a buffer containing only the specified items and their associated geometry.
+   * @param localIds - The local IDs of the items to include.
+   * @param raw - Whether to get the raw buffer. If false, it will be compressed.
+   */
+  async getSubsetBuffer(localIds: number[], raw = false) {
+    return this.threads.invoke(this.modelId, "getSubsetBuffer", [
+      localIds,
+      raw,
+    ]);
+  }
+
+  /**
    * Get all the items of the model that belong to the specified category.
    * @param category - The category to look up.
    */

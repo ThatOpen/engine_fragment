@@ -407,6 +407,45 @@ export class VirtualFragmentsModel {
     return raw ? buffer : pako.deflate(buffer as ArrayBuffer);
   }
 
+  getSubsetBuffer(localIds: number[], raw: boolean) {
+    // Build localId -> item index map
+    const localIdToIndex = new Map<number, number>();
+    for (let i = 0; i < this.data.localIdsLength(); i++) {
+      localIdToIndex.set(this.data.localIds(i)!, i);
+    }
+
+    // Get item indices for the requested localIds
+    const itemIndices = new Set<number>();
+    for (const localId of localIds) {
+      const index = localIdToIndex.get(localId);
+      if (index !== undefined) {
+        itemIndices.add(index);
+      }
+    }
+
+    // Fetch real item data using existing utility
+    const items = EditUtils.getItems(this.data, itemIndices);
+
+    // Build UPDATE_ITEM requests with the real data so that
+    // getIdsDelta includes these items and all their associated geometry
+    const requests: EditRequest[] = [];
+    for (const [localId, itemData] of items) {
+      requests.push({
+        type: EditRequestType.UPDATE_ITEM,
+        localId,
+        data: itemData,
+      });
+    }
+
+    // Generate a delta model containing only these items + their geometry
+    const { model } = EditUtils.edit(this.data, requests, {
+      raw: true,
+      delta: true,
+    });
+
+    return raw ? model : pako.deflate(model as ArrayBuffer);
+  }
+
   dispose() {
     this.tiles.dispose();
   }

@@ -55,6 +55,10 @@ export type GeometryProcessSettings = {
    * Whether to force ifc spaces to be transparent.
    */
   forceTransparentSpaces: boolean;
+  /*
+   * Whether to process IfcRelSpaceBoundary2ndLevel entities and generate meshes from their IfcConnectionSurfaceGeometry.
+   */
+  processIfcRelSpaceBoundarySecondLevel?: boolean;
 };
 
 export class GeomsFbUtils {

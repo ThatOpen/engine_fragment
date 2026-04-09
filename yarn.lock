@@ -389,6 +389,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@dimforge/rapier3d-compat@npm:~0.12.0":
+  version: 0.12.0
+  resolution: "@dimforge/rapier3d-compat@npm:0.12.0"
+  checksum: 86cb3b39925673761aa5dca5429ca44e0c7ac8072472cca925e2ca732be695292e318501a2ab39110be1549d4f143a0af0620246657f76570c8cdd1b0b3df36c
+  languageName: node
+  linkType: hard
+
 "@esbuild/aix-ppc64@npm:0.19.12":
   version: 0.19.12
   resolution: "@esbuild/aix-ppc64@npm:0.19.12"
@@ -1537,7 +1544,22 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.3.0":
+"@thatopen/fragments@npm:~3.3.0":
+  version: 3.3.7
+  resolution: "@thatopen/fragments@npm:3.3.7"
+  dependencies:
+    earcut: ^3.0.1
+    flatbuffers: 25.2.10
+    lru-cache: 11.1.0
+    pako: 2.1.0
+  peerDependencies:
+    three: ">=0.175"
+    web-ifc: ">=0.0.74"
+  checksum: 8966ede587fe87c3ebe68160acace1fef919c426ee63ce7590be4026118849927ebc61397a065cdc68977646253c53bd8e76ea48b33e5de069ba99c821b7d52c
+  languageName: node
+  linkType: hard
+
+"@thatopen/fragments@workspace:packages/fragments":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
@@ -1549,7 +1571,7 @@ __metadata:
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
     "@types/pako": 2.0.3
-    "@types/three": 0.175.0
+    "@types/three": 0.183.1
     "@typescript-eslint/eslint-plugin": 7.2.0
     "@typescript-eslint/parser": 7.2.0
     earcut: ^3.0.1
@@ -1565,14 +1587,14 @@ __metadata:
     pako: 2.1.0
     prettier: 3.2.5
     stats.js: ^0.17.0
-    three: 0.175
+    three: 0.182.0
     ts-node: ^10.0.0
     tsx: ^4.19.2
     typescript: 5.4.2
-    web-ifc: 0.0.75
+    web-ifc: 0.0.77
   peerDependencies:
-    three: ">=0.175"
-    web-ifc: ">=0.0.74"
+    three: ">=0.182.0"
+    web-ifc: ">=0.0.77"
   languageName: unknown
   linkType: soft
 
@@ -1802,17 +1824,18 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/three@npm:0.175.0":
-  version: 0.175.0
-  resolution: "@types/three@npm:0.175.0"
+"@types/three@npm:0.183.1":
+  version: 0.183.1
+  resolution: "@types/three@npm:0.183.1"
   dependencies:
+    "@dimforge/rapier3d-compat": ~0.12.0
     "@tweenjs/tween.js": ~23.1.3
     "@types/stats.js": "*"
-    "@types/webxr": "*"
+    "@types/webxr": ">=0.5.17"
     "@webgpu/types": "*"
     fflate: ~0.8.2
-    meshoptimizer: ~0.18.1
-  checksum: f345254142cdaf780b99456097ac0375158ca61ed8b0fd4994b8d6cf7e25dedb9c1e14086287ce17846bfe364ad5add02d419d1133bbcb756d8daaceb153ad9f
+    meshoptimizer: ~1.0.1
+  checksum: ff0a9a6ca92131246fa40ca1f992517ac82796a7e864d93ae00b9f8795b15f0b2f6769862d25412c3f834d46fa91b4aa7ff8d942c2719d8b83e1676866af0824
   languageName: node
   linkType: hard
 
@@ -1823,10 +1846,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/webxr@npm:*":
-  version: 0.5.21
-  resolution: "@types/webxr@npm:0.5.21"
-  checksum: a2b9a8689c286723990a31abed7d06de0f61940cc6d3c0179ec3fba660395a1562f1ec84d45140e451e253a107639042811e47e38a837d909e87df42adccffb3
+"@types/webxr@npm:>=0.5.17":
+  version: 0.5.24
+  resolution: "@types/webxr@npm:0.5.24"
+  checksum: 3c87ea6a06cabb3023dc353363733763237c9d8f45d0402b07074823575805830133c0de00d34b4f73e9a6ba9a2ed2de204f62b33f6d820e14970a61a3333c36
   languageName: node
   linkType: hard
 
@@ -5644,10 +5667,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"meshoptimizer@npm:~0.18.1":
-  version: 0.18.1
-  resolution: "meshoptimizer@npm:0.18.1"
-  checksum: 101dbed8abd4cf167cdb7a0bc13db90dd0743332c689e43b18cc5254d238f0766750752432401fa63dc7e9e32399ef68daacf48f0d89db1484042c1761c7362d
+"meshoptimizer@npm:~1.0.1":
+  version: 1.0.1
+  resolution: "meshoptimizer@npm:1.0.1"
+  checksum: 464597746fee252d457bee7303d6146a0a7a719a005b61e3375477840239bfd286ce695db23674ed63ab11021577e45c9e1d5b0b3d2376304134b8301c501d2c
   languageName: node
   linkType: hard
 
@@ -7242,10 +7265,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"three@npm:0.175":
-  version: 0.175.0
-  resolution: "three@npm:0.175.0"
-  checksum: 9d24395620faae40fa91b83e352766932d70d0fba6589ab875bbaa08f47e6aa3f3b78f279ebfefc4468b6e21a8472c42ce27e0730427b21027c6dfa9c95e0994
+"three@npm:0.182.0":
+  version: 0.182.0
+  resolution: "three@npm:0.182.0"
+  checksum: f0161fe1178251e591ccafbd9d8e0dd289e641e9809ae6164e6f9e4f4eb30bacda0b06495253c5e650ea1059baabae5cbc28f7440b79da176c5bee690d564e08
   languageName: node
   linkType: hard
 
@@ -7752,10 +7775,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"web-ifc@npm:0.0.75":
-  version: 0.0.75
-  resolution: "web-ifc@npm:0.0.75"
-  checksum: 2b9a6e45a907223061667e6cc3f6a70cc42ab683177670db7d5190cf087adfbbdb56b8331c32da067fff49bb2aea3e035c45e744ee29bb850b63e6b2a6b7fb38
+"web-ifc@npm:0.0.77":
+  version: 0.0.77
+  resolution: "web-ifc@npm:0.0.77"
+  checksum: 0630fee272e48b525fe139a6ae0fab3b1029515de7951db93c1f6a552cff9af5b5ef11533ae2499c13abdb43cfa18d800db0c0716af36565f5502202da5ad114
   languageName: node
   linkType: hard
 

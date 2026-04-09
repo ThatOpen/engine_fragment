@@ -9,6 +9,7 @@ import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GridReader } from "./grid-reader";
+import { SpaceBoundaryReader } from "./space-boundary-reader";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -86,6 +87,7 @@ export class IfcFileReader {
 
   private _civilReader = new CivilReader();
   private _gridReader = new GridReader();
+  private _spaceBoundaryReader = new SpaceBoundaryReader();
 
   private _nextId = 0;
 
@@ -304,6 +306,16 @@ export class IfcFileReader {
 
     const grids = this._gridReader.read(this._ifcAPI);
     this.onGridsLoaded(grids);
+
+    if (this._serializer.geometryProcessSettings.processIfcRelSpaceBoundarySecondLevel) {
+      this._spaceBoundaryReader.read(
+        this._ifcAPI,
+        this._serializer,
+        (data) => this.onGeometryLoaded(data),
+        (data) => this.onElementLoaded(data),
+        () => this._nextId++,
+      );
+    }
 
     this.onNextIdFound(this._nextId);
 
