@@ -11,7 +11,7 @@ const restructureExamples = () => {
     async writeBundle() {
       const outDir = "examples/packages";
       const files = globSync(`${outDir}/**/example.html`);
-      const paths: string[] = [];
+      const paths: { path: string; description: string }[] = [];
 
       for (const file of files) {
         const directory = path.dirname(file);
@@ -46,7 +46,26 @@ const restructureExamples = () => {
           .slice(9)
           .replace(".html", ".ts")
           .replace(/\\/g, "/");
-        paths.push(urlPath);
+        let description = "";
+        if (fs.existsSync(urlPath) && fs.statSync(urlPath).isFile()) {
+          const source = fs.readFileSync(urlPath, "utf-8");
+          const match = source.match(/\/\* MD([\s\S]*?)\*\//);
+          if (match) {
+            const lines = match[1].split(/\r?\n/);
+            let i = 0;
+            while (i < lines.length && !/^\s*#{1,6}\s/.test(lines[i])) i++;
+            i++;
+            const descLines: string[] = [];
+            while (i < lines.length && !/^\s*#{1,6}\s/.test(lines[i])) {
+              const line = lines[i].trim();
+              if (line !== "---") descLines.push(line);
+              i++;
+            }
+            description = descLines.join(" ").trim();
+          }
+        }
+
+        paths.push({ path: urlPath, description });
 
         if (!fs.existsSync(targetDirectory)) fs.mkdirSync(targetDirectory);
 
