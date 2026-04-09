@@ -40,12 +40,12 @@ world.scene.three.add(new THREE.AxesHelper());
 world.camera.three.far = 10000;
 
 world.renderer.three.shadowMap.enabled = true;
-world.renderer.three.shadowMap.type = THREE.PCFSoftShadowMap;
+world.renderer.three.shadowMap.type = THREE.VSMShadowMap;
 
 world.scene.setup({
   shadows: {
     cascade: 1,
-    resolution: 1024,
+    resolution: 2048,
   },
 });
 

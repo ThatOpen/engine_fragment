@@ -70,6 +70,10 @@ Whether you're building a lightweight BIM viewer, a full-scale application, or j
 
 > For more information and tutorials, check out our [documentation](https://docs.thatopen.com/intro).
 
+## 🤝 Contributing
+
+Thinking of sending a PR? Awesome! Please read our [contributing guide](https://docs.thatopen.com/contributing) first — it covers the code conventions we follow (JSDoc, examples, resources, etc.) so your changes sail through review.
+
 
 [npm]: https://img.shields.io/npm/v/@thatopen/fragments
 [npm-url]: https://www.npmjs.com/package/@thatopen/fragments

@@ -34,12 +34,12 @@ components.init();
 world.camera.controls.setLookAt(12, 6, 8, 0, 0, -10);
 
 world.renderer.three.shadowMap.enabled = true;
-world.renderer.three.shadowMap.type = THREE.PCFSoftShadowMap;
+world.renderer.three.shadowMap.type = THREE.VSMShadowMap;
 
 world.scene.setup({
   shadows: {
     cascade: 1,
-    resolution: 1024,
+    resolution: 2048,
   },
 });
 
