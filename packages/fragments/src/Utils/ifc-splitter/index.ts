@@ -787,11 +787,6 @@ function resolveStyles(
 
 /**
  * Split an IFC file into N roughly equal groups of building elements.
- *
- * Each output file is a valid IFC containing its share of elements plus all
- * shared infrastructure (spatial structure, geometry, materials, properties).
- * Coupled elements (wall + opening + door, roof + slabs) are kept together.
- *
  * @param inputPath - Absolute or relative path to the source IFC file.
  * @param numGroups - Number of output files to produce (max 32).
  * @param outputDir - Directory for output files. Defaults to `output/` next to the input file.
@@ -1060,16 +1055,8 @@ export function split(
 
 /**
  * Extract specific building elements from an IFC file into a new IFC file.
- *
- * Produces a single valid IFC containing only the requested elements and all
- * of their dependencies (geometry, materials, styles, property sets).
- * Void/fill coupling (wall + opening + door/window) and aggregation
- * (roof + slabs, stair + flights) are automatically expanded so the output
- * stays structurally consistent.
- *
  * @param inputPath  - Absolute or relative path to the source IFC file.
- * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract.
- *                     Non-element or missing IDs are skipped with a warning.
+ * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped with a warning.
  * @param outputPath - Path for the output IFC file.
  */
 export function extract(

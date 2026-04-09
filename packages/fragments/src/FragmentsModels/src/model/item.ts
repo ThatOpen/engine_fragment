@@ -4,11 +4,7 @@ import { ItemGeometry } from "./item-geometry";
 import { FragmentsModel } from "./fragments-model";
 import { Identifier } from "./model-types";
 
-/**
- * Represents a single item in a Fragments model.
- * This class provides methods to access and retrieve information about the item,
- * including its attributes, relations, geometry, and data.
- */
+/** Represents a single item in a Fragments model, providing methods to access and retrieve its attributes, relations, geometry, and data. */
 export class Item {
   /**
    * The FragmentsModel instance that this item belongs to.

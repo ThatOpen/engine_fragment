@@ -1,9 +1,6 @@
 import { AttrsChange, AttributeData } from "./model-types";
 
-/**
- * Represents a collection of attributes for an item in a Fragments model.
- * This class extends the Map class to provide additional functionality for managing attributes.
- */
+/** A Map that represents a collection of attributes for an item in a Fragments model. */
 export class ItemAttributes extends Map<string, AttributeData> {
   /**
    * A map of local IDs to their corresponding attribute changes.

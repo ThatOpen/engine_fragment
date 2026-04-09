@@ -1,11 +1,7 @@
 import { Item } from "./item";
 import { RelsChange } from "./model-types";
 
-/**
- * A class that extends Map to store and manage relations between items in a Fragments model.
- * Each relation is stored as a key-value pair where the key is a string identifier and
- * the value is a Set of item IDs that are related through that relation.
- */
+/** A Map that stores and manages relations between items in a Fragments model, keyed by relation name with Sets of related item IDs as values. */
 export class ItemRelations extends Map<string, Set<number>> {
   /**
    * A map that tracks the changes to the relations of the item.

@@ -420,10 +420,7 @@ export type GridData = {
   wAxes: GridAxisData[];
 };
 
-/**
- * Interface representing the Coordinate Reference System (CRS) data
- * extracted from an IFC model's IFCPROJECTEDCRS and IFCMAPCONVERSION entities.
- */
+/** Interface representing the Coordinate Reference System (CRS) data extracted from an IFC model's IFCPROJECTEDCRS and IFCMAPCONVERSION entities. */
 export interface CRSData {
   /** The CRS name/identifier, e.g. "EPSG:3947" */
   name: string | null;

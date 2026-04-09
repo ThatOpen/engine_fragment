@@ -488,14 +488,8 @@ export class FragmentsModel {
    * parameter.
    *
    * @param ids - The IDs of the items to look up.
-   * @param config - The configuration of the items data.
-   * Default configuration:
-   * ```ts
-   * {
-   *   attributesDefault: true,
-   *   relationsDefault: { attributes: false, relations: false },
-   * }
-   * ```
+   * @param config - The configuration of the items data. By default, all
+   * built-in attributes are returned and no relations are loaded.
    *
    * @example
    * // Retrieve all built-in attributes and all related entities (full graph)

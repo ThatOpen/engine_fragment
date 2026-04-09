@@ -1,9 +1,5 @@
 /**
- * Fetches a worker script and returns a blob URL with the ES module
- * `export` stripped, so it can be used as a classic (non-module) worker.
- * Use this when running in environments that don't support module workers
- * (e.g. sandboxed iframes without `allow-same-origin`).
- *
+ * Fetches a worker script and returns a blob URL with the ES module `export` stripped, so it can be used as a classic (non-module) worker.
  * @param workerURL - URL of the ES module worker script.
  * @returns A blob URL usable with `new FragmentsModels(url, { classicWorker: true })`.
  */
