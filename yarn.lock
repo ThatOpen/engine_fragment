@@ -1514,59 +1514,44 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/components-front@npm:~3.3.0":
-  version: 3.3.0
-  resolution: "@thatopen/components-front@npm:3.3.0"
+"@thatopen/components-front@npm:~3.4.0":
+  version: 3.4.0
+  resolution: "@thatopen/components-front@npm:3.4.0"
   dependencies:
-    "@thatopen/components": ~3.3.0
+    "@thatopen/components": ~3.4.0
     earcut: ^3.0.1
   peerDependencies:
-    "@thatopen/fragments": ~3.3.0
-    three: ">=0.175.0"
-    web-ifc: ">=0.0.74"
-  checksum: a9b8d8275de24d67b0f410d56a6e58ab66d1b205c6c4480f6e4d7df589b81d898bf26ae08925e46d636c730fad6f6b51eda3ea5bc4109c6b7a25531288b332ad
+    "@thatopen/fragments": ~3.4.0
+    three: ">=0.182.0"
+    web-ifc: ">=0.0.77"
+  checksum: f4928a01ddc8a70f83cf69caaa31be267e8e18b5c166055cdb897d815c8f6869fc774af5388cbeb7fd32709eeabc706f062abeb1003399b8a4898032a0c0c2f4
   languageName: node
   linkType: hard
 
-"@thatopen/components@npm:~3.3.0":
-  version: 3.3.0
-  resolution: "@thatopen/components@npm:3.3.0"
+"@thatopen/components@npm:~3.4.0":
+  version: 3.4.0
+  resolution: "@thatopen/components@npm:3.4.0"
   dependencies:
-    camera-controls: ^2.9.0
-    fast-xml-parser: 4.4.1
+    fast-xml-parser: 5.3.7
     jszip: 3.10.1
-    three-mesh-bvh: 0.7.0
+    three-mesh-bvh: 0.9.9
   peerDependencies:
-    "@thatopen/fragments": ~3.3.0
-    three: ">=0.175.0"
-    web-ifc: ">=0.0.74"
-  checksum: a172795295db56c07fce071ee93ae18e847a311967d40cf2360dfaba7c9ab831df03a25606971cc436c256558979db1482b89e766e1d2a1ea802183567d14255
+    "@thatopen/fragments": ~3.4.0
+    camera-controls: ">=3.1.2"
+    three: ">=0.182.0"
+    web-ifc: ">=0.0.77"
+  checksum: 08561a33ace74874a05c1b8f7cc77dde5370f4d9f61fe1bad2dc683414fa37117d6a4b4dd34c95be7b7ebbb940aeb5e99faa9fddd0b2e5c6d8834d0223600329
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@npm:~3.3.0":
-  version: 3.3.7
-  resolution: "@thatopen/fragments@npm:3.3.7"
-  dependencies:
-    earcut: ^3.0.1
-    flatbuffers: 25.2.10
-    lru-cache: 11.1.0
-    pako: 2.1.0
-  peerDependencies:
-    three: ">=0.175"
-    web-ifc: ">=0.0.74"
-  checksum: 8966ede587fe87c3ebe68160acace1fef919c426ee63ce7590be4026118849927ebc61397a065cdc68977646253c53bd8e76ea48b33e5de069ba99c821b7d52c
-  languageName: node
-  linkType: hard
-
-"@thatopen/fragments@workspace:packages/fragments":
+"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.4.0":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
     "@andypf/json-viewer": ^2.1.10
-    "@thatopen/components": ~3.3.0
-    "@thatopen/components-front": ~3.3.0
-    "@thatopen/fragments": ~3.3.0
+    "@thatopen/components": ~3.4.0
+    "@thatopen/components-front": ~3.4.0
+    "@thatopen/fragments": ~3.4.0
     "@types/earcut": ^3.0.0
     "@types/jest": 27.0.0
     "@types/node": 20.11.30
@@ -2602,12 +2587,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"camera-controls@npm:^2.9.0":
-  version: 2.10.1
-  resolution: "camera-controls@npm:2.10.1"
+"camera-controls@npm:^3.1.2":
+  version: 3.1.2
+  resolution: "camera-controls@npm:3.1.2"
   peerDependencies:
     three: ">=0.126.1"
-  checksum: f5ed5e335327e88e51897cefa70741246b20c5be44e9b463dc21f33dbf2984764aa0d37b34f7361240d67ccef7c77ece8cede1504b7663cfdf4102d04446bb40
+  checksum: 4171e86accddf540dc0e87b5106fa419c091b1da38416da6fee72d9c758606be5111174e688c49f05450c34871877535e4c297529eefa7b003a4d89afcac760f
   languageName: node
   linkType: hard
 
@@ -3719,14 +3704,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"fast-xml-parser@npm:4.4.1":
-  version: 4.4.1
-  resolution: "fast-xml-parser@npm:4.4.1"
+"fast-xml-parser@npm:5.3.7":
+  version: 5.3.7
+  resolution: "fast-xml-parser@npm:5.3.7"
   dependencies:
-    strnum: ^1.0.5
+    strnum: ^2.1.2
   bin:
     fxparser: src/cli/cli.js
-  checksum: f440c01cd141b98789ae777503bcb6727393296094cc82924ae9f88a5b971baa4eec7e65306c7e07746534caa661fc83694ff437d9012dc84dee39dfbfaab947
+  checksum: 0bb307bc63a01c079ae28b6b62eeea0007d787e6ab47dfca493f40305f78aeedea2906b2632bf0eb9d4d868e748c77c70393a808441fb5949c9d2e6f8f2825f0
   languageName: node
   linkType: hard
 
@@ -6650,6 +6635,7 @@ __metadata:
   dependencies:
     "@rollup/plugin-terser": ^0.4.4
     "@thatopen/ui": ^3.1.0
+    camera-controls: ^3.1.2
     stats.js: ^0.17.0
     typescript: 5.4.2
     vite: 5.1.6
@@ -7141,10 +7127,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"strnum@npm:^1.0.5":
-  version: 1.1.2
-  resolution: "strnum@npm:1.1.2"
-  checksum: a85219eda13e97151c95e343a9e5960eacfb0a0ff98104b4c9cb7a212e3008bddf0c9714c9c37c2e508be78e741a04afc80027c2dc18509d1b5ffd4c37191fc2
+"strnum@npm:^2.1.2":
+  version: 2.2.3
+  resolution: "strnum@npm:2.2.3"
+  checksum: e8deb0dd6f40e4a878bdd4404bdfdd47922665fcaaf27f2b345013b30d45d86f4b93d99cbc005bfb7c96edef6173369bd76a9df40bb7758850b7864075a28156
   languageName: node
   linkType: hard
 
@@ -7256,12 +7242,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"three-mesh-bvh@npm:0.7.0":
-  version: 0.7.0
-  resolution: "three-mesh-bvh@npm:0.7.0"
+"three-mesh-bvh@npm:0.9.9":
+  version: 0.9.9
+  resolution: "three-mesh-bvh@npm:0.9.9"
   peerDependencies:
-    three: ">= 0.151.0"
-  checksum: 888259676dfc975d184a8536fd42a870d02704309348677fbcd94a8b710e16749af8806a9e52801992bd00f39feb971863165cdcab4853fa6a3b67447443dfba
+    three: ">= 0.159.0"
+  checksum: a8360900c5d89b3e383c075ea1ddb491bc703ec3911cca82ac0fb375ed36847a12552d447edbd13f26a8e86b1ce810f2acdd8deb746c5b0d346057276368b924
   languageName: node
   linkType: hard
 
