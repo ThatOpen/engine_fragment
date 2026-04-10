@@ -1,7 +1,13 @@
 /* MD
   ## Editing BIM Elements 🪑
   ---
-  In this tutorial, we'll explore how to easily edit BIM elements using the Fragments Edit API. We will move things around, change its materials, edit its instance attributes, register everything in a history that we can revert and more. Let’s dive in!
+  Architects and engineers frequently need to make quick adjustments — move a column, change a wall color, swap a door geometry — directly in the 3D viewer without round-tripping back to Revit or exporting a new IFC file.
+
+  The Elements API bridges that gap: it wraps a selected element as editable Three.js meshes, lets you manipulate them with standard tools, and generates the edit requests automatically when you apply.
+
+  This tutorial covers selecting an element and obtaining its editable mesh representation; attaching Three.js TransformControls to move and rotate the element at the global transform level and at the per-sample local transform level; changing sample materials and overriding sample geometry with a custom shape; applying all changes back to the Fragment model; and discarding changes to restore the original state.
+
+  By the end, you’ll have a pattern for building interactive element editors that use familiar Three.js workflows and commit changes to the Fragment model in one step.
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:

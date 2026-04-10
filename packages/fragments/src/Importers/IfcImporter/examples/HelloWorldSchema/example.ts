@@ -1,9 +1,14 @@
 /* MD
   ## Hello World Schema 📋
   ---
-  
-  In this demo we will create a simple app that allows us to navigate the Fragments schema of IFC STEP files. This is not something you will usually need to do in your apps, but it will serve as a demonstration
-  
+  Developers who want to understand or debug how an IFC file maps to the Fragment binary format have no way to inspect the internal schema without writing custom parsing code or reading raw binary data by hand.
+
+  The Fragment format is built on a FlatBuffers schema, and the library exposes utilities to deserialize any loaded model back into a plain JavaScript object that mirrors that schema — making the internal structure readable without external tooling.
+
+  This tutorial covers converting an IFC file to Fragment bytes using the importer; loading the result into a 3D scene; deserializing the raw FlatBuffers data into a plain object; displaying the full schema tree in an interactive JSON viewer; wiring expand/collapse controls; loading from a local file picker or a sample wall model; and downloading the converted Fragment file.
+
+  By the end, you'll have an IFC-to-Fragment schema explorer that lets you load any IFC file, visualize it in the viewport, and inspect its full Fragment binary structure as a browsable JSON tree.
+
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this little example work:
 

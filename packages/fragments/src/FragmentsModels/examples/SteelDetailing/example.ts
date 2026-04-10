@@ -1,8 +1,14 @@
 /* MD
   ## Steel Detailing 🔧
   ---
-  In this tutorial, we'll explore how to create detailed steel structures using the Fragments API. We'll learn how to generate steel frames, base plates, connections, and other structural steel elements with proper geometric relationships and detailing. Let's dive in!
-  
+  Structural engineers exploring preliminary frame configurations — bay count, span, section sizes — need to see the full 3D result including base plates and anchor details before committing to detailed design, but every parameter change in a traditional authoring tool means rebuilding the model by hand.
+
+  The Fragments geometry engine provides H-profile extrusion, circle-extrusion paths for anchor hooks, and flat plate primitives that compose into complete structural assemblies. Combined with the Elements API, each generated mesh becomes a named Fragment element that can be viewed, edited, and re-exported.
+
+  This tutorial covers defining parametric settings for span, modules, column section dimensions, and base plate geometry; generating a wireframe skeleton from start-point pairs; extruding H-profiles along each member axis; creating base plates, cross stiffeners, corner plates, anchor bolts, and hooked rebar using circle-extrusion paths; registering every piece as a Fragment element via the editor API; debounced regeneration on parameter change; and a live UI panel for length and module count sliders.
+
+  By the end, you'll have a fully parametric steel frame that rebuilds in real time as you adjust span and module count, with correct H-section profiles, base plate connection details, and anchor hooks rendered with PBR metalness and HDRI lighting.
+
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:
 */

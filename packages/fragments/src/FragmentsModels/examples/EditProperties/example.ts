@@ -1,7 +1,13 @@
 /* MD
   ## Editing BIM Properties 🪑
   ---
-  In this tutorial, we'll explore how to easily edit BIM properties using the Fragments Edit API. We will create, delete, edit and relate properties, register everything in a history that we can revert and more. Let’s dive in!
+  BIM data quality is a persistent problem — wrong fire ratings, missing property sets, outdated material specs — but correcting these errors today means opening the authoring software, finding the element, editing the property, and re-exporting, even for a single value change.
+
+  The properties editor in the Fragments API lets you read, update, create, and delete BIM attributes and relations directly in the loaded model, without any round-trip to the authoring tool.
+
+  This tutorial covers selecting an element and loading its full property tree (attributes and nested relations like IsDefinedBy); editing attribute values inline; applying changes back to the model; creating a relation between existing items; removing a relation; creating a new item with a custom category and arbitrary attributes; and deleting an item from the model.
+
+  By the end, you’ll have a working BIM property editor capable of reading and writing element data, managing relations, and adding or removing items entirely in the browser.
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:

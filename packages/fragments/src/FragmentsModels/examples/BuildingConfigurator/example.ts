@@ -1,7 +1,13 @@
 /* MD
   ## Building a Configurator 🤏
   ---
-  In this tutorial, we'll learn how to build a configurator using the Fragments API. We'll define some basic parameters (like building width and length) and generate one or multiple floors of a simple building based on them. Let’s dive in!
+  In early design stages, architects and developers need to explore building options — changing floor count, column grid, building footprint — but traditional BIM tools require manually re-modeling every variant, making rapid iteration impractical.
+
+  The Fragments API exposes an editable model and a geometry engine that together make parametric generation possible: define shapes programmatically, write them into a live Fragment model, and regenerate on demand.
+
+  This tutorial covers creating an empty Fragment model at runtime; using the geometry engine to produce extruded columns, floors, walls, windows, a staircase opening, and a roof from parametric settings; writing all generated elements into the model via the editor API; setting up a horizontal clipping plane with filled section cuts via ClipStyler; enabling VSM shadows that update on camera rest; applying a postproduction style; and wiring all parameters to a live UI panel so the building regenerates on any change.
+
+  By the end, you’ll have a fully parametric building configurator where adjusting width, floor count, column spacing, or clip height instantly regenerates the 3D model.
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:

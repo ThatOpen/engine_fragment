@@ -1,7 +1,13 @@
 /* MD
   ## Working with Rebars 🔩
   ---
-  In this tutorial, we'll explore how to create and work with reinforced concrete elements using the Fragments API. We'll learn how to generate column and footing rebars with proper spacing, colors, and geometric relationships. Let's dive in!
+  Structural engineers need to visualize and validate rebar layouts in reinforced concrete elements — footing grids, column longitudinal bars, transverse stirrups — but generating that geometry programmatically in a web viewer means handling complex swept paths, bend radii, and spacing rules from scratch.
+
+  The Fragments geometry engine provides circle-extrusion primitives and parametric path definitions that make generating rebar elements as straightforward as defining their axes and radii.
+
+  This tutorial covers creating an empty Fragment model at runtime; defining parametric settings for footing and column dimensions, rebar radius, spacing, padding, and overlap; generating extruded concrete geometry for the footing and column; generating longitudinal straight rebars and transverse stirrups with correct corner geometry and overlap hooks; color-coding rebar types (longitudinal, transverse, footing); and wiring all parameters to a live UI panel so the reinforcement regenerates on any change.
+
+  By the end, you'll have a fully parametric reinforced concrete visualizer where adjusting cover, spacing, or element dimensions instantly updates the 3D rebar layout.
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:

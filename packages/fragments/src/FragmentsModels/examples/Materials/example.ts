@@ -1,7 +1,13 @@
 /* MD
   ## Working with Materials 🎨
   ---
-  In this tutorial, we'll explore how to work with materials in Fragments models. We'll learn how to load textures, apply different material properties, and dynamically change materials on specific elements. Let's dive in!
+  BIM models loaded from IFC files render with flat, uniform colors — no textures, no reflections, no material realism. For presentations, digital twins, or marketing renders, that level of fidelity isn't enough, but the Fragment format doesn't carry PBR material data out of the box.
+
+  The Fragment material pipeline gives you hooks to intercept every material as it loads and replace or enhance it with any Three.js material — including textures, metalness, roughness, and environment maps.
+
+  This tutorial covers loading an HDRI environment map for realistic reflections; loading color, normal, and roughness texture maps with repeat wrapping; intercepting materials on load and replacing them with PBR equivalents based on their color (steel gets metalness, everything else gets a concrete texture); generating UV coordinates via cubic projection so textures map correctly onto arbitrary BIM geometry; and identifying structural elements by attribute to apply a different material programmatically after load.
+
+  By the end, you'll have a Fragment model rendering with physically-based materials, environment lighting, and per-element material overrides driven by BIM data.
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:

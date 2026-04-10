@@ -1,8 +1,14 @@
 /* MD
   ## Loading Fragment Models 🔼
   ---
-  Before diving into the world of Fragments, the first step is to load your Fragment Models. This is a crucial step to unlock the full potential of working with Fragments. Let's explore how to do it effectively.
-  
+  Developers building a web viewer need to load multiple BIM models on demand — letting users add or remove disciplines independently — but managing the lifecycle of several concurrent models (load, retrieve binary data, dispose) requires tracking state and coordinating cleanup manually.
+
+  FragmentsModels is the entry point for the entire Fragment runtime: it initializes the worker, owns the model list, and exposes load and dispose operations that keep the renderer in sync automatically.
+
+  This tutorial covers initializing the worker and wiring the camera update loop; reactively adding each loaded model to the scene on load; retrieving a model's binary buffer for local download; listing all loaded model IDs; disposing one or all models to free memory; and a UI panel that toggles architecture and structure models independently and reveals a download button when a model is active.
+
+  By the end, you'll have a multi-model viewer with on-demand load/unload controls and per-model download, built on the foundational Fragment lifecycle pattern every other tutorial extends.
+
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:
 */

@@ -1,8 +1,14 @@
 /* MD
   ## Converting IFC to Fragments 😀
   ---
-  In this tutorial, we'll learn how to convert large and complex IFC files into the lightweight, modern binary BIM data that we call Fragments for high-performance applications. Let's get started!
-  
+  Teams that receive IFC files from design software need to load them in a web viewer, but parsing IFC at runtime is too slow for large models — re-converting on every session makes the app unusable for end users.
+
+  The Fragment format is a compact binary representation of IFC data optimized for fast loading. Converting once and saving the result means subsequent sessions skip the heavy parsing step entirely.
+
+  This tutorial covers configuring the IFC-to-Fragment converter with its WASM path; fetching an IFC file and running the conversion with a progress callback; loading the resulting binary data into the 3D scene; disposing the loaded model to free memory; and a UI panel that sequences convert → add to scene → download as a local file.
+
+  By the end, you'll have a complete IFC import pipeline that converts a model, renders it in the viewport, and lets you download the Fragment file for reuse in future sessions.
+
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:
 */

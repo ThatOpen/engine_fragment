@@ -1,8 +1,14 @@
 /* MD
   ## Managing Your Fragments Visibility 👀
   ---
-  Managing visibility—whether it's hiding, showing, or toggling—is a fundamental feature in any 3D application. In this tutorial, you'll learn how to effectively manage the visibility of your Fragments models!
-  
+  BIM coordinators navigating a large model need to isolate one discipline or system at a time — structure only, façade only, MEP only — but showing and hiding groups of elements by category in a custom web viewer requires tracking element state and updating the renderer manually for every toggle.
+
+  Fragment models expose per-element visibility as a first-class operation: hide, toggle, and query visibility by local ID, with the renderer updating in a single call.
+
+  This tutorial covers hiding all roof elements immediately after model load using `setVisible`; creating a reusable toggle function that resolves elements by category regex and calls `toggleVisible`; querying per-category visible/hidden counts via `getVisible`; querying model-wide visibility counts via `getItemsByVisibility`; and wiring all operations to UI buttons for roofs, walls, and slabs.
+
+  By the end, you'll have a visibility control panel that hides, toggles, and reports element counts by category across a loaded Fragment model.
+
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:
 */

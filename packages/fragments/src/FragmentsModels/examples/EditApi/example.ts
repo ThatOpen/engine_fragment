@@ -1,7 +1,13 @@
 /* MD
   ## Editing Fragment Models 🤏
   ---
-  Viewing BIM models is cool, but sometimes we also need to edit the information of existing BIM models. In this tutorial, we'll explore how to edit BIM models using the Fragments Edit API, covering most of the edit operations.
+  BIM models aren't static — materials need recoloring, element positions need adjusting, and data attributes need updating without re-exporting from the authoring tool. Without a programmatic edit API, that means round-tripping through Revit or IFC importers for every change.
+
+  The Fragments Edit API makes model mutations possible at runtime through a declarative request system: describe what to change, submit the batch, and the model updates in the background without blocking the renderer.
+
+  This tutorial covers editing the most-used material color; replacing all geometry representations with a custom shell; reassigning instance materials across all samples; modifying global and local transforms to reposition elements; overriding BIM attribute data on all walls; and editing model-level metadata — each as a batch of typed edit requests applied via the editor.
+
+  By the end, you'll understand the full edit request system and how to mutate any aspect of a loaded Fragment model — geometry, appearance, position, data, and metadata — at runtime.
 
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:

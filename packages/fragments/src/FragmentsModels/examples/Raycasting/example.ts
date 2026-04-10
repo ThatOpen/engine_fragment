@@ -1,7 +1,13 @@
 /* MD
   ## Raycasting Your Fragment Models 🤏
   ---
-  Determining what lies beneath the mouse pointer is one of the most essential operations in any 3D application. Working with Fragments is no exception, and we provide you with convenient tools to achieve this. Let’s dive in!
+  Every interactive feature in a 3D BIM viewer — selection, hover feedback, click-to-inspect — depends on knowing which element the user is pointing at. Without a built-in picking mechanism, developers have to manage ray-model intersection manually across every loaded model.
+
+  Fragment models expose a built-in raycast method that runs in the worker thread and returns the hit element, position, and surface normal without blocking the main thread.
+
+  This tutorial covers raycasting across all loaded models on pointer move and returning the closest hit; displaying a surface-normal indicator line at the hover position; raycasting on click and placing a sphere marker at the hit point; and logging the full raycast result (element id, distance, point, normal) to the console.
+
+  By the end, you’ll have the foundational picking setup that every other interaction feature — selection, highlighting, property inspection — builds on.
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:

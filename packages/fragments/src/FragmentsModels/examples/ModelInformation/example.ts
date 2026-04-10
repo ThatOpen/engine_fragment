@@ -1,7 +1,13 @@
 /* MD
   ## Getting Your Fragments Model Information 🗒️
   ---
-  A BIM model is only as valuable as the information it provides. Retrieving specific data efficiently is crucial for any workflow. In this tutorial, you'll learn how to extract and utilize data from Fragments with ease!
+  When reviewing a BIM model in a web viewer, clicking an element should show its name, property sets, and where it sits in the building hierarchy — but querying that information from a loaded model, navigating IFC relations, and formatting the result for display requires understanding the internal data structure.
+
+  The Fragment model API provides a unified query interface that handles attributes, relations, categories, and spatial structure through a single, consistent set of methods.
+
+  This tutorial covers clicking to select and highlight an element via raycasting; retrieving all attributes or a specific subset (e.g. only Name); fetching related property sets by traversing IsDefinedBy relations and formatting the result into a plain object; listing all element names in a given category; and reading the full spatial structure hierarchy of the model.
+
+  By the end, you'll have a working element inspector that can display attributes, property sets, category queries, and spatial structure from any clicked element in a Fragment model.
   
   ### 🖖 Importing our Libraries
   First things first, let's install all necessary dependencies to make this example work:
