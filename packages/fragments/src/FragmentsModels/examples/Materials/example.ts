@@ -15,7 +15,7 @@
 
 import * as OBC from "@thatopen/components";
 import * as THREE from "three";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
 import * as FRAGS from "../../../index";
 
 /* MD
@@ -75,7 +75,7 @@ world.camera.controls.addEventListener("rest", async () => {
   We'll load an HDRI environment map to provide realistic lighting and reflections for our materials. This will make the materials look more realistic and help us see the effects of different material properties:
 */
 
-const hdriLoader = new RGBELoader();
+const hdriLoader = new HDRLoader();
 hdriLoader.load(
   "https://thatopen.github.io/engine_fragment/resources/textures/envmaps/san_giuseppe_bridge_2k.hdr",
   (texture) => {

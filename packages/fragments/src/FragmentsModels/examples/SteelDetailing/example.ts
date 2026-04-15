@@ -19,7 +19,7 @@ import * as THREE from "three";
 import * as BUI from "@thatopen/ui";
 import * as WEBIFC from "web-ifc";
 import Stats from "stats.js";
-import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
+import { HDRLoader } from "three/examples/jsm/loaders/HDRLoader.js";
 // You have to import * as FRAGS from "@thatopen/fragments"
 import * as FRAGS from "../../../index";
 
@@ -272,7 +272,7 @@ const geometryEngine = new FRAGS.GeometryEngine(api);
   Now we'll create all the basic geometries that will be used to construct our steel structure. These include HDRI environment, wireframe models, and various steel connection elements:
 */
 
-const hdriLoader = new RGBELoader();
+const hdriLoader = new HDRLoader();
 hdriLoader.load(
   "https://thatopen.github.io/engine_fragment/resources/textures/envmaps/san_giuseppe_bridge_2k.hdr",
   (texture) => {
