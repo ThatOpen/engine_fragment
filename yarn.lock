@@ -1515,8 +1515,8 @@ __metadata:
   linkType: hard
 
 "@thatopen/components-front@npm:~3.4.0":
-  version: 3.4.0
-  resolution: "@thatopen/components-front@npm:3.4.0"
+  version: 3.4.1
+  resolution: "@thatopen/components-front@npm:3.4.1"
   dependencies:
     "@thatopen/components": ~3.4.0
     earcut: ^3.0.1
@@ -1524,13 +1524,13 @@ __metadata:
     "@thatopen/fragments": ~3.4.0
     three: ">=0.182.0"
     web-ifc: ">=0.0.77"
-  checksum: f4928a01ddc8a70f83cf69caaa31be267e8e18b5c166055cdb897d815c8f6869fc774af5388cbeb7fd32709eeabc706f062abeb1003399b8a4898032a0c0c2f4
+  checksum: 908bee2221bf56a4ba476ffeefe39e94ba83164eaae92218de01270e9fd512286a1b0cd4d3c147b69f2ccc3995306c2480a0211ab2235f3a943ddf61e3e85fb2
   languageName: node
   linkType: hard
 
 "@thatopen/components@npm:~3.4.0":
-  version: 3.4.0
-  resolution: "@thatopen/components@npm:3.4.0"
+  version: 3.4.1
+  resolution: "@thatopen/components@npm:3.4.1"
   dependencies:
     fast-xml-parser: 5.3.7
     jszip: 3.10.1
@@ -1540,7 +1540,7 @@ __metadata:
     camera-controls: ">=3.1.2"
     three: ">=0.182.0"
     web-ifc: ">=0.0.77"
-  checksum: 08561a33ace74874a05c1b8f7cc77dde5370f4d9f61fe1bad2dc683414fa37117d6a4b4dd34c95be7b7ebbb940aeb5e99faa9fddd0b2e5c6d8834d0223600329
+  checksum: 786e0397b7a2db42d5cd03c9774674dc410a80d658b3d4c11e731f2c8697e9d93de9b99af624bb3643a29277b5f4e48e0acb63ef7e34995619180d8061726985
   languageName: node
   linkType: hard
 
