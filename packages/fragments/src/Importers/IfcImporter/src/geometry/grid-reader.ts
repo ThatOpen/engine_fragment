@@ -1,5 +1,5 @@
-import * as WEBIFC from "web-ifc";
 import * as THREE from "three";
+import * as WEBIFC from "web-ifc";
 import { GridAxisData, GridData } from "../../../../FragmentsModels";
 import { FragmentsIfcUtils } from "../../../../Utils";
 
@@ -23,7 +23,7 @@ export class GridReader {
         const transform = FragmentsIfcUtils.getAbsolutePlacement(
           webIfc,
           grid,
-          units,
+          units
         );
 
         transform.premultiply(coordMatrix);
@@ -31,15 +31,11 @@ export class GridReader {
         const data: GridData = {
           id,
           transform: transform.elements,
-          uAxes: [],
-          vAxes: [],
-          wAxes: [],
+          uAxes: this.getGridAxes(grid, webIfc, units, "UAxes"),
+          vAxes: this.getGridAxes(grid, webIfc, units, "VAxes"),
+          wAxes: this.getGridAxes(grid, webIfc, units, "WAxes"),
         };
         result.push(data);
-
-        this.getGridAxes(grid, webIfc, units, "UAxes", "uAxes", data);
-        this.getGridAxes(grid, webIfc, units, "VAxes", "vAxes", data);
-        this.getGridAxes(grid, webIfc, units, "WAxes", "wAxes", data);
       }
 
       return result;
@@ -53,13 +49,13 @@ export class GridReader {
     ifcGrid: any,
     webIfc: WEBIFC.IfcAPI,
     units: number,
-    ifcKey: "UAxes" | "VAxes" | "WAxes",
-    fragKey: "uAxes" | "vAxes" | "wAxes",
-    gridData: GridData,
-  ) {
+    ifcKey: "UAxes" | "VAxes" | "WAxes"
+  ): GridAxisData[] {
     if (!ifcGrid[ifcKey]) {
-      return;
+      return [];
     }
+
+    const axisDataArr: GridAxisData[] = [];
     for (const axis of ifcGrid[ifcKey]) {
       const axisCurve = webIfc.GetLine(0, axis.value);
       const curveId = axisCurve.AxisCurve.value;
@@ -71,20 +67,34 @@ export class GridReader {
       if (!curve.Points) {
         continue;
       }
-      const pointsId = curve.Points.value;
-      if (!pointsId) {
-        continue;
-      }
-      const ifcPoints = webIfc.GetLine(0, pointsId);
-      if (ifcPoints.CoordList) {
-        for (const coordinates of ifcPoints.CoordList) {
-          for (const coord of coordinates) {
-            const value = coord.value * units;
-            axisData.curve.push(value);
+
+      if (curve.type === WEBIFC.IFCPOLYLINE) {
+        for (const { value: pointId } of curve.Points) {
+          const ifcPoints = webIfc.GetLine(0, pointId);
+          if (ifcPoints.Coordinates) {
+            for (const coord of ifcPoints.Coordinates) {
+              const value = coord.value * units;
+              axisData.curve.push(value);
+            }
+          }
+        }
+      } else {
+        const pointsId = curve.Points.value;
+        if (!pointsId) {
+          continue;
+        }
+        const ifcPoints = webIfc.GetLine(0, pointsId);
+        if (ifcPoints.CoordList) {
+          for (const coordinates of ifcPoints.CoordList) {
+            for (const coord of coordinates) {
+              const value = coord.value * units;
+              axisData.curve.push(value);
+            }
           }
         }
       }
-      gridData[fragKey].push(axisData);
+      axisDataArr.push(axisData);
     }
+    return axisDataArr;
   }
 }
