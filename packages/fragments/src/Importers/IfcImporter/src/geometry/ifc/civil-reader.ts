@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import * as WEBIFC from "web-ifc";
 import {
   AlignmentCurveType,
@@ -19,6 +20,24 @@ export class CivilReader {
         };
         allAlignments.push(currentAlignment);
 
+        const noVertical = alignment.vertical.length === 0;
+
+        // When there's no vertical data, web-ifc doesn't produce a proper
+        // 3D curve.  We synthesize one from the horizontal points and apply
+        // the coordination matrix so they end up in the same space as the
+        // model geometry (web-ifc applies it automatically to curve3D).
+        // When there's no vertical data, web-ifc can't produce a proper 3D
+        // curve.  We synthesize one from the 2D horizontal points.  Those
+        // points are in alignment-local IFC space, so we apply the
+        // alignment's world transform (same thing web-ifc does for curve3D).
+        // We do NOT apply the coordination matrix — model geometry doesn't
+        // have it baked in either (it's stored separately).
+        let worldMatrix: THREE.Matrix4 | null = null;
+        if (noVertical && alignment.FlattenedWorldTransformMatrix) {
+          worldMatrix = new THREE.Matrix4();
+          worldMatrix.fromArray(alignment.FlattenedWorldTransformMatrix);
+        }
+
         let pointsCounter = 0;
         const points3d = alignment.curve3D[0]?.points;
 
@@ -32,10 +51,22 @@ export class CivilReader {
           const points3DReversed: number[][] = [];
           const pointsHorizontalReversed: number[][] = [];
 
+          const tempVec = new THREE.Vector3();
+
           for (const point of curveHorizontal.points) {
-            const point3d = points3d?.[pointsCounter++];
-            if (point3d) {
-              points3DReversed.push([point3d.x, point3d.y, point3d.z]);
+            if (noVertical) {
+              // Work in IFC space (x=easting, y=northing, z=elevation)
+              tempVec.set(point.x, point.y, 0);
+              if (worldMatrix) tempVec.applyMatrix4(worldMatrix);
+              // Swizzle IFC Z-up → Three.js Y-up: (x, z, -y)
+              points3DReversed.push([tempVec.x, tempVec.z, -tempVec.y]);
+            } else {
+              const point3d = points3d?.[pointsCounter++];
+              if (point3d) {
+                points3DReversed.push([point3d.x, point3d.y, point3d.z]);
+              } else {
+                console.log("Problem reading alignment 3D points");
+              }
             }
             pointsHorizontalReversed.push([point.x, point.y]);
           }
@@ -90,7 +121,7 @@ export class CivilReader {
       }
       return allAlignments;
     } catch (error) {
-      console.error(error);
+      console.error("CivilReader error:", error);
       return [];
     }
   }
