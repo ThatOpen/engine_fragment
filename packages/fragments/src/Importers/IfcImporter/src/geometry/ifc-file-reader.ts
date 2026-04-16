@@ -518,7 +518,7 @@ export class IfcFileReader {
 
     const buffers = this.getGeometryBuffers(modelID, geometryRef);
     if (buffers === null) {
-      console.log(`Fragments: Zero length geometry: ${geometryData.id}`);
+      // console.log(`Fragments: Zero length geometry: ${geometryData.id}`);
       element.geometries.pop();
       this._problematicGeometries.add(geometryData.id);
       return;
@@ -639,7 +639,7 @@ export class IfcFileReader {
 
     const buffers = this.getGeometryBuffers(modelID, geometryRef);
     if (buffers === null) {
-      console.log(`Fragments: Zero length geometry: ${geometryData.id}`);
+      // console.log(`Fragments: Zero length geometry: ${geometryData.id}`);
       element.geometries.pop();
       this._problematicGeometries.add(geometryData.id);
       return;
