@@ -9,9 +9,16 @@ export class ThreadModelCreator extends ThreadController {
   }
 
   protected async execute(input: any) {
+    const { modelId } = input;
+    const notify = this.createProgressNotifier(modelId);
+
     this.inflate(input);
-    const model = this.createModel(input);
+    notify("decompressing", 1);
+
+    const model = await this.createModel(input, notify);
     this.setupData(input, model);
+
+    notify("done", 1);
   }
 
   private setupData(input: any, model: VirtualFragmentsModel) {
@@ -19,7 +26,10 @@ export class ThreadModelCreator extends ThreadController {
     input.modelData = undefined;
   }
 
-  private createModel(input: any) {
+  private async createModel(
+    input: any,
+    notify: (stage: string, progress: number) => void,
+  ) {
     const { modelId, modelData, config } = input;
     const { connection } = this.thread;
     const model = new VirtualFragmentsModel(
@@ -28,7 +38,13 @@ export class ThreadModelCreator extends ThreadController {
       connection,
       config,
     );
-    model.setupData();
+
+    notify("parsing", 1);
+
+    await model.setupData((progress: number) => {
+      notify("generating", progress);
+    });
+
     this.thread.list.set(modelId, model);
     return model;
   }
@@ -37,5 +53,18 @@ export class ThreadModelCreator extends ThreadController {
     if (!input.raw) {
       input.modelData = Pako.inflate(input.modelData);
     }
+  }
+
+  private createProgressNotifier(modelId: string) {
+    const { connection } = this.thread;
+    return (stage: string, progress: number) => {
+      // Fire-and-forget (same pattern as CREATE_MATERIAL transfer)
+      connection.fetch({
+        class: MultiThreadingRequestClass.LOAD_PROGRESS,
+        modelId,
+        stage,
+        progress,
+      });
+    };
   }
 }

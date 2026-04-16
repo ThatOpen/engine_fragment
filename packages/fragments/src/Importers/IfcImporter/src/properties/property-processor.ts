@@ -90,7 +90,7 @@ export class IfcPropertyProcessor {
     const ifcApi = await this.getIfcApi();
     this._maxLocalID = data.maxLocalID + 1;
 
-    if (data.readFromCallback) {
+    if (data.readFromCallback && data.readCallback) {
       ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
     } else if (data.bytes) {
       await ifcApi.OpenModel(data.bytes, this.webIfcSettings);

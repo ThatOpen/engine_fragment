@@ -86,6 +86,11 @@ async function main() {
       modelId: id,
       camera: world.camera.three,
       raw,
+      onProgress: (event) => {
+        console.log(
+          `[${event.modelId}] ${event.stage}: ${Math.round(event.progress * 100)}%`,
+        );
+      },
     });
 
     // GET BUFFER

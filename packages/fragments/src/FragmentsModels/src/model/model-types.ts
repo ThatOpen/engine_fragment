@@ -185,7 +185,20 @@ export enum MultiThreadingRequestClass {
   RECOMPUTE_MESHES = 6,
   CREATE_MATERIAL = 7,
   THROW_ERROR = 8,
+  LOAD_PROGRESS = 9,
 }
+
+/**
+ * Progress event emitted during model loading.
+ */
+export type LoadProgressEvent = {
+  /** The model this progress event belongs to. */
+  modelId: string;
+  /** Current loading stage. */
+  stage: "decompressing" | "parsing" | "generating" | "done";
+  /** Progress within the current stage, from 0 to 1. */
+  progress: number;
+};
 
 /**
  * Enum representing the configuration class for an item in a Fragments model.

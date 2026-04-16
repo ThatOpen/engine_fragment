@@ -1,7 +1,11 @@
 import * as THREE from "three";
 import { MeshManager, FragmentsModel } from "./src/model";
 
-import { VirtualModelConfig } from "./src";
+import {
+  VirtualModelConfig,
+  LoadProgressEvent,
+  MultiThreadingRequestClass,
+} from "./src";
 import { FragmentsConnection } from "./src/multithreading/fragments-connection";
 import { ThreadHandler } from "./src/multithreading/connection-handlers";
 import { Event } from "../Utils";
@@ -52,6 +56,11 @@ export class FragmentsModels {
 
   private readonly _connection: FragmentsConnection;
 
+  private _progressCallbacks = new Map<
+    string,
+    (event: LoadProgressEvent) => void
+  >();
+
   private _isDisposed = false;
   private _autoRedrawInterval: any = null;
   private _lastUpdate = 0;
@@ -65,10 +74,15 @@ export class FragmentsModels {
    * @param options.classicWorker - If true, creates classic (non-module) workers. Use together with `toClassicWorker()`.
    */
   constructor(workerURL?: string, options?: { classicWorker?: boolean }) {
-    const url = workerURL ?? new URL("./Worker/worker.mjs", import.meta.url).href;
+    const url =
+      workerURL ?? new URL("./Worker/worker.mjs", import.meta.url).href;
     const requestEvent = this.newRequestEvent();
     const updateEvent = this.newUpdateEvent();
-    this._connection = new FragmentsConnection(requestEvent, url, options?.classicWorker);
+    this._connection = new FragmentsConnection(
+      requestEvent,
+      url,
+      options?.classicWorker,
+    );
     this.editor = new Editor(this, this._connection);
     this.models = new MeshManager(updateEvent);
     this.models.list.onItemDeleted.add(() => {
@@ -96,6 +110,8 @@ export class FragmentsModels {
       raw?: boolean;
       userData?: Record<string, any>;
       virtualModelConfig?: VirtualModelConfig;
+      /** Optional callback for receiving loading progress updates. */
+      onProgress?: (event: LoadProgressEvent) => void;
     },
   ) {
     const model = new FragmentsModel(
@@ -113,6 +129,10 @@ export class FragmentsModels {
     model.frozen = true;
 
     model.graphicsQuality = this.settings.graphicsQuality;
+
+    if (options.onProgress) {
+      this._progressCallbacks.set(options.modelId, options.onProgress);
+    }
 
     try {
       this.models.list.set(model.modelId, model);
@@ -133,8 +153,11 @@ export class FragmentsModels {
         }
       }
     } catch (e) {
+      this._progressCallbacks.delete(options.modelId);
       this.models.list.delete(model.modelId);
       throw e;
+    } finally {
+      this._progressCallbacks.delete(options.modelId);
     }
 
     const { camera } = options;
@@ -210,6 +233,17 @@ export class FragmentsModels {
   }
 
   private async manageRequest(message: any): Promise<void> {
+    if (message.class === MultiThreadingRequestClass.LOAD_PROGRESS) {
+      const callback = this._progressCallbacks.get(message.modelId);
+      if (callback) {
+        callback({
+          modelId: message.modelId,
+          stage: message.stage,
+          progress: message.progress,
+        });
+      }
+      return;
+    }
     const model = this.models.list.get(message.modelId);
     if (model) {
       await model.handleRequest(message);
