@@ -27,6 +27,7 @@ export default defineConfig({
   build: {
     outDir: "./dist/Worker",
     minify: false,
+    sourcemap: true,
     lib: {
       entry: path.resolve(
         __dirname,
@@ -34,23 +35,15 @@ export default defineConfig({
       ),
     },
     rollupOptions: {
-      // external: Object.keys(packageJson.peerDependencies),
-      // TODO: Only build minified version until repo is reorganized and public
       output: [
-        // {
-        //   entryFileNames: `worker.mjs`,
-        //   format: "es",
-        //   // globals: {
-        //   //   three: "THREE",
-        //   // },
-        // },
         {
           entryFileNames: `worker.mjs`,
+          format: "es",
+        },
+        {
+          entryFileNames: `worker.min.mjs`,
           plugins: [pluginTerser()],
           format: "es",
-          // globals: {
-          //   three: "THREE",
-          // },
         },
       ],
     },

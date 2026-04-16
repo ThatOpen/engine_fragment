@@ -27,29 +27,34 @@ export default defineConfig({
   build: {
     outDir: "./dist",
     minify: false,
+    sourcemap: true,
     lib: {
       entry: path.resolve(__dirname, "./src/index.ts"),
     },
     rollupOptions: {
-      external: Object.keys(packageJson.peerDependencies),
-      // TODO: Only build minified version until repo is reorganized and public
+      external: (id) => {
+        const peers = Object.keys(packageJson.peerDependencies);
+        return peers.some((p) => id === p || id.startsWith(`${p}/`));
+      },
       output: [
-        // {
-        //   entryFileNames: `index.mjs`,
-        //   format: "es",
-        //   globals: {
-        //     three: "THREE",
-        //   },
-        // },
-        // {
-        //   entryFileNames: `index.cjs`,
-        //   format: "cjs",
-        //   globals: {
-        //     three: "THREE",
-        //   },
-        // },
         {
           entryFileNames: `index.mjs`,
+          format: "es",
+          sourcemap: true,
+          globals: {
+            three: "THREE",
+          },
+        },
+        {
+          entryFileNames: `index.cjs`,
+          format: "cjs",
+          sourcemap: true,
+          globals: {
+            three: "THREE",
+          },
+        },
+        {
+          entryFileNames: `index.min.mjs`,
           plugins: [pluginTerser()],
           format: "es",
           globals: {
@@ -57,7 +62,7 @@ export default defineConfig({
           },
         },
         {
-          entryFileNames: `index.cjs`,
+          entryFileNames: `index.min.cjs`,
           plugins: [pluginTerser()],
           format: "cjs",
           globals: {
