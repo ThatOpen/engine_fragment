@@ -68,14 +68,23 @@ export class GridReader {
         continue;
       }
 
+      // IFCCARTESIANPOINT can be 2D or 3D depending on the exporter; the
+      // downstream renderer assumes 3D points (3 values each), so normalize
+      // here. Without this, a file like BLOXHUB that stores grid axis points
+      // as 3D `(x, y, 0)` would have the renderer misread them as 2D and
+      // produce a fan-shaped grid.
+      const pushPoint = (coords: { value: number }[]) => {
+        const x = (coords[0]?.value ?? 0) * units;
+        const y = (coords[1]?.value ?? 0) * units;
+        const z = (coords[2]?.value ?? 0) * units;
+        axisData.curve.push(x, y, z);
+      };
+
       if (curve.type === WEBIFC.IFCPOLYLINE) {
         for (const { value: pointId } of curve.Points) {
           const ifcPoints = webIfc.GetLine(0, pointId);
           if (ifcPoints.Coordinates) {
-            for (const coord of ifcPoints.Coordinates) {
-              const value = coord.value * units;
-              axisData.curve.push(value);
-            }
+            pushPoint(ifcPoints.Coordinates);
           }
         }
       } else {
@@ -86,10 +95,7 @@ export class GridReader {
         const ifcPoints = webIfc.GetLine(0, pointsId);
         if (ifcPoints.CoordList) {
           for (const coordinates of ifcPoints.CoordList) {
-            for (const coord of coordinates) {
-              const value = coord.value * units;
-              axisData.curve.push(value);
-            }
+            pushPoint(coordinates);
           }
         }
       }

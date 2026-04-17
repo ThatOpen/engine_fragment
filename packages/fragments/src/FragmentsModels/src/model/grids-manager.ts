@@ -53,11 +53,16 @@ export class GridsManager {
     axis: "uAxes" | "vAxes" | "wAxes",
   ) {
     for (const { curve, tag } of gridData[axis]) {
-      const [x1, y1, x2, y2] = curve;
+      // Grid axis curves are stored as a flat array of 3D points:
+      // [x1, y1, z1, x2, y2, z2, ...]. Some IFC files (BLOXHUB) store axis
+      // endpoints as 3D IFCCARTESIANPOINTs even though the axes are planar,
+      // so reading 4 values flat (treating points as 2D) silently drops the
+      // y of the second point and produces a fan-shaped misplacement.
+      const positions = new Float32Array(curve);
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute(
         "position",
-        new THREE.BufferAttribute(new Float32Array([x1, y1, 0, x2, y2, 0]), 3),
+        new THREE.BufferAttribute(positions, 3),
       );
       const axisLine = new THREE.Line(geometry, this._gridMaterial);
       axisLine.userData.tag = tag;
