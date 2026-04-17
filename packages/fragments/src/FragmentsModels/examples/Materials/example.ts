@@ -280,7 +280,7 @@ for (const element of elementsIds) {
     attributes: ["Name", "NominalValue"],
     relations: {
       IsDefinedBy: { attributes: true, relations: true },
-      DefinesOcurrence: { attributes: false, relations: false },
+      DefinesOccurrence: { attributes: false, relations: false },
     },
   });
   const objectType = data[0].ObjectType as FRAGS.ItemAttribute;

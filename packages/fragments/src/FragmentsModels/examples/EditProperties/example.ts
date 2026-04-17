@@ -173,7 +173,7 @@ class PropertyEditor {
       attributesDefault: true,
       relations: {
         IsDefinedBy: { attributes: true, relations: true },
-        DefinesOcurrence: { attributes: false, relations: false },
+        DefinesOccurrence: { attributes: false, relations: false },
       },
     },
   };

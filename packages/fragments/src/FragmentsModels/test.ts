@@ -236,7 +236,7 @@ async function main() {
       attributes: ["Name", "NominalValue"],
       relations: {
         IsDefinedBy: { attributes: true, relations: true },
-        DefinesOcurrence: { attributes: false, relations: false },
+        DefinesOccurrence: { attributes: false, relations: false },
       },
     });
     console.log(resultData);

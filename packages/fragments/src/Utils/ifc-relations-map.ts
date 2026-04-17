@@ -182,8 +182,8 @@ export const ifcRelationsMap = new Map<
   [
     WEBIFC.IFCRELDEFINESBYTYPE,
     {
-      forRelating: "Types",
-      forRelated: "IsTypedBy",
+      forRelating: "ObjectTypeOf",
+      forRelated: "IsDefinedBy",
     },
   ],
   [

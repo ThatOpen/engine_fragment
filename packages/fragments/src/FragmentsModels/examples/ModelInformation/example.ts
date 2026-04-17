@@ -198,7 +198,7 @@ const getName = async () => {
 // `IsDefinedBy` is the relationship that links property sets (psets) to the element they define.
 // `DefinesOccurrence` is the relationship that links a property set to the elements that use it.
 // In this case, we don't need to know the elements that have the psets (just the psets of the selected element)
-// Then we don't want to get DefinesOcurrences items and that's by attributes and relations are set to false.
+// Then we don't want to get DefinesOccurrences items and that's by attributes and relations are set to false.
 // For more information, please refer to the IFC schema documentation
 const getItemPropertySets = async () => {
   if (!localId) return null;
@@ -207,7 +207,7 @@ const getItemPropertySets = async () => {
     attributes: ["Name", "NominalValue"],
     relations: {
       IsDefinedBy: { attributes: true, relations: true },
-      DefinesOcurrence: { attributes: false, relations: false },
+      DefinesOccurrence: { attributes: false, relations: false },
     },
   });
   return (data.IsDefinedBy as FRAGS.ItemData[]) ?? [];

@@ -70,7 +70,11 @@ export class IfcImporter {
   relations = new Map([
     [
       WEBIFC.IFCRELDEFINESBYPROPERTIES,
-      { forRelating: "DefinesOcurrence", forRelated: "IsDefinedBy" },
+      { forRelating: "DefinesOccurrence", forRelated: "IsDefinedBy" },
+    ],
+    [
+      WEBIFC.IFCRELDEFINESBYTYPE,
+      { forRelating: "ObjectTypeOf", forRelated: "IsDefinedBy" },
     ],
     [
       WEBIFC.IFCRELASSOCIATESMATERIAL,
@@ -98,6 +102,7 @@ export class IfcImporter {
       ...ifcClasses.materials,
       ...ifcClasses.properties,
       ...ifcClasses.units,
+      ...ifcClasses.types,
     ]),
   };
 
