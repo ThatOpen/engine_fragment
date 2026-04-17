@@ -45,7 +45,7 @@ export class FragmentsModels {
     if (FragmentsModels._workerPromise) return FragmentsModels._workerPromise;
 
     FragmentsModels._workerPromise = (async () => {
-      const url = `https://unpkg.com/@thatopen/fragments@${__FRAGMENTS_VERSION__}/resources/worker.mjs`;
+      const url = `https://unpkg.com/@thatopen/fragments@${__FRAGMENTS_VERSION__}/dist/worker/worker.mjs`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(
