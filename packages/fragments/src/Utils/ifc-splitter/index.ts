@@ -160,6 +160,39 @@ const SPATIAL_TYPES: Set<string> = new Set([
   "IFCBUILDINGSTOREY",
 ]);
 
+/**
+ * Returns the argument index at which a given IFC type stores its list of
+ * "related objects". Getting this wrong causes the rewriter to read the wrong
+ * field, end up with an empty list, and skip the line entirely — dropping all
+ * its transitive dependencies (property sets, materials, styles, etc.) from
+ * the split output.
+ */
+const listIdxByType = (type: string): number => {
+  switch (type) {
+    case "IFCRELAGGREGATES":
+      return 5;
+    case "IFCRELCONNECTSWITHREALIZINGELEMENTS":
+      return 7;
+    case "IFCPRESENTATIONLAYERASSIGNMENT":
+      return 2;
+    default:
+      return 4;
+  }
+};
+
+/**
+ * Whether the splitter should rewrite a line of this type per-group. Covers
+ * all IFCREL* types (except void/fill, which are handled separately) plus a
+ * few non-REL types that still reference lists of elements.
+ */
+const shouldRewriteType = (type: string): boolean => {
+  if (type === "IFCRELVOIDSELEMENT") return false;
+  if (type === "IFCRELFILLSELEMENT") return false;
+  if (type.startsWith("IFCREL")) return true;
+  if (type === "IFCPRESENTATIONLAYERASSIGNMENT") return true;
+  return false;
+};
+
 // ---------------------------------------------------------------------------
 // Parse helpers — manual charCode-based extractors for speed on 37M+ lines
 // ---------------------------------------------------------------------------
@@ -916,22 +949,17 @@ export function split(
   }
   console.timeEnd("distribute");
 
-  // 7. Pre-parse all IFCREL* lines for rewriting
+  // 7. Pre-parse all relationship lines that need per-group rewriting.
   console.time("index-rels");
   const relEntries: RelEntry[] = [];
   for (let id = 0; id <= index.maxId; id++) {
     const type = index.getType(id);
-    if (
-      type &&
-      type.startsWith("IFCREL") &&
-      type !== "IFCRELVOIDSELEMENT" &&
-      type !== "IFCRELFILLSELEMENT"
-    ) {
+    if (type && shouldRewriteType(type)) {
       const raw = index.getRaw(id);
       const argsStr = extractArgsString(raw);
       if (!argsStr) continue;
       const args = splitIfcArgs(argsStr);
-      const listIdx = type === "IFCRELAGGREGATES" ? 5 : 4;
+      const listIdx = listIdxByType(type);
       if (args.length <= listIdx) continue;
       const listRefs = extractRefs(args[listIdx]);
       if (listRefs.length === 0) continue;
@@ -1175,17 +1203,12 @@ export function extract(
   const rewrittenLines = new Map<number, string>();
   for (let id = 0; id <= index.maxId; id++) {
     const type = index.getType(id);
-    if (
-      type &&
-      type.startsWith("IFCREL") &&
-      type !== "IFCRELVOIDSELEMENT" &&
-      type !== "IFCRELFILLSELEMENT"
-    ) {
+    if (type && shouldRewriteType(type)) {
       const raw = index.getRaw(id);
       const argsStr = extractArgsString(raw);
       if (!argsStr) continue;
       const args = splitIfcArgs(argsStr);
-      const listIdx = type === "IFCRELAGGREGATES" ? 5 : 4;
+      const listIdx = listIdxByType(type);
       if (args.length <= listIdx) continue;
       const listRefs = extractRefs(args[listIdx]);
       if (listRefs.length === 0) continue;
