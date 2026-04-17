@@ -180,17 +180,22 @@ export class VirtualTilesController {
     }
   }
 
-  async generate(onProgress?: (progress: number) => void) {
+  async generate(
+    onProgress?: (progress: number) => void,
+    throwIfAborted?: () => void,
+  ) {
     for (const [, mesh] of this._virtualMeshes) {
       mesh.setupTemplates();
     }
     const step = Math.max(1, Math.floor(this._sampleAmount / 20));
     for (let i = 0; i < this._sampleAmount; i++) {
       this.generateSampleInTiles(i);
-      if (onProgress && i % step === 0) {
-        onProgress(i / this._sampleAmount);
+      if (i % step === 0) {
+        onProgress?.(i / this._sampleAmount);
         // Yield the worker thread so progress messages get dispatched
+        // and pending ABORT_MODEL messages can be processed.
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        throwIfAborted?.();
       }
     }
     this.setupTileVisibilityAndHighlight();

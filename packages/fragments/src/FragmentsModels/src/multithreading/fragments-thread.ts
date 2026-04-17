@@ -5,6 +5,10 @@ import { ThreadControllerManager } from "./thread-controllers/thread-controller-
 export class FragmentsThread {
   readonly actions: { [index: number]: any } = {};
   readonly list = new Map<string, VirtualFragmentsModel>();
+  /** Set of model IDs currently being loaded (CREATE_MODEL in flight). */
+  readonly loading = new Set<string>();
+  /** Set of model IDs whose in-flight load should abort at the next yield. */
+  readonly aborting = new Set<string>();
 
   // It registers all actions from multithreadingRequestClass
   readonly controllerManager = new ThreadControllerManager(this);

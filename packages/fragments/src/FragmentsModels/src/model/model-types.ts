@@ -186,6 +186,17 @@ export enum MultiThreadingRequestClass {
   CREATE_MATERIAL = 7,
   THROW_ERROR = 8,
   LOAD_PROGRESS = 9,
+  ABORT_MODEL = 10,
+}
+
+/**
+ * Error thrown when a model load is aborted via `FragmentsModels.abort()`.
+ */
+export class LoadAbortedError extends Error {
+  constructor(modelId: string) {
+    super(`Fragments: Load of model "${modelId}" was aborted.`);
+    this.name = "LoadAbortedError";
+  }
 }
 
 /**

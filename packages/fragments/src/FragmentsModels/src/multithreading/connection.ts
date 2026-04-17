@@ -65,7 +65,10 @@ export class Connection {
       await this._handleInput(input);
     } catch (error: any) {
       input.errorInfo = error.toString();
-      console.error(error);
+      // Aborts are intentional — don't log them as unexpected errors.
+      if (error?.name !== "LoadAbortedError") {
+        console.error(error);
+      }
     }
   }
 

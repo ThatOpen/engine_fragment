@@ -474,8 +474,11 @@ export class VirtualFragmentsModel {
     return this.properties.getItemsChildren(ids);
   }
 
-  async setupData(onProgress?: (progress: number) => void) {
-    await this.tiles.generate(onProgress);
+  async setupData(
+    onProgress?: (progress: number) => void,
+    throwIfAborted?: () => void,
+  ) {
+    await this.tiles.generate(onProgress, throwIfAborted);
   }
 
   refreshView(view: any) {

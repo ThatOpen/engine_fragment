@@ -8,7 +8,10 @@ export class ThreadModelDeleter extends ThreadController {
 
   protected async execute(input: any) {
     const { modelId } = input;
-    const model = this.thread.getModel(modelId);
+    // Idempotent: if the model was already disposed (e.g. after an aborted
+    // load that cleaned up partial state on the worker), just return.
+    const model = this.thread.list.get(modelId);
+    if (!model) return;
     model.dispose();
     this.thread.list.delete(modelId);
   }

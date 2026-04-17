@@ -1,5 +1,8 @@
 import Pako from "pako";
-import { MultiThreadingRequestClass } from "../../model/model-types";
+import {
+  LoadAbortedError,
+  MultiThreadingRequestClass,
+} from "../../model/model-types";
 import { ThreadController } from "./thread-controller";
 import { VirtualFragmentsModel } from "../../virtual-model";
 
@@ -11,17 +14,41 @@ export class ThreadModelCreator extends ThreadController {
   protected async execute(input: any) {
     const { modelId } = input;
     const notify = this.createProgressNotifier(modelId);
+    const throwIfAborted = () => {
+      if (this.thread.aborting.has(modelId)) {
+        throw new LoadAbortedError(modelId);
+      }
+    };
 
-    this.inflate(input);
-    notify("decompressing", 1);
+    this.thread.loading.add(modelId);
+    try {
+      this.inflate(input);
+      notify("decompressing", 1);
+      throwIfAborted();
 
-    const model = await this.createModel(input, notify);
-    this.setupData(input, model);
+      const model = await this.createModel(input, notify, throwIfAborted);
+      this.finalize(input, model);
 
-    notify("done", 1);
+      notify("done", 1);
+    } catch (e) {
+      // Clean up any partial state the worker allocated for this model.
+      const partial = this.thread.list.get(modelId);
+      if (partial) {
+        try {
+          partial.dispose();
+        } catch {
+          // swallow — best-effort disposal of partial state
+        }
+        this.thread.list.delete(modelId);
+      }
+      throw e;
+    } finally {
+      this.thread.aborting.delete(modelId);
+      this.thread.loading.delete(modelId);
+    }
   }
 
-  private setupData(input: any, model: VirtualFragmentsModel) {
+  private finalize(input: any, model: VirtualFragmentsModel) {
     input.boundingBox = model.getFullBBox();
     input.modelData = undefined;
   }
@@ -29,6 +56,7 @@ export class ThreadModelCreator extends ThreadController {
   private async createModel(
     input: any,
     notify: (stage: string, progress: number) => void,
+    throwIfAborted: () => void,
   ) {
     const { modelId, modelData, config } = input;
     const { connection } = this.thread;
@@ -39,13 +67,16 @@ export class ThreadModelCreator extends ThreadController {
       config,
     );
 
+    // Register early so the catch block can dispose the partial model.
+    this.thread.list.set(modelId, model);
+
     notify("parsing", 1);
+    throwIfAborted();
 
     await model.setupData((progress: number) => {
       notify("generating", progress);
-    });
+    }, throwIfAborted);
 
-    this.thread.list.set(modelId, model);
     return model;
   }
 

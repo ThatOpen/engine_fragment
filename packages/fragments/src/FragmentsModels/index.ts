@@ -210,7 +210,17 @@ export class FragmentsModels {
       }
     } catch (e) {
       this._progressCallbacks.delete(options.modelId);
-      this.models.list.delete(model.modelId);
+      // Fully dispose partial state — this tears down the worker thread
+      // (if this was the last model on it), clears transferred materials,
+      // removes the model object from its parent, and deletes it from the
+      // models list. `model.dispose()` is safe on partially-loaded models
+      // because the worker-side `DELETE_MODEL` handler is now idempotent.
+      try {
+        await model.dispose();
+      } catch {
+        // best-effort: if disposal fails, still ensure main-thread cleanup
+        this.models.list.delete(model.modelId);
+      }
       throw e;
     } finally {
       this._progressCallbacks.delete(options.modelId);
@@ -254,6 +264,25 @@ export class FragmentsModels {
     if (model) {
       await model.dispose();
     }
+  }
+
+  /**
+   * Aborts an in-flight `load()` for the given model ID. The pending `load()`
+   * promise will reject with a `LoadAbortedError` and any partial state
+   * (on both the main thread and the worker) is disposed.
+   *
+   * Has no effect if the model finished loading or isn't currently loading.
+   *
+   * @param modelId - The unique identifier of the model to abort.
+   */
+  abort(modelId: string) {
+    // Fire-and-forget — the worker sets an abort flag and the in-flight
+    // generate() loop throws at its next yield point. The error unwinds
+    // through load() and its catch block cleans up on the main thread.
+    this._connection.fetch({
+      class: MultiThreadingRequestClass.ABORT_MODEL,
+      modelId,
+    });
   }
 
   /**
