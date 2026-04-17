@@ -13,10 +13,60 @@ import { Editor } from "./src/edit";
 
 export * from "./src";
 
+declare const __FRAGMENTS_VERSION__: string;
+
 /**
- * The main class for managing multiple 3D models loaded from fragments files. Handles loading, disposing, updating, raycasting, highlighting and coordinating multiple FragmentsModel instances. This class acts as the main entry point for working with fragments models.
+ * The main class for managing multiple 3D models loaded from fragments files. Handles loading, disposing, updating, raycasting, highlighting and coordinating multiple FragmentsModel instances. This class acts as the main entry point for working with fragments models. A FragmentsModels instance needs a worker to process fragments off the main thread. The recommended way to obtain the worker URL is via the static FragmentsModels.getWorker method, which fetches the version-matched worker from unpkg. Check the method docs for more info.
  */
 export class FragmentsModels {
+  private static _workerURL: string | null = null;
+  private static _workerPromise: Promise<string> | null = null;
+
+  /**
+   * Fetches the fragments worker from unpkg for the exact version of this
+   * `@thatopen/fragments` package and returns a blob URL you can pass to the
+   * `FragmentsModels` constructor. The result is cached, so calling this
+   * method more than once is cheap.
+   *
+   * This is the recommended way to obtain the worker URL — it guarantees the
+   * worker version matches the library version and requires no copying of
+   * files into your project.
+   *
+   * @example
+   * ```ts
+   * const workerURL = await FragmentsModels.getWorker();
+   * const fragments = new FragmentsModels(workerURL);
+   * ```
+   *
+   * @returns A blob URL pointing to the fragments worker script.
+   */
+  static async getWorker(): Promise<string> {
+    if (FragmentsModels._workerURL) return FragmentsModels._workerURL;
+    if (FragmentsModels._workerPromise) return FragmentsModels._workerPromise;
+
+    FragmentsModels._workerPromise = (async () => {
+      const url = `https://unpkg.com/@thatopen/fragments@${__FRAGMENTS_VERSION__}/resources/worker.mjs`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch fragments worker from ${url}: ${response.status} ${response.statusText}`,
+        );
+      }
+      const blob = await response.blob();
+      const file = new File([blob], "worker.mjs", { type: "text/javascript" });
+      const objectURL = URL.createObjectURL(file);
+      FragmentsModels._workerURL = objectURL;
+      return objectURL;
+    })();
+
+    try {
+      return await FragmentsModels._workerPromise;
+    } catch (error) {
+      FragmentsModels._workerPromise = null;
+      throw error;
+    }
+  }
+
   /**
    * Event triggered when a model is loaded.
    * @event
@@ -68,8 +118,14 @@ export class FragmentsModels {
   /**
    * Creates a new FragmentsModels instance.
    * @param workerURL - The URL of the worker script that will handle the fragments processing.
-   * This should point to a copy of the fragments worker file from @thatopen/fragments.
-   * If omitted, it defaults to the worker bundled with the package.
+   * The recommended way to obtain this URL is via {@link FragmentsModels.getWorker}, which fetches
+   * the version-matched worker from unpkg:
+   * ```ts
+   * const workerURL = await FragmentsModels.getWorker();
+   * const fragments = new FragmentsModels(workerURL);
+   * ```
+   * If omitted, it falls back to the worker bundled with the package (only works with bundlers
+   * that can resolve `new URL("./Worker/worker.mjs", import.meta.url)`).
    * @param options - Optional configuration.
    * @param options.classicWorker - If true, creates classic (non-module) workers. Use together with `toClassicWorker()`.
    */

@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { defineConfig } from "vite";
 import { globSync } from "glob";
+import * as fragmentsPackageJson from "./packages/fragments/package.json";
 
 const writeIndexHTML = () => {
   let links: string = "";
@@ -59,5 +60,8 @@ const createIndex = () => ({
 });
 
 export default defineConfig({
+  define: {
+    __FRAGMENTS_VERSION__: JSON.stringify(fragmentsPackageJson.version),
+  },
   plugins: [createIndex()],
 });

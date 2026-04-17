@@ -24,6 +24,9 @@ import * as packageJson from "./package.json";
 // };
 
 export default defineConfig({
+  define: {
+    __FRAGMENTS_VERSION__: JSON.stringify(packageJson.version),
+  },
   build: {
     outDir: "./dist",
     minify: false,

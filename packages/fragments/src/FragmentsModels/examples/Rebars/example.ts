@@ -69,16 +69,9 @@ world.scene.three.add(axesHelper);
   Now, let's configure the Fragments library core. This will allow us to load models effortlessly and start working with reinforced concrete elements:
 */
 
-// prettier-ignore
-const githubUrl =
-  "https://thatopen.github.io/engine_fragment/resources/worker.mjs";
-const fetchedUrl = await fetch(githubUrl);
-const workerBlob = await fetchedUrl.blob();
-const workerFile = new File([workerBlob], "worker.mjs", {
-  type: "text/javascript",
-});
-const workerUrl = URL.createObjectURL(workerFile);
-// const workerUrl = "../../dist/Worker/worker.mjs";
+// `FragmentsModels.getWorker()` fetches the matching worker for this library version from unpkg and returns a blob URL.
+// You can also pass your own URL to `new FragmentsModels(...)` if you'd rather host the worker yourself.
+const workerUrl = await FRAGS.FragmentsModels.getWorker();
 const fragments = new FRAGS.FragmentsModels(workerUrl);
 
 world.camera.controls.addEventListener("control", () => fragments.update());
