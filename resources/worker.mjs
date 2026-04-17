@@ -13889,8 +13889,16 @@ var MultiThreadingRequestClass = /* @__PURE__ */ ((MultiThreadingRequestClass2) 
   MultiThreadingRequestClass2[MultiThreadingRequestClass2["RECOMPUTE_MESHES"] = 6] = "RECOMPUTE_MESHES";
   MultiThreadingRequestClass2[MultiThreadingRequestClass2["CREATE_MATERIAL"] = 7] = "CREATE_MATERIAL";
   MultiThreadingRequestClass2[MultiThreadingRequestClass2["THROW_ERROR"] = 8] = "THROW_ERROR";
+  MultiThreadingRequestClass2[MultiThreadingRequestClass2["LOAD_PROGRESS"] = 9] = "LOAD_PROGRESS";
+  MultiThreadingRequestClass2[MultiThreadingRequestClass2["ABORT_MODEL"] = 10] = "ABORT_MODEL";
   return MultiThreadingRequestClass2;
 })(MultiThreadingRequestClass || {});
+class LoadAbortedError extends Error {
+  constructor(modelId) {
+    super(`Fragments: Load of model "${modelId}" was aborted.`);
+    this.name = "LoadAbortedError";
+  }
+}
 var ItemConfigClass = /* @__PURE__ */ ((ItemConfigClass2) => {
   ItemConfigClass2[ItemConfigClass2["VISIBLE"] = 0] = "VISIBLE";
   return ItemConfigClass2;
@@ -14128,7 +14136,9 @@ class Connection {
       await this._handleInput(input);
     } catch (error2) {
       input.errorInfo = error2.toString();
-      console.error(error2);
+      if ((error2 == null ? void 0 : error2.name) !== "LoadAbortedError") {
+        console.error(error2);
+      }
     }
   }
   async manageInput(input) {
@@ -31912,12 +31922,18 @@ const _VirtualTilesController = class _VirtualTilesController {
       mesh.dispose();
     }
   }
-  generate() {
+  async generate(onProgress, throwIfAborted) {
     for (const [, mesh] of this._virtualMeshes) {
       mesh.setupTemplates();
     }
+    const step = Math.max(1, Math.floor(this._sampleAmount / 20));
     for (let i = 0; i < this._sampleAmount; i++) {
       this.generateSampleInTiles(i);
+      if (i % step === 0) {
+        onProgress == null ? void 0 : onProgress(i / this._sampleAmount);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        throwIfAborted == null ? void 0 : throwIfAborted();
+      }
     }
     this.setupTileVisibilityAndHighlight();
   }
@@ -80486,8 +80502,8 @@ class VirtualFragmentsModel {
   getItemsChildren(ids) {
     return this.properties.getItemsChildren(ids);
   }
-  setupData() {
-    this.tiles.generate();
+  async setupData(onProgress, throwIfAborted) {
+    await this.tiles.generate(onProgress, throwIfAborted);
   }
   refreshView(view) {
     this.view = view;
@@ -80726,15 +80742,41 @@ class ThreadModelCreator extends ThreadController {
     return MultiThreadingRequestClass.CREATE_MODEL;
   }
   async execute(input) {
-    this.inflate(input);
-    const model = this.createModel(input);
-    this.setupData(input, model);
+    const { modelId } = input;
+    const notify = this.createProgressNotifier(modelId);
+    const throwIfAborted = () => {
+      if (this.thread.aborting.has(modelId)) {
+        throw new LoadAbortedError(modelId);
+      }
+    };
+    this.thread.loading.add(modelId);
+    try {
+      this.inflate(input);
+      notify("decompressing", 1);
+      throwIfAborted();
+      const model = await this.createModel(input, notify, throwIfAborted);
+      this.finalize(input, model);
+      notify("done", 1);
+    } catch (e) {
+      const partial = this.thread.list.get(modelId);
+      if (partial) {
+        try {
+          partial.dispose();
+        } catch {
+        }
+        this.thread.list.delete(modelId);
+      }
+      throw e;
+    } finally {
+      this.thread.aborting.delete(modelId);
+      this.thread.loading.delete(modelId);
+    }
   }
-  setupData(input, model) {
+  finalize(input, model) {
     input.boundingBox = model.getFullBBox();
     input.modelData = void 0;
   }
-  createModel(input) {
+  async createModel(input, notify, throwIfAborted) {
     const { modelId, modelData, config } = input;
     const { connection } = this.thread;
     const model = new VirtualFragmentsModel(
@@ -80743,14 +80785,29 @@ class ThreadModelCreator extends ThreadController {
       connection,
       config
     );
-    model.setupData();
     this.thread.list.set(modelId, model);
+    notify("parsing", 1);
+    throwIfAborted();
+    await model.setupData((progress) => {
+      notify("generating", progress);
+    }, throwIfAborted);
     return model;
   }
   inflate(input) {
     if (!input.raw) {
       input.modelData = pako.inflate(input.modelData);
     }
+  }
+  createProgressNotifier(modelId) {
+    const { connection } = this.thread;
+    return (stage, progress) => {
+      connection.fetch({
+        class: MultiThreadingRequestClass.LOAD_PROGRESS,
+        modelId,
+        stage,
+        progress
+      });
+    };
   }
 }
 class ThreadRaycaster extends ThreadController {
@@ -80814,9 +80871,22 @@ class ThreadModelDeleter extends ThreadController {
   }
   async execute(input) {
     const { modelId } = input;
-    const model = this.thread.getModel(modelId);
+    const model = this.thread.list.get(modelId);
+    if (!model)
+      return;
     model.dispose();
     this.thread.list.delete(modelId);
+  }
+}
+class ThreadModelAborter extends ThreadController {
+  getId() {
+    return MultiThreadingRequestClass.ABORT_MODEL;
+  }
+  async execute(input) {
+    const { modelId } = input;
+    if (!this.thread.loading.has(modelId))
+      return;
+    this.thread.aborting.add(modelId);
   }
 }
 class ThreadViewRefresher extends ThreadController {
@@ -80929,6 +80999,7 @@ class ThreadControllerManager {
     __publicField(this, "modelCreator");
     __publicField(this, "raycaster");
     __publicField(this, "modelDeleter");
+    __publicField(this, "modelAborter");
     __publicField(this, "viewRefresher");
     __publicField(this, "boxFetcher");
     __publicField(this, "executor");
@@ -80937,6 +81008,7 @@ class ThreadControllerManager {
     this.modelCreator = new ThreadModelCreator(thread2);
     this.raycaster = new ThreadRaycaster(thread2);
     this.modelDeleter = new ThreadModelDeleter(thread2);
+    this.modelAborter = new ThreadModelAborter(thread2);
     this.viewRefresher = new ThreadViewRefresher(thread2);
     this.boxFetcher = new ThreadBoxFetcher(thread2);
     this.executor = new ThreadExecutor(thread2);
@@ -80947,6 +81019,10 @@ class FragmentsThread {
   constructor() {
     __publicField(this, "actions", {});
     __publicField(this, "list", /* @__PURE__ */ new Map());
+    /** Set of model IDs currently being loaded (CREATE_MODEL in flight). */
+    __publicField(this, "loading", /* @__PURE__ */ new Set());
+    /** Set of model IDs whose in-flight load should abort at the next yield. */
+    __publicField(this, "aborting", /* @__PURE__ */ new Set());
     // It registers all actions from multithreadingRequestClass
     __publicField(this, "controllerManager", new ThreadControllerManager(this));
     __publicField(this, "_connection");
