@@ -8,6 +8,7 @@ import {
   ItemsQueryParams,
 } from "../model";
 import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
+import { EditRequest } from "../../../Utils";
 
 /**
  * The main class for managing a 3D model loaded from a fragments file in a single thread. It's designed for easy data querying in the backend, so all the 3D visualization logic is not present.
@@ -305,5 +306,71 @@ export class SingleThreadedFragmentsModel {
    */
   async getGlobalTranformsIdsOfItems(ids: number[]) {
     return this._virtualModel.getGlobalTranformsIdsOfItems(ids);
+  }
+
+  // ---------------------------------------------------------------------
+  // Edit API
+  //
+  // These are the same edit operations exposed by the multithreaded
+  // FragmentsModel / Editor, available here for Node.js environments where
+  // the Worker-based pipeline isn't available. Unlike the multithreaded
+  // flow, there's no separate "delta model" loaded into a scene — the
+  // result of `edit()` is just the delta buffer, which you can hand back
+  // to downstream tooling or persist however you want.
+  // ---------------------------------------------------------------------
+
+  /**
+   * Apply a batch of edit requests. Accumulates onto this model's
+   * pending-edit history; call {@link save} to flatten them into a new
+   * committed buffer or {@link reset} to discard.
+   * @returns The delta flatbuffer bytes and the local IDs assigned to
+   * any newly-created items.
+   */
+  edit(requests: EditRequest[]) {
+    return this._virtualModel.edit(requests);
+  }
+
+  /** Discard all pending edits on this model. */
+  reset() {
+    this._virtualModel.reset();
+  }
+
+  /**
+   * Flatten the current pending-edit history into a new committed buffer.
+   * @returns The raw flatbuffer bytes of the updated model.
+   */
+  save() {
+    return this._virtualModel.save();
+  }
+
+  /** Undo the last edit. */
+  undo() {
+    return this._virtualModel.undo();
+  }
+
+  /** Redo the last undone edit. */
+  redo() {
+    return this._virtualModel.redo();
+  }
+
+  /** Get the current edit history (applied requests + undone redo stack). */
+  getRequests() {
+    return this._virtualModel.getRequests();
+  }
+
+  /**
+   * Replace the edit history with a caller-provided one. Useful for
+   * restoring state from disk.
+   */
+  setRequests(data: {
+    requests?: EditRequest[];
+    undoneRequests?: EditRequest[];
+  }) {
+    return this._virtualModel.setRequests(data);
+  }
+
+  /** Navigate to a specific point in the edit history by index. */
+  selectRequest(index: number) {
+    return this._virtualModel.selectRequest(index);
   }
 }
