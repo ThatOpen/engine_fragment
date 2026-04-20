@@ -26,6 +26,10 @@ export class ThreadModelCreator extends ThreadController {
       notify("decompressing", 1);
       throwIfAborted();
 
+      this.thread.controllerManager.updater.setUpdateDelay(
+        input.config?.multithreading?.threadUpdaterDelay,
+      );
+
       const model = await this.createModel(input, notify, throwIfAborted);
       this.finalize(input, model);
 

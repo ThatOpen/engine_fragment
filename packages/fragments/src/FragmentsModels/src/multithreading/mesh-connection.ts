@@ -1,5 +1,6 @@
 import { Connection } from "./connection";
 import { MultithreadingHelper } from "./multithreading-helper";
+import { VirtualMultithreadingConfig } from "../model/model-types";
 
 export class MeshConnection {
   private _rate = 64;
@@ -13,9 +14,16 @@ export class MeshConnection {
     return this._list.length > this._threshold;
   }
 
-  constructor(modelId: string, connection: Connection) {
+  constructor(
+    modelId: string,
+    connection: Connection,
+    multithreading?: VirtualMultithreadingConfig,
+  ) {
     this._modelId = modelId;
     this._connection = connection;
+    this._rate = multithreading?.meshConnectionRate ?? this._rate;
+    this._threshold =
+      multithreading?.meshConnectionThreshold ?? this._threshold;
     this._updater = MultithreadingHelper.newUpdater(this.refresh, this._rate);
   }
 
