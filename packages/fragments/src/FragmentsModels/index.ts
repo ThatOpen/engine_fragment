@@ -117,15 +117,11 @@ export class FragmentsModels {
 
   /**
    * Creates a new FragmentsModels instance.
-   * @param workerURL - The URL of the worker script that will handle the fragments processing.
-   * The recommended way to obtain this URL is via {@link FragmentsModels.getWorker}, which fetches
-   * the version-matched worker from unpkg:
-   * ```ts
-   * const workerURL = await FragmentsModels.getWorker();
-   * const fragments = new FragmentsModels(workerURL);
-   * ```
-   * If omitted, it falls back to the worker bundled with the package (only works with bundlers
-   * that can resolve `new URL("./Worker/worker.mjs", import.meta.url)`).
+   *
+   * The recommended way to obtain the worker URL is via {@link FragmentsModels.getWorker},
+   * which fetches the version-matched worker from unpkg. See its docs for an example.
+   *
+   * @param workerURL - The URL of the worker script that will handle the fragments processing. If omitted, it falls back to the worker bundled with the package (only works with bundlers that can resolve `new URL("./Worker/worker.mjs", import.meta.url)`).
    * @param options - Optional configuration.
    * @param options.classicWorker - If true, creates classic (non-module) workers. Use together with `toClassicWorker()`.
    */
