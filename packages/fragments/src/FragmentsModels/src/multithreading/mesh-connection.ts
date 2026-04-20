@@ -21,9 +21,16 @@ export class MeshConnection {
   ) {
     this._modelId = modelId;
     this._connection = connection;
-    this._rate = multithreading?.meshConnectionRate ?? this._rate;
-    this._threshold =
-      multithreading?.meshConnectionThreshold ?? this._threshold;
+    const configuredRate = multithreading?.meshConnectionRate;
+    if (Number.isFinite(configuredRate) && configuredRate >= 0) {
+      this._rate = configuredRate;
+    }
+
+    const configuredThreshold = multithreading?.meshConnectionThreshold;
+    if (Number.isFinite(configuredThreshold) && configuredThreshold >= 0) {
+      this._threshold = configuredThreshold;
+    }
+
     this._updater = MultithreadingHelper.newUpdater(this.refresh, this._rate);
   }
 
