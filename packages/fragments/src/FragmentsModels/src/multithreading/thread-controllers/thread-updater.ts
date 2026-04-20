@@ -16,7 +16,7 @@ export class ThreadUpdater {
   }
 
   setUpdateDelay(delay?: number) {
-    if (typeof delay !== "number" || delay < 0) {
+    if (typeof delay !== "number" || !Number.isFinite(delay) || delay < 0) {
       return;
     }
     this._updateDelay = delay;
