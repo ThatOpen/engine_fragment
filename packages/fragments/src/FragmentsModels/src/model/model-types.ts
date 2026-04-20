@@ -502,7 +502,7 @@ export interface VirtualPropertiesConfig {
 export interface VirtualMultithreadingConfig {
   /** Interval in milliseconds to flush queued mesh requests */
   meshConnectionRate?: number;
-  /** Queue length that triggers immediate mesh request flushing */
+  /** Queue length that, when exceeded, triggers immediate mesh request flushing */
   meshConnectionThreshold?: number;
   /** Delay in milliseconds between worker-side update loop iterations */
   threadUpdaterDelay?: number;
