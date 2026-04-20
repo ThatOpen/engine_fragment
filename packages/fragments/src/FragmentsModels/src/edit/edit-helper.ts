@@ -204,10 +204,7 @@ export class EditHelper {
     // disposes the old delta model).
     (deltaModel as any)._frozen = false;
     await deltaModel._refreshView();
-    await this._fragments.models.forceUpdateFinish(
-      this._fragments.settings.forceUpdateRate,
-      this._fragments.settings.forceUpdateBuffer,
-    );
+    await this._fragments.models.forceUpdateFinish();
 
     return deltaModel;
   }
