@@ -179,10 +179,10 @@ export class FragmentsModels {
     const virtualModelConfig: VirtualModelConfig = {
       ...options.virtualModelConfig,
       multithreading: {
-        ...options.virtualModelConfig?.multithreading,
         meshConnectionRate: this.settings.meshConnectionRate,
         meshConnectionThreshold: this.settings.meshConnectionThreshold,
         threadUpdaterDelay: this.settings.threadUpdaterDelay,
+        ...options.virtualModelConfig?.multithreading,
       },
     };
 
