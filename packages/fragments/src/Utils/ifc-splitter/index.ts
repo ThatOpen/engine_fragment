@@ -149,7 +149,7 @@ const ELEMENT_TYPES: Set<string> = new Set([
   "IFCSHADINGDEVICE",
   "IFCCHIMNEY",
   "IFCGEOGRAPHICELEMENT",
-  "IFCPROXY", 
+  "IFCPROXY",
   "IFCMECHANICALFASTENER",
 ]);
 
@@ -830,7 +830,7 @@ export function split(
   inputPath: string,
   numGroups: number,
   outputDir?: string,
-): void {
+): Set<number>[] {
   const { fs, path } = deps;
   if (!fs.existsSync(inputPath)) {
     console.error(`File not found: ${inputPath}`);
@@ -1080,6 +1080,8 @@ export function split(
   console.timeEnd("write");
 
   console.log("\nDone!");
+
+  return groupsData.map((g) => g?.fileIds ?? new Set());
 }
 
 /**
