@@ -179,13 +179,27 @@ export class VirtualPropertiesController {
   }
 
   getLocalIdsFromItemIds(itemIds: Iterable<number>) {
+    // Previously this was a triple-nested scan:
+    //   for each [localId, geometryIds] of _localIdsToGeometryIds: // O(N)
+    //     for each itemId:                                         // O(M)
+    //       if (geometryIds.includes(itemId)) ...                  // O(K)
+    // On large models (~500k items) with most items visible that blew up
+    // into ~N³ work and hung the worker. meshes_items already encodes
+    // itemId → localIdIndex, so we just do two direct flatbuffer lookups
+    // per input itemId. O(M) total, zero extra memory. Also fixes a latent
+    // dedup bug — the old version could push the same localId multiple
+    // times.
+    const meshes = this._model.meshes()!;
+    const seen = new Set<number>();
     const result: number[] = [];
-    const entries = this._localIdsToGeometryIds.entries();
-    for (const [localId, geometryIds] of entries) {
-      for (const itemId of itemIds) {
-        if (!geometryIds.includes(itemId)) continue;
-        result.push(localId);
-      }
+    for (const itemId of itemIds) {
+      const localIdIndex = meshes.meshesItems(itemId);
+      if (localIdIndex === null) continue;
+      const localId = this._model.localIds(localIdIndex);
+      if (localId === null) continue;
+      if (seen.has(localId)) continue;
+      seen.add(localId);
+      result.push(localId);
     }
     return result;
   }

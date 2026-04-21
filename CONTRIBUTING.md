@@ -32,6 +32,25 @@ packages/fragments/src/
 └── GeometryEngine/           # Primitive geometry (H-profiles, extrusions)
 ```
 
+### Data model glossary
+
+These four terms appear constantly in the codebase and mean very specific things. Confusing them is the single biggest source of wasted time when working on the worker-side code.
+
+| Term | What it is | Where |
+|---|---|---|
+| **localId** | BIM identifier (e.g., IFC `expressID`). User-facing. May be sparse. | `Model.local_ids: [uint]` |
+| **itemId** | Dense index (0..N) into the parallel arrays `meshes_items`, `global_transforms`, `material_ids`, `representation_ids`, etc. One per unique BIM object. | Array position, not a stored field |
+| **sampleId** | Index into `Meshes.samples[]`. A render instance carrying `item + material + representation + local_transform`. Multiple samples can reference the same item. | `Meshes.samples[]` |
+| **representationId** | Index into `Meshes.representations[]`. The geometry shape (SHELL, CIRCLE_EXTRUSION). | `Meshes.representations[]` |
+
+Key conversions — **do NOT rebuild these, they already exist:**
+
+- **itemId → localId:** `local_ids[meshes_items[itemId]]`. `meshes_items` is literally an itemId-indexed array of localIdIndices. See `raycast-controller.ts`'s `localIdsFromItemIds` for the canonical two-lookup pattern.
+- **sampleId → itemId:** `samples[sampleId].item`.
+- **sampleId → representationId:** `samples[sampleId].representation`.
+
+Before adding any `Map<number, number>` or `Uint32Array` inverse index inside the worker, check whether the flatbuffer already encodes what you need. Most of the time it does.
+
 ### Key mental model
 
 - `.frag` files are FlatBuffers. The schema lives at `packages/fragments/flatbuffers/index.fbs` and is generated into `src/Schema/`. Run `yarn fb` after changing it.
