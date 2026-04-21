@@ -1074,11 +1074,25 @@ export class IfcFileReader {
     initialTangent.y /= tangentMagnitude;
     initialTangent.z /= tangentMagnitude;
 
-    // Compute angle subtended by circle curve
-    const angle = Math.acos(
-      (dirAcen.x * dirBcen.x + dirAcen.y * dirBcen.y + dirAcen.z * dirBcen.z) /
-        (length(dirAcen) * length(dirBcen)),
-    );
+    // Compute angle subtended by circle curve. Guard two degenerate cases:
+    //   1. length(dirAcen) or length(dirBcen) === 0 (point coincides with
+    //      center) → division by zero yields Infinity → acos returns NaN.
+    //   2. floating-point precision pushes the cosine slightly outside
+    //      [-1, 1] on tight arcs → acos returns NaN.
+    // Either would write NaN as aperture to the flatbuffer and crash the
+    // circle-extrusion constructor downstream.
+    const lenA = length(dirAcen);
+    const lenB = length(dirBcen);
+    const denom = lenA * lenB;
+    const rawCos =
+      denom === 0
+        ? 1
+        : (dirAcen.x * dirBcen.x +
+            dirAcen.y * dirBcen.y +
+            dirAcen.z * dirBcen.z) /
+          denom;
+    const cos = Math.max(-1, Math.min(1, rawCos));
+    const angle = Math.acos(cos);
 
     return {
       center,

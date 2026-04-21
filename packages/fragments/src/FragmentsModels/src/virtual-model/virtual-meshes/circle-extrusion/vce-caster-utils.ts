@@ -46,6 +46,16 @@ export class VceCasterUtils {
     const aperture = input.aperture();
     const radius = input.radius();
     const rawResult = aperture * radius * factor;
+    // Guard NaN/Infinity from malformed flatbuffer data: if either aperture
+    // or radius is non-finite, the product is NaN and Math.min/max with NaN
+    // returns NaN, which then propagates downstream and crashes the
+    // constructor reading circleCurves[NaN]. Fall back to min divisions.
+    if (!Number.isFinite(rawResult)) {
+      // console.log(
+      //   `Invalid circle curve data: aperture=${aperture}, radius=${radius}. Falling back to minimum divisions (${min}).`,
+      // );
+      return min;
+    }
     const divisions = Math.round(rawResult);
     return Math.min(Math.max(divisions, min), max);
   }
