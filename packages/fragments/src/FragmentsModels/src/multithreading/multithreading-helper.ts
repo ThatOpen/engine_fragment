@@ -141,6 +141,25 @@ export class MultithreadingHelper {
     return currentThreads < availableThreads;
   }
 
+  /**
+   * Effective max worker cap. Defaults to navigator.hardwareConcurrency - 3,
+   * floored at 2 (matching the legacy areCoresAvailable behavior). Callers
+   * may pass an explicit override (e.g. CI environments or apps that know
+   * their workload). Floors at 2 even when overridden.
+   */
+  static getMaxWorkers(override?: number) {
+    if (override !== undefined) {
+      if (!Number.isFinite(override) || override < 2) {
+        throw new Error(
+          `Fragments: maxWorkers must be a finite number >= 2 (got ${override}).`,
+        );
+      }
+      return Math.floor(override);
+    }
+    const capacity = MultithreadingHelper.getCpuCapacity();
+    return Math.max(capacity, 2);
+  }
+
   static isFinishRequest(request: any) {
     return request.tileRequestClass === TileRequestClass.FINISH;
   }

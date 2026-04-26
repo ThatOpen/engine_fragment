@@ -189,6 +189,12 @@ export class FragmentsModel {
   }
 
   /**
+   * The thread group this model was loaded into, or `undefined` if it was
+   * loaded into the default pool. Set once at load time, never changes.
+   */
+  readonly threadGroup: string | undefined;
+
+  /**
    * The constructor of the fragments model. Don't use this directly. Use the {@link FragmentsModels.load} instead.
    */
   constructor(
@@ -196,12 +202,14 @@ export class FragmentsModel {
     meshManager: MeshManager,
     threads: FragmentsConnection,
     editor: Editor,
+    threadGroup?: string,
   ) {
     this.object.name = modelId;
     this.object.up.set(0, 0, 1);
     this._meshManager = meshManager;
     this.threads = threads;
     this._editor = editor;
+    this.threadGroup = threadGroup;
     this._alignmentsManager = new AlignmentsManager(this);
     this._gridsManager = new GridsManager(this);
     this.tiles.onItemSet.add(({ value: mesh }) => this.object.add(mesh));

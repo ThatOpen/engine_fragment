@@ -124,23 +124,49 @@ export class FragmentsModels {
    * @param workerURL - The URL of the worker script that will handle the fragments processing. If omitted, it falls back to the worker bundled with the package (only works with bundlers that can resolve `new URL("./Worker/worker.mjs", import.meta.url)`).
    * @param options - Optional configuration.
    * @param options.classicWorker - If true, creates classic (non-module) workers. Use together with `toClassicWorker()`.
+   * @param options.maxWorkers - Effective max worker cap. Defaults to `navigator.hardwareConcurrency - 3`, floored at 2. Set explicitly for CI environments or when you know your workload.
+   * @param options.threadGroups - Reserved worker capacity per named thread group. Workers are spawned lazily (nothing is spawned until the first load targets a pool). A model loaded with `threadGroup: "x"` always lands on group "x"'s pool; default-pool loads never touch a reserved worker. The sum of group sizes must leave at least one slot for the default pool, otherwise init throws.
    */
-  constructor(workerURL?: string, options?: { classicWorker?: boolean }) {
+  constructor(
+    workerURL?: string,
+    options?: {
+      classicWorker?: boolean;
+      maxWorkers?: number;
+      threadGroups?: Record<string, number>;
+    },
+  ) {
     const url =
       workerURL ?? new URL("./Worker/worker.mjs", import.meta.url).href;
     const requestEvent = this.newRequestEvent();
     const updateEvent = this.newUpdateEvent();
-    this._connection = new FragmentsConnection(
-      requestEvent,
-      url,
-      options?.classicWorker,
-    );
+    this._connection = new FragmentsConnection(requestEvent, url, {
+      classicWorker: options?.classicWorker,
+      maxWorkers: options?.maxWorkers,
+      threadGroups: options?.threadGroups,
+    });
     this.editor = new Editor(this, this._connection);
     this.models = new MeshManager(updateEvent);
     this.models.list.onItemDeleted.add(() => {
       if (this.models.list.size !== 0) return;
       this.baseCoordinates = null;
     });
+  }
+
+  /**
+   * Effective max worker cap for this instance. Surfaces the value derived
+   * from `navigator.hardwareConcurrency - 3` (floored at 2) or the explicit
+   * `maxWorkers` override passed to the constructor.
+   */
+  get maxWorkers(): number {
+    return this._connection.maxWorkers;
+  }
+
+  /**
+   * Reserved worker capacity per named thread group, as declared at init.
+   * Empty object if no groups were declared.
+   */
+  get threadGroups(): Record<string, number> {
+    return this._connection.threadGroups;
   }
 
   /**
@@ -164,13 +190,24 @@ export class FragmentsModels {
       virtualModelConfig?: VirtualModelConfig;
       /** Optional callback for receiving loading progress updates. */
       onProgress?: (event: LoadProgressEvent) => void;
+      /**
+       * Routes the model to a thread group declared at init time. Models
+       * sharing a group also share workers, isolated from other groups and
+       * from the default pool. Throws if the group was not declared.
+       */
+      threadGroup?: string;
     },
   ) {
+    // Record the model's group before we issue any worker request so the
+    // pool routing in fragments-connection picks the right thread.
+    this._connection.setModelThreadGroup(options.modelId, options.threadGroup);
+
     const model = new FragmentsModel(
       options.modelId,
       this.models,
       this._connection,
       this.editor,
+      options.threadGroup,
     );
 
     if (options.userData) {

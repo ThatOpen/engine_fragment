@@ -3,14 +3,66 @@ import { ThreadHandler } from "./connection-handlers";
 import { MultithreadingHelper, Thread } from "./multithreading-helper";
 import { ThreadsData } from "./threads-data";
 
+export interface FragmentsConnectionOptions {
+  classicWorker?: boolean;
+  /**
+   * Effective max worker cap. Defaults to navigator.hardwareConcurrency - 3,
+   * floored at 2. Sum of declared `threadGroups` sizes must leave at least
+   * one slot for the default pool.
+   */
+  maxWorkers?: number;
+  /**
+   * Reserved worker capacity per named group. Lazy: workers are spawned on
+   * demand, not eagerly. A model loaded with a matching `threadGroup`
+   * always lands on its group's pool; a default-pool load never lands on a
+   * reserved worker.
+   */
+  threadGroups?: Record<string, number>;
+}
+
 export class FragmentsConnection extends Connection {
   private readonly _data: ThreadsData;
   private readonly _classicWorker: boolean;
+  private readonly _maxWorkers: number;
+  private readonly _threadGroups: Map<string, number>;
+  private readonly _defaultCap: number;
 
-  constructor(handleInput: ThreadHandler, threadPath: string, classicWorker?: boolean) {
+  get maxWorkers() {
+    return this._maxWorkers;
+  }
+
+  get threadGroups(): Record<string, number> {
+    return Object.fromEntries(this._threadGroups);
+  }
+
+  constructor(
+    handleInput: ThreadHandler,
+    threadPath: string,
+    options?: FragmentsConnectionOptions,
+  ) {
     super(handleInput);
-    this._classicWorker = classicWorker ?? false;
+    this._classicWorker = options?.classicWorker ?? false;
     this._data = new ThreadsData(threadPath);
+    this._maxWorkers = MultithreadingHelper.getMaxWorkers(options?.maxWorkers);
+
+    const declared = options?.threadGroups ?? {};
+    let reserved = 0;
+    this._threadGroups = new Map();
+    for (const [name, size] of Object.entries(declared)) {
+      if (!Number.isFinite(size) || size < 1 || !Number.isInteger(size)) {
+        throw new Error(
+          `Fragments: threadGroup "${name}" must have an integer size >= 1 (got ${size}).`,
+        );
+      }
+      this._threadGroups.set(name, size);
+      reserved += size;
+    }
+    if (reserved >= this._maxWorkers) {
+      throw new Error(
+        `Fragments: declared threadGroups reserve ${reserved} workers but maxWorkers is ${this._maxWorkers}. The default pool needs at least one slot. Either lower a group size or raise maxWorkers.`,
+      );
+    }
+    this._defaultCap = this._maxWorkers - reserved;
   }
 
   delete(model: string) {
@@ -20,6 +72,29 @@ export class FragmentsConnection extends Connection {
     if (amount === 0) {
       this._data.deleteThread(thread);
     }
+  }
+
+  /**
+   * Looks up the threadGroup the user assigned at load() time. Returns
+   * undefined for default-pool models. Used by FragmentsModels to expose
+   * `model.threadGroup` to consumers.
+   */
+  getModelThreadGroup(modelId: string) {
+    return this._data.getModelGroup(modelId);
+  }
+
+  /**
+   * Records the threadGroup for an upcoming load. Called by FragmentsModels
+   * before issuing the first request for that model so the routing in
+   * setupNewThread sees the right group.
+   */
+  setModelThreadGroup(modelId: string, group: string | undefined) {
+    if (group !== undefined && !this._threadGroups.has(group)) {
+      throw new Error(
+        `Fragments: thread group "${group}" was not declared at init time. Declared groups: ${[...this._threadGroups.keys()].join(", ") || "(none)"}.`,
+      );
+    }
+    this._data.setModelGroup(modelId, group);
   }
 
   async invoke(model: string, method: string, args: any[] = []) {
@@ -38,21 +113,26 @@ export class FragmentsConnection extends Connection {
   }
 
   /**
-   * This method either:
-   * - creates a new worker thread (if CPU cores are available)
-   * - assigns the task to an existing worker with the lowest load.
-   * @param input
-   * @returns
+   * Either spawns a new worker (if this group/pool still has reserved
+   * capacity) or routes the load to the least-busy existing worker in the
+   * same pool. Cross-pool spillover is intentionally not allowed: a "data"
+   * load never lands on a "geometry" worker and vice versa, and default
+   * loads never use a reserved worker.
    */
   private setupNewThread(input: any): MessagePort {
-    const helper = MultithreadingHelper;
     this._data.usePlaceholder(input.modelId);
-    const currentThreads = this._data.getThreadAmount();
-    const areCoresAvailable = helper.areCoresAvailable(currentThreads);
-    if (areCoresAvailable) {
-      return this.newThread(input, this._data.path);
+    const group = this._data.getModelGroup(input.modelId);
+
+    const cap =
+      group === undefined
+        ? this._defaultCap
+        : (this._threadGroups.get(group) as number);
+    const current = this._data.getThreadAmountForGroup(group);
+
+    if (current < cap) {
+      return this.newThread(input, this._data.path, group);
     }
-    return this._data.balanceThreadLoad(input);
+    return this._data.balanceThreadLoad(input, group);
   }
   /**
    * Creates a `MessageChannel` to establish a bidirectional
@@ -70,10 +150,11 @@ export class FragmentsConnection extends Connection {
     newThread.postMessage(p2, [p2]);
   }
 
-  private newThread(input: any, url: string) {
+  private newThread(input: any, url: string, group: string | undefined) {
     const newThread = MultithreadingHelper.newThread(url, this._classicWorker);
     this.setupThread(newThread);
     this._data.setAmount(newThread, 1);
+    this._data.setThreadGroup(newThread, group);
     this._data.set(input.modelId, newThread);
     return this._data.getPort(newThread);
   }
