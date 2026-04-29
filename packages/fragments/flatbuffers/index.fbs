@@ -171,6 +171,38 @@ table SpatialStructure {
 //   - 1:N nonlinear: keys + values + `start` + `end`. values for keys[i] are values.slice(start[i], end[i]).
 // Exactly one of `string_keys` / `number_keys` is populated (homogeneous keys per index).
 // At most one of `string_values` / `number_values` is populated (homogeneous values per index).
+//
+// Worked examples, all reading from `model.getIndexEntry(name, key)`:
+//
+// 1) keys-only set of "items with geometry":
+//      number_keys: [101, 102, 203]
+//    -> has(101) = true, has(999) = false
+//    -> getKeys() = Uint32Array([101, 102, 203])
+//    Use `has` for membership and `getKeys` for iteration; `getEntry` always
+//    returns null in this mode because there is no value to return.
+//
+// 2) 1:1 localId -> tag (number key, string value):
+//      number_keys:   [1, 2, 3]
+//      string_values: ["A", "B", "A"]
+//    -> getEntry(1) = "A", getEntry(2) = "B"
+//    -> getInverseEntry("A") = Uint32Array([1, 3])
+//
+// 3) 1:N linear localId -> descendant localIds:
+//      number_keys:   [100, 101, 202]
+//      number_values: [101, 102, 200, 201, 202, 300, 301, 302, 300, 301, 302]
+//      end:           [5, 8, 11]
+//    -> getEntry(100) = Uint32Array([101, 102, 200, 201, 202])    // values[0..5]
+//    -> getEntry(101) = Uint32Array([300, 301, 302])              // values[5..8]
+//    -> getEntry(202) = Uint32Array([300, 301, 302])              // values[8..11]
+//
+// 4) 1:N nonlinear (slices may overlap or reorder):
+//      number_keys:   [1, 2, 3]
+//      number_values: [10, 20, 30, 40]
+//      start:         [0, 1, 1]
+//      end:           [1, 4, 3]
+//    -> getEntry(1) = Uint32Array([10])           // values[0..1]
+//    -> getEntry(2) = Uint32Array([20, 30, 40])   // values[1..4]
+//    -> getEntry(3) = Uint32Array([20, 30])       // values[1..3]
 table ModelIndex {
     name: string; // Index identifier, unique within the model.
     string_keys: [string]; // Keys, when the key type is string.
