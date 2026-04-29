@@ -34,7 +34,7 @@ var __privateMethod = (obj, member, method) => {
   __accessCheck(obj, member, "access private method");
   return method;
 };
-var _a, _constructing, _max, _maxSize, _dispose, _onInsert, _disposeAfter, _fetchMethod, _memoMethod, _size, _calculatedSize, _keyMap, _keyList, _valList, _next, _prev, _head, _tail, _free, _disposed, _sizes, _starts, _ttls, _hasDispose, _hasFetchMethod, _hasDisposeAfter, _hasOnInsert, _initializeTTLTracking, initializeTTLTracking_fn, _updateItemAge, _statusTTL, _setItemTTL, _isStale, _initializeSizeTracking, initializeSizeTracking_fn, _removeItemSize, _addItemSize, _requireSize, _indexes, indexes_fn, _rindexes, rindexes_fn, _isValidIndex, isValidIndex_fn, _b, _evict, evict_fn, _backgroundFetch, backgroundFetch_fn, _isBackgroundFetch, isBackgroundFetch_fn, _connect, connect_fn, _moveToTail, moveToTail_fn, _delete, delete_fn, _clear, clear_fn;
+var _a, _constructing, _max, _maxSize, _dispose, _onInsert, _disposeAfter, _fetchMethod, _memoMethod, _size, _calculatedSize, _keyMap, _keyList, _valList, _next, _prev, _head, _tail, _free, _disposed, _sizes, _starts, _ttls, _hasDispose, _hasFetchMethod, _hasDisposeAfter, _hasOnInsert, _initializeTTLTracking, initializeTTLTracking_fn, _updateItemAge, _statusTTL, _setItemTTL, _isStale, _initializeSizeTracking, initializeSizeTracking_fn, _removeItemSize, _addItemSize, _requireSize, _indexes, indexes_fn, _rindexes, rindexes_fn, _isValidIndex, isValidIndex_fn, _b, _evict, evict_fn, _backgroundFetch, backgroundFetch_fn, _isBackgroundFetch, isBackgroundFetch_fn, _connect, connect_fn, _moveToTail, moveToTail_fn, _delete, delete_fn, _clear, clear_fn, _c;
 class ConnectionHandlers {
   constructor() {
     __publicField(this, "_list", /* @__PURE__ */ new Map());
@@ -14031,6 +14031,24 @@ class MultithreadingHelper {
     const availableThreads = Math.max(capacity, 2);
     return currentThreads < availableThreads;
   }
+  /**
+   * Effective max worker cap. Defaults to navigator.hardwareConcurrency - 3,
+   * floored at 2 (matching the legacy areCoresAvailable behavior). Callers
+   * may pass an explicit override (e.g. CI environments or apps that know
+   * their workload). Floors at 2 even when overridden.
+   */
+  static getMaxWorkers(override) {
+    if (override !== void 0) {
+      if (!Number.isFinite(override) || override < 2) {
+        throw new Error(
+          `Fragments: maxWorkers must be a finite number >= 2 (got ${override}).`
+        );
+      }
+      return Math.floor(override);
+    }
+    const capacity = MultithreadingHelper.getCpuCapacity();
+    return Math.max(capacity, 2);
+  }
   static isFinishRequest(request) {
     return request.tileRequestClass === TileRequestClass.FINISH;
   }
@@ -23033,10 +23051,10 @@ function earcut$1(data, holeIndices, dim = 2) {
   if (hasHoles)
     outerNode = eliminateHoles$1(data, holeIndices, outerNode, dim);
   if (data.length > 80 * dim) {
-    minX = data[0];
-    minY = data[1];
-    let maxX = minX;
-    let maxY = minY;
+    minX = Infinity;
+    minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
     for (let i = dim; i < outerLen; i += dim) {
       const x = data[i];
       const y = data[i + 1];
@@ -23361,7 +23379,7 @@ function pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, px, py) {
   return !(ax === px && ay === py) && pointInTriangle$1(ax, ay, bx, by, cx, cy, px, py);
 }
 function isValidDiagonal$1(a, b) {
-  return a.next.i !== b.i && a.prev.i !== b.i && !intersectsPolygon$1(a, b) && // doesn't intersect other edges
+  return a.next.i !== b.i && a.prev.i !== b.i && !intersectsPolygon$1(a, b) && // dones't intersect other edges
   (locallyInside$1(a, b) && locallyInside$1(b, a) && middleInside$1(a, b) && // locally visible
   (area$1(a.prev, a, b.prev) || area$1(a, b.prev, b)) || // does not create opposite-facing sectors
   equals$1(a, b) && area$1(a.prev, a, a.next) > 0 && area$1(b.prev, b, b.next) > 0);
@@ -28416,6 +28434,9 @@ class VceCasterUtils {
     const aperture = input.aperture();
     const radius = input.radius();
     const rawResult = aperture * radius * factor;
+    if (!Number.isFinite(rawResult)) {
+      return min;
+    }
     const divisions = Math.round(rawResult);
     return Math.min(Math.max(divisions, min), max);
   }
@@ -29830,11 +29851,11 @@ class MeshConnection {
     this._modelId = modelId;
     this._connection = connection;
     const configuredRate = multithreading == null ? void 0 : multithreading.meshConnectionRate;
-    if (Number.isFinite(configuredRate) && configuredRate >= 0) {
+    if (typeof configuredRate === "number" && Number.isFinite(configuredRate) && configuredRate >= 0) {
       this._rate = configuredRate;
     }
     const configuredThreshold = multithreading == null ? void 0 : multithreading.meshConnectionThreshold;
-    if (Number.isFinite(configuredThreshold) && configuredThreshold >= 0) {
+    if (typeof configuredThreshold === "number" && Number.isFinite(configuredThreshold) && configuredThreshold >= 0) {
       this._threshold = configuredThreshold;
     }
     this._updater = MultithreadingHelper.newUpdater(this.refresh, this._rate);
@@ -30963,7 +30984,7 @@ const _LRUCache = class _LRUCache {
    * `cache.delete(key)`. `undefined` is never stored in the cache.
    */
   set(k, v, setOptions = {}) {
-    var _a2, _b2, _c, _d, _e, _f, _g;
+    var _a2, _b2, _c3, _d, _e, _f, _g;
     if (v === void 0) {
       this.delete(k);
       return this;
@@ -31008,7 +31029,7 @@ const _LRUCache = class _LRUCache {
               (_b2 = __privateGet(this, _dispose)) == null ? void 0 : _b2.call(this, s, k, "set");
             }
             if (__privateGet(this, _hasDisposeAfter)) {
-              (_c = __privateGet(this, _disposed)) == null ? void 0 : _c.push([s, k, "set"]);
+              (_c3 = __privateGet(this, _disposed)) == null ? void 0 : _c3.push([s, k, "set"]);
             }
           }
         } else if (!noDisposeOnSet) {
@@ -31661,7 +31682,7 @@ moveToTail_fn = function(index) {
 };
 _delete = new WeakSet();
 delete_fn = function(k, reason) {
-  var _a2, _b2, _c, _d;
+  var _a2, _b2, _c3, _d;
   let deleted = false;
   if (__privateGet(this, _size) !== 0) {
     const index = __privateGet(this, _keyMap).get(k);
@@ -31700,7 +31721,7 @@ delete_fn = function(k, reason) {
       }
     }
   }
-  if (__privateGet(this, _hasDisposeAfter) && ((_c = __privateGet(this, _disposed)) == null ? void 0 : _c.length)) {
+  if (__privateGet(this, _hasDisposeAfter) && ((_c3 = __privateGet(this, _disposed)) == null ? void 0 : _c3.length)) {
     const dt = __privateGet(this, _disposed);
     let task;
     while (task = dt == null ? void 0 : dt.shift()) {
@@ -31711,7 +31732,7 @@ delete_fn = function(k, reason) {
 };
 _clear = new WeakSet();
 clear_fn = function(reason) {
-  var _a2, _b2, _c;
+  var _a2, _b2, _c3;
   for (const index of __privateMethod(this, _rindexes, rindexes_fn).call(this, { allowStale: true })) {
     const v = __privateGet(this, _valList)[index];
     if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
@@ -31745,7 +31766,7 @@ clear_fn = function(reason) {
     const dt = __privateGet(this, _disposed);
     let task;
     while (task = dt == null ? void 0 : dt.shift()) {
-      (_c = __privateGet(this, _disposeAfter)) == null ? void 0 : _c.call(this, ...task);
+      (_c3 = __privateGet(this, _disposeAfter)) == null ? void 0 : _c3.call(this, ...task);
     }
   }
 };
@@ -77906,6 +77927,31 @@ var IFC4X3;
   }
   IFC4X32.IfcController = IfcController;
 })(IFC4X3 || (IFC4X3 = {}));
+_c = class {
+  static setLogLevel(level) {
+    this.logLevel = level;
+  }
+  static log(msg, ...args) {
+    if (this.logLevel <= 4) {
+      console.log(msg, ...args);
+    }
+  }
+  static debug(msg, ...args) {
+    if (this.logLevel <= 1) {
+      console.trace("DEBUG: ", msg, ...args);
+    }
+  }
+  static warn(msg, ...args) {
+    if (this.logLevel <= 3) {
+      console.warn("WARN: ", msg, ...args);
+    }
+  }
+  static error(msg, ...args) {
+    if (this.logLevel <= 4) {
+      console.error("ERROR: ", msg, ...args);
+    }
+  }
+}, _c.logLevel = 4, _c;
 if (typeof document !== "undefined") {
   const currentScriptData = document.currentScript;
   if ((currentScriptData == null ? void 0 : currentScriptData.src) !== void 0)
@@ -78040,14 +78086,20 @@ class VirtualPropertiesController {
     return itemIds;
   }
   getLocalIdsFromItemIds(itemIds) {
+    const meshes = this._model.meshes();
+    const seen = /* @__PURE__ */ new Set();
     const result = [];
-    const entries = this._localIdsToGeometryIds.entries();
-    for (const [localId, geometryIds] of entries) {
-      for (const itemId of itemIds) {
-        if (!geometryIds.includes(itemId))
-          continue;
-        result.push(localId);
-      }
+    for (const itemId of itemIds) {
+      const localIdIndex = meshes.meshesItems(itemId);
+      if (localIdIndex === null)
+        continue;
+      const localId = this._model.localIds(localIdIndex);
+      if (localId === null)
+        continue;
+      if (seen.has(localId))
+        continue;
+      seen.add(localId);
+      result.push(localId);
     }
     return result;
   }
@@ -78159,7 +78211,7 @@ class VirtualPropertiesController {
     return [...values];
   }
   getAttributesUniqueValues(params) {
-    var _a2, _b2, _c;
+    var _a2, _b2, _c3;
     const map = /* @__PURE__ */ new Map();
     const areCategoriesDefined = params.every(
       (value) => value.categories !== void 0
@@ -78225,7 +78277,7 @@ class VirtualPropertiesController {
           if (!(key && ((_b2 = attributeSet[key]) == null ? void 0 : _b2.value) !== void 0))
             continue;
           const mapKey = resultKey ?? key;
-          const value = (_c = attributeSet[key]) == null ? void 0 : _c.value;
+          const value = (_c3 = attributeSet[key]) == null ? void 0 : _c3.value;
           if (!map.has(mapKey)) {
             map.set(mapKey, /* @__PURE__ */ new Map());
           }
