@@ -31,7 +31,7 @@ export function solveSampleTempId(
 }
 
 export function solveLocalIdTempId(
-  request: ET.EditRequest,
+  request: Exclude<ET.EditRequest, ET.IndexRequest>,
   key: "localId",
   tempIdsToLocalIds: Map<string, number>,
 ) {

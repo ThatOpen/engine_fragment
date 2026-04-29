@@ -13,6 +13,7 @@ import {
   createSpatialStructure,
 } from "./spatial-structure-functions";
 import { buildSample } from "./sample-functions";
+import { buildIndex, copyIndex } from "./index-functions";
 import { getIdsDelta } from "./id-delta-getter";
 import { newModel } from "./new-model-function";
 import { EditUtils } from "./edit-utils";
@@ -154,6 +155,11 @@ export function edit(
   const ltsToDelete = new Set<number>();
   const itemsToDelete = new Set<number>();
   const relationsToDelete = new Set<number>();
+
+  // Indexes are name-keyed. CREATE and UPDATE both upsert; DELETE removes.
+  // Order within a single batch is preserved by upserting last-write-wins.
+  const indexesToUpsert = new Map<string, ET.RawIndexData>();
+  const indexesToDelete = new Set<string>();
 
   const prevMatIds = new Set<number>(meshes.materialIdsArray());
   const prevReprIds = new Set<number>(meshes.representationIdsArray());
@@ -303,6 +309,23 @@ export function edit(
     }
     if (request.type === ET.EditRequestType.DELETE_RELATION) {
       relationsToDelete.add(request.localId as number);
+      continue;
+    }
+    // INDEX (name-keyed; no localId)
+    if (
+      request.type === ET.EditRequestType.CREATE_INDEX ||
+      request.type === ET.EditRequestType.UPDATE_INDEX
+    ) {
+      // CREATE is a no-op if the index already exists in the source model;
+      // we resolve that against `model.indexes` later when materializing the
+      // vector. UPDATE always wins, so it lands here unconditionally.
+      indexesToUpsert.set(request.data.name, request.data);
+      indexesToDelete.delete(request.data.name);
+      continue;
+    }
+    if (request.type === ET.EditRequestType.DELETE_INDEX) {
+      indexesToDelete.add(request.name);
+      indexesToUpsert.delete(request.name);
       continue;
     }
   }
@@ -1457,6 +1480,32 @@ export function edit(
   const guidLength = model.guid() as string;
   const guidRef = builder.createString(guidLength);
 
+  // Indexes
+  //
+  // Build the indexes vector by copying every index from the source model,
+  // skipping any that are slated for deletion or being replaced by an
+  // upsert, then appending the upserts (CREATE on a previously-absent
+  // name and UPDATE both end up here).
+
+  const indexOffsets: number[] = [];
+  const upsertNames = new Set(indexesToUpsert.keys());
+  for (let i = 0; i < model.indexesLength(); i++) {
+    const existing = model.indexes(i);
+    if (!existing) continue;
+    const name = existing.name();
+    if (!name) continue;
+    if (indexesToDelete.has(name)) continue;
+    if (upsertNames.has(name)) continue; // The upsert pass below will write the new version.
+    indexOffsets.push(copyIndex(builder, existing));
+  }
+  for (const data of indexesToUpsert.values()) {
+    indexOffsets.push(buildIndex(builder, data));
+  }
+  const indexesVector =
+    indexOffsets.length > 0
+      ? TFB.Model.createIndexesVector(builder, indexOffsets)
+      : null;
+
   // Model
 
   TFB.Model.startModel(builder);
@@ -1476,6 +1525,9 @@ export function edit(
   }
   TFB.Model.addGuid(builder, guidRef);
   TFB.Model.addMaxLocalId(builder, newMaxLocalId);
+  if (indexesVector !== null) {
+    TFB.Model.addIndexes(builder, indexesVector);
+  }
   const outData = TFB.Model.endModel(builder);
 
   builder.finish(outData);

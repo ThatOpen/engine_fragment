@@ -7,6 +7,7 @@ import {
   NewElementData,
   EditUtils,
   RawItemData,
+  isIndexRequest,
 } from "../../../Utils";
 import { FragmentsModels, ItemAttribute, ItemData } from "../..";
 import { Element } from "./element";
@@ -381,6 +382,7 @@ export class ElementsHelper {
       const currentRequests = element.getRequests();
       if (currentRequests) {
         for (const request of currentRequests) {
+          if (isIndexRequest(request)) continue;
           const id = request.localId as number;
           if (id) {
             this.addRequest(modelId, id, "remove", request);

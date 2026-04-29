@@ -224,6 +224,10 @@ export enum EditRequestType {
   DELETE_LOCAL_TRANSFORM,
   DELETE_ITEM,
   DELETE_RELATION,
+
+  CREATE_INDEX,
+  UPDATE_INDEX,
+  DELETE_INDEX,
 }
 
 /**
@@ -256,6 +260,10 @@ export const EditRequestTypeNames: Record<EditRequestType, string> = {
   [EditRequestType.DELETE_LOCAL_TRANSFORM]: "Delete Local Transform",
   [EditRequestType.DELETE_ITEM]: "Delete Item",
   [EditRequestType.DELETE_RELATION]: "Delete Relation",
+
+  [EditRequestType.CREATE_INDEX]: "Create Index",
+  [EditRequestType.UPDATE_INDEX]: "Update Index",
+  [EditRequestType.DELETE_INDEX]: "Delete Index",
 };
 
 export type EditKey =
@@ -494,6 +502,63 @@ export interface DeleteRelationRequest extends BaseUpdateRequest {
 }
 
 /**
+ * Payload describing a user-defined model index. Maps directly to the
+ * ModelIndex schema's flat key/value vectors with optional slicing.
+ *
+ * Mode is inferred from which fields are populated:
+ *
+ *   - `keysOnly`:        only `keys`.
+ *   - `oneToOne`:        `keys` + `values`, no `start`/`end`.
+ *   - `oneToNLinear`:    `keys` + `values` + `end`.
+ *   - `oneToNNonLinear`: `keys` + `values` + `start` + `end`.
+ *
+ * Keys must be homogeneous (`number[]` or `string[]`). Values, if present,
+ * must also be homogeneous.
+ */
+export interface RawIndexData {
+  /** Index identifier, unique within the model. */
+  name: string;
+  /** Key vector. Drives the storage type (`number_keys` or `string_keys`). */
+  keys: number[] | string[];
+  /** Value vector. Drives `number_values` or `string_values`. Omit for keys-only. */
+  values?: number[] | string[];
+  /** Per-key end offset into `values` (exclusive). Empty for keys-only and 1:1. */
+  end?: number[];
+  /** Per-key start offset into `values`. Empty unless slicing is non-linear. */
+  start?: number[];
+}
+
+/**
+ * Interface for create index edit requests. Indexes are name-keyed, so
+ * `data.name` identifies the index. Fails silently if an index with the
+ * same name already exists; use UPDATE_INDEX to replace.
+ */
+export interface CreateIndexRequest extends BaseEditRequest {
+  type: EditRequestType.CREATE_INDEX;
+  data: RawIndexData;
+}
+
+/**
+ * Interface for update index edit requests. Replaces the entire index
+ * identified by `data.name`. Use DELETE_INDEX + CREATE_INDEX if you want
+ * to rename.
+ */
+export interface UpdateIndexRequest extends BaseEditRequest {
+  type: EditRequestType.UPDATE_INDEX;
+  data: RawIndexData;
+}
+
+/**
+ * Interface for delete index edit requests. No-op if the named index
+ * doesn't exist.
+ */
+export interface DeleteIndexRequest extends BaseEditRequest {
+  type: EditRequestType.DELETE_INDEX;
+  /** Name of the index to delete. */
+  name: string;
+}
+
+/**
  * Type for update edit requests.
  */
 export type UpdateRequest =
@@ -533,6 +598,34 @@ export type DeleteRequest =
   | DeleteRelationRequest;
 
 /**
+ * Type for index edit requests. Indexes are name-keyed (no localId), so
+ * they live in their own union and are merged into the top-level
+ * `EditRequest` type alongside the others.
+ */
+export type IndexRequest =
+  | CreateIndexRequest
+  | UpdateIndexRequest
+  | DeleteIndexRequest;
+
+/**
+ * Discriminator for index edit requests. Use to skip them in code paths that
+ * assume every request carries a `localId`.
+ */
+export function isIndexRequest(
+  request: BaseEditRequest,
+): request is IndexRequest {
+  return (
+    request.type === EditRequestType.CREATE_INDEX ||
+    request.type === EditRequestType.UPDATE_INDEX ||
+    request.type === EditRequestType.DELETE_INDEX
+  );
+}
+
+/**
  * Type for all edit requests.
  */
-export type EditRequest = UpdateRequest | CreateRequest | DeleteRequest;
+export type EditRequest =
+  | UpdateRequest
+  | CreateRequest
+  | DeleteRequest
+  | IndexRequest;

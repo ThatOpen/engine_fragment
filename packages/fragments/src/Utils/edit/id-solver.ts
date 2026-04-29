@@ -13,6 +13,7 @@ export function solveIds(requests: ET.EditRequest[], nextId: number) {
   const result: number[] = [];
 
   for (const request of requests) {
+    if (ET.isIndexRequest(request)) continue; // Indexes are name-keyed, no localId.
     if (request.localId !== undefined) {
       continue;
     }
@@ -27,6 +28,7 @@ export function solveIds(requests: ET.EditRequest[], nextId: number) {
   // Now, let's resolve the temp ids to local ids for the samples
 
   for (const request of requests) {
+    if (ET.isIndexRequest(request)) continue;
     if (
       request.type === ET.EditRequestType.UPDATE_SAMPLE ||
       request.type === ET.EditRequestType.CREATE_SAMPLE

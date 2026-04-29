@@ -12,6 +12,7 @@
 import * as flatbuffers from "flatbuffers";
 import { Meshes, Model, ModelIndex, Transform } from "../Schema";
 import { VirtualIndexesController } from "./src/virtual-model/virtual-controllers/virtual-indexes-controller";
+import { EditRequest, EditRequestType, EditUtils } from "../Utils";
 
 let pass = 0;
 let fail = 0;
@@ -206,6 +207,74 @@ eqArr(
 console.log("\nMissing index");
 eq("getInfo('nope')", controller.getInfo("nope"), null);
 eq("getEntry('nope', 1)", controller.getEntry("nope", 1), null);
+
+// ---------------------------------------------------------------------------
+// Edit pipeline: CREATE / UPDATE / DELETE through EditUtils.edit, then
+// re-parse the resulting buffer and verify the new state.
+// ---------------------------------------------------------------------------
+console.log("\nEdit pipeline (save & reload)");
+
+const requests: EditRequest[] = [
+  // Drop "tags" entirely
+  { type: EditRequestType.DELETE_INDEX, name: "tags" },
+  // Replace "descendants" with new content
+  {
+    type: EditRequestType.UPDATE_INDEX,
+    data: {
+      name: "descendants",
+      keys: [100, 202],
+      values: [501, 502, 600],
+      end: [2, 3],
+    },
+  },
+  // Add a brand new keys-only index
+  {
+    type: EditRequestType.CREATE_INDEX,
+    data: { name: "withGeometry", keys: [10, 20, 30] },
+  },
+];
+
+const { model: editedBytes } = EditUtils.edit(model, requests, {
+  raw: true,
+  delta: false,
+});
+const editedBb = new flatbuffers.ByteBuffer(editedBytes as Uint8Array);
+const editedModel = Model.getRootAsModel(editedBb);
+const editedCtl = new VirtualIndexesController(editedModel);
+
+eq("after edit: getNames()", editedCtl.getNames(), [
+  "descendants",
+  "withGeometry",
+]);
+eq(
+  "after edit: getInfo('tags') is null (deleted)",
+  editedCtl.getInfo("tags"),
+  null,
+);
+eq("after edit: getInfo('descendants').size", editedCtl.getInfo("descendants")?.size, 2);
+eqArr(
+  "after edit: getEntry('descendants', 100)",
+  editedCtl.getEntry("descendants", 100) as Uint32Array,
+  [501, 502],
+);
+eqArr(
+  "after edit: getEntry('descendants', 202)",
+  editedCtl.getEntry("descendants", 202) as Uint32Array,
+  [600],
+);
+eq(
+  "after edit: getInfo('withGeometry')",
+  editedCtl.getInfo("withGeometry"),
+  {
+    name: "withGeometry",
+    mode: "keysOnly",
+    keyType: "number",
+    valueType: "none",
+    size: 3,
+  },
+);
+eq("after edit: has('withGeometry', 20)", editedCtl.has("withGeometry", 20), true);
+eq("after edit: has('withGeometry', 99)", editedCtl.has("withGeometry", 99), false);
 
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail === 0 ? 0 : 1);

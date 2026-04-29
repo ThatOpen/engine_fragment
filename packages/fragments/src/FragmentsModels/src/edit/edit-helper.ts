@@ -1,5 +1,6 @@
 import { FragmentsModel, FragmentsModels } from "../..";
 import * as EDIT from "../../../Utils/edit";
+import { isIndexRequest } from "../../../Utils/edit";
 import { FragmentsConnection } from "../multithreading/fragments-connection";
 import { EditUtils } from "../../../Utils/edit/edit-utils";
 import { VirtualModelConfig } from "../model/model-types";
@@ -48,10 +49,14 @@ export class EditHelper {
     // prepended to a CREATE batch) don't shift the mapping.
     let idsIdx = 0;
     for (let i = 0; i < actions.length; i++) {
-      if (actions[i].localId !== undefined) {
+      const action = actions[i];
+      // Indexes are name-keyed; the id solver doesn't allocate localIds
+      // for them, so skip the back-fill here too.
+      if (isIndexRequest(action)) continue;
+      if (action.localId !== undefined) {
         continue;
       }
-      actions[i].localId = ids[idsIdx++];
+      action.localId = ids[idsIdx++];
     }
 
     // Load new delta models
