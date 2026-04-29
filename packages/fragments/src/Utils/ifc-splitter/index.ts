@@ -367,6 +367,27 @@ class BufferedWriter {
     this.pos += this.buf.write(str, this.pos, "utf-8");
   }
 
+  emitSingleLine(
+    raw: string,
+    includeSet: Set<number>,
+    rewrittenLines: Map<number, string>,
+  ): void {
+    if (raw.charCodeAt(0) !== 35) return; // '#'
+    let id = 0;
+    for (let i = 1; i < raw.length; i++) {
+      const c = raw.charCodeAt(i);
+      if (c >= 48 && c <= 57) {
+        id = id * 10 + (c - 48);
+      } else {
+        break;
+      }
+    }
+    if (id === 0 || !includeSet.has(id)) return;
+    const line = rewrittenLines.has(id) ? rewrittenLines.get(id)! : raw;
+    this.write(line);
+    this.write("\n");
+  }
+
   flush(): void {
     if (this.pos > 0) {
       this.fsLike.writeSync(this.fd, this.buf as any, 0, this.pos);
@@ -1266,7 +1287,7 @@ export class IfcSplitter extends EventTarget {
         const trimmed = line.trim();
         if (trimmed === "ENDSEC;") {
           if (accumulator) {
-            emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
+            bw.emitSingleLine(accumulator, includeSet, rewrittenLines);
             accumulator = "";
           }
           section = "footer";
@@ -1274,13 +1295,13 @@ export class IfcSplitter extends EventTarget {
         }
 
         if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-          emitSingleLine(trimmed, bw, includeSet, rewrittenLines);
+          bw.emitSingleLine(trimmed, includeSet, rewrittenLines);
           return;
         }
 
         accumulator += (accumulator ? " " : "") + trimmed;
         if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-          emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
+          bw.emitSingleLine(accumulator, includeSet, rewrittenLines);
           accumulator = "";
         }
       }
@@ -1296,52 +1317,6 @@ export class IfcSplitter extends EventTarget {
     );
     console.log("\nDone!");
   }
-}
-
-export function split(
-  deps: IfcSplitterDeps,
-  inputPath: string,
-  numGroups: number,
-  outputDir?: string,
-): Map<string, Set<number>> {
-  return new IfcSplitter().split(deps, inputPath, numGroups, outputDir);
-}
-
-/**
- * Extract specific building elements from an IFC file into a new IFC file.
- * @param inputPath  - Absolute or relative path to the source IFC file.
- * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped with a warning.
- * @param outputPath - Path for the output IFC file.
- */
-export function extract(
-  deps: IfcSplitterDeps,
-  inputPath: string,
-  elementIds: number[],
-  outputPath: string,
-): void {
-  new IfcSplitter().extract(deps, inputPath, elementIds, outputPath);
-}
-
-function emitSingleLine(
-  raw: string,
-  writer: BufferedWriter,
-  includeSet: Set<number>,
-  rewrittenLines: Map<number, string>,
-): void {
-  if (raw.charCodeAt(0) !== 35) return; // '#'
-  let id = 0;
-  for (let i = 1; i < raw.length; i++) {
-    const c = raw.charCodeAt(i);
-    if (c >= 48 && c <= 57) {
-      id = id * 10 + (c - 48);
-    } else {
-      break;
-    }
-  }
-  if (id === 0 || !includeSet.has(id)) return;
-  const line = rewrittenLines.has(id) ? rewrittenLines.get(id)! : raw;
-  writer.write(line);
-  writer.write("\n");
 }
 
 // ---------------------------------------------------------------------------
