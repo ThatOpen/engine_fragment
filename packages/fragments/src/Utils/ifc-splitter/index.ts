@@ -65,10 +65,11 @@ export interface StyleMaps {
 
 /** Per-group output data: the set of IFC entity IDs to include and any rewritten relationship lines. */
 export interface GroupData {
-  fileIds: Set<number> | null;
+  fileIds: Set<number>;
   rewrittenLines: Map<number, string>;
   elementCount: number;
   totalIds: number;
+  fileName: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +150,7 @@ const ELEMENT_TYPES: Set<string> = new Set([
   "IFCSHADINGDEVICE",
   "IFCCHIMNEY",
   "IFCGEOGRAPHICELEMENT",
-  "IFCPROXY", 
+  "IFCPROXY",
   "IFCMECHANICALFASTENER",
 ]);
 
@@ -338,6 +339,7 @@ function forEachLine(
 // Buffered synchronous file writer — avoids per-line write() syscalls
 // ---------------------------------------------------------------------------
 class BufferedWriter {
+  readonly filePath: string;
   private fsLike: IfcSplitterFs;
   private fd: number;
   private buf: Buffer;
@@ -345,6 +347,7 @@ class BufferedWriter {
   private bufSize: number;
 
   constructor(fsLike: IfcSplitterFs, filePath: string, bufSize: number) {
+    this.filePath = filePath;
     this.fsLike = fsLike;
     this.fd = fsLike.openSync(filePath, "w");
     this.buf = Buffer.allocUnsafe(bufSize);
@@ -830,7 +833,7 @@ export function split(
   inputPath: string,
   numGroups: number,
   outputDir?: string,
-): void {
+): Map<string, Set<number>> {
   const { fs, path } = deps;
   if (!fs.existsSync(inputPath)) {
     console.error(`File not found: ${inputPath}`);
@@ -1039,6 +1042,10 @@ export function split(
       rewrittenLines,
       elementCount: groupElementIds.size,
       totalIds,
+      fileName: path.join(
+        resolvedOutputDir,
+        `split_${String(g + 1).padStart(3, "0")}.ifc`,
+      ),
     });
     console.log(
       `  Group ${g + 1}: ${groupElementIds.size} elements, ${totalIds} total IDs`,
@@ -1055,31 +1062,25 @@ export function split(
   console.time("build-mask");
   const idGroupMask = new Uint32Array(maxParsedId + 1);
   for (let g = 0; g < numGroups; g++) {
-    if (!groupsData[g]) continue;
+    const groupData = groupsData[g];
+    if (!groupData) continue;
     const bit = 1 << g;
-    for (const id of groupsData[g]!.fileIds!) {
+    for (const id of groupData.fileIds) {
       idGroupMask[id] |= bit;
     }
-  }
-  for (let g = 0; g < numGroups; g++) {
-    if (groupsData[g]) groupsData[g]!.fileIds = null;
   }
   console.timeEnd("build-mask");
 
   // 10. Second pass: write output files
   console.time("write");
-  writeOutputFiles(
-    deps,
-    inputPath,
-    resolvedOutputDir,
-    header,
-    footer,
-    groupsData,
-    idGroupMask,
-  );
+  writeOutputFiles(deps, inputPath, header, footer, groupsData, idGroupMask);
   console.timeEnd("write");
 
   console.log("\nDone!");
+
+  return new Map(
+    groupsData.filter((g) => !!g).map((g) => [g.fileName, g.fileIds]),
+  );
 }
 
 /**
@@ -1317,7 +1318,6 @@ function emitSingleLine(
 function writeOutputFiles(
   deps: IfcSplitterDeps,
   inputPath: string,
-  outputDir: string,
   header: string[],
   footer: string[],
   groupsData: (GroupData | null)[],
@@ -1329,15 +1329,12 @@ function writeOutputFiles(
   const writers: (BufferedWriter | null)[] = [];
   const headerStr = `${header.join("\n")}\n`;
   for (let g = 0; g < numGroups; g++) {
-    if (!groupsData[g]) {
+    const groupData = groupsData[g];
+    if (!groupData) {
       writers.push(null);
       continue;
     }
-    const outName = path.join(
-      outputDir,
-      `split_${String(g + 1).padStart(3, "0")}.ifc`,
-    );
-    const bw = new BufferedWriter(fs, outName, 4 * 1024 * 1024);
+    const bw = new BufferedWriter(fs, groupData.fileName, 4 * 1024 * 1024);
     bw.write(headerStr);
     writers.push(bw);
   }
@@ -1380,14 +1377,10 @@ function writeOutputFiles(
     if (!bw) continue;
     bw.write(footerStr);
     bw.close();
-    const outName = path.join(
-      outputDir,
-      `split_${String(g + 1).padStart(3, "0")}.ifc`,
-    );
-    const stat = fs.statSync(outName);
+    const stat = fs.statSync(bw.filePath);
     const gd = groupsData[g]!;
     console.log(
-      `  Group ${g + 1}: ${gd.elementCount} elements, ${gd.totalIds} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(outName)}`,
+      `  Group ${g + 1}: ${gd.elementCount} elements, ${gd.totalIds} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(bw.filePath)}`,
     );
   }
 }

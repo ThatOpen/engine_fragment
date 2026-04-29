@@ -15,7 +15,8 @@ const numGroups = parseInt(args[1], 10);
 const outputDir = args[2] ? path.resolve(args[2]) : undefined;
 
 try {
-  split({ fs, path }, inputPath, numGroups, outputDir);
+  const splitMap = split({ fs, path }, inputPath, numGroups, outputDir);
+  console.log(splitMap);
 } catch (err) {
   console.error(err);
   process.exit(1);
