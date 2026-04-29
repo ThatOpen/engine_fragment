@@ -10,7 +10,19 @@ export class HighlightHelper {
     "renderedFaces",
   ];
 
-  resetHighlight(model: VirtualFragmentsModel, items: number[]): void {
+  resetHighlight(model: VirtualFragmentsModel, items?: number[]): void {
+    // No-args reset means "clear every item's highlight". Route directly
+    // to itemConfig.clearHighlight() so we cover items that were added
+    // after construction (e.g. via the EditAPI). Going through
+    // getItemIdsFromLocalIds(undefined) would emit meshes_items values
+    // instead of itemIds, which silently misses entries whose
+    // localIdIndex doesn't coincide with their itemId — which happens on
+    // any model where the sample order isn't the same as the item order.
+    if (!items) {
+      model.itemConfig.clearHighlight();
+      model.tiles.restart();
+      return;
+    }
     const itemIds = model.properties.getItemIdsFromLocalIds(items);
     this.resetHighlightForItems(itemIds, model);
     model.tiles.restart();
