@@ -15,6 +15,7 @@ export { FloatVector } from './float-vector.js';
 export { Material } from './material.js';
 export { Meshes } from './meshes.js';
 export { Model } from './model.js';
+export { ModelIndex } from './model-index.js';
 export { Relation } from './relation.js';
 export { RenderedFaces } from './rendered-faces.js';
 export { Representation } from './representation.js';

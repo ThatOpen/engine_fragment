@@ -6,6 +6,7 @@ import * as flatbuffers from 'flatbuffers';
 
 import { Attribute } from './attribute.js';
 import { Meshes } from './meshes.js';
+import { ModelIndex } from './model-index.js';
 import { Relation } from './relation.js';
 import { SpatialStructure } from './spatial-structure.js';
 
@@ -185,8 +186,18 @@ relationNamesLength():number {
   return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
 }
 
+indexes(index: number, obj?:ModelIndex):ModelIndex|null {
+  const offset = this.bb!.__offset(this.bb_pos, 32);
+  return offset ? (obj || new ModelIndex()).__init(this.bb!.__indirect(this.bb!.__vector(this.bb_pos + offset) + index * 4), this.bb!) : null;
+}
+
+indexesLength():number {
+  const offset = this.bb!.__offset(this.bb_pos, 32);
+  return offset ? this.bb!.__vector_len(this.bb_pos + offset) : 0;
+}
+
 static startModel(builder:flatbuffers.Builder) {
-  builder.startObject(14);
+  builder.startObject(15);
 }
 
 static addMetadata(builder:flatbuffers.Builder, metadataOffset:flatbuffers.Offset) {
@@ -365,6 +376,22 @@ static createRelationNamesVector(builder:flatbuffers.Builder, data:flatbuffers.O
 }
 
 static startRelationNamesVector(builder:flatbuffers.Builder, numElems:number) {
+  builder.startVector(4, numElems, 4);
+}
+
+static addIndexes(builder:flatbuffers.Builder, indexesOffset:flatbuffers.Offset) {
+  builder.addFieldOffset(14, indexesOffset, 0);
+}
+
+static createIndexesVector(builder:flatbuffers.Builder, data:flatbuffers.Offset[]):flatbuffers.Offset {
+  builder.startVector(4, data.length, 4);
+  for (let i = data.length - 1; i >= 0; i--) {
+    builder.addOffset(data[i]!);
+  }
+  return builder.endVector();
+}
+
+static startIndexesVector(builder:flatbuffers.Builder, numElems:number) {
   builder.startVector(4, numElems, 4);
 }
 

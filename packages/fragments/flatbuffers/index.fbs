@@ -161,6 +161,26 @@ table SpatialStructure {
     children: [SpatialStructure]; // Child spatial nodes of the current spatial node
 }
 
+// INDEXES
+
+// A user-defined lookup table stored alongside the model. Indexes are flat key/value
+// vectors with optional slicing arrays to express four modes:
+//   - keys-only:    only `string_keys` or `number_keys` is set (used as a sorted set / vector).
+//   - 1:1:          keys + matching values, no `start`/`end`. values[i] is the value for keys[i].
+//   - 1:N linear:   keys + values + `end`. values for keys[i] are values.slice(end[i-1] ?? 0, end[i]).
+//   - 1:N nonlinear: keys + values + `start` + `end`. values for keys[i] are values.slice(start[i], end[i]).
+// Exactly one of `string_keys` / `number_keys` is populated (homogeneous keys per index).
+// At most one of `string_values` / `number_values` is populated (homogeneous values per index).
+table ModelIndex {
+    name: string; // Index identifier, unique within the model.
+    string_keys: [string]; // Keys, when the key type is string.
+    number_keys: [uint]; // Keys, when the key type is number.
+    string_values: [string]; // Values, when the value type is string.
+    number_values: [uint]; // Values, when the value type is number.
+    end: [uint]; // Per-key end offsets into the values array (exclusive). Empty for keys-only and 1:1 indexes.
+    start: [uint]; // Per-key start offsets into the values array. Empty unless the index uses non-linear slicing.
+}
+
 // MODELS
 
 // The main object and the entry point of all Fragment files. Each Fragments file has just one model, and it contains all the information of the file.
@@ -188,6 +208,8 @@ table Model {
 
     unique_attributes: [string]; // An array of unique item attributes in this model.
     relation_names: [string]; // An array of unique relation names in this model.
+
+    indexes: [ModelIndex]; // User-defined lookup tables stored alongside the model. See ModelIndex table for the supported shapes.
 }
 
 file_identifier "0001";
