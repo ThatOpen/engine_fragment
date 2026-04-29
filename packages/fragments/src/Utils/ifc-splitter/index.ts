@@ -822,267 +822,489 @@ function resolveStyles(
 // Main split logic
 // ---------------------------------------------------------------------------
 
-/**
- * Split an IFC file into N roughly equal groups of building elements.
- * @param inputPath - Absolute or relative path to the source IFC file.
- * @param numGroups - Number of output files to produce (max 32).
- * @param outputDir - Directory for output files. Defaults to `output/` next to the input file.
- */
+export class IfcSplitter extends EventTarget {
+  constructor() {
+    super();
+  }
+
+  /**
+   * Split an IFC file into N roughly equal groups of building elements.
+   * @param inputPath - Absolute or relative path to the source IFC file.
+   * @param numGroups - Number of output files to produce (max 32).
+   * @param outputDir - Directory for output files. Defaults to `output/` next to the input file.
+   */
+  split(
+    deps: IfcSplitterDeps,
+    inputPath: string,
+    numGroups: number,
+    outputDir?: string,
+  ): Map<string, Set<number>> {
+    const { fs, path } = deps;
+    if (!fs.existsSync(inputPath)) {
+      console.error(`File not found: ${inputPath}`);
+      process.exit(1);
+    }
+
+    const resolvedOutputDir =
+      outputDir || path.join(path.dirname(inputPath), "output");
+    fs.mkdirSync(resolvedOutputDir, { recursive: true });
+
+    // 1. Parse
+    const { header, footer, index } = parseIfc(fs, inputPath);
+
+    // 2. Identify spatial structure (shared in all files)
+    console.time("spatial");
+    const spatialIds = new Set<number>();
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
+    }
+    const sharedIds = new Set<number>();
+    for (const sid of spatialIds) {
+      collectDepsAll(sid, index, sharedIds);
+    }
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type === "IFCRELAGGREGATES") {
+        const raw = index.getRaw(id);
+        const argsStr = extractArgsString(raw);
+        if (argsStr) {
+          const args = splitIfcArgs(argsStr);
+          if (args.length >= 6) {
+            const relatingId = parseHashRef(args[4]);
+            if (relatingId && spatialIds.has(relatingId)) {
+              const listRefs = extractRefs(args[5]);
+              if (listRefs.every((r) => spatialIds.has(r))) {
+                collectDepsAll(id, index, sharedIds);
+              }
+            }
+          }
+        }
+      }
+    }
+    console.timeEnd("spatial");
+    console.log(`  Shared infrastructure: ${sharedIds.size} lines`);
+
+    // 3. Build void/fill coupling map
+    console.time("voidfill");
+    const vfMap = buildVoidFillMap(index);
+    console.timeEnd("voidfill");
+    console.log(
+      `  Void rels: ${vfMap.wallToOpenings.size} walls with openings, ${vfMap.fillerToOpening.size} fillers`,
+    );
+
+    // 3b. Build reverse style maps
+    console.time("stylemaps");
+    const styleMaps = buildStyleMaps(index);
+    console.timeEnd("stylemaps");
+    console.log(
+      `  Style maps: ${styleMaps.geomToStyledItems.size} styled geometries, ${styleMaps.materialToDefReps.size} material representations`,
+    );
+
+    // 4. Identify all building elements
+    console.time("classify");
+    const allElementIds = new Set<number>();
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
+    }
+    console.timeEnd("classify");
+    console.log(`  Found ${allElementIds.size} building elements`);
+
+    // 4b. Build aggregation map
+    console.time("aggregate");
+    const aggMap = buildAggregateMap(index, allElementIds);
+    console.timeEnd("aggregate");
+    console.log(
+      `  Aggregate rels: ${aggMap.parentToChildren.size} parents, ${aggMap.childToParent.size} children`,
+    );
+
+    // 5. Build clusters
+    console.time("cluster");
+    const clusters: Set<number>[] = [];
+    const assigned = new Set<number>();
+    for (const eid of allElementIds) {
+      if (assigned.has(eid)) continue;
+      const cluster = getCluster(eid, vfMap, aggMap);
+      const elementCluster = new Set<number>();
+      for (const cid of cluster) {
+        if (allElementIds.has(cid)) elementCluster.add(cid);
+      }
+      clusters.push(elementCluster);
+      for (const cid of elementCluster) assigned.add(cid);
+    }
+    console.timeEnd("cluster");
+    console.log(`  Built ${clusters.length} clusters`);
+
+    // 6. Distribute clusters into N groups (greedy bin packing)
+    console.time("distribute");
+    const groups: Set<number>[] = Array.from(
+      { length: numGroups },
+      () => new Set(),
+    );
+    const clusterOrder = clusters
+      .map((_, i) => i)
+      .sort((a, b) => clusters[b].size - clusters[a].size);
+    const groupSizes = new Array<number>(numGroups).fill(0);
+
+    for (const ci of clusterOrder) {
+      let minIdx = 0;
+      for (let g = 1; g < numGroups; g++) {
+        if (groupSizes[g] < groupSizes[minIdx]) minIdx = g;
+      }
+      for (const id of clusters[ci]) groups[minIdx].add(id);
+      groupSizes[minIdx] += clusters[ci].size;
+    }
+    console.timeEnd("distribute");
+
+    // 7. Pre-parse all relationship lines that need per-group rewriting.
+    console.time("index-rels");
+    const relEntries: RelEntry[] = [];
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && shouldRewriteType(type)) {
+        const raw = index.getRaw(id);
+        const argsStr = extractArgsString(raw);
+        if (!argsStr) continue;
+        const args = splitIfcArgs(argsStr);
+        const listIdx = listIdxByType(type);
+        if (args.length <= listIdx) continue;
+        const listRefs = extractRefs(args[listIdx]);
+        if (listRefs.length === 0) continue;
+        const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
+        if (!idMatch) continue;
+        relEntries.push({
+          id,
+          type,
+          args,
+          listIdx,
+          listRefs,
+          idPrefix: idMatch[1],
+        });
+      }
+    }
+    console.timeEnd("index-rels");
+    console.log(`  Found ${relEntries.length} relationship lines to process`);
+
+    // 8. Resolve deps for all groups
+    console.time("resolve");
+    const groupsData: (GroupData | null)[] = [];
+
+    for (let g = 0; g < numGroups; g++) {
+      const groupElementIds = groups[g];
+      if (groupElementIds.size === 0) {
+        groupsData.push(null);
+        console.log(`  Group ${g + 1}: SKIPPED (empty)`);
+        continue;
+      }
+
+      const fileIds = new Set<number>(sharedIds);
+
+      for (const eid of groupElementIds) {
+        collectDeps(eid, index, fileIds, allElementIds);
+      }
+
+      for (const eid of groupElementIds) {
+        const rels = vfMap.relLineIds.get(eid);
+        if (rels) {
+          for (const rid of rels) {
+            collectDeps(rid, index, fileIds, allElementIds);
+          }
+        }
+        const aggRels = aggMap.aggregateRelIds.get(eid);
+        if (aggRels) {
+          for (const rid of aggRels) {
+            collectDeps(rid, index, fileIds, allElementIds);
+          }
+        }
+      }
+
+      resolveStyles(fileIds, index, styleMaps, allElementIds);
+
+      const rewrittenLines = new Map<number, string>();
+      for (const rel of relEntries) {
+        const filtered = rel.listRefs.filter((r) => groupElementIds.has(r));
+        if (filtered.length === 0) continue;
+        const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
+        const newArgs = [...rel.args];
+        newArgs[rel.listIdx] = newList;
+        const rewritten = `${rel.idPrefix}${rel.type}(${newArgs.join(",")});`;
+        rewrittenLines.set(rel.id, rewritten);
+        fileIds.add(rel.id);
+        const refs = index.getRefs(rel.id);
+        if (refs) {
+          for (const rid of refs) {
+            if (!allElementIds.has(rid)) {
+              collectDeps(rid, index, fileIds, allElementIds);
+            }
+          }
+        }
+      }
+
+      const totalIds = fileIds.size;
+      groupsData.push({
+        fileIds,
+        rewrittenLines,
+        elementCount: groupElementIds.size,
+        totalIds,
+        fileName: path.join(
+          resolvedOutputDir,
+          `split_${String(g + 1).padStart(3, "0")}.ifc`,
+        ),
+      });
+      console.log(
+        `  Group ${g + 1}: ${groupElementIds.size} elements, ${totalIds} total IDs`,
+      );
+    }
+
+    console.timeEnd("resolve");
+
+    // Free the index to reclaim memory before the output pass
+    const maxParsedId = index.maxId;
+    index.free();
+
+    // 9. Build Uint32Array bitmask for O(1) write-phase lookups
+    console.time("build-mask");
+    const idGroupMask = new Uint32Array(maxParsedId + 1);
+    for (let g = 0; g < numGroups; g++) {
+      const groupData = groupsData[g];
+      if (!groupData) continue;
+      const bit = 1 << g;
+      for (const id of groupData.fileIds) {
+        idGroupMask[id] |= bit;
+      }
+    }
+    console.timeEnd("build-mask");
+
+    // 10. Second pass: write output files
+    console.time("write");
+    writeOutputFiles(deps, inputPath, header, footer, groupsData, idGroupMask);
+    console.timeEnd("write");
+
+    console.log("\nDone!");
+
+    return new Map(
+      groupsData
+        .filter((g): g is GroupData => !!g)
+        .map((g) => [g.fileName, g.fileIds]),
+    );
+  }
+
+  /**
+   * Extract specific building elements from an IFC file into a new IFC file.
+   * @param inputPath  - Absolute or relative path to the source IFC file.
+   * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped with a warning.
+   * @param outputPath - Path for the output IFC file.
+   */
+  extract(
+    deps: IfcSplitterDeps,
+    inputPath: string,
+    elementIds: number[],
+    outputPath: string,
+  ): void {
+    const { fs, path } = deps;
+    if (!fs.existsSync(inputPath)) {
+      console.error(`File not found: ${inputPath}`);
+      process.exit(1);
+    }
+
+    const outputDir = path.dirname(outputPath);
+    fs.mkdirSync(outputDir, { recursive: true });
+
+    // 1. Parse
+    const { header, footer, index } = parseIfc(fs, inputPath);
+
+    // 2. Identify spatial structure (shared)
+    console.time("spatial");
+    const spatialIds = new Set<number>();
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
+    }
+    const sharedIds = new Set<number>();
+    for (const sid of spatialIds) {
+      collectDepsAll(sid, index, sharedIds);
+    }
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type === "IFCRELAGGREGATES") {
+        const raw = index.getRaw(id);
+        const argsStr = extractArgsString(raw);
+        if (argsStr) {
+          const args = splitIfcArgs(argsStr);
+          if (args.length >= 6) {
+            const relatingId = parseHashRef(args[4]);
+            if (relatingId && spatialIds.has(relatingId)) {
+              const listRefs = extractRefs(args[5]);
+              if (listRefs.every((r) => spatialIds.has(r))) {
+                collectDepsAll(id, index, sharedIds);
+              }
+            }
+          }
+        }
+      }
+    }
+    console.timeEnd("spatial");
+
+    // 3. Build maps
+    const vfMap = buildVoidFillMap(index);
+    const styleMaps = buildStyleMaps(index);
+    const allElementIds = new Set<number>();
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
+    }
+
+    // Validate requested IDs
+    const requestedIds = new Set<number>();
+    for (const eid of elementIds) {
+      if (allElementIds.has(eid)) {
+        requestedIds.add(eid);
+      } else if (index.has(eid)) {
+        console.warn(
+          `  Warning: #${eid} exists but is not a building element (type: ${index.getType(eid)}), skipping`,
+        );
+      } else {
+        console.warn(`  Warning: #${eid} not found in file, skipping`);
+      }
+    }
+    if (requestedIds.size === 0) {
+      console.error("No valid element IDs to extract.");
+      return;
+    }
+    console.log(`  Extracting ${requestedIds.size} elements`);
+
+    // 4. Cluster: expand void/fill + aggregation for requested elements
+    const aggMap = buildAggregateMap(index, allElementIds);
+    const groupElementIds = new Set<number>(requestedIds);
+    for (const eid of requestedIds) {
+      const cluster = getCluster(eid, vfMap, aggMap);
+      for (const cid of cluster) {
+        if (allElementIds.has(cid)) groupElementIds.add(cid);
+      }
+    }
+    if (groupElementIds.size > requestedIds.size) {
+      console.log(
+        `  Expanded to ${groupElementIds.size} elements (void/fill + aggregation coupling)`,
+      );
+    }
+
+    // 5. Collect all dependencies
+    const fileIds = new Set<number>(sharedIds);
+    for (const eid of groupElementIds) {
+      collectDeps(eid, index, fileIds, allElementIds);
+    }
+    for (const eid of groupElementIds) {
+      const rels = vfMap.relLineIds.get(eid);
+      if (rels) {
+        for (const rid of rels) collectDeps(rid, index, fileIds, allElementIds);
+      }
+      const aggRels = aggMap.aggregateRelIds.get(eid);
+      if (aggRels) {
+        for (const rid of aggRels)
+          collectDeps(rid, index, fileIds, allElementIds);
+      }
+    }
+    resolveStyles(fileIds, index, styleMaps, allElementIds);
+
+    // 6. Rewrite relationship lines
+    const rewrittenLines = new Map<number, string>();
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && shouldRewriteType(type)) {
+        const raw = index.getRaw(id);
+        const argsStr = extractArgsString(raw);
+        if (!argsStr) continue;
+        const args = splitIfcArgs(argsStr);
+        const listIdx = listIdxByType(type);
+        if (args.length <= listIdx) continue;
+        const listRefs = extractRefs(args[listIdx]);
+        if (listRefs.length === 0) continue;
+
+        const filtered = listRefs.filter((r) => groupElementIds.has(r));
+        if (filtered.length === 0) continue;
+
+        const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
+        if (!idMatch) continue;
+        const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
+        const newArgs = [...args];
+        newArgs[listIdx] = newList;
+        rewrittenLines.set(id, `${idMatch[1]}${type}(${newArgs.join(",")});`);
+        fileIds.add(id);
+        const refs = index.getRefs(id);
+        if (refs) {
+          for (const rid of refs) {
+            if (!allElementIds.has(rid))
+              collectDeps(rid, index, fileIds, allElementIds);
+          }
+        }
+      }
+    }
+
+    console.log(`  Total lines in output: ${fileIds.size}`);
+
+    // 7. Free index, write output
+    // const maxParsedId = index.maxId;
+    index.free();
+
+    // Build simple inclusion set
+    const includeSet = new Set<number>(fileIds);
+
+    console.time("write");
+    const bw = new BufferedWriter(fs, outputPath, 4 * 1024 * 1024);
+    bw.write(`${header.join("\n")}\n`);
+
+    let section: "header" | "data" | "footer" = "header";
+    let accumulator = "";
+
+    forEachLine(fs, inputPath, (line: string) => {
+      if (section === "header") {
+        if (line.trim() === "DATA;") section = "data";
+        return;
+      }
+      if (section === "data") {
+        const trimmed = line.trim();
+        if (trimmed === "ENDSEC;") {
+          if (accumulator) {
+            emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
+            accumulator = "";
+          }
+          section = "footer";
+          return;
+        }
+
+        if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
+          emitSingleLine(trimmed, bw, includeSet, rewrittenLines);
+          return;
+        }
+
+        accumulator += (accumulator ? " " : "") + trimmed;
+        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
+          emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
+          accumulator = "";
+        }
+      }
+    });
+
+    bw.write(`${footer.join("\n")}\n`);
+    bw.close();
+    console.timeEnd("write");
+
+    const stat = fs.statSync(outputPath);
+    console.log(
+      `  Output: ${groupElementIds.size} elements, ${fileIds.size} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(outputPath)}`,
+    );
+    console.log("\nDone!");
+  }
+}
+
 export function split(
   deps: IfcSplitterDeps,
   inputPath: string,
   numGroups: number,
   outputDir?: string,
 ): Map<string, Set<number>> {
-  const { fs, path } = deps;
-  if (!fs.existsSync(inputPath)) {
-    console.error(`File not found: ${inputPath}`);
-    process.exit(1);
-  }
-
-  const resolvedOutputDir =
-    outputDir || path.join(path.dirname(inputPath), "output");
-  fs.mkdirSync(resolvedOutputDir, { recursive: true });
-
-  // 1. Parse
-  const { header, footer, index } = parseIfc(fs, inputPath);
-
-  // 2. Identify spatial structure (shared in all files)
-  console.time("spatial");
-  const spatialIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
-  }
-  const sharedIds = new Set<number>();
-  for (const sid of spatialIds) {
-    collectDepsAll(sid, index, sharedIds);
-  }
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type === "IFCRELAGGREGATES") {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (argsStr) {
-        const args = splitIfcArgs(argsStr);
-        if (args.length >= 6) {
-          const relatingId = parseHashRef(args[4]);
-          if (relatingId && spatialIds.has(relatingId)) {
-            const listRefs = extractRefs(args[5]);
-            if (listRefs.every((r) => spatialIds.has(r))) {
-              collectDepsAll(id, index, sharedIds);
-            }
-          }
-        }
-      }
-    }
-  }
-  console.timeEnd("spatial");
-  console.log(`  Shared infrastructure: ${sharedIds.size} lines`);
-
-  // 3. Build void/fill coupling map
-  console.time("voidfill");
-  const vfMap = buildVoidFillMap(index);
-  console.timeEnd("voidfill");
-  console.log(
-    `  Void rels: ${vfMap.wallToOpenings.size} walls with openings, ${vfMap.fillerToOpening.size} fillers`,
-  );
-
-  // 3b. Build reverse style maps
-  console.time("stylemaps");
-  const styleMaps = buildStyleMaps(index);
-  console.timeEnd("stylemaps");
-  console.log(
-    `  Style maps: ${styleMaps.geomToStyledItems.size} styled geometries, ${styleMaps.materialToDefReps.size} material representations`,
-  );
-
-  // 4. Identify all building elements
-  console.time("classify");
-  const allElementIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
-  }
-  console.timeEnd("classify");
-  console.log(`  Found ${allElementIds.size} building elements`);
-
-  // 4b. Build aggregation map
-  console.time("aggregate");
-  const aggMap = buildAggregateMap(index, allElementIds);
-  console.timeEnd("aggregate");
-  console.log(
-    `  Aggregate rels: ${aggMap.parentToChildren.size} parents, ${aggMap.childToParent.size} children`,
-  );
-
-  // 5. Build clusters
-  console.time("cluster");
-  const clusters: Set<number>[] = [];
-  const assigned = new Set<number>();
-  for (const eid of allElementIds) {
-    if (assigned.has(eid)) continue;
-    const cluster = getCluster(eid, vfMap, aggMap);
-    const elementCluster = new Set<number>();
-    for (const cid of cluster) {
-      if (allElementIds.has(cid)) elementCluster.add(cid);
-    }
-    clusters.push(elementCluster);
-    for (const cid of elementCluster) assigned.add(cid);
-  }
-  console.timeEnd("cluster");
-  console.log(`  Built ${clusters.length} clusters`);
-
-  // 6. Distribute clusters into N groups (greedy bin packing)
-  console.time("distribute");
-  const groups: Set<number>[] = Array.from(
-    { length: numGroups },
-    () => new Set(),
-  );
-  const clusterOrder = clusters
-    .map((_, i) => i)
-    .sort((a, b) => clusters[b].size - clusters[a].size);
-  const groupSizes = new Array<number>(numGroups).fill(0);
-
-  for (const ci of clusterOrder) {
-    let minIdx = 0;
-    for (let g = 1; g < numGroups; g++) {
-      if (groupSizes[g] < groupSizes[minIdx]) minIdx = g;
-    }
-    for (const id of clusters[ci]) groups[minIdx].add(id);
-    groupSizes[minIdx] += clusters[ci].size;
-  }
-  console.timeEnd("distribute");
-
-  // 7. Pre-parse all relationship lines that need per-group rewriting.
-  console.time("index-rels");
-  const relEntries: RelEntry[] = [];
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && shouldRewriteType(type)) {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (!argsStr) continue;
-      const args = splitIfcArgs(argsStr);
-      const listIdx = listIdxByType(type);
-      if (args.length <= listIdx) continue;
-      const listRefs = extractRefs(args[listIdx]);
-      if (listRefs.length === 0) continue;
-      const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
-      if (!idMatch) continue;
-      relEntries.push({
-        id,
-        type,
-        args,
-        listIdx,
-        listRefs,
-        idPrefix: idMatch[1],
-      });
-    }
-  }
-  console.timeEnd("index-rels");
-  console.log(`  Found ${relEntries.length} relationship lines to process`);
-
-  // 8. Resolve deps for all groups
-  console.time("resolve");
-  const groupsData: (GroupData | null)[] = [];
-
-  for (let g = 0; g < numGroups; g++) {
-    const groupElementIds = groups[g];
-    if (groupElementIds.size === 0) {
-      groupsData.push(null);
-      console.log(`  Group ${g + 1}: SKIPPED (empty)`);
-      continue;
-    }
-
-    const fileIds = new Set<number>(sharedIds);
-
-    for (const eid of groupElementIds) {
-      collectDeps(eid, index, fileIds, allElementIds);
-    }
-
-    for (const eid of groupElementIds) {
-      const rels = vfMap.relLineIds.get(eid);
-      if (rels) {
-        for (const rid of rels) {
-          collectDeps(rid, index, fileIds, allElementIds);
-        }
-      }
-      const aggRels = aggMap.aggregateRelIds.get(eid);
-      if (aggRels) {
-        for (const rid of aggRels) {
-          collectDeps(rid, index, fileIds, allElementIds);
-        }
-      }
-    }
-
-    resolveStyles(fileIds, index, styleMaps, allElementIds);
-
-    const rewrittenLines = new Map<number, string>();
-    for (const rel of relEntries) {
-      const filtered = rel.listRefs.filter((r) => groupElementIds.has(r));
-      if (filtered.length === 0) continue;
-      const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
-      const newArgs = [...rel.args];
-      newArgs[rel.listIdx] = newList;
-      const rewritten = `${rel.idPrefix}${rel.type}(${newArgs.join(",")});`;
-      rewrittenLines.set(rel.id, rewritten);
-      fileIds.add(rel.id);
-      const refs = index.getRefs(rel.id);
-      if (refs) {
-        for (const rid of refs) {
-          if (!allElementIds.has(rid)) {
-            collectDeps(rid, index, fileIds, allElementIds);
-          }
-        }
-      }
-    }
-
-    const totalIds = fileIds.size;
-    groupsData.push({
-      fileIds,
-      rewrittenLines,
-      elementCount: groupElementIds.size,
-      totalIds,
-      fileName: path.join(
-        resolvedOutputDir,
-        `split_${String(g + 1).padStart(3, "0")}.ifc`,
-      ),
-    });
-    console.log(
-      `  Group ${g + 1}: ${groupElementIds.size} elements, ${totalIds} total IDs`,
-    );
-  }
-
-  console.timeEnd("resolve");
-
-  // Free the index to reclaim memory before the output pass
-  const maxParsedId = index.maxId;
-  index.free();
-
-  // 9. Build Uint32Array bitmask for O(1) write-phase lookups
-  console.time("build-mask");
-  const idGroupMask = new Uint32Array(maxParsedId + 1);
-  for (let g = 0; g < numGroups; g++) {
-    const groupData = groupsData[g];
-    if (!groupData) continue;
-    const bit = 1 << g;
-    for (const id of groupData.fileIds) {
-      idGroupMask[id] |= bit;
-    }
-  }
-  console.timeEnd("build-mask");
-
-  // 10. Second pass: write output files
-  console.time("write");
-  writeOutputFiles(deps, inputPath, header, footer, groupsData, idGroupMask);
-  console.timeEnd("write");
-
-  console.log("\nDone!");
-
-  return new Map(
-    groupsData
-      .filter((g): g is GroupData => !!g)
-      .map((g) => [g.fileName, g.fileIds]),
-  );
+  return new IfcSplitter().split(deps, inputPath, numGroups, outputDir);
 }
 
 /**
@@ -1097,199 +1319,7 @@ export function extract(
   elementIds: number[],
   outputPath: string,
 ): void {
-  const { fs, path } = deps;
-  if (!fs.existsSync(inputPath)) {
-    console.error(`File not found: ${inputPath}`);
-    process.exit(1);
-  }
-
-  const outputDir = path.dirname(outputPath);
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  // 1. Parse
-  const { header, footer, index } = parseIfc(fs, inputPath);
-
-  // 2. Identify spatial structure (shared)
-  console.time("spatial");
-  const spatialIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
-  }
-  const sharedIds = new Set<number>();
-  for (const sid of spatialIds) {
-    collectDepsAll(sid, index, sharedIds);
-  }
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type === "IFCRELAGGREGATES") {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (argsStr) {
-        const args = splitIfcArgs(argsStr);
-        if (args.length >= 6) {
-          const relatingId = parseHashRef(args[4]);
-          if (relatingId && spatialIds.has(relatingId)) {
-            const listRefs = extractRefs(args[5]);
-            if (listRefs.every((r) => spatialIds.has(r))) {
-              collectDepsAll(id, index, sharedIds);
-            }
-          }
-        }
-      }
-    }
-  }
-  console.timeEnd("spatial");
-
-  // 3. Build maps
-  const vfMap = buildVoidFillMap(index);
-  const styleMaps = buildStyleMaps(index);
-  const allElementIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
-  }
-
-  // Validate requested IDs
-  const requestedIds = new Set<number>();
-  for (const eid of elementIds) {
-    if (allElementIds.has(eid)) {
-      requestedIds.add(eid);
-    } else if (index.has(eid)) {
-      console.warn(
-        `  Warning: #${eid} exists but is not a building element (type: ${index.getType(eid)}), skipping`,
-      );
-    } else {
-      console.warn(`  Warning: #${eid} not found in file, skipping`);
-    }
-  }
-  if (requestedIds.size === 0) {
-    console.error("No valid element IDs to extract.");
-    return;
-  }
-  console.log(`  Extracting ${requestedIds.size} elements`);
-
-  // 4. Cluster: expand void/fill + aggregation for requested elements
-  const aggMap = buildAggregateMap(index, allElementIds);
-  const groupElementIds = new Set<number>(requestedIds);
-  for (const eid of requestedIds) {
-    const cluster = getCluster(eid, vfMap, aggMap);
-    for (const cid of cluster) {
-      if (allElementIds.has(cid)) groupElementIds.add(cid);
-    }
-  }
-  if (groupElementIds.size > requestedIds.size) {
-    console.log(
-      `  Expanded to ${groupElementIds.size} elements (void/fill + aggregation coupling)`,
-    );
-  }
-
-  // 5. Collect all dependencies
-  const fileIds = new Set<number>(sharedIds);
-  for (const eid of groupElementIds) {
-    collectDeps(eid, index, fileIds, allElementIds);
-  }
-  for (const eid of groupElementIds) {
-    const rels = vfMap.relLineIds.get(eid);
-    if (rels) {
-      for (const rid of rels) collectDeps(rid, index, fileIds, allElementIds);
-    }
-    const aggRels = aggMap.aggregateRelIds.get(eid);
-    if (aggRels) {
-      for (const rid of aggRels)
-        collectDeps(rid, index, fileIds, allElementIds);
-    }
-  }
-  resolveStyles(fileIds, index, styleMaps, allElementIds);
-
-  // 6. Rewrite relationship lines
-  const rewrittenLines = new Map<number, string>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && shouldRewriteType(type)) {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (!argsStr) continue;
-      const args = splitIfcArgs(argsStr);
-      const listIdx = listIdxByType(type);
-      if (args.length <= listIdx) continue;
-      const listRefs = extractRefs(args[listIdx]);
-      if (listRefs.length === 0) continue;
-
-      const filtered = listRefs.filter((r) => groupElementIds.has(r));
-      if (filtered.length === 0) continue;
-
-      const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
-      if (!idMatch) continue;
-      const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
-      const newArgs = [...args];
-      newArgs[listIdx] = newList;
-      rewrittenLines.set(id, `${idMatch[1]}${type}(${newArgs.join(",")});`);
-      fileIds.add(id);
-      const refs = index.getRefs(id);
-      if (refs) {
-        for (const rid of refs) {
-          if (!allElementIds.has(rid))
-            collectDeps(rid, index, fileIds, allElementIds);
-        }
-      }
-    }
-  }
-
-  console.log(`  Total lines in output: ${fileIds.size}`);
-
-  // 7. Free index, write output
-  // const maxParsedId = index.maxId;
-  index.free();
-
-  // Build simple inclusion set
-  const includeSet = new Set<number>(fileIds);
-
-  console.time("write");
-  const bw = new BufferedWriter(fs, outputPath, 4 * 1024 * 1024);
-  bw.write(`${header.join("\n")}\n`);
-
-  let section: "header" | "data" | "footer" = "header";
-  let accumulator = "";
-
-  forEachLine(fs, inputPath, (line: string) => {
-    if (section === "header") {
-      if (line.trim() === "DATA;") section = "data";
-      return;
-    }
-    if (section === "data") {
-      const trimmed = line.trim();
-      if (trimmed === "ENDSEC;") {
-        if (accumulator) {
-          emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
-          accumulator = "";
-        }
-        section = "footer";
-        return;
-      }
-
-      if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-        emitSingleLine(trimmed, bw, includeSet, rewrittenLines);
-        return;
-      }
-
-      accumulator += (accumulator ? " " : "") + trimmed;
-      if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-        emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
-        accumulator = "";
-      }
-    }
-  });
-
-  bw.write(`${footer.join("\n")}\n`);
-  bw.close();
-  console.timeEnd("write");
-
-  const stat = fs.statSync(outputPath);
-  console.log(
-    `  Output: ${groupElementIds.size} elements, ${fileIds.size} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(outputPath)}`,
-  );
-  console.log("\nDone!");
+  new IfcSplitter().extract(deps, inputPath, elementIds, outputPath);
 }
 
 function emitSingleLine(
