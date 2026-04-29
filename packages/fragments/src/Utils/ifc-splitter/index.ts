@@ -1079,7 +1079,9 @@ export function split(
   console.log("\nDone!");
 
   return new Map(
-    groupsData.filter((g) => !!g).map((g) => [g.fileName, g.fileIds]),
+    groupsData
+      .filter((g): g is GroupData => !!g)
+      .map((g) => [g.fileName, g.fileIds]),
   );
 }
 
