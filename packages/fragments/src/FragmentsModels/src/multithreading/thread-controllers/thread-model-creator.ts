@@ -26,6 +26,12 @@ export class ThreadModelCreator extends ThreadController {
       notify("decompressing", 1);
       throwIfAborted();
 
+      // The updater is shared by the whole worker, so the latest loaded model
+      // controls the delay for every model assigned to this worker.
+      this.thread.controllerManager.updater.setUpdateDelay(
+        input.config?.multithreading?.threadUpdaterDelay,
+      );
+
       const model = await this.createModel(input, notify, throwIfAborted);
       this.finalize(input, model);
 

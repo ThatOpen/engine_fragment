@@ -497,11 +497,25 @@ export interface VirtualPropertiesConfig {
 }
 
 /**
+ * Interface representing multithreading timing configuration for virtual models.
+ */
+export interface VirtualMultithreadingConfig {
+  /** Interval in milliseconds to flush queued mesh requests */
+  meshConnectionRate?: number;
+  /** Queue length that, when exceeded, triggers immediate mesh request flushing */
+  meshConnectionThreshold?: number;
+  /** Delay in milliseconds between worker-side update loop iterations */
+  threadUpdaterDelay?: number;
+}
+
+/**
  * Interface representing the configuration for a virtual model.
  */
 export interface VirtualModelConfig {
   /** Optional properties configuration for the virtual model */
   properties?: VirtualPropertiesConfig;
+  /** Optional multithreading timing configuration for the virtual model */
+  multithreading?: VirtualMultithreadingConfig;
 }
 
 /**

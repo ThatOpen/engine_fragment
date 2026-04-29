@@ -2,6 +2,7 @@ import { FragmentsModel, FragmentsModels } from "../..";
 import * as EDIT from "../../../Utils/edit";
 import { FragmentsConnection } from "../multithreading/fragments-connection";
 import { EditUtils } from "../../../Utils/edit/edit-utils";
+import { VirtualModelConfig } from "../model/model-types";
 
 export class EditHelper {
   private _deltaModels: { [modelId: string]: FragmentsModel[] | null } = {};
@@ -173,9 +174,17 @@ export class EditHelper {
 
     deltaModel.graphicsQuality = this._fragments.settings.graphicsQuality;
 
+    const virtualModelConfig: VirtualModelConfig = {
+      multithreading: {
+        meshConnectionRate: this._fragments.settings.meshConnectionRate,
+        meshConnectionThreshold: this._fragments.settings.meshConnectionThreshold,
+        threadUpdaterDelay: this._fragments.settings.threadUpdaterDelay,
+      },
+    };
+
     try {
       this._fragments.models.list.set(deltaModel.modelId, deltaModel);
-      await deltaModel._setup(buffer, true);
+      await deltaModel._setup(buffer, true, virtualModelConfig);
       parentModel.object.add(deltaModel.object);
     } catch (e) {
       this._fragments.models.list.delete(deltaModel.modelId);

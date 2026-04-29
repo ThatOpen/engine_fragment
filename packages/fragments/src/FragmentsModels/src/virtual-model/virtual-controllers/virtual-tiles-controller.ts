@@ -15,6 +15,7 @@ import {
   TileRequestClass,
   SnappingClass,
   LodMode,
+  VirtualMultithreadingConfig,
 } from "../../model/model-types";
 import { VirtualBoxController } from "../../bounding-boxes";
 import {
@@ -44,6 +45,7 @@ type VirtualMeshes = Map<RepresentationClass, VirtualMeshManager>;
 export type VirtualTileData = {
   modelId: string;
   connection: Connection;
+  multithreading?: VirtualMultithreadingConfig;
   model: Model;
   boxes: VirtualBoxController;
   items: ItemConfigController;
@@ -140,7 +142,11 @@ export class VirtualTilesController {
     this._boxes = data.boxes;
     this._items = data.items;
     this._materials = data.materials;
-    this._meshConnection = new MeshConnection(data.modelId, data.connection);
+    this._meshConnection = new MeshConnection(
+      data.modelId,
+      data.connection,
+      data.multithreading,
+    );
     this.meshes = data.model.meshes() as Meshes;
     this._sampleAmount = this.meshes.samplesLength();
     this._samples = new ItemConfigController(this._sampleAmount);

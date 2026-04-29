@@ -3,7 +3,7 @@ import { FragmentsThread } from "../fragments-thread";
 export class ThreadUpdater {
   private readonly _thread: FragmentsThread;
   private readonly _updateThreshold = 16;
-  private readonly _updateDelay = 128;
+  private _updateDelay = 128;
 
   constructor(thread: FragmentsThread) {
     this._thread = thread;
@@ -13,6 +13,13 @@ export class ThreadUpdater {
       setTimeout(updateAll, delay);
     };
     updateAll();
+  }
+
+  setUpdateDelay(delay?: number) {
+    if (typeof delay !== "number" || !Number.isFinite(delay) || delay < 0) {
+      return;
+    }
+    this._updateDelay = delay;
   }
 
   private updateAllModels() {

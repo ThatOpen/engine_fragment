@@ -96,6 +96,12 @@ export class FragmentsModels {
     forceUpdateRate: 200,
     /** Force update buffer time in milliseconds */
     forceUpdateBuffer: 200,
+    /** Interval in milliseconds to flush queued mesh requests from thread to main thread */
+    meshConnectionRate: 64,
+    /** Number of queued mesh requests that triggers an immediate flush */
+    meshConnectionThreshold: 16,
+    /** Delay in milliseconds between worker-side update loops when work is complete */
+    threadUpdaterDelay: 128,
   };
 
   /** Coordinates of the first loaded model, used for coordinate system alignment */
@@ -202,6 +208,16 @@ export class FragmentsModels {
     // pool routing in fragments-connection picks the right thread.
     this._connection.setModelThreadGroup(options.modelId, options.threadGroup);
 
+    const virtualModelConfig: VirtualModelConfig = {
+      ...options.virtualModelConfig,
+      multithreading: {
+        meshConnectionRate: this.settings.meshConnectionRate,
+        meshConnectionThreshold: this.settings.meshConnectionThreshold,
+        threadUpdaterDelay: this.settings.threadUpdaterDelay,
+        ...options.virtualModelConfig?.multithreading,
+      },
+    };
+
     const model = new FragmentsModel(
       options.modelId,
       this.models,
@@ -225,7 +241,7 @@ export class FragmentsModels {
 
     try {
       this.models.list.set(model.modelId, model);
-      await model._setup(buffer, options.raw, options.virtualModelConfig);
+      await model._setup(buffer, options.raw, virtualModelConfig);
       if (this.settings.autoCoordinate) {
         const coordinates = await model.getCoordinates();
         if (this.baseCoordinates === null) {

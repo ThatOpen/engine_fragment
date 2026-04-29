@@ -4,8 +4,8 @@ import { LODGeometry } from "./lod-geometry";
 import { LodHelper } from "./lod-helper";
 
 export class LODMesh extends THREE.Mesh {
-  geometry: LODGeometry;
-  material: LodMaterial[];
+  declare geometry: LODGeometry;
+  declare material: LodMaterial[];
 
   constructor(geometry: LODGeometry, material: LodMaterial[]) {
     super(geometry, material);

@@ -741,6 +741,7 @@ export class VirtualFragmentsModel {
     return new VirtualTilesController({
       modelId: this._modelId,
       connection: this._connection,
+      multithreading: this._config.multithreading,
       model: this.data,
       boxes: this.boxes,
       items: this.itemConfig,
