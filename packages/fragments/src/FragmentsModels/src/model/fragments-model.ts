@@ -640,9 +640,33 @@ export class FragmentsModel {
 
   /**
    * Get the grids of the model (if any).
+   *
+   * Returns a `THREE.Group` with one child per grid (each child carries
+   * `userData.id = localId` and `userData.kind = "grid"`). Each grid's
+   * children are `THREE.Line` instances with `userData.kind = "axis"`,
+   * `userData.tag` (the axis label), and `userData.axis` ("uAxes",
+   * "vAxes", or "wAxes").
    */
   async getGrids() {
     return this._gridsManager.getGrids();
+  }
+
+  /**
+   * The shared `LineDashedMaterial` used to render every grid axis line.
+   * Mutating its properties (color, opacity, dash sizes, etc.) updates all
+   * rendered grid lines immediately. Use `setGridMaterial` to swap to a
+   * different material instance.
+   */
+  getGridMaterial() {
+    return this._gridsManager.getGridMaterial();
+  }
+
+  /**
+   * Replace the shared grid material. The previous material is disposed
+   * after the swap.
+   */
+  setGridMaterial(material: THREE.LineDashedMaterial) {
+    this._gridsManager.setGridMaterial(material);
   }
 
   /**

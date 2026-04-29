@@ -26,6 +26,33 @@ export class GridsManager {
     return this._grids;
   }
 
+  /**
+   * The shared `LineDashedMaterial` used for every grid axis. Mutating its
+   * properties (color, opacity, dash sizes, etc.) updates all rendered grid
+   * lines without needing to traverse the returned `Object3D`. Replace it
+   * with a different material via `setGridMaterial` if you need a different
+   * material class.
+   */
+  getGridMaterial(): THREE.LineDashedMaterial {
+    return this._gridMaterial;
+  }
+
+  /**
+   * Replace the shared grid material. Walks already-constructed lines and
+   * reassigns their `.material`, then disposes the previous material to
+   * release GPU resources.
+   */
+  setGridMaterial(material: THREE.LineDashedMaterial): void {
+    const prev = this._gridMaterial;
+    this._gridMaterial = material;
+    this._grids.traverse((child) => {
+      if (child instanceof THREE.Line) {
+        child.material = material;
+      }
+    });
+    if (prev !== material) prev.dispose();
+  }
+
   private async constructGrids() {
     const result = (await this.model.threads.invoke(
       this.model.modelId,
@@ -38,6 +65,7 @@ export class GridsManager {
       const grid = new THREE.Group();
       this._grids.add(grid);
       grid.userData.id = gridData.id;
+      grid.userData.kind = "grid";
       tempMatrix.fromArray(gridData.transform);
       grid.applyMatrix4(tempMatrix);
       this.getGridAxis(gridData, grid, "uAxes");
@@ -66,6 +94,8 @@ export class GridsManager {
       );
       const axisLine = new THREE.Line(geometry, this._gridMaterial);
       axisLine.userData.tag = tag;
+      axisLine.userData.kind = "axis";
+      axisLine.userData.axis = axis;
       axisLine.computeLineDistances();
       axisLine.renderOrder = 1;
       grid.add(axisLine);
