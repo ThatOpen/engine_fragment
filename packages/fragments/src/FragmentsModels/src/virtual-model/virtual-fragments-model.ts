@@ -108,7 +108,7 @@ export class VirtualFragmentsModel {
     this.tiles = this.setupTiles();
     this.properties = this.setupProperties();
     this.raycaster = this.setupRaycaster();
-    this.indexes = new VirtualIndexesController(this.data);
+    this.indexes = new VirtualIndexesController(this);
     this.setupBVH();
     this._nextId = this.getMaxLocalId();
   }

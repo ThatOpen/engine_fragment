@@ -12,6 +12,7 @@
 import * as flatbuffers from "flatbuffers";
 import { Meshes, Model, ModelIndex, Transform } from "../Schema";
 import { VirtualIndexesController } from "./src/virtual-model/virtual-controllers/virtual-indexes-controller";
+import type { VirtualFragmentsModel } from "./src/virtual-model";
 import { EditRequest, EditRequestType, EditUtils } from "../Utils";
 
 let pass = 0;
@@ -143,7 +144,13 @@ const model = Model.getRootAsModel(bb);
 // ---------------------------------------------------------------------------
 // Exercise the controller
 // ---------------------------------------------------------------------------
-const controller = new VirtualIndexesController(model);
+// The controller takes a VirtualFragmentsModel. For testing it only uses
+// `data` (the FlatBuffer-backed Model) and `requests` (pending edit list),
+// so a minimal stub does the job without standing up workers or three.js.
+const stubVm = (model: Model, requests: EditRequest[] = []) =>
+  ({ data: model, requests }) as unknown as VirtualFragmentsModel;
+
+const controller = new VirtualIndexesController(stubVm(model));
 
 console.log("Names");
 eq("getNames()", controller.getNames(), ["tags", "descendants"]);
@@ -240,7 +247,7 @@ const { model: editedBytes } = EditUtils.edit(model, requests, {
 });
 const editedBb = new flatbuffers.ByteBuffer(editedBytes as Uint8Array);
 const editedModel = Model.getRootAsModel(editedBb);
-const editedCtl = new VirtualIndexesController(editedModel);
+const editedCtl = new VirtualIndexesController(stubVm(editedModel));
 
 eq("after edit: getNames()", editedCtl.getNames(), [
   "descendants",
@@ -275,6 +282,71 @@ eq(
 );
 eq("after edit: has('withGeometry', 20)", editedCtl.has("withGeometry", 20), true);
 eq("after edit: has('withGeometry', 99)", editedCtl.has("withGeometry", 99), false);
+
+// ---------------------------------------------------------------------------
+// Live reads with pending requests (no save/reload). The controller should
+// see CREATE/UPDATE/DELETE in the request list and overlay them on the
+// stored vector.
+// ---------------------------------------------------------------------------
+console.log("\nLive edit (no save)");
+
+const liveCtl = new VirtualIndexesController(stubVm(model, requests));
+
+eq(
+  "live: getNames() reflects pending edits",
+  liveCtl.getNames(),
+  ["descendants", "withGeometry"],
+);
+eq(
+  "live: getInfo('tags') is null (pending DELETE)",
+  liveCtl.getInfo("tags"),
+  null,
+);
+eq("live: has('tags', 1) is false", liveCtl.has("tags", 1), false);
+eqArr(
+  "live: getEntry('descendants', 100) reflects pending UPDATE",
+  liveCtl.getEntry("descendants", 100) as Uint32Array,
+  [501, 502],
+);
+eqArr(
+  "live: getEntry('descendants', 202) reflects pending UPDATE",
+  liveCtl.getEntry("descendants", 202) as Uint32Array,
+  [600],
+);
+eq(
+  "live: getInfo('withGeometry') from pending CREATE",
+  liveCtl.getInfo("withGeometry"),
+  {
+    name: "withGeometry",
+    mode: "keysOnly",
+    keyType: "number",
+    valueType: "none",
+    size: 3,
+  },
+);
+eq("live: has('withGeometry', 20)", liveCtl.has("withGeometry", 20), true);
+eqArr(
+  "live: getInverseEntry('descendants', 600) (pending UPDATE)",
+  liveCtl.getInverseEntry("descendants", 600) as Uint32Array,
+  [202],
+);
+
+// Add a request after construction; the controller should pick it up
+// (overlay invalidates when requests.length changes).
+requests.push({
+  type: EditRequestType.CREATE_INDEX,
+  data: { name: "lateAdd", keys: ["x", "y"] },
+});
+eq(
+  "live: getNames() picks up post-construction request",
+  liveCtl.getNames(),
+  ["descendants", "withGeometry", "lateAdd"],
+);
+eq(
+  "live: has('lateAdd', 'x') after late push",
+  liveCtl.has("lateAdd", "x"),
+  true,
+);
 
 console.log(`\n${pass} pass, ${fail} fail`);
 process.exit(fail === 0 ? 0 : 1);
