@@ -46,7 +46,8 @@
     "fb": "yarn delete-schema && yarn create-schema",
     "create-schema": "cd ./flatbuffers && flatc.exe --gen-mutable -o ../src/Schema --ts index.fbs",
     "delete-schema": "node ./flatbuffers/delete-schema.mjs",
-    "test-node": "yarn tsx ./src/Importers/IfcImporter/node-example.ts"
+    "test-node": "yarn tsx ./src/Importers/IfcImporter/node-example.ts",
+    "test-indexes": "yarn tsx ./src/FragmentsModels/test-indexes.ts"
   },
   "dependencies": {
     "earcut": "^3.0.1",
