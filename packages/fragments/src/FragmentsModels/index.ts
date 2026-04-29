@@ -96,11 +96,26 @@ export class FragmentsModels {
     forceUpdateRate: 200,
     /** Force update buffer time in milliseconds */
     forceUpdateBuffer: 200,
-    /** Interval in milliseconds to flush queued mesh requests from thread to main thread */
+    /**
+     * Interval in milliseconds to flush queued mesh requests from thread to
+     * main thread. Set this once at FragmentsModels construction; changing
+     * it after a model has been loaded has no effect on already-loaded
+     * models (they keep the value they were created with).
+     */
     meshConnectionRate: 64,
-    /** Number of queued mesh requests that triggers an immediate flush */
+    /**
+     * Number of queued mesh requests that triggers an immediate flush.
+     * Same setup-time semantics as {@link meshConnectionRate}.
+     */
     meshConnectionThreshold: 16,
-    /** Delay in milliseconds between worker-side update loops when work is complete */
+    /**
+     * Delay in milliseconds between worker-side update loops when work is
+     * complete. Note: each worker has a single shared update loop, so when
+     * multiple models share a worker (default round-robin pool, or any
+     * `threadGroup`), the most recently loaded model's value applies to
+     * every model on that worker. Set this once at FragmentsModels
+     * construction and treat it as a global tuning knob.
+     */
     threadUpdaterDelay: 128,
   };
 
