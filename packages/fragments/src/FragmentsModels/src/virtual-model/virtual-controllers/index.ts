@@ -6,3 +6,4 @@ export * from "./alignments-controller";
 export * from "./virtual-memory-controller";
 export * from "./virtual-template-controller";
 export * from "./item-config-controller";
+export * from "./virtual-indexes-controller";

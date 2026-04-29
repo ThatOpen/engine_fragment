@@ -4,6 +4,9 @@ import {
   ItemsQueryParams,
   SpatialTreeItem,
   ItemsQueryConfig,
+  IndexEntry,
+  IndexInfo,
+  InverseIndexEntry,
 } from "./model-types";
 import { AlignmentsManager } from "./alignments-manager";
 import { FragmentsModel } from "./fragments-model";
@@ -37,6 +40,57 @@ export class DataManager {
     return model.threads.invoke(model.modelId, "getCategories") as Promise<
       string[]
     >;
+  }
+
+  async getIndexNames(model: FragmentsModel) {
+    return model.threads.invoke(model.modelId, "getIndexNames") as Promise<
+      string[]
+    >;
+  }
+
+  async getIndexInfo(model: FragmentsModel, name: string) {
+    return model.threads.invoke(model.modelId, "getIndexInfo", [
+      name,
+    ]) as Promise<IndexInfo | null>;
+  }
+
+  async getIndexKeys(model: FragmentsModel, name: string) {
+    return model.threads.invoke(model.modelId, "getIndexKeys", [
+      name,
+    ]) as Promise<Uint32Array | string[] | null>;
+  }
+
+  async hasIndexEntry(
+    model: FragmentsModel,
+    name: string,
+    key: string | number,
+  ) {
+    return model.threads.invoke(model.modelId, "hasIndexEntry", [
+      name,
+      key,
+    ]) as Promise<boolean>;
+  }
+
+  async getIndexEntry(
+    model: FragmentsModel,
+    name: string,
+    key: string | number,
+  ) {
+    return model.threads.invoke(model.modelId, "getIndexEntry", [
+      name,
+      key,
+    ]) as Promise<IndexEntry>;
+  }
+
+  async getInverseIndexEntry(
+    model: FragmentsModel,
+    name: string,
+    value: string | number,
+  ) {
+    return model.threads.invoke(model.modelId, "getInverseIndexEntry", [
+      name,
+      value,
+    ]) as Promise<InverseIndexEntry>;
   }
 
   async getMaxLocalId(model: FragmentsModel) {

@@ -258,6 +258,55 @@ export class FragmentsModel {
     return this._dataManager.getCategories(this);
   }
 
+  /**
+   * Get the names of every user-defined index stored on this model. See the
+   * `ModelIndex` schema for the supported shapes.
+   */
+  async getIndexNames() {
+    return this._dataManager.getIndexNames(this);
+  }
+
+  /**
+   * Describe the shape of a named index without performing any lookups.
+   * Returns `null` if no index with that name exists.
+   */
+  async getIndexInfo(name: string) {
+    return this._dataManager.getIndexInfo(this, name);
+  }
+
+  /**
+   * Get the keys of an index. Useful for keys-only indexes (membership tests,
+   * iteration) but valid for any mode. Number keys come back as a
+   * `Uint32Array`, string keys as `string[]`.
+   */
+  async getIndexKeys(name: string) {
+    return this._dataManager.getIndexKeys(this, name);
+  }
+
+  /**
+   * Test whether a key exists in the named index without resolving its value.
+   */
+  async hasIndexEntry(name: string, key: string | number) {
+    return this._dataManager.hasIndexEntry(this, name, key);
+  }
+
+  /**
+   * Forward lookup of a single entry in the named index. The return shape
+   * depends on the index mode (see {@link IndexEntry}).
+   */
+  async getIndexEntry(name: string, key: string | number) {
+    return this._dataManager.getIndexEntry(this, name, key);
+  }
+
+  /**
+   * Inverse lookup. For an index with forward direction `key -> value`,
+   * returns every key that maps to `value`. The inverse map is built lazily
+   * on first call and cached for the model's lifetime.
+   */
+  async getInverseIndexEntry(name: string, value: string | number) {
+    return this._dataManager.getInverseIndexEntry(this, name, value);
+  }
+
   async getItemsWithGeometryCategories() {
     return this._dataManager.getItemsWithGeometryCategories(this);
   }

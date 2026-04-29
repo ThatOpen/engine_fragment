@@ -387,6 +387,63 @@ export interface SpatialTreeItem {
 }
 
 /**
+ * Storage shape of a user-defined model index. Detected once per index from
+ * the populated vectors and exposed via {@link IndexInfo}.
+ *
+ * - `keysOnly`: only keys are stored. The index acts as a sorted set; values
+ *   are queried via `hasIndexEntry` / iterated via `getIndexKeys`.
+ * - `oneToOne`: each key maps to exactly one value.
+ * - `oneToNLinear`: each key maps to a contiguous slice of values.
+ * - `oneToNNonLinear`: each key maps to an arbitrary slice (slices may
+ *   overlap or reorder, e.g. flattened descendant trees).
+ */
+export type IndexMode =
+  | "keysOnly"
+  | "oneToOne"
+  | "oneToNLinear"
+  | "oneToNNonLinear";
+
+/** Key type of a user-defined model index. */
+export type IndexKeyType = "string" | "number";
+
+/** Value type of a user-defined model index. `none` for keys-only indexes. */
+export type IndexValueType = "string" | "number" | "none";
+
+/**
+ * Snapshot of an index's shape. Returned by `getIndexInfo` so callers can
+ * branch on the mode without re-inspecting the underlying buffer.
+ */
+export interface IndexInfo {
+  /** Index identifier, unique within the model. */
+  name: string;
+  /** Storage shape of the index. */
+  mode: IndexMode;
+  /** Whether keys are stored as strings or numbers. */
+  keyType: IndexKeyType;
+  /** Whether values are stored as strings, numbers, or absent (keys-only). */
+  valueType: IndexValueType;
+  /** Number of keys in the index. */
+  size: number;
+}
+
+/**
+ * Forward-lookup result for a single key in a {@link IndexInfo}.
+ *
+ * Shape depends on the index mode: `null` for keys-only, the scalar value for
+ * `oneToOne`, or a `Uint32Array` view (number values) / `string[]` (string
+ * values) for the 1:N modes. The `Uint32Array` is a zero-copy view over the
+ * underlying buffer; do not mutate it.
+ */
+export type IndexEntry = string | number | Uint32Array | string[] | null;
+
+/**
+ * Inverse-lookup result. For an index with forward direction `key -> value`,
+ * the inverse maps `value -> set of keys`. Keys come back as `Uint32Array`
+ * for number-keyed indexes and `string[]` for string-keyed ones.
+ */
+export type InverseIndexEntry = Uint32Array | string[] | null;
+
+/**
  * Interface representing the configuration for item data in a Fragments model.
  */
 export interface ItemsDataConfig {

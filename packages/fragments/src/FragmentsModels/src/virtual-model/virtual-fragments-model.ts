@@ -17,6 +17,7 @@ import {
   RaycastController,
   AlignmentsController,
   ItemConfigController,
+  VirtualIndexesController,
 } from "./virtual-controllers";
 import {
   MaterialDefinition,
@@ -30,6 +31,9 @@ import {
   AttributesUniqueValuesParams,
   CurrentLod,
   ItemsQueryConfig,
+  IndexEntry,
+  IndexInfo,
+  InverseIndexEntry,
   LodMode,
 } from "../model/model-types";
 
@@ -61,6 +65,7 @@ export class VirtualFragmentsModel {
   materials: VirtualMaterialController;
   tiles: VirtualTilesController;
   boxes: VirtualBoxController;
+  indexes: VirtualIndexesController;
 
   requests: EditRequest[] = [];
 
@@ -103,8 +108,37 @@ export class VirtualFragmentsModel {
     this.tiles = this.setupTiles();
     this.properties = this.setupProperties();
     this.raycaster = this.setupRaycaster();
+    this.indexes = new VirtualIndexesController(this.data);
     this.setupBVH();
     this._nextId = this.getMaxLocalId();
+  }
+
+  // ---------------------------------------------------------------------------
+  // User-defined indexes (see ModelIndex schema)
+  // ---------------------------------------------------------------------------
+
+  getIndexNames(): string[] {
+    return this.indexes.getNames();
+  }
+
+  getIndexInfo(name: string): IndexInfo | null {
+    return this.indexes.getInfo(name);
+  }
+
+  getIndexKeys(name: string): Uint32Array | string[] | null {
+    return this.indexes.getKeys(name);
+  }
+
+  hasIndexEntry(name: string, key: string | number): boolean {
+    return this.indexes.has(name, key);
+  }
+
+  getIndexEntry(name: string, key: string | number): IndexEntry {
+    return this.indexes.getEntry(name, key);
+  }
+
+  getInverseIndexEntry(name: string, value: string | number): InverseIndexEntry {
+    return this.indexes.getInverseEntry(name, value);
   }
 
   getItemsByConfig(condition: (item: number) => boolean) {

@@ -76,6 +76,53 @@ export class SingleThreadedFragmentsModel {
   }
 
   /**
+   * Get the names of every user-defined index stored on this model. See the
+   * `ModelIndex` schema for the supported shapes.
+   */
+  getIndexNames() {
+    return this._virtualModel.getIndexNames();
+  }
+
+  /**
+   * Describe the shape of a named index without performing any lookups.
+   * Returns `null` if no index with that name exists.
+   */
+  getIndexInfo(name: string) {
+    return this._virtualModel.getIndexInfo(name);
+  }
+
+  /**
+   * Get the keys of an index. Useful for keys-only indexes (membership tests,
+   * iteration) but valid for any mode. Number keys come back as a
+   * `Uint32Array`, string keys as `string[]`.
+   */
+  getIndexKeys(name: string) {
+    return this._virtualModel.getIndexKeys(name);
+  }
+
+  /**
+   * Test whether a key exists in the named index without resolving its value.
+   */
+  hasIndexEntry(name: string, key: string | number) {
+    return this._virtualModel.hasIndexEntry(name, key);
+  }
+
+  /**
+   * Forward lookup of a single entry in the named index. The return shape
+   * depends on the index mode.
+   */
+  getIndexEntry(name: string, key: string | number) {
+    return this._virtualModel.getIndexEntry(name, key);
+  }
+
+  /**
+   * Inverse lookup. Returns every key that maps to `value`.
+   */
+  getInverseIndexEntry(name: string, value: string | number) {
+    return this._virtualModel.getInverseIndexEntry(name, value);
+  }
+
+  /**
    * Get all the items of the model that have geometry.
    */
   getItemsWithGeometry() {

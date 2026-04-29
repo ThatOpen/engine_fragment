@@ -1,61 +1,12 @@
 import { Model, ModelIndex } from "../../../../Schema";
-
-/**
- * The four shapes a {@link ModelIndex} can take. Detected once per index
- * from the populated vectors and cached.
- *
- * - `keysOnly`: only keys are stored. The index acts as a sorted set.
- * - `oneToOne`: each key maps to exactly one value (`values[i]` for `keys[i]`).
- * - `oneToNLinear`: each key maps to a contiguous slice of values, sliced
- *   by `end`. The slice for `keys[i]` is `values[end[i-1] ?? 0 .. end[i]]`.
- * - `oneToNNonLinear`: each key maps to an arbitrary slice of values,
- *   sliced by `start[i] .. end[i]`. Used when slices need to overlap or
- *   reorder, e.g. flattened descendant trees.
- */
-export type IndexMode =
-  | "keysOnly"
-  | "oneToOne"
-  | "oneToNLinear"
-  | "oneToNNonLinear";
-
-export type IndexKeyType = "string" | "number";
-export type IndexValueType = "string" | "number" | "none";
-
-/**
- * Snapshot of an index's shape, returned alongside reads so callers can
- * branch on storage mode without re-inspecting the underlying buffer.
- */
-export interface IndexInfo {
-  name: string;
-  mode: IndexMode;
-  keyType: IndexKeyType;
-  valueType: IndexValueType;
-  size: number;
-}
-
-/**
- * Forward-lookup result for a single key. Shape depends on the index mode:
- *
- * - `keysOnly`: always `null` (no value to return). Use {@link VirtualIndexesController.has}
- *   to test membership.
- * - `oneToOne`: a single string or number.
- * - `oneToN*`: a `Uint32Array` view (number values) or `string[]` (string values),
- *   covering the slice that belongs to the key.
- *
- * The `Uint32Array` is a zero-copy view over the FlatBuffer; do not mutate it.
- */
-export type IndexEntry = string | number | Uint32Array | string[] | null;
-
-/**
- * Inverse-lookup result. For an index whose forward direction is `key -> value`,
- * the inverse maps `value -> set of keys`. Keys are returned as a `Uint32Array`
- * when the index uses number keys, or `string[]` when it uses string keys.
- *
- * Inverse maps are built lazily on first call and cached for the lifetime of
- * the controller. Edits that mutate an index invalidate the cache for that
- * index only.
- */
-export type InverseIndexEntry = Uint32Array | string[] | null;
+import {
+  IndexEntry,
+  IndexInfo,
+  IndexKeyType,
+  IndexMode,
+  IndexValueType,
+  InverseIndexEntry,
+} from "../../model/model-types";
 
 interface IndexCacheEntry {
   fb: ModelIndex;
