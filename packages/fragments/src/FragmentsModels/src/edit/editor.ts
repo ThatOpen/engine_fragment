@@ -6,6 +6,7 @@ import {
   Event,
   NewElementData,
   RawCircleExtrusion,
+  RawIndexData,
   RawItemData,
 } from "../../../Utils";
 import { EditHelper } from "./edit-helper";
@@ -179,6 +180,35 @@ export class Editor {
    */
   createItem(modelId: string, item: RawItemData) {
     return this._elementsHelper.createItem(modelId, item);
+  }
+
+  /**
+   * Queues a CREATE_INDEX request on the specified model. The new index is
+   * persisted on the next `applyChanges()` call. See `RawIndexData` for the
+   * supported shapes (keys-only, 1:1, 1:N linear, 1:N nonlinear).
+   *
+   * Live reads via `model.getIndexEntry` see the pending index immediately;
+   * `applyChanges` makes it survive a save/reload cycle.
+   */
+  createIndex(modelId: string, data: RawIndexData) {
+    this._elementsHelper.createIndex(modelId, data);
+  }
+
+  /**
+   * Queues an UPDATE_INDEX request. Replaces the index identified by
+   * `data.name` in its entirety. Use `deleteIndex` + `createIndex` if you
+   * want to rename.
+   */
+  updateIndex(modelId: string, data: RawIndexData) {
+    this._elementsHelper.updateIndex(modelId, data);
+  }
+
+  /**
+   * Queues a DELETE_INDEX request. No-op at flush time if the named index
+   * doesn't exist on the model.
+   */
+  deleteIndex(modelId: string, name: string) {
+    this._elementsHelper.deleteIndex(modelId, name);
   }
 
   /**

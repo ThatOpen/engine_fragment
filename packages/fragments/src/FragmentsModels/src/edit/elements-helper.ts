@@ -46,6 +46,11 @@ export class ElementsHelper {
 
   private _fragments: FragmentsModels;
 
+  // Indexes are name-keyed, not localId-keyed, so they don't fit cleanly
+  // into the create/update/remove maps above. They get their own queue,
+  // appended to the request list at applyChanges time.
+  private _indexRequests: { [modelId: string]: ET.IndexRequest[] } = {};
+
   constructor(fragments: FragmentsModels) {
     this._fragments = fragments;
   }
@@ -68,6 +73,9 @@ export class ElementsHelper {
     const relUpdateRequests = Object.values(relUpdate);
     const relRemoveRequests = Object.values(relRemove);
 
+    const indexRequests = this._indexRequests[modelId] ?? [];
+    this._indexRequests[modelId] = [];
+
     const requests = [
       ...removeRequests,
       ...createRequests,
@@ -75,6 +83,7 @@ export class ElementsHelper {
       ...relCreateRequests,
       ...relUpdateRequests,
       ...relRemoveRequests,
+      ...indexRequests,
     ];
 
     if (requests.length > 0) {
@@ -82,6 +91,45 @@ export class ElementsHelper {
     }
 
     return null;
+  }
+
+  /**
+   * Queue a CREATE_INDEX request. Flushed when `editor.applyChanges()` runs.
+   */
+  createIndex(modelId: string, data: ET.RawIndexData) {
+    this.queueIndexRequest(modelId, {
+      type: ET.EditRequestType.CREATE_INDEX,
+      data,
+    });
+  }
+
+  /**
+   * Queue an UPDATE_INDEX request. Replaces the index identified by
+   * `data.name` when flushed.
+   */
+  updateIndex(modelId: string, data: ET.RawIndexData) {
+    this.queueIndexRequest(modelId, {
+      type: ET.EditRequestType.UPDATE_INDEX,
+      data,
+    });
+  }
+
+  /**
+   * Queue a DELETE_INDEX request. No-op at flush time if the index doesn't
+   * exist.
+   */
+  deleteIndex(modelId: string, name: string) {
+    this.queueIndexRequest(modelId, {
+      type: ET.EditRequestType.DELETE_INDEX,
+      name,
+    });
+  }
+
+  private queueIndexRequest(modelId: string, request: ET.IndexRequest) {
+    if (!this._indexRequests[modelId]) {
+      this._indexRequests[modelId] = [];
+    }
+    this._indexRequests[modelId].push(request);
   }
 
   createMaterial(modelId: string, material: THREE.MeshLambertMaterial) {
