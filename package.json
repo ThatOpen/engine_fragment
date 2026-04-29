@@ -13,6 +13,7 @@
     "build": "yarn copy-readme && yarn build-examples && yarn build-core",
     "copy-readme": "node resources/readme-copier.mjs",
     "test": "echo 'test to be implemented!'",
+    "format": "prettier --write .",
     "publish-repo": "yarn workspace @thatopen/fragments publish-repo",
     "reset-release-please": "git commit --allow-empty -m \"chore: release 2.0.0\" -m \"Release-As: 2.0.0\""
   },
@@ -32,6 +33,7 @@
     "@rollup/plugin-terser": "^0.4.4",
     "@thatopen/ui": "^3.1.0",
     "camera-controls": "^3.1.2",
+    "prettier": "3.2.5",
     "stats.js": "^0.17.0",
     "typescript": "5.4.2",
     "vite": "5.1.6",
