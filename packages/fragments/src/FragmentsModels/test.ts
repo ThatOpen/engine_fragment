@@ -118,72 +118,72 @@ async function main() {
   //   item.value.transparent = true;
   // });
 
-  // const model = await loadModel("/resources/frags/school_arq.frag");
+  const model = await loadModel("/resources/frags/school_arq.frag");
 
-  let model: any;
+  // let model: any;
 
-  // --- Load .frag from disk ------------------------------------------------
-  // Simple file picker pinned top-left so you can drop a .frag produced by
-  // bimterop-fragify (or any other source) into this example without having
-  // to drop it into /resources first.
-  const fileBtn = document.createElement("label");
-  fileBtn.textContent = "Load .frag";
-  Object.assign(fileBtn.style, {
-    position: "fixed",
-    top: "8px",
-    right: "8px",
-    zIndex: "1000",
-    padding: "8px 12px",
-    background: "#1f1f1f",
-    color: "#f0f0f0",
-    border: "1px solid #444",
-    borderRadius: "6px",
-    font: "12px sans-serif",
-    cursor: "pointer",
-    userSelect: "none",
-  });
-  const fileInput = document.createElement("input");
-  fileInput.type = "file";
-  fileInput.accept = ".frag";
-  fileInput.style.display = "none";
-  fileBtn.appendChild(fileInput);
-  document.body.appendChild(fileBtn);
+  // // --- Load .frag from disk ------------------------------------------------
+  // // Simple file picker pinned top-left so you can drop a .frag produced by
+  // // bimterop-fragify (or any other source) into this example without having
+  // // to drop it into /resources first.
+  // const fileBtn = document.createElement("label");
+  // fileBtn.textContent = "Load .frag";
+  // Object.assign(fileBtn.style, {
+  //   position: "fixed",
+  //   top: "8px",
+  //   right: "8px",
+  //   zIndex: "1000",
+  //   padding: "8px 12px",
+  //   background: "#1f1f1f",
+  //   color: "#f0f0f0",
+  //   border: "1px solid #444",
+  //   borderRadius: "6px",
+  //   font: "12px sans-serif",
+  //   cursor: "pointer",
+  //   userSelect: "none",
+  // });
+  // const fileInput = document.createElement("input");
+  // fileInput.type = "file";
+  // fileInput.accept = ".frag";
+  // fileInput.style.display = "none";
+  // fileBtn.appendChild(fileInput);
+  // document.body.appendChild(fileBtn);
 
-  let loadedModelCount = 0;
-  fileInput.addEventListener("change", async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    fileBtn.textContent = `Loading ${file.name}…`;
-    try {
-      const buffer = await file.arrayBuffer();
-      const modelId = `${file.name}-${loadedModelCount++}`;
-      model = await fragments.load(buffer, {
-        modelId,
-        camera: world.camera.three,
-        onProgress: (event) => {
-          console.log(
-            `[${event.modelId}] ${event.stage}: ${Math.round(event.progress * 100)}%`,
-          );
-        },
-      });
-      world.scene.three.add(model.object);
-      await fragments.update(true);
+  // let loadedModelCount = 0;
+  // fileInput.addEventListener("change", async () => {
+  //   const file = fileInput.files?.[0];
+  //   if (!file) return;
+  //   fileBtn.textContent = `Loading ${file.name}…`;
+  //   try {
+  //     const buffer = await file.arrayBuffer();
+  //     const modelId = `${file.name}-${loadedModelCount++}`;
+  //     model = await fragments.load(buffer, {
+  //       modelId,
+  //       camera: world.camera.three,
+  //       onProgress: (event) => {
+  //         console.log(
+  //           `[${event.modelId}] ${event.stage}: ${Math.round(event.progress * 100)}%`,
+  //         );
+  //       },
+  //     });
+  //     world.scene.three.add(model.object);
+  //     await fragments.update(true);
 
-      // Frame the camera on the model's bounding box so you don't have to
-      // hunt for tiny fragments at the origin.
-      const bbox = new THREE.Box3().setFromObject(model.object);
-      if (!bbox.isEmpty()) {
-        const sphere = bbox.getBoundingSphere(new THREE.Sphere());
-        world.camera.controls.fitToSphere(sphere, true);
-      }
-      fileBtn.textContent = "Load .frag";
-    } catch (err) {
-      console.error("Failed to load .frag:", err);
-      fileBtn.textContent = `Failed: ${(err as Error).message}`;
-    } finally {
-      fileInput.value = "";
-    }
-  });
+  //     // Frame the camera on the model's bounding box so you don't have to
+  //     // hunt for tiny fragments at the origin.
+  //     const bbox = new THREE.Box3().setFromObject(model.object);
+  //     if (!bbox.isEmpty()) {
+  //       const sphere = bbox.getBoundingSphere(new THREE.Sphere());
+  //       world.camera.controls.fitToSphere(sphere, true);
+  //     }
+  //     fileBtn.textContent = "Load .frag";
+  //   } catch (err) {
+  //     console.error("Failed to load .frag:", err);
+  //     fileBtn.textContent = `Failed: ${(err as Error).message}`;
+  //   } finally {
+  //     fileInput.value = "";
+  //   }
+  // });
 
   const mouse = new THREE.Vector2();
 
