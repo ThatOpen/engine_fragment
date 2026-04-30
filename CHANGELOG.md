@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### ⚠ BREAKING CHANGES
+
+* `split`: has become `async`, has changed signature and is scoped under `IfcSplitter`
+* `extract`: has become `async`, has changed signature and is scoped under `IfcSplitter`
+
 ## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
 
 
