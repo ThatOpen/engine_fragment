@@ -139,6 +139,19 @@ export class DataManager {
     ) as Promise<number[]>;
   }
 
+  async getItemDrawChunks(
+    model: FragmentsModel,
+    localIds: Iterable<number>,
+  ): Promise<
+    Array<{ tileId: number; position: Uint32Array; size: Uint32Array }>
+  > {
+    return model.threads.invoke(model.modelId, "getItemDrawChunks", [
+      localIds,
+    ]) as Promise<
+      Array<{ tileId: number; position: Uint32Array; size: Uint32Array }>
+    >;
+  }
+
   async getItemsOfCategories(model: FragmentsModel, categories: RegExp[]) {
     const args = [categories];
     const data = (await model.threads.invoke(

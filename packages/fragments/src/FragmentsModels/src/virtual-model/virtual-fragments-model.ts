@@ -287,6 +287,21 @@ export class VirtualFragmentsModel {
     this._highlightHelper.resetHighlight(this, items);
   }
 
+  /**
+   * For every loaded tile that contains at least one of the given local
+   * ids, returns the index-buffer chunks those items occupy in the tile.
+   * Used to draw outline silhouettes by sharing the tile's geometry
+   * attributes and limiting drawing to the returned chunks via
+   * `geometry.groups`.
+   *
+   * @returns One entry per affected tile. Each entry has parallel
+   *   `position` and `size` Uint32Arrays giving start index and count.
+   */
+  getItemDrawChunks(localIds: Iterable<number>) {
+    const itemIds = this.properties.getItemIdsFromLocalIds(localIds);
+    return this.tiles.getDrawChunksForItems(new Set(itemIds));
+  }
+
   getCoordinates() {
     return this._coordinatesHelper.getCoordinates(this);
   }

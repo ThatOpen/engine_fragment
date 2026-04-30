@@ -325,6 +325,15 @@ export class SingleThreadedFragmentsModel {
   }
 
   /**
+   * Returns per-tile index-buffer chunks for the given items. Used by
+   * outline-style passes that share tile geometry and clip drawing to
+   * just the outlined samples. See {@link VirtualFragmentsModel.getItemDrawChunks}.
+   */
+  async getItemDrawChunks(localIds: Iterable<number>) {
+    return this._virtualModel.getItemDrawChunks(localIds);
+  }
+
+  /**
    * Gets all the items IDs of the model.
    */
   async getItemsIds() {

@@ -917,6 +917,21 @@ export class FragmentsModel {
   }
 
   /**
+   * Returns per-tile index-buffer chunks for the given items. Each entry
+   * carries a tile id and parallel `position` / `size` Uint32Arrays giving
+   * the start index and index count of every contiguous run of vertices
+   * belonging to one of `localIds` in that tile's index buffer.
+   *
+   * Lets a renderer clone a tile mesh sharing its `geometry.attributes`
+   * and `index`, then call `geometry.addGroup(position[i], size[i], 0)`
+   * for each chunk to draw only the matching slices. No highlight
+   * material slot is allocated; the call is read-only.
+   */
+  async getItemDrawChunks(localIds: Iterable<number>) {
+    return this._dataManager.getItemDrawChunks(this, localIds);
+  }
+
+  /**
    * Gets all the items IDs of the model.
    */
   async getItemsIds() {

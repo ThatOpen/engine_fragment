@@ -25353,6 +25353,191 @@ class Meshes {
     return Meshes.endMeshes(builder);
   }
 }
+class ModelIndex {
+  constructor() {
+    __publicField(this, "bb", null);
+    __publicField(this, "bb_pos", 0);
+  }
+  __init(i, bb) {
+    this.bb_pos = i;
+    this.bb = bb;
+    return this;
+  }
+  static getRootAsModelIndex(bb, obj) {
+    return (obj || new ModelIndex()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
+  }
+  static getSizePrefixedRootAsModelIndex(bb, obj) {
+    bb.setPosition(bb.position() + SIZE_PREFIX_LENGTH);
+    return (obj || new ModelIndex()).__init(bb.readInt32(bb.position()) + bb.position(), bb);
+  }
+  name(optionalEncoding) {
+    const offset = this.bb.__offset(this.bb_pos, 4);
+    return offset ? this.bb.__string(this.bb_pos + offset, optionalEncoding) : null;
+  }
+  stringKeys(index, optionalEncoding) {
+    const offset = this.bb.__offset(this.bb_pos, 6);
+    return offset ? this.bb.__string(this.bb.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
+  }
+  stringKeysLength() {
+    const offset = this.bb.__offset(this.bb_pos, 6);
+    return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+  }
+  numberKeys(index) {
+    const offset = this.bb.__offset(this.bb_pos, 8);
+    return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+  }
+  numberKeysLength() {
+    const offset = this.bb.__offset(this.bb_pos, 8);
+    return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+  }
+  numberKeysArray() {
+    const offset = this.bb.__offset(this.bb_pos, 8);
+    return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+  }
+  stringValues(index, optionalEncoding) {
+    const offset = this.bb.__offset(this.bb_pos, 10);
+    return offset ? this.bb.__string(this.bb.__vector(this.bb_pos + offset) + index * 4, optionalEncoding) : null;
+  }
+  stringValuesLength() {
+    const offset = this.bb.__offset(this.bb_pos, 10);
+    return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+  }
+  numberValues(index) {
+    const offset = this.bb.__offset(this.bb_pos, 12);
+    return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+  }
+  numberValuesLength() {
+    const offset = this.bb.__offset(this.bb_pos, 12);
+    return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+  }
+  numberValuesArray() {
+    const offset = this.bb.__offset(this.bb_pos, 12);
+    return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+  }
+  end(index) {
+    const offset = this.bb.__offset(this.bb_pos, 14);
+    return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+  }
+  endLength() {
+    const offset = this.bb.__offset(this.bb_pos, 14);
+    return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+  }
+  endArray() {
+    const offset = this.bb.__offset(this.bb_pos, 14);
+    return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+  }
+  start(index) {
+    const offset = this.bb.__offset(this.bb_pos, 16);
+    return offset ? this.bb.readUint32(this.bb.__vector(this.bb_pos + offset) + index * 4) : 0;
+  }
+  startLength() {
+    const offset = this.bb.__offset(this.bb_pos, 16);
+    return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+  }
+  startArray() {
+    const offset = this.bb.__offset(this.bb_pos, 16);
+    return offset ? new Uint32Array(this.bb.bytes().buffer, this.bb.bytes().byteOffset + this.bb.__vector(this.bb_pos + offset), this.bb.__vector_len(this.bb_pos + offset)) : null;
+  }
+  static startModelIndex(builder) {
+    builder.startObject(7);
+  }
+  static addName(builder, nameOffset) {
+    builder.addFieldOffset(0, nameOffset, 0);
+  }
+  static addStringKeys(builder, stringKeysOffset) {
+    builder.addFieldOffset(1, stringKeysOffset, 0);
+  }
+  static createStringKeysVector(builder, data) {
+    builder.startVector(4, data.length, 4);
+    for (let i = data.length - 1; i >= 0; i--) {
+      builder.addOffset(data[i]);
+    }
+    return builder.endVector();
+  }
+  static startStringKeysVector(builder, numElems) {
+    builder.startVector(4, numElems, 4);
+  }
+  static addNumberKeys(builder, numberKeysOffset) {
+    builder.addFieldOffset(2, numberKeysOffset, 0);
+  }
+  static createNumberKeysVector(builder, data) {
+    builder.startVector(4, data.length, 4);
+    for (let i = data.length - 1; i >= 0; i--) {
+      builder.addInt32(data[i]);
+    }
+    return builder.endVector();
+  }
+  static startNumberKeysVector(builder, numElems) {
+    builder.startVector(4, numElems, 4);
+  }
+  static addStringValues(builder, stringValuesOffset) {
+    builder.addFieldOffset(3, stringValuesOffset, 0);
+  }
+  static createStringValuesVector(builder, data) {
+    builder.startVector(4, data.length, 4);
+    for (let i = data.length - 1; i >= 0; i--) {
+      builder.addOffset(data[i]);
+    }
+    return builder.endVector();
+  }
+  static startStringValuesVector(builder, numElems) {
+    builder.startVector(4, numElems, 4);
+  }
+  static addNumberValues(builder, numberValuesOffset) {
+    builder.addFieldOffset(4, numberValuesOffset, 0);
+  }
+  static createNumberValuesVector(builder, data) {
+    builder.startVector(4, data.length, 4);
+    for (let i = data.length - 1; i >= 0; i--) {
+      builder.addInt32(data[i]);
+    }
+    return builder.endVector();
+  }
+  static startNumberValuesVector(builder, numElems) {
+    builder.startVector(4, numElems, 4);
+  }
+  static addEnd(builder, endOffset) {
+    builder.addFieldOffset(5, endOffset, 0);
+  }
+  static createEndVector(builder, data) {
+    builder.startVector(4, data.length, 4);
+    for (let i = data.length - 1; i >= 0; i--) {
+      builder.addInt32(data[i]);
+    }
+    return builder.endVector();
+  }
+  static startEndVector(builder, numElems) {
+    builder.startVector(4, numElems, 4);
+  }
+  static addStart(builder, startOffset) {
+    builder.addFieldOffset(6, startOffset, 0);
+  }
+  static createStartVector(builder, data) {
+    builder.startVector(4, data.length, 4);
+    for (let i = data.length - 1; i >= 0; i--) {
+      builder.addInt32(data[i]);
+    }
+    return builder.endVector();
+  }
+  static startStartVector(builder, numElems) {
+    builder.startVector(4, numElems, 4);
+  }
+  static endModelIndex(builder) {
+    const offset = builder.endObject();
+    return offset;
+  }
+  static createModelIndex(builder, nameOffset, stringKeysOffset, numberKeysOffset, stringValuesOffset, numberValuesOffset, endOffset, startOffset) {
+    ModelIndex.startModelIndex(builder);
+    ModelIndex.addName(builder, nameOffset);
+    ModelIndex.addStringKeys(builder, stringKeysOffset);
+    ModelIndex.addNumberKeys(builder, numberKeysOffset);
+    ModelIndex.addStringValues(builder, stringValuesOffset);
+    ModelIndex.addNumberValues(builder, numberValuesOffset);
+    ModelIndex.addEnd(builder, endOffset);
+    ModelIndex.addStart(builder, startOffset);
+    return ModelIndex.endModelIndex(builder);
+  }
+}
 class Relation {
   constructor() {
     __publicField(this, "bb", null);
@@ -25613,8 +25798,16 @@ class Model {
     const offset = this.bb.__offset(this.bb_pos, 30);
     return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
   }
+  indexes(index, obj) {
+    const offset = this.bb.__offset(this.bb_pos, 32);
+    return offset ? (obj || new ModelIndex()).__init(this.bb.__indirect(this.bb.__vector(this.bb_pos + offset) + index * 4), this.bb) : null;
+  }
+  indexesLength() {
+    const offset = this.bb.__offset(this.bb_pos, 32);
+    return offset ? this.bb.__vector_len(this.bb_pos + offset) : 0;
+  }
   static startModel(builder) {
-    builder.startObject(14);
+    builder.startObject(15);
   }
   static addMetadata(builder, metadataOffset) {
     builder.addFieldOffset(0, metadataOffset, 0);
@@ -25746,6 +25939,19 @@ class Model {
     return builder.endVector();
   }
   static startRelationNamesVector(builder, numElems) {
+    builder.startVector(4, numElems, 4);
+  }
+  static addIndexes(builder, indexesOffset) {
+    builder.addFieldOffset(14, indexesOffset, 0);
+  }
+  static createIndexesVector(builder, data) {
+    builder.startVector(4, data.length, 4);
+    for (let i = data.length - 1; i >= 0; i--) {
+      builder.addOffset(data[i]);
+    }
+    return builder.endVector();
+  }
+  static startIndexesVector(builder, numElems) {
     builder.startVector(4, numElems, 4);
   }
   static endModel(builder) {
@@ -31992,6 +32198,69 @@ const _VirtualTilesController = class _VirtualTilesController {
     const sample = this.sampleTemplate(id);
     return sample.transform;
   }
+  /**
+   * For every loaded tile that contains at least one of the given items,
+   * returns the index-buffer chunks those items occupy in the tile.
+   *
+   * Lets a renderer clone the tile mesh sharing its `geometry.attributes`
+   * and `index`, then add `geometry.groups` for just the returned chunks
+   * to draw only the outlined slices. No highlight bookkeeping, no
+   * per-item slot allocation, no material array growth.
+   *
+   * Samples are stored in the tile in insertion order with locations
+   * `0..N-1`; `indexLocation[i]` is the start of sample `i` in the tile's
+   * index buffer, so a contiguous run of in-set samples maps to a single
+   * `(position, size)` chunk.
+   *
+   * @param itemIds - Internal item ids to look up. Public callers go
+   *   through {@link VirtualFragmentsModel.getItemDrawChunks}, which
+   *   accepts localIds and converts.
+   * @returns One entry per affected tile. `position[i]` and `size[i]`
+   *   are parallel arrays giving start index and index count.
+   */
+  getDrawChunksForItems(itemIds) {
+    const result = [];
+    if (itemIds.size === 0)
+      return result;
+    for (const [tileId, tile] of this._tiles) {
+      if (!tile.notVirtual)
+        continue;
+      const totalIndices = tile.indexCount ?? 0;
+      if (!totalIndices)
+        continue;
+      const positions = [];
+      const sizes = [];
+      let runStart = -1;
+      let location = 0;
+      for (const [sample] of tile.sampleLocation) {
+        const inSet = itemIds.has(this.itemId(sample));
+        if (inSet) {
+          if (runStart < 0)
+            runStart = location;
+        } else if (runStart >= 0) {
+          const startIdx = tile.indexLocation[runStart];
+          const endIdx = tile.indexLocation[location];
+          positions.push(startIdx);
+          sizes.push(endIdx - startIdx);
+          runStart = -1;
+        }
+        location++;
+      }
+      if (runStart >= 0) {
+        const startIdx = tile.indexLocation[runStart];
+        positions.push(startIdx);
+        sizes.push(totalIndices - startIdx);
+      }
+      if (positions.length === 0)
+        continue;
+      result.push({
+        tileId,
+        position: new Uint32Array(positions),
+        size: new Uint32Array(sizes)
+      });
+    }
+    return result;
+  }
   async update(time) {
     this.updateTiles(time);
     this.notifyUpdateFinished();
@@ -33008,8 +33277,14 @@ var EditRequestType = /* @__PURE__ */ ((EditRequestType2) => {
   EditRequestType2[EditRequestType2["DELETE_LOCAL_TRANSFORM"] = 21] = "DELETE_LOCAL_TRANSFORM";
   EditRequestType2[EditRequestType2["DELETE_ITEM"] = 22] = "DELETE_ITEM";
   EditRequestType2[EditRequestType2["DELETE_RELATION"] = 23] = "DELETE_RELATION";
+  EditRequestType2[EditRequestType2["CREATE_INDEX"] = 24] = "CREATE_INDEX";
+  EditRequestType2[EditRequestType2["UPDATE_INDEX"] = 25] = "UPDATE_INDEX";
+  EditRequestType2[EditRequestType2["DELETE_INDEX"] = 26] = "DELETE_INDEX";
   return EditRequestType2;
 })(EditRequestType || {});
+function isIndexRequest(request) {
+  return request.type === 24 || request.type === 25 || request.type === 26;
+}
 function createTransform(transform, builder) {
   const meshesPos = transform.position;
   const meshesDx = transform.xDirection;
@@ -33480,6 +33755,121 @@ function buildSample(builder, localIdToIndex, itemId, matId, reprId, ltId) {
   const ltIndex = localIdToIndex.get(ltId);
   Sample.createSample(builder, itemIndex, matIndex, reprIndex, ltIndex);
 }
+function buildIndex(builder, data) {
+  var _a2, _b2;
+  const nameOffset = builder.createString(data.name);
+  const { keysOffset, isStringKey } = createKeysVector(builder, data.keys);
+  const { valuesOffset, isStringValue } = createValuesVector(
+    builder,
+    data.values
+  );
+  const endOffset = ((_a2 = data.end) == null ? void 0 : _a2.length) ? ModelIndex.createEndVector(builder, data.end) : null;
+  const startOffset = ((_b2 = data.start) == null ? void 0 : _b2.length) ? ModelIndex.createStartVector(builder, data.start) : null;
+  ModelIndex.startModelIndex(builder);
+  ModelIndex.addName(builder, nameOffset);
+  if (isStringKey) {
+    ModelIndex.addStringKeys(builder, keysOffset);
+  } else {
+    ModelIndex.addNumberKeys(builder, keysOffset);
+  }
+  if (valuesOffset !== null) {
+    if (isStringValue) {
+      ModelIndex.addStringValues(builder, valuesOffset);
+    } else {
+      ModelIndex.addNumberValues(builder, valuesOffset);
+    }
+  }
+  if (endOffset !== null)
+    ModelIndex.addEnd(builder, endOffset);
+  if (startOffset !== null)
+    ModelIndex.addStart(builder, startOffset);
+  return ModelIndex.endModelIndex(builder);
+}
+function copyIndex(builder, src) {
+  const data = readIndex(src);
+  return buildIndex(builder, data);
+}
+function readIndex(src) {
+  const name = src.name() ?? "";
+  const stringKeysLen = src.stringKeysLength();
+  const stringValuesLen = src.stringValuesLength();
+  const numberValuesLen = src.numberValuesLength();
+  const endLen = src.endLength();
+  const startLen = src.startLength();
+  let keys;
+  if (stringKeysLen > 0) {
+    const arr = new Array(stringKeysLen);
+    for (let i = 0; i < stringKeysLen; i++)
+      arr[i] = src.stringKeys(i) ?? "";
+    keys = arr;
+  } else {
+    const numberKeys = src.numberKeysArray();
+    keys = numberKeys ? Array.from(numberKeys) : [];
+  }
+  let values;
+  if (stringValuesLen > 0) {
+    const arr = new Array(stringValuesLen);
+    for (let i = 0; i < stringValuesLen; i++) {
+      arr[i] = src.stringValues(i) ?? "";
+    }
+    values = arr;
+  } else if (numberValuesLen > 0) {
+    const numberValues = src.numberValuesArray();
+    values = numberValues ? Array.from(numberValues) : [];
+  }
+  let end;
+  if (endLen > 0) {
+    const arr = src.endArray();
+    end = arr ? Array.from(arr) : [];
+  }
+  let start;
+  if (startLen > 0) {
+    const arr = src.startArray();
+    start = arr ? Array.from(arr) : [];
+  }
+  return { name, keys, values, end, start };
+}
+function createKeysVector(builder, keys) {
+  if (keys.length === 0) {
+    return {
+      keysOffset: ModelIndex.createNumberKeysVector(builder, []),
+      isStringKey: false
+    };
+  }
+  if (typeof keys[0] === "string") {
+    const offsets = keys.map((s) => builder.createString(s));
+    return {
+      keysOffset: ModelIndex.createStringKeysVector(builder, offsets),
+      isStringKey: true
+    };
+  }
+  return {
+    keysOffset: ModelIndex.createNumberKeysVector(
+      builder,
+      keys
+    ),
+    isStringKey: false
+  };
+}
+function createValuesVector(builder, values) {
+  if (!values || values.length === 0) {
+    return { valuesOffset: null, isStringValue: false };
+  }
+  if (typeof values[0] === "string") {
+    const offsets = values.map((s) => builder.createString(s));
+    return {
+      valuesOffset: ModelIndex.createStringValuesVector(builder, offsets),
+      isStringValue: true
+    };
+  }
+  return {
+    valuesOffset: ModelIndex.createNumberValuesVector(
+      builder,
+      values
+    ),
+    isStringValue: false
+  };
+}
 function getIdsDelta(model, requests) {
   const itemIds = /* @__PURE__ */ new Set();
   const globalTranforms = /* @__PURE__ */ new Set();
@@ -33944,6 +34334,8 @@ function edit(model, requests, config) {
   const ltsToDelete = /* @__PURE__ */ new Set();
   const itemsToDelete = /* @__PURE__ */ new Set();
   const relationsToDelete = /* @__PURE__ */ new Set();
+  const indexesToUpsert = /* @__PURE__ */ new Map();
+  const indexesToDelete = /* @__PURE__ */ new Set();
   const prevMatIds = new Set(meshes.materialIdsArray());
   const prevReprIds = new Set(meshes.representationIdsArray());
   const prevSampleIds = new Set(meshes.sampleIdsArray());
@@ -34083,6 +34475,16 @@ function edit(model, requests, config) {
     }
     if (request.type === EditRequestType.DELETE_RELATION) {
       relationsToDelete.add(request.localId);
+      continue;
+    }
+    if (request.type === EditRequestType.CREATE_INDEX || request.type === EditRequestType.UPDATE_INDEX) {
+      indexesToUpsert.set(request.data.name, request.data);
+      indexesToDelete.delete(request.data.name);
+      continue;
+    }
+    if (request.type === EditRequestType.DELETE_INDEX) {
+      indexesToDelete.add(request.name);
+      indexesToUpsert.delete(request.name);
       continue;
     }
   }
@@ -34900,6 +35302,25 @@ function edit(model, requests, config) {
   }
   const guidLength = model.guid();
   const guidRef = builder.createString(guidLength);
+  const indexOffsets = [];
+  const upsertNames = new Set(indexesToUpsert.keys());
+  for (let i = 0; i < model.indexesLength(); i++) {
+    const existing = model.indexes(i);
+    if (!existing)
+      continue;
+    const name = existing.name();
+    if (!name)
+      continue;
+    if (indexesToDelete.has(name))
+      continue;
+    if (upsertNames.has(name))
+      continue;
+    indexOffsets.push(copyIndex(builder, existing));
+  }
+  for (const data of indexesToUpsert.values()) {
+    indexOffsets.push(buildIndex(builder, data));
+  }
+  const indexesVector = indexOffsets.length > 0 ? Model.createIndexesVector(builder, indexOffsets) : null;
   Model.startModel(builder);
   Model.addMeshes(builder, modelMesh);
   Model.addMetadata(builder, metadataOffset);
@@ -34917,6 +35338,9 @@ function edit(model, requests, config) {
   }
   Model.addGuid(builder, guidRef);
   Model.addMaxLocalId(builder, newMaxLocalId);
+  if (indexesVector !== null) {
+    Model.addIndexes(builder, indexesVector);
+  }
   const outData = Model.endModel(builder);
   builder.finish(outData);
   const outBytes = builder.asUint8Array();
@@ -35453,6 +35877,8 @@ function solveIds(requests, nextId) {
   const tempIds = /* @__PURE__ */ new Map();
   const result = [];
   for (const request of requests) {
+    if (isIndexRequest(request))
+      continue;
     if (request.localId !== void 0) {
       continue;
     }
@@ -35464,6 +35890,8 @@ function solveIds(requests, nextId) {
     result.push(newId);
   }
   for (const request of requests) {
+    if (isIndexRequest(request))
+      continue;
     if (request.type === EditRequestType.UPDATE_SAMPLE || request.type === EditRequestType.CREATE_SAMPLE) {
       const sample = request.data;
       solveSampleTempId(sample, "item", tempIds);
@@ -79005,6 +79433,400 @@ class VirtualTemplateController {
     return result;
   }
 }
+const DELETED = Symbol("deleted index");
+class VirtualIndexesController {
+  constructor(vm) {
+    __publicField(this, "_vm");
+    __publicField(this, "_storedByName", /* @__PURE__ */ new Map());
+    __publicField(this, "_storedNames", null);
+    /** Overlay built from pending CREATE/UPDATE/DELETE_INDEX requests. */
+    __publicField(this, "_overlay", null);
+    /** Length of the request list when the overlay was built; rebuild on mismatch. */
+    __publicField(this, "_overlayRequestsLen", -1);
+    this._vm = vm;
+  }
+  /**
+   * Names of every index visible to the model right now: stored names
+   * minus those deleted by pending requests, plus names introduced by
+   * pending CREATE_INDEX requests.
+   */
+  getNames() {
+    const overlay = this.overlay();
+    const stored = this.storedNames();
+    const out = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const name of stored) {
+      const o = overlay.get(name);
+      if (o === DELETED)
+        continue;
+      out.push(name);
+      seen.add(name);
+    }
+    for (const [name, entry] of overlay) {
+      if (entry === DELETED)
+        continue;
+      if (seen.has(name))
+        continue;
+      out.push(name);
+    }
+    return out;
+  }
+  /**
+   * Describe the shape of a named index without performing any lookups.
+   * Returns `null` if no index with that name exists or it has been deleted.
+   */
+  getInfo(name) {
+    const entry = this.resolve(name);
+    return entry ? entry.info : null;
+  }
+  /**
+   * Return the keys of an index. Useful for keys-only indexes (membership
+   * tests, iteration) but valid for any mode. Number keys come back as a
+   * `Uint32Array`, string keys as a fresh `string[]`.
+   */
+  getKeys(name) {
+    const entry = this.resolve(name);
+    if (!entry)
+      return null;
+    return entry.info.keyType === "number" ? this.materializeNumberKeys(entry) : this.materializeStringKeys(entry);
+  }
+  /**
+   * Test whether a key exists in the named index without resolving its value.
+   */
+  has(name, key) {
+    const entry = this.resolve(name);
+    if (!entry)
+      return false;
+    if (typeof key !== entry.info.keyType)
+      return false;
+    return this.keyMap(entry).has(key);
+  }
+  /**
+   * Forward lookup for a single key. The return shape depends on the index
+   * mode (see {@link IndexEntry}). Returns `null` if the index or key is
+   * missing, or the key type doesn't match.
+   */
+  getEntry(name, key) {
+    const entry = this.resolve(name);
+    if (!entry)
+      return null;
+    if (typeof key !== entry.info.keyType)
+      return null;
+    const position = this.keyMap(entry).get(key);
+    if (position === void 0)
+      return null;
+    const { mode, valueType } = entry.info;
+    if (mode === "keysOnly" || valueType === "none")
+      return null;
+    if (mode === "oneToOne") {
+      return this.readScalarValue(entry, position);
+    }
+    const [start, end] = this.sliceBounds(entry, position);
+    if (end <= start) {
+      return valueType === "number" ? new Uint32Array(0) : [];
+    }
+    return valueType === "number" ? this.readNumberSlice(entry, start, end) : this.readStringSlice(entry, start, end);
+  }
+  /**
+   * Inverse lookup. For a value, return every key that maps to it. Builds
+   * and caches the inverse map on first call.
+   */
+  getInverseEntry(name, value) {
+    const entry = this.resolve(name);
+    if (!entry)
+      return null;
+    if (entry.info.valueType === "none")
+      return null;
+    if (typeof value !== entry.info.valueType)
+      return null;
+    const inverse = this.inverseMap(entry);
+    const keys = inverse.get(value);
+    if (!keys)
+      return null;
+    return entry.info.keyType === "number" ? Uint32Array.from(keys) : keys.slice();
+  }
+  /**
+   * Discard cached resolved data. Stored entries are dropped; the pending
+   * overlay is rebuilt on the next read. Useful if model data is mutated
+   * out-of-band (which the public API doesn't do today).
+   */
+  invalidate(name) {
+    if (name === void 0) {
+      this._storedByName.clear();
+      this._storedNames = null;
+      this._overlay = null;
+      this._overlayRequestsLen = -1;
+      return;
+    }
+    this._storedByName.delete(name);
+    if (this._storedNames) {
+      const i = this._storedNames.indexOf(name);
+      if (i !== -1)
+        this._storedNames.splice(i, 1);
+    }
+    if (this._overlay)
+      this._overlay.delete(name);
+  }
+  // ---------------------------------------------------------------------------
+  // Resolution
+  // ---------------------------------------------------------------------------
+  resolve(name) {
+    const overlay = this.overlay();
+    const pending = overlay.get(name);
+    if (pending === DELETED)
+      return null;
+    if (pending !== void 0)
+      return pending;
+    return this.resolveStored(name);
+  }
+  resolveStored(name) {
+    const cached = this._storedByName.get(name);
+    if (cached)
+      return cached;
+    const length = this._vm.data.indexesLength();
+    for (let i = 0; i < length; i++) {
+      const fb = this._vm.data.indexes(i);
+      if (!fb)
+        continue;
+      if (fb.name() !== name)
+        continue;
+      const entry = this.entryFromFb(fb, name);
+      this._storedByName.set(name, entry);
+      return entry;
+    }
+    return null;
+  }
+  storedNames() {
+    if (this._storedNames)
+      return this._storedNames;
+    const names = [];
+    const length = this._vm.data.indexesLength();
+    for (let i = 0; i < length; i++) {
+      const idx = this._vm.data.indexes(i);
+      if (!idx)
+        continue;
+      const name = idx.name();
+      if (!name)
+        continue;
+      names.push(name);
+    }
+    this._storedNames = names;
+    return names;
+  }
+  overlay() {
+    const requests = this._vm.requests;
+    if (this._overlay !== null && this._overlayRequestsLen === requests.length) {
+      return this._overlay;
+    }
+    const map = /* @__PURE__ */ new Map();
+    for (const r of requests) {
+      if (r.type === EditRequestType.CREATE_INDEX || r.type === EditRequestType.UPDATE_INDEX) {
+        map.set(r.data.name, this.entryFromRaw(r.data));
+      } else if (r.type === EditRequestType.DELETE_INDEX) {
+        map.set(r.name, DELETED);
+      }
+    }
+    this._overlay = map;
+    this._overlayRequestsLen = requests.length;
+    return map;
+  }
+  // ---------------------------------------------------------------------------
+  // Entry construction
+  // ---------------------------------------------------------------------------
+  entryFromFb(fb, name) {
+    const stringKeys = fb.stringKeysLength();
+    const numberKeys = fb.numberKeysLength();
+    const stringValues = fb.stringValuesLength();
+    const numberValues = fb.numberValuesLength();
+    const endLen = fb.endLength();
+    const startLen = fb.startLength();
+    const keyType = stringKeys > 0 ? "string" : "number";
+    const size = keyType === "string" ? stringKeys : numberKeys;
+    let valueType = "none";
+    if (stringValues > 0)
+      valueType = "string";
+    else if (numberValues > 0)
+      valueType = "number";
+    let mode = "keysOnly";
+    if (valueType !== "none") {
+      if (endLen === 0)
+        mode = "oneToOne";
+      else
+        mode = startLen > 0 ? "oneToNNonLinear" : "oneToNLinear";
+    }
+    return {
+      source: { kind: "fb", fb },
+      info: { name, mode, keyType, valueType, size },
+      keyPositions: null,
+      inverse: null
+    };
+  }
+  entryFromRaw(data) {
+    var _a2, _b2;
+    const keyType = typeof data.keys[0] === "string" ? "string" : "number";
+    const size = data.keys.length;
+    let valueType = "none";
+    if (data.values && data.values.length > 0) {
+      valueType = typeof data.values[0] === "string" ? "string" : "number";
+    }
+    let mode = "keysOnly";
+    if (valueType !== "none") {
+      const endLen = ((_a2 = data.end) == null ? void 0 : _a2.length) ?? 0;
+      const startLen = ((_b2 = data.start) == null ? void 0 : _b2.length) ?? 0;
+      if (endLen === 0)
+        mode = "oneToOne";
+      else
+        mode = startLen > 0 ? "oneToNNonLinear" : "oneToNLinear";
+    }
+    const numberKeysArray = keyType === "number" ? Uint32Array.from(data.keys) : null;
+    const numberValuesArray = valueType === "number" && data.values ? Uint32Array.from(data.values) : null;
+    return {
+      source: {
+        kind: "raw",
+        data,
+        numberKeysArray,
+        numberValuesArray
+      },
+      info: { name: data.name, mode, keyType, valueType, size },
+      keyPositions: null,
+      inverse: null
+    };
+  }
+  // ---------------------------------------------------------------------------
+  // Source-polymorphic readers
+  // ---------------------------------------------------------------------------
+  readNumberKey(src, i) {
+    return src.kind === "fb" ? src.fb.numberKeys(i) : src.data.keys[i] ?? null;
+  }
+  readStringKey(src, i) {
+    return src.kind === "fb" ? src.fb.stringKeys(i) : src.data.keys[i] ?? null;
+  }
+  readNumberValueAt(src, i) {
+    return src.kind === "fb" ? src.fb.numberValues(i) : src.data.values[i] ?? null;
+  }
+  readStringValueAt(src, i) {
+    return src.kind === "fb" ? src.fb.stringValues(i) : src.data.values[i] ?? null;
+  }
+  numberValuesArray(src) {
+    return src.kind === "fb" ? src.fb.numberValuesArray() : src.numberValuesArray;
+  }
+  endAt(src, i) {
+    return src.kind === "fb" ? src.fb.end(i) ?? 0 : src.data.end[i] ?? 0;
+  }
+  startAt(src, i) {
+    return src.kind === "fb" ? src.fb.start(i) ?? 0 : src.data.start[i] ?? 0;
+  }
+  // ---------------------------------------------------------------------------
+  // Lookup helpers
+  // ---------------------------------------------------------------------------
+  /** Lazily build the `key -> position in keys vector` map for forward lookup. */
+  keyMap(entry) {
+    if (entry.keyPositions)
+      return entry.keyPositions;
+    const map = /* @__PURE__ */ new Map();
+    const { source, info } = entry;
+    if (info.keyType === "number") {
+      for (let i = 0; i < info.size; i++) {
+        const k = this.readNumberKey(source, i);
+        if (k === null)
+          continue;
+        map.set(k, i);
+      }
+    } else {
+      for (let i = 0; i < info.size; i++) {
+        const k = this.readStringKey(source, i);
+        if (k === null)
+          continue;
+        map.set(k, i);
+      }
+    }
+    entry.keyPositions = map;
+    return map;
+  }
+  sliceBounds(entry, position) {
+    const { source, info } = entry;
+    if (info.mode === "oneToNNonLinear") {
+      const start2 = this.startAt(source, position);
+      const end2 = this.endAt(source, position);
+      return [start2, end2];
+    }
+    const end = this.endAt(source, position);
+    const start = position > 0 ? this.endAt(source, position - 1) : 0;
+    return [start, end];
+  }
+  readScalarValue(entry, position) {
+    const { source, info } = entry;
+    if (info.valueType === "number") {
+      return this.readNumberValueAt(source, position);
+    }
+    return this.readStringValueAt(source, position);
+  }
+  readNumberSlice(entry, start, end) {
+    const all = this.numberValuesArray(entry.source);
+    if (!all)
+      return new Uint32Array(0);
+    return all.subarray(start, end);
+  }
+  readStringSlice(entry, start, end) {
+    const out = new Array(end - start);
+    for (let i = start; i < end; i++) {
+      out[i - start] = this.readStringValueAt(entry.source, i) ?? "";
+    }
+    return out;
+  }
+  materializeNumberKeys(entry) {
+    if (entry.source.kind === "fb") {
+      return entry.source.fb.numberKeysArray() ?? new Uint32Array(0);
+    }
+    return entry.source.numberKeysArray ?? new Uint32Array(0);
+  }
+  materializeStringKeys(entry) {
+    const out = new Array(entry.info.size);
+    for (let i = 0; i < entry.info.size; i++) {
+      out[i] = this.readStringKey(entry.source, i) ?? "";
+    }
+    return out;
+  }
+  /** Lazily build the inverse map. */
+  inverseMap(entry) {
+    if (entry.inverse)
+      return entry.inverse;
+    const map = /* @__PURE__ */ new Map();
+    const { source, info } = entry;
+    const pushKey = (value, key) => {
+      const existing = map.get(value);
+      if (existing) {
+        existing.push(key);
+        return;
+      }
+      map.set(
+        value,
+        info.keyType === "number" ? [key] : [key]
+      );
+    };
+    for (let i = 0; i < info.size; i++) {
+      const key = info.keyType === "number" ? this.readNumberKey(source, i) : this.readStringKey(source, i);
+      if (key === null)
+        continue;
+      if (info.mode === "oneToOne") {
+        const v = this.readScalarValue(entry, i);
+        if (v !== null)
+          pushKey(v, key);
+        continue;
+      }
+      if (info.mode === "oneToNLinear" || info.mode === "oneToNNonLinear") {
+        const [start, end] = this.sliceBounds(entry, i);
+        for (let j = start; j < end; j++) {
+          const v = info.valueType === "number" ? this.readNumberValueAt(source, j) : this.readStringValueAt(source, j);
+          if (v !== null && v !== void 0)
+            pushKey(v, key);
+        }
+      }
+    }
+    entry.inverse = map;
+    return map;
+  }
+}
 const _VirtualBox = class _VirtualBox {
   constructor(position, data) {
     __publicField(this, "_dataBuffer");
@@ -79701,6 +80523,11 @@ class HighlightHelper {
     ]);
   }
   resetHighlight(model, items) {
+    if (!items) {
+      model.itemConfig.clearHighlight();
+      model.tiles.restart();
+      return;
+    }
     const itemIds = model.properties.getItemIdsFromLocalIds(items);
     this.resetHighlightForItems(itemIds, model);
     model.tiles.restart();
@@ -80228,6 +81055,7 @@ class VirtualFragmentsModel {
     __publicField(this, "materials");
     __publicField(this, "tiles");
     __publicField(this, "boxes");
+    __publicField(this, "indexes");
     __publicField(this, "requests", []);
     __publicField(this, "_raycastHelper", new RaycastHelper());
     __publicField(this, "_coordinatesHelper", new CoordinatesHelper());
@@ -80262,8 +81090,30 @@ class VirtualFragmentsModel {
     this.tiles = this.setupTiles();
     this.properties = this.setupProperties();
     this.raycaster = this.setupRaycaster();
+    this.indexes = new VirtualIndexesController(this);
     this.setupBVH();
     this._nextId = this.getMaxLocalId();
+  }
+  // ---------------------------------------------------------------------------
+  // User-defined indexes (see ModelIndex schema)
+  // ---------------------------------------------------------------------------
+  getIndexNames() {
+    return this.indexes.getNames();
+  }
+  getIndexInfo(name) {
+    return this.indexes.getInfo(name);
+  }
+  getIndexKeys(name) {
+    return this.indexes.getKeys(name);
+  }
+  hasIndexEntry(name, key) {
+    return this.indexes.has(name, key);
+  }
+  getIndexEntry(name, key) {
+    return this.indexes.getEntry(name, key);
+  }
+  getInverseIndexEntry(name, value) {
+    return this.indexes.getInverseEntry(name, value);
   }
   getItemsByConfig(condition) {
     return this._itemsHelper.getItemsByConfig(this, condition);
@@ -80369,6 +81219,20 @@ class VirtualFragmentsModel {
   }
   resetHighlight(items) {
     this._highlightHelper.resetHighlight(this, items);
+  }
+  /**
+   * For every loaded tile that contains at least one of the given local
+   * ids, returns the index-buffer chunks those items occupy in the tile.
+   * Used to draw outline silhouettes by sharing the tile's geometry
+   * attributes and limiting drawing to the returned chunks via
+   * `geometry.groups`.
+   *
+   * @returns One entry per affected tile. Each entry has parallel
+   *   `position` and `size` Uint32Arrays giving start index and count.
+   */
+  getItemDrawChunks(localIds) {
+    const itemIds = this.properties.getItemIdsFromLocalIds(localIds);
+    return this.tiles.getDrawChunksForItems(new Set(itemIds));
   }
   getCoordinates() {
     return this._coordinatesHelper.getCoordinates(this);

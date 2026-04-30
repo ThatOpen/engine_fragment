@@ -232,6 +232,78 @@ export class VirtualTilesController {
     return sample.transform;
   }
 
+  /**
+   * For every loaded tile that contains at least one of the given items,
+   * returns the index-buffer chunks those items occupy in the tile.
+   *
+   * Lets a renderer clone the tile mesh sharing its `geometry.attributes`
+   * and `index`, then add `geometry.groups` for just the returned chunks
+   * to draw only the outlined slices. No highlight bookkeeping, no
+   * per-item slot allocation, no material array growth.
+   *
+   * Samples are stored in the tile in insertion order with locations
+   * `0..N-1`; `indexLocation[i]` is the start of sample `i` in the tile's
+   * index buffer, so a contiguous run of in-set samples maps to a single
+   * `(position, size)` chunk.
+   *
+   * @param itemIds - Internal item ids to look up. Public callers go
+   *   through {@link VirtualFragmentsModel.getItemDrawChunks}, which
+   *   accepts localIds and converts.
+   * @returns One entry per affected tile. `position[i]` and `size[i]`
+   *   are parallel arrays giving start index and index count.
+   */
+  getDrawChunksForItems(
+    itemIds: Set<number>,
+  ): Array<{ tileId: number; position: Uint32Array; size: Uint32Array }> {
+    const result: Array<{
+      tileId: number;
+      position: Uint32Array;
+      size: Uint32Array;
+    }> = [];
+    if (itemIds.size === 0) return result;
+
+    for (const [tileId, tile] of this._tiles) {
+      // `notVirtual === true` means the tile has been realized (buffers
+      // exist, a CREATE message was sent to main thread). Virtual
+      // placeholders have nothing to outline.
+      if (!tile.notVirtual) continue;
+      const totalIndices = tile.indexCount ?? 0;
+      if (!totalIndices) continue;
+
+      const positions: number[] = [];
+      const sizes: number[] = [];
+      let runStart = -1;
+      let location = 0;
+      for (const [sample] of tile.sampleLocation) {
+        const inSet = itemIds.has(this.itemId(sample));
+        if (inSet) {
+          if (runStart < 0) runStart = location;
+        } else if (runStart >= 0) {
+          const startIdx = tile.indexLocation[runStart];
+          const endIdx = tile.indexLocation[location];
+          positions.push(startIdx);
+          sizes.push(endIdx - startIdx);
+          runStart = -1;
+        }
+        location++;
+      }
+      if (runStart >= 0) {
+        const startIdx = tile.indexLocation[runStart];
+        positions.push(startIdx);
+        sizes.push(totalIndices - startIdx);
+      }
+
+      if (positions.length === 0) continue;
+      result.push({
+        tileId,
+        position: new Uint32Array(positions),
+        size: new Uint32Array(sizes),
+      });
+    }
+
+    return result;
+  }
+
   async update(time: number) {
     this.updateTiles(time);
     this.notifyUpdateFinished();
