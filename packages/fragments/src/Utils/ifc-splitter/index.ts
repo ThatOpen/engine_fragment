@@ -4,40 +4,6 @@
 /* eslint-disable no-bitwise */
 
 // ---------------------------------------------------------------------------
-// Node.js dependency injection (avoids top-level fs/path imports for bundlers)
-// ---------------------------------------------------------------------------
-
-/** Subset of Node.js `fs` used by the splitter. */
-export interface IfcSplitterFs {
-  openSync(path: string, flags: string): number;
-  readSync(
-    fd: number,
-    buffer: any,
-    offset: number,
-    length: number,
-    position: null,
-  ): number;
-  writeSync(fd: number, data: any, offset?: number, length?: number): number;
-  closeSync(fd: number): void;
-  existsSync(path: string): boolean;
-  mkdirSync(path: string, options?: { recursive?: boolean }): void;
-  statSync(path: string): { size: number };
-}
-
-/** Subset of Node.js `path` used by the splitter. */
-export interface IfcSplitterPath {
-  join(...paths: string[]): string;
-  dirname(p: string): string;
-  basename(p: string): string;
-}
-
-/** Dependencies that must be provided by the caller (Node.js modules). */
-export interface IfcSplitterDeps {
-  fs: IfcSplitterFs;
-  path: IfcSplitterPath;
-}
-
-// ---------------------------------------------------------------------------
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
@@ -291,72 +257,6 @@ function extractArgsString(raw: string | undefined): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Buffered synchronous file writer — avoids per-line write() syscalls
-// ---------------------------------------------------------------------------
-class BufferedWriter {
-  readonly filePath: string;
-  private fsLike: IfcSplitterFs;
-  private fd: number;
-  private buf: Buffer;
-  private pos: number;
-  private bufSize: number;
-
-  constructor(fsLike: IfcSplitterFs, filePath: string, bufSize: number) {
-    this.filePath = filePath;
-    this.fsLike = fsLike;
-    this.fd = fsLike.openSync(filePath, "w");
-    this.buf = Buffer.allocUnsafe(bufSize);
-    this.pos = 0;
-    this.bufSize = bufSize;
-  }
-
-  write(str: string): void {
-    const bytes = Buffer.byteLength(str, "utf-8");
-    if (this.pos + bytes > this.bufSize) {
-      this.flush();
-      if (bytes > this.bufSize) {
-        this.fsLike.writeSync(this.fd, str);
-        return;
-      }
-    }
-    this.pos += this.buf.write(str, this.pos, "utf-8");
-  }
-
-  emitSingleLine(
-    raw: string,
-    includeSet: Set<number>,
-    rewrittenLines: Map<number, string>,
-  ): void {
-    if (raw.charCodeAt(0) !== 35) return; // '#'
-    let id = 0;
-    for (let i = 1; i < raw.length; i++) {
-      const c = raw.charCodeAt(i);
-      if (c >= 48 && c <= 57) {
-        id = id * 10 + (c - 48);
-      } else {
-        break;
-      }
-    }
-    if (id === 0 || !includeSet.has(id)) return;
-    const line = rewrittenLines.get(id) ?? raw;
-    this.write(line);
-    this.write("\n");
-  }
-
-  flush(): void {
-    if (this.pos > 0) {
-      this.fsLike.writeSync(this.fd, this.buf as any, 0, this.pos);
-      this.pos = 0;
-    }
-  }
-
-  close(): void {
-    this.flush();
-    this.fsLike.closeSync(this.fd);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Compact line storage: sparse arrays indexed by IFC id
 // ---------------------------------------------------------------------------
 class LineIndex {
@@ -425,6 +325,15 @@ class LineIndex {
 
   getRaw(id: number): string | undefined {
     return this.specialRaws.get(id);
+  }
+
+  getAll(types: Set<string>) {
+    const allElementIds = new Set<number>();
+    for (let id = 0; id <= this.maxId; id++) {
+      const type = this.getType(id);
+      if (type && types.has(type)) allElementIds.add(id);
+    }
+    return allElementIds;
   }
 
   free(): void {
@@ -580,6 +489,38 @@ function buildAggregateMap(
   }
 
   return { parentToChildren, childToParent, aggregateRelIds };
+}
+
+function traverseSpatialStructure(index: LineIndex) {
+  const spatialIds = new Set<number>();
+  for (let id = 0; id <= index.maxId; id++) {
+    const type = index.getType(id);
+    if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
+  }
+  const sharedIds = new Set<number>();
+  for (const sid of spatialIds) {
+    collectDepsAll(sid, index, sharedIds);
+  }
+  for (let id = 0; id <= index.maxId; id++) {
+    const type = index.getType(id);
+    if (type === "IFCRELAGGREGATES") {
+      const raw = index.getRaw(id);
+      const argsStr = extractArgsString(raw);
+      if (argsStr) {
+        const args = splitIfcArgs(argsStr);
+        if (args.length >= 6) {
+          const relatingId = parseHashRef(args[4]);
+          if (relatingId && spatialIds.has(relatingId)) {
+            const listRefs = extractRefs(args[5]);
+            if (listRefs.every((r) => spatialIds.has(r))) {
+              collectDepsAll(id, index, sharedIds);
+            }
+          }
+        }
+      }
+    }
+  }
+  return sharedIds;
 }
 
 function addToSetMap(
@@ -740,105 +681,110 @@ function resolveStyles(
 // Main split logic
 // ---------------------------------------------------------------------------
 
-export class IfcSplitter extends EventTarget {
-  constructor() {
-    super();
+export interface IfcSplitterIO {
+  readableStream(path: string): Promise<ReadableStream>;
+  writableStream(path: string): Promise<WritableStream>;
+}
+
+export type IfcSplitterStage =
+  | "index"
+  | "spatial"
+  | "voidfill"
+  | "stylemaps"
+  | "classify"
+  | "aggregate"
+  | "cluster"
+  | "distribute"
+  | "index-rels"
+  | "resolve"
+  | "build-mask"
+  | "write";
+
+export interface IfcSplitterEvents {
+  progress: {
+    stage: IfcSplitterStage;
+    timeElapsed: number;
+  };
+  warning: {
+    message: string;
+    context: { id: number; type?: string };
+  };
+  data: (GroupData | null)[];
+}
+
+export class IfcSplitter {
+  protected readonly io: IfcSplitterIO;
+  protected readonly eventTarget: EventTarget;
+
+  constructor(ifcSplitterIO: IfcSplitterIO) {
+    this.io = ifcSplitterIO;
+    this.eventTarget = new EventTarget();
+  }
+
+  on<K extends keyof IfcSplitterEvents>(
+    type: K,
+    callback: (data: IfcSplitterEvents[K]) => void,
+    options?: Parameters<EventTarget["addEventListener"]>["2"],
+  ) {
+    this.eventTarget.addEventListener(
+      type as string,
+      (e) => callback((e as CustomEvent<IfcSplitterEvents[K]>).detail),
+      options,
+    );
+  }
+
+  protected dispatch<K extends keyof IfcSplitterEvents>(
+    type: K,
+    event: IfcSplitterEvents[K],
+  ) {
+    return this.eventTarget.dispatchEvent(
+      new CustomEvent<IfcSplitterEvents[K]>(type as string, { detail: event }),
+    );
   }
 
   /**
    * Split an IFC file into N roughly equal groups of building elements.
    * @param inputPath - Absolute or relative path to the source IFC file.
    * @param numGroups - Number of output files to produce (max 32).
-   * @param outputDir - Directory for output files. Defaults to `output/` next to the input file.
+   * @param outputPath - Given `groupId` returns output file path.
    */
-  split(
-    deps: IfcSplitterDeps,
+  async split(
     inputPath: string,
     numGroups: number,
-    outputDir?: string,
-  ): Map<string, Set<number>> {
-    const { fs, path } = deps;
-    if (!fs.existsSync(inputPath)) {
-      console.error(`File not found: ${inputPath}`);
-      process.exit(1);
-    }
-
-    const resolvedOutputDir =
-      outputDir || path.join(path.dirname(inputPath), "output");
-    fs.mkdirSync(resolvedOutputDir, { recursive: true });
-
+    outputPath: (groupId: number) => string,
+  ): Promise<Map<string, Set<number>>> {
     // 1. Parse
-    const { header, footer, index } = this.parseIfc(inputPath);
+    this.mark("index");
+    const { header, footer, index } = await this.parseIfc(inputPath);
+    this.emitProgressEvent("index");
 
     // 2. Identify spatial structure (shared in all files)
-    console.time("spatial");
-    const spatialIds = new Set<number>();
-    for (let id = 0; id <= index.maxId; id++) {
-      const type = index.getType(id);
-      if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
-    }
-    const sharedIds = new Set<number>();
-    for (const sid of spatialIds) {
-      collectDepsAll(sid, index, sharedIds);
-    }
-    for (let id = 0; id <= index.maxId; id++) {
-      const type = index.getType(id);
-      if (type === "IFCRELAGGREGATES") {
-        const raw = index.getRaw(id);
-        const argsStr = extractArgsString(raw);
-        if (argsStr) {
-          const args = splitIfcArgs(argsStr);
-          if (args.length >= 6) {
-            const relatingId = parseHashRef(args[4]);
-            if (relatingId && spatialIds.has(relatingId)) {
-              const listRefs = extractRefs(args[5]);
-              if (listRefs.every((r) => spatialIds.has(r))) {
-                collectDepsAll(id, index, sharedIds);
-              }
-            }
-          }
-        }
-      }
-    }
-    console.timeEnd("spatial");
-    console.log(`  Shared infrastructure: ${sharedIds.size} lines`);
+    this.mark("spatial");
+    const sharedIds = traverseSpatialStructure(index);
+    this.emitProgressEvent("spatial");
 
     // 3. Build void/fill coupling map
-    console.time("voidfill");
+    this.mark("voidfill");
     const vfMap = buildVoidFillMap(index);
-    console.timeEnd("voidfill");
-    console.log(
-      `  Void rels: ${vfMap.wallToOpenings.size} walls with openings, ${vfMap.fillerToOpening.size} fillers`,
-    );
+    this.emitProgressEvent("voidfill");
 
     // 3b. Build reverse style maps
-    console.time("stylemaps");
+    this.mark("stylemaps");
     const styleMaps = buildStyleMaps(index);
-    console.timeEnd("stylemaps");
-    console.log(
-      `  Style maps: ${styleMaps.geomToStyledItems.size} styled geometries, ${styleMaps.materialToDefReps.size} material representations`,
-    );
+    this.emitProgressEvent("stylemaps");
 
     // 4. Identify all building elements
-    console.time("classify");
-    const allElementIds = new Set<number>();
-    for (let id = 0; id <= index.maxId; id++) {
-      const type = index.getType(id);
-      if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
-    }
-    console.timeEnd("classify");
-    console.log(`  Found ${allElementIds.size} building elements`);
+    this.mark("classify");
+    const allElementIds = index.getAll(ELEMENT_TYPES);
+    this.emitProgressEvent("classify");
 
     // 4b. Build aggregation map
-    console.time("aggregate");
+    this.mark("aggregate");
     const aggMap = buildAggregateMap(index, allElementIds);
-    console.timeEnd("aggregate");
-    console.log(
-      `  Aggregate rels: ${aggMap.parentToChildren.size} parents, ${aggMap.childToParent.size} children`,
-    );
+    this.emitProgressEvent("aggregate");
 
     // 5. Build clusters
-    console.time("cluster");
+    this.mark("cluster");
     const clusters: Set<number>[] = [];
     const assigned = new Set<number>();
     for (const eid of allElementIds) {
@@ -851,11 +797,10 @@ export class IfcSplitter extends EventTarget {
       clusters.push(elementCluster);
       for (const cid of elementCluster) assigned.add(cid);
     }
-    console.timeEnd("cluster");
-    console.log(`  Built ${clusters.length} clusters`);
+    this.emitProgressEvent("cluster");
 
     // 6. Distribute clusters into N groups (greedy bin packing)
-    console.time("distribute");
+    this.mark("distribute");
     const groups: Set<number>[] = Array.from(
       { length: numGroups },
       () => new Set(),
@@ -873,10 +818,10 @@ export class IfcSplitter extends EventTarget {
       for (const id of clusters[ci]) groups[minIdx].add(id);
       groupSizes[minIdx] += clusters[ci].size;
     }
-    console.timeEnd("distribute");
+    this.emitProgressEvent("distribute");
 
     // 7. Pre-parse all relationship lines that need per-group rewriting.
-    console.time("index-rels");
+    this.mark("index-rels");
     const relEntries: RelEntry[] = [];
     for (let id = 0; id <= index.maxId; id++) {
       const type = index.getType(id);
@@ -901,18 +846,16 @@ export class IfcSplitter extends EventTarget {
         });
       }
     }
-    console.timeEnd("index-rels");
-    console.log(`  Found ${relEntries.length} relationship lines to process`);
+    this.emitProgressEvent("index-rels");
 
     // 8. Resolve deps for all groups
-    console.time("resolve");
+    this.mark("resolve");
     const groupsData: (GroupData | null)[] = [];
 
     for (let g = 0; g < numGroups; g++) {
       const groupElementIds = groups[g];
       if (groupElementIds.size === 0) {
         groupsData.push(null);
-        console.log(`  Group ${g + 1}: SKIPPED (empty)`);
         continue;
       }
 
@@ -965,24 +908,19 @@ export class IfcSplitter extends EventTarget {
         rewrittenLines,
         elementCount: groupElementIds.size,
         totalIds,
-        fileName: path.join(
-          resolvedOutputDir,
-          `split_${String(g + 1).padStart(3, "0")}.ifc`,
-        ),
+        fileName: outputPath(g),
       });
-      console.log(
-        `  Group ${g + 1}: ${groupElementIds.size} elements, ${totalIds} total IDs`,
-      );
     }
 
-    console.timeEnd("resolve");
+    this.emitProgressEvent("resolve");
+    this.dispatch("data", groupsData);
 
     // Free the index to reclaim memory before the output pass
     const maxParsedId = index.maxId;
     index.free();
 
     // 9. Build Uint32Array bitmask for O(1) write-phase lookups
-    console.time("build-mask");
+    this.mark("build-mask");
     const idGroupMask = new Uint32Array(maxParsedId + 1);
     for (let g = 0; g < numGroups; g++) {
       const groupData = groupsData[g];
@@ -992,14 +930,18 @@ export class IfcSplitter extends EventTarget {
         idGroupMask[id] |= bit;
       }
     }
-    console.timeEnd("build-mask");
+    this.emitProgressEvent("build-mask");
 
     // 10. Second pass: write output files
-    console.time("write");
-    writeOutputFiles(deps, inputPath, header, footer, groupsData, idGroupMask);
-    console.timeEnd("write");
-
-    console.log("\nDone!");
+    this.mark("write");
+    await this.writeSplitOutput(
+      inputPath,
+      header,
+      footer,
+      groupsData,
+      idGroupMask,
+    );
+    this.emitProgressEvent("write");
 
     return new Map(
       groupsData
@@ -1014,64 +956,23 @@ export class IfcSplitter extends EventTarget {
    * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped with a warning.
    * @param outputPath - Path for the output IFC file.
    */
-  extract(
-    deps: IfcSplitterDeps,
+  async extract(
     inputPath: string,
     elementIds: number[],
     outputPath: string,
-  ): void {
-    const { fs, path } = deps;
-    if (!fs.existsSync(inputPath)) {
-      console.error(`File not found: ${inputPath}`);
-      process.exit(1);
-    }
-
-    const outputDir = path.dirname(outputPath);
-    fs.mkdirSync(outputDir, { recursive: true });
-
+  ): Promise<void> {
     // 1. Parse
-    const { header, footer, index } = this.parseIfc(inputPath);
+    const { header, footer, index } = await this.parseIfc(inputPath);
 
     // 2. Identify spatial structure (shared)
-    console.time("spatial");
-    const spatialIds = new Set<number>();
-    for (let id = 0; id <= index.maxId; id++) {
-      const type = index.getType(id);
-      if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
-    }
-    const sharedIds = new Set<number>();
-    for (const sid of spatialIds) {
-      collectDepsAll(sid, index, sharedIds);
-    }
-    for (let id = 0; id <= index.maxId; id++) {
-      const type = index.getType(id);
-      if (type === "IFCRELAGGREGATES") {
-        const raw = index.getRaw(id);
-        const argsStr = extractArgsString(raw);
-        if (argsStr) {
-          const args = splitIfcArgs(argsStr);
-          if (args.length >= 6) {
-            const relatingId = parseHashRef(args[4]);
-            if (relatingId && spatialIds.has(relatingId)) {
-              const listRefs = extractRefs(args[5]);
-              if (listRefs.every((r) => spatialIds.has(r))) {
-                collectDepsAll(id, index, sharedIds);
-              }
-            }
-          }
-        }
-      }
-    }
-    console.timeEnd("spatial");
+    this.mark("spatial");
+    const sharedIds = traverseSpatialStructure(index);
+    this.emitProgressEvent("spatial");
 
     // 3. Build maps
     const vfMap = buildVoidFillMap(index);
     const styleMaps = buildStyleMaps(index);
-    const allElementIds = new Set<number>();
-    for (let id = 0; id <= index.maxId; id++) {
-      const type = index.getType(id);
-      if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
-    }
+    const allElementIds = index.getAll(ELEMENT_TYPES);
 
     // Validate requested IDs
     const requestedIds = new Set<number>();
@@ -1079,18 +980,21 @@ export class IfcSplitter extends EventTarget {
       if (allElementIds.has(eid)) {
         requestedIds.add(eid);
       } else if (index.has(eid)) {
-        console.warn(
-          `  Warning: #${eid} exists but is not a building element (type: ${index.getType(eid)}), skipping`,
-        );
+        const type = index.getType(eid);
+        this.dispatch("warning", {
+          message: `Skipping #${eid}: type '${type}' is not a building element`,
+          context: { id: eid, type },
+        });
       } else {
-        console.warn(`  Warning: #${eid} not found in file, skipping`);
+        this.dispatch("warning", {
+          message: `Skipping #${eid}: not found`,
+          context: { id: eid },
+        });
       }
     }
     if (requestedIds.size === 0) {
-      console.error("No valid element IDs to extract.");
-      return;
+      throw new Error("No valid element IDs found.");
     }
-    console.log(`  Extracting ${requestedIds.size} elements`);
 
     // 4. Cluster: expand void/fill + aggregation for requested elements
     const aggMap = buildAggregateMap(index, allElementIds);
@@ -1100,11 +1004,6 @@ export class IfcSplitter extends EventTarget {
       for (const cid of cluster) {
         if (allElementIds.has(cid)) groupElementIds.add(cid);
       }
-    }
-    if (groupElementIds.size > requestedIds.size) {
-      console.log(
-        `  Expanded to ${groupElementIds.size} elements (void/fill + aggregation coupling)`,
-      );
     }
 
     // 5. Collect all dependencies
@@ -1159,23 +1058,17 @@ export class IfcSplitter extends EventTarget {
       }
     }
 
-    console.log(`  Total lines in output: ${fileIds.size}`);
-
     // 7. Free index, write output
-    // const maxParsedId = index.maxId;
     index.free();
 
-    // Build simple inclusion set
-    const includeSet = new Set<number>(fileIds);
-
-    console.time("write");
-    const bw = new BufferedWriter(fs, outputPath, 4 * 1024 * 1024);
-    bw.write(`${header.join("\n")}\n`);
+    this.mark("write");
+    const writer = (await this.io.writableStream(outputPath)).getWriter();
+    await writer.write(`${header.join("\n")}\n`);
 
     let section: "header" | "data" | "footer" = "header";
     let accumulator = "";
 
-    forEachLine(fs, inputPath, (line: string) => {
+    await this.forEachLine(inputPath, async (line: string) => {
       if (section === "header") {
         if (line.trim() === "DATA;") section = "data";
         return;
@@ -1184,7 +1077,12 @@ export class IfcSplitter extends EventTarget {
         const trimmed = line.trim();
         if (trimmed === "ENDSEC;") {
           if (accumulator) {
-            bw.emitSingleLine(accumulator, includeSet, rewrittenLines);
+            await this.emitExtractLine(
+              writer,
+              accumulator,
+              fileIds,
+              rewrittenLines,
+            );
             accumulator = "";
           }
           section = "footer";
@@ -1192,30 +1090,29 @@ export class IfcSplitter extends EventTarget {
         }
 
         if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-          bw.emitSingleLine(trimmed, includeSet, rewrittenLines);
+          await this.emitExtractLine(writer, trimmed, fileIds, rewrittenLines);
           return;
         }
 
         accumulator += (accumulator ? " " : "") + trimmed;
         if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-          bw.emitSingleLine(accumulator, includeSet, rewrittenLines);
+          await this.emitExtractLine(
+            writer,
+            accumulator,
+            fileIds,
+            rewrittenLines,
+          );
           accumulator = "";
         }
       }
     });
 
-    bw.write(`${footer.join("\n")}\n`);
-    bw.close();
-    console.timeEnd("write");
-
-    const stat = fs.statSync(outputPath);
-    console.log(
-      `  Output: ${groupElementIds.size} elements, ${fileIds.size} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(outputPath)}`,
-    );
-    console.log("\nDone!");
+    await writer.write(`${footer.join("\n")}\n`);
+    await writer.close();
+    this.emitProgressEvent("write");
   }
 
-  parseIfc(filePath: string): ParseResult {
+  async parseIfc(filePath: string): Promise<ParseResult> {
     const header: string[] = [];
     const footer: string[] = [];
     const index = new LineIndex();
@@ -1224,9 +1121,7 @@ export class IfcSplitter extends EventTarget {
     let accumulator = "";
     let lineCount = 0;
 
-    console.time("parse");
-
-    this.forEachLine(filePath, (line: string) => {
+    await this.forEachLine(filePath, (line: string) => {
       if (section === "header") {
         header.push(line);
         if (line.trim() === "DATA;") section = "data";
@@ -1265,31 +1160,27 @@ export class IfcSplitter extends EventTarget {
     });
 
     index.finalize();
-    console.timeEnd("parse");
-    console.log(`  Parsed ${lineCount} data lines (max id: ${index.maxId})`);
+
     return { header, footer, index };
   }
 
   /**
-   * Synchronous chunked file reader — replaces readline (3-5x faster)
+   * Chunked file reader — replaces readline (3-5x faster)
    */
-  forEachLine(filePath: string, callback: (line: string) => void): void {
-    const CHUNK = 8 * 1024 * 1024;
-    const fd = fsLike.openSync(filePath, "r");
-    const readBuf = Buffer.allocUnsafe(CHUNK);
+  async forEachLine(
+    filePath: string,
+    callback: (line: string) => void | Promise<void>,
+  ): Promise<void> {
     let tail = "";
-    let bytesRead: number;
-    while (
-      (bytesRead = fsLike.readSync(fd, readBuf as any, 0, CHUNK, null)) > 0
-    ) {
-      const chunk = readBuf.toString("utf-8", 0, bytesRead);
+
+    for await (const chunk of await this.io.readableStream(filePath)) {
       let start = 0;
       let idx = chunk.indexOf("\n");
       // First line: prepend leftover from previous chunk
       if (idx !== -1) {
         let end = idx;
         if (end > 0 && chunk.charCodeAt(end - 1) === 13) end--;
-        callback(
+        await callback(
           tail
             ? tail + chunk.substring(start, end)
             : chunk.substring(start, end),
@@ -1304,43 +1195,38 @@ export class IfcSplitter extends EventTarget {
       while ((idx = chunk.indexOf("\n", start)) !== -1) {
         let end = idx;
         if (end > start && chunk.charCodeAt(end - 1) === 13) end--;
-        callback(chunk.substring(start, end));
+        await callback(chunk.substring(start, end));
         start = idx + 1;
       }
       if (start < chunk.length) tail = chunk.substring(start);
     }
-    if (tail) callback(tail);
-    fsLike.closeSync(fd);
+    if (tail) await callback(tail);
   }
 
-  writeOutputFiles(
-    deps: IfcSplitterDeps,
+  protected async writeSplitOutput(
     inputPath: string,
     header: string[],
     footer: string[],
     groupsData: (GroupData | null)[],
     idGroupMask: Uint32Array,
-  ): void {
-    const { fs, path } = deps;
-    const numGroups = groupsData.length;
-
-    const writers: (BufferedWriter | null)[] = [];
+  ): Promise<void> {
     const headerStr = `${header.join("\n")}\n`;
-    for (let g = 0; g < numGroups; g++) {
-      const groupData = groupsData[g];
-      if (!groupData) {
-        writers.push(null);
-        continue;
-      }
-      const bw = new BufferedWriter(fs, groupData.fileName, 4 * 1024 * 1024);
-      bw.write(headerStr);
-      writers.push(bw);
-    }
+
+    const writers: (WritableStreamDefaultWriter | null)[] = await Promise.all(
+      groupsData.map(async (groupData) => {
+        if (!groupData) return null;
+        const writer = (
+          await this.io.writableStream(groupData.fileName)
+        ).getWriter();
+        await writer.write(headerStr);
+        return writer;
+      }),
+    );
 
     let section: "header" | "data" | "footer" = "header";
     let accumulator = "";
 
-    this.forEachLine(inputPath, (line: string) => {
+    await this.forEachLine(inputPath, async (line: string) => {
       if (section === "header") {
         if (line.trim() === "DATA;") section = "data";
         return;
@@ -1349,7 +1235,12 @@ export class IfcSplitter extends EventTarget {
         const trimmed = line.trim();
         if (trimmed === "ENDSEC;") {
           if (accumulator) {
-            this.emitLine(accumulator, writers, groupsData, idGroupMask);
+            await this.emitSplitLine(
+              writers,
+              accumulator,
+              groupsData,
+              idGroupMask,
+            );
             accumulator = "";
           }
           section = "footer";
@@ -1357,38 +1248,39 @@ export class IfcSplitter extends EventTarget {
         }
 
         if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-          this.emitLine(trimmed, writers, groupsData, idGroupMask);
+          await this.emitSplitLine(writers, trimmed, groupsData, idGroupMask);
           return;
         }
 
         accumulator += (accumulator ? " " : "") + trimmed;
         if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-          this.emitLine(accumulator, writers, groupsData, idGroupMask);
+          await this.emitSplitLine(
+            writers,
+            accumulator,
+            groupsData,
+            idGroupMask,
+          );
           accumulator = "";
         }
       }
     });
 
     const footerStr = `${footer.join("\n")}\n`;
-    for (let g = 0; g < numGroups; g++) {
-      const bw = writers[g];
-      if (!bw) continue;
-      bw.write(footerStr);
-      bw.close();
-      const stat = fs.statSync(bw.filePath);
-      const gd = groupsData[g]!;
-      console.log(
-        `  Group ${g + 1}: ${gd.elementCount} elements, ${gd.totalIds} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(bw.filePath)}`,
-      );
-    }
+    await Promise.all(
+      writers.map(async (writer) => {
+        if (!writer) return;
+        writer.write(footerStr);
+        writer.close();
+      }),
+    );
   }
 
-  emitLine(
+  protected async emitSplitLine(
+    writers: (WritableStreamDefaultWriter | null)[],
     raw: string,
-    writers: (BufferedWriter | null)[],
     groupsData: (GroupData | null)[],
     idGroupMask: Uint32Array,
-  ): void {
+  ): Promise<void> {
     if (raw.charCodeAt(0) !== 35) return; // '#'
     let id = 0;
     for (let i = 1; i < raw.length; i++) {
@@ -1407,9 +1299,40 @@ export class IfcSplitter extends EventTarget {
     for (let g = 0; g < groupsData.length; g++) {
       if (!(mask & (1 << g))) continue;
       const gd = groupsData[g]!;
-      const line = gd.rewrittenLines.has(id) ? gd.rewrittenLines.get(id)! : raw;
-      writers[g]!.write(line);
-      writers[g]!.write("\n");
+      const line = gd.rewrittenLines.get(id) ?? raw;
+      await writers[g]!.write(`${line}\n`);
     }
+  }
+
+  protected async emitExtractLine(
+    writer: WritableStreamDefaultWriter,
+    raw: string,
+    includeSet: Set<number>,
+    rewrittenLines: Map<number, string>,
+  ): Promise<void> {
+    if (raw.charCodeAt(0) !== 35) return; // '#'
+    let id = 0;
+    for (let i = 1; i < raw.length; i++) {
+      const c = raw.charCodeAt(i);
+      if (c >= 48 && c <= 57) {
+        id = id * 10 + (c - 48);
+      } else {
+        break;
+      }
+    }
+    if (id === 0 || !includeSet.has(id)) return;
+    const line = rewrittenLines.get(id) ?? raw;
+    await writer.write(`${line}\n`);
+  }
+
+  protected mark(stage: IfcSplitterStage) {
+    performance.mark(stage);
+  }
+
+  protected emitProgressEvent(stage: IfcSplitterStage) {
+    this.dispatch("progress", {
+      stage,
+      timeElapsed: performance.measure(stage).duration,
+    });
   }
 }
