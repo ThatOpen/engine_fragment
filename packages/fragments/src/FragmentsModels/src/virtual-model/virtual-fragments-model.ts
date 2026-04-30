@@ -244,6 +244,16 @@ export class VirtualFragmentsModel {
     return this.properties.getGuidsByLocalIds(localIds);
   }
 
+  /**
+   * Returns the user-facing `localId` for each internal `itemId`,
+   * preserving order. Used by GPU-readback pickers that recover item
+   * ids from the per-vertex `id` attribute and need to translate to
+   * the public id space.
+   */
+  getLocalIdsFromItemIds(itemIds: Iterable<number>) {
+    return this.properties.getLocalIdsFromItemIds(itemIds);
+  }
+
   getSequenced(
     result: ItemInformationType,
     fromItems: ItemSelectionType[],

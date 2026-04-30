@@ -106,6 +106,15 @@ export class DataManager {
     ]) as Promise<(number | null)[]>;
   }
 
+  async getLocalIdsFromItemIds(
+    model: FragmentsModel,
+    itemIds: Iterable<number>,
+  ) {
+    return model.threads.invoke(model.modelId, "getLocalIdsFromItemIds", [
+      itemIds,
+    ]) as Promise<number[]>;
+  }
+
   async getSpatialStructure(model: FragmentsModel) {
     return model.threads.invoke(
       model.modelId,

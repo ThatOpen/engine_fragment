@@ -252,6 +252,16 @@ export class FragmentsModel {
   }
 
   /**
+   * Translate internal `itemId`s into user-facing `localId`s, preserving
+   * order. Used by GPU-readback pickers that recover item ids from the
+   * per-vertex `id` attribute and need to map back to the public id
+   * space.
+   */
+  async getLocalIdsFromItemIds(itemIds: Iterable<number>) {
+    return this._dataManager.getLocalIdsFromItemIds(this, itemIds);
+  }
+
+  /**
    * Get all the categories of the model.
    */
   async getCategories() {

@@ -69,6 +69,14 @@ export class SingleThreadedFragmentsModel {
   }
 
   /**
+   * Translate internal `itemId`s into user-facing `localId`s, preserving
+   * order. See {@link VirtualFragmentsModel.getLocalIdsFromItemIds}.
+   */
+  async getLocalIdsFromItemIds(itemIds: Iterable<number>) {
+    return this._virtualModel.getLocalIdsFromItemIds(itemIds);
+  }
+
+  /**
    * Get all the categories of the model.
    */
   getCategories() {
