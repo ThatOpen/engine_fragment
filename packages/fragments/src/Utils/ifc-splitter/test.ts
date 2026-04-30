@@ -14,10 +14,15 @@ const numGroups = parseInt(args[1], 10);
 const outputDir = args[2] ? path.resolve(args[2]) : path.dirname(inputPath);
 
 try {
-  const splitMap = await new IfcSplitterNode().split(
-    inputPath,
-    numGroups,
-    (groupId) => path.resolve(outputDir, `${groupId + 1}.ifc`),
+  const splitter = new IfcSplitterNode();
+  splitter.on("progress", console.info);
+  splitter.on("data", console.log);
+  splitter.on("warning", console.warn);
+  const splitMap = await splitter.split(inputPath, numGroups, (groupId) =>
+    path.resolve(
+      outputDir,
+      `split_${String(groupId + 1).padStart(3, "0")}.ifc`,
+    ),
   );
   console.log(splitMap);
 } catch (err) {
