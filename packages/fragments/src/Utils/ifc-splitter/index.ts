@@ -291,51 +291,6 @@ function extractArgsString(raw: string | undefined): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Synchronous chunked file reader — replaces readline (3-5x faster)
-// ---------------------------------------------------------------------------
-function forEachLine(
-  fsLike: IfcSplitterFs,
-  filePath: string,
-  callback: (line: string) => void,
-): void {
-  const CHUNK = 8 * 1024 * 1024;
-  const fd = fsLike.openSync(filePath, "r");
-  const readBuf = Buffer.allocUnsafe(CHUNK);
-  let tail = "";
-  let bytesRead: number;
-  while (
-    (bytesRead = fsLike.readSync(fd, readBuf as any, 0, CHUNK, null)) > 0
-  ) {
-    const chunk = readBuf.toString("utf-8", 0, bytesRead);
-    let start = 0;
-    let idx = chunk.indexOf("\n");
-    // First line: prepend leftover from previous chunk
-    if (idx !== -1) {
-      let end = idx;
-      if (end > 0 && chunk.charCodeAt(end - 1) === 13) end--;
-      callback(
-        tail ? tail + chunk.substring(start, end) : chunk.substring(start, end),
-      );
-      tail = "";
-      start = idx + 1;
-    } else {
-      tail += chunk;
-      continue;
-    }
-    // Remaining lines — hot loop, no tail concat needed
-    while ((idx = chunk.indexOf("\n", start)) !== -1) {
-      let end = idx;
-      if (end > start && chunk.charCodeAt(end - 1) === 13) end--;
-      callback(chunk.substring(start, end));
-      start = idx + 1;
-    }
-    if (start < chunk.length) tail = chunk.substring(start);
-  }
-  if (tail) callback(tail);
-  fsLike.closeSync(fd);
-}
-
-// ---------------------------------------------------------------------------
 // Buffered synchronous file writer — avoids per-line write() syscalls
 // ---------------------------------------------------------------------------
 class BufferedWriter {
@@ -383,7 +338,7 @@ class BufferedWriter {
       }
     }
     if (id === 0 || !includeSet.has(id)) return;
-    const line = rewrittenLines.has(id) ? rewrittenLines.get(id)! : raw;
+    const line = rewrittenLines.get(id) ?? raw;
     this.write(line);
     this.write("\n");
   }
@@ -481,64 +436,6 @@ class LineIndex {
     (this as any)._refLen = null;
     (this as any).specialRaws = null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Streaming IFC parser
-// ---------------------------------------------------------------------------
-function parseIfc(fsLike: IfcSplitterFs, filePath: string): ParseResult {
-  const header: string[] = [];
-  const footer: string[] = [];
-  const index = new LineIndex();
-
-  let section: "header" | "data" | "footer" = "header";
-  let accumulator = "";
-  let lineCount = 0;
-
-  console.time("parse");
-
-  forEachLine(fsLike, filePath, (line: string) => {
-    if (section === "header") {
-      header.push(line);
-      if (line.trim() === "DATA;") section = "data";
-      return;
-    }
-    if (section === "data") {
-      const trimmed = line.trim();
-      if (trimmed === "ENDSEC;") {
-        if (accumulator) {
-          const info = extractId(accumulator);
-          if (info) {
-            const refs = extractRefs(accumulator, info.id);
-            index.set(info.id, info.type, refs, accumulator);
-            lineCount++;
-          }
-          accumulator = "";
-        }
-        section = "footer";
-        footer.push(line);
-        return;
-      }
-      accumulator += (accumulator ? " " : "") + trimmed;
-      if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-        // ';'
-        const info = extractId(accumulator);
-        if (info) {
-          const refs = extractRefs(accumulator, info.id);
-          index.set(info.id, info.type, refs, accumulator);
-          lineCount++;
-        }
-        accumulator = "";
-      }
-      return;
-    }
-    footer.push(line);
-  });
-
-  index.finalize();
-  console.timeEnd("parse");
-  console.log(`  Parsed ${lineCount} data lines (max id: ${index.maxId})`);
-  return { header, footer, index };
 }
 
 // ---------------------------------------------------------------------------
@@ -871,7 +768,7 @@ export class IfcSplitter extends EventTarget {
     fs.mkdirSync(resolvedOutputDir, { recursive: true });
 
     // 1. Parse
-    const { header, footer, index } = parseIfc(fs, inputPath);
+    const { header, footer, index } = this.parseIfc(inputPath);
 
     // 2. Identify spatial structure (shared in all files)
     console.time("spatial");
@@ -1133,7 +1030,7 @@ export class IfcSplitter extends EventTarget {
     fs.mkdirSync(outputDir, { recursive: true });
 
     // 1. Parse
-    const { header, footer, index } = parseIfc(fs, inputPath);
+    const { header, footer, index } = this.parseIfc(inputPath);
 
     // 2. Identify spatial structure (shared)
     console.time("spatial");
@@ -1317,107 +1214,202 @@ export class IfcSplitter extends EventTarget {
     );
     console.log("\nDone!");
   }
-}
 
-// ---------------------------------------------------------------------------
-// Second-pass output writer
-// ---------------------------------------------------------------------------
-function writeOutputFiles(
-  deps: IfcSplitterDeps,
-  inputPath: string,
-  header: string[],
-  footer: string[],
-  groupsData: (GroupData | null)[],
-  idGroupMask: Uint32Array,
-): void {
-  const { fs, path } = deps;
-  const numGroups = groupsData.length;
+  parseIfc(filePath: string): ParseResult {
+    const header: string[] = [];
+    const footer: string[] = [];
+    const index = new LineIndex();
 
-  const writers: (BufferedWriter | null)[] = [];
-  const headerStr = `${header.join("\n")}\n`;
-  for (let g = 0; g < numGroups; g++) {
-    const groupData = groupsData[g];
-    if (!groupData) {
-      writers.push(null);
-      continue;
-    }
-    const bw = new BufferedWriter(fs, groupData.fileName, 4 * 1024 * 1024);
-    bw.write(headerStr);
-    writers.push(bw);
-  }
+    let section: "header" | "data" | "footer" = "header";
+    let accumulator = "";
+    let lineCount = 0;
 
-  let section: "header" | "data" | "footer" = "header";
-  let accumulator = "";
+    console.time("parse");
 
-  forEachLine(fs, inputPath, (line: string) => {
-    if (section === "header") {
-      if (line.trim() === "DATA;") section = "data";
-      return;
-    }
-    if (section === "data") {
-      const trimmed = line.trim();
-      if (trimmed === "ENDSEC;") {
-        if (accumulator) {
-          emitLine(accumulator, writers, groupsData, idGroupMask);
+    this.forEachLine(filePath, (line: string) => {
+      if (section === "header") {
+        header.push(line);
+        if (line.trim() === "DATA;") section = "data";
+        return;
+      }
+      if (section === "data") {
+        const trimmed = line.trim();
+        if (trimmed === "ENDSEC;") {
+          if (accumulator) {
+            const info = extractId(accumulator);
+            if (info) {
+              const refs = extractRefs(accumulator, info.id);
+              index.set(info.id, info.type, refs, accumulator);
+              lineCount++;
+            }
+            accumulator = "";
+          }
+          section = "footer";
+          footer.push(line);
+          return;
+        }
+        accumulator += (accumulator ? " " : "") + trimmed;
+        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
+          // ';'
+          const info = extractId(accumulator);
+          if (info) {
+            const refs = extractRefs(accumulator, info.id);
+            index.set(info.id, info.type, refs, accumulator);
+            lineCount++;
+          }
           accumulator = "";
         }
-        section = "footer";
         return;
       }
+      footer.push(line);
+    });
 
-      if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-        emitLine(trimmed, writers, groupsData, idGroupMask);
+    index.finalize();
+    console.timeEnd("parse");
+    console.log(`  Parsed ${lineCount} data lines (max id: ${index.maxId})`);
+    return { header, footer, index };
+  }
+
+  /**
+   * Synchronous chunked file reader — replaces readline (3-5x faster)
+   */
+  forEachLine(filePath: string, callback: (line: string) => void): void {
+    const CHUNK = 8 * 1024 * 1024;
+    const fd = fsLike.openSync(filePath, "r");
+    const readBuf = Buffer.allocUnsafe(CHUNK);
+    let tail = "";
+    let bytesRead: number;
+    while (
+      (bytesRead = fsLike.readSync(fd, readBuf as any, 0, CHUNK, null)) > 0
+    ) {
+      const chunk = readBuf.toString("utf-8", 0, bytesRead);
+      let start = 0;
+      let idx = chunk.indexOf("\n");
+      // First line: prepend leftover from previous chunk
+      if (idx !== -1) {
+        let end = idx;
+        if (end > 0 && chunk.charCodeAt(end - 1) === 13) end--;
+        callback(
+          tail
+            ? tail + chunk.substring(start, end)
+            : chunk.substring(start, end),
+        );
+        tail = "";
+        start = idx + 1;
+      } else {
+        tail += chunk;
+        continue;
+      }
+      // Remaining lines — hot loop, no tail concat needed
+      while ((idx = chunk.indexOf("\n", start)) !== -1) {
+        let end = idx;
+        if (end > start && chunk.charCodeAt(end - 1) === 13) end--;
+        callback(chunk.substring(start, end));
+        start = idx + 1;
+      }
+      if (start < chunk.length) tail = chunk.substring(start);
+    }
+    if (tail) callback(tail);
+    fsLike.closeSync(fd);
+  }
+
+  writeOutputFiles(
+    deps: IfcSplitterDeps,
+    inputPath: string,
+    header: string[],
+    footer: string[],
+    groupsData: (GroupData | null)[],
+    idGroupMask: Uint32Array,
+  ): void {
+    const { fs, path } = deps;
+    const numGroups = groupsData.length;
+
+    const writers: (BufferedWriter | null)[] = [];
+    const headerStr = `${header.join("\n")}\n`;
+    for (let g = 0; g < numGroups; g++) {
+      const groupData = groupsData[g];
+      if (!groupData) {
+        writers.push(null);
+        continue;
+      }
+      const bw = new BufferedWriter(fs, groupData.fileName, 4 * 1024 * 1024);
+      bw.write(headerStr);
+      writers.push(bw);
+    }
+
+    let section: "header" | "data" | "footer" = "header";
+    let accumulator = "";
+
+    this.forEachLine(inputPath, (line: string) => {
+      if (section === "header") {
+        if (line.trim() === "DATA;") section = "data";
         return;
       }
+      if (section === "data") {
+        const trimmed = line.trim();
+        if (trimmed === "ENDSEC;") {
+          if (accumulator) {
+            this.emitLine(accumulator, writers, groupsData, idGroupMask);
+            accumulator = "";
+          }
+          section = "footer";
+          return;
+        }
 
-      accumulator += (accumulator ? " " : "") + trimmed;
-      if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-        emitLine(accumulator, writers, groupsData, idGroupMask);
-        accumulator = "";
+        if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
+          this.emitLine(trimmed, writers, groupsData, idGroupMask);
+          return;
+        }
+
+        accumulator += (accumulator ? " " : "") + trimmed;
+        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
+          this.emitLine(accumulator, writers, groupsData, idGroupMask);
+          accumulator = "";
+        }
+      }
+    });
+
+    const footerStr = `${footer.join("\n")}\n`;
+    for (let g = 0; g < numGroups; g++) {
+      const bw = writers[g];
+      if (!bw) continue;
+      bw.write(footerStr);
+      bw.close();
+      const stat = fs.statSync(bw.filePath);
+      const gd = groupsData[g]!;
+      console.log(
+        `  Group ${g + 1}: ${gd.elementCount} elements, ${gd.totalIds} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(bw.filePath)}`,
+      );
+    }
+  }
+
+  emitLine(
+    raw: string,
+    writers: (BufferedWriter | null)[],
+    groupsData: (GroupData | null)[],
+    idGroupMask: Uint32Array,
+  ): void {
+    if (raw.charCodeAt(0) !== 35) return; // '#'
+    let id = 0;
+    for (let i = 1; i < raw.length; i++) {
+      const c = raw.charCodeAt(i);
+      if (c >= 48 && c <= 57) {
+        id = id * 10 + (c - 48);
+      } else {
+        break;
       }
     }
-  });
+    if (id === 0 || id >= idGroupMask.length) return;
 
-  const footerStr = `${footer.join("\n")}\n`;
-  for (let g = 0; g < numGroups; g++) {
-    const bw = writers[g];
-    if (!bw) continue;
-    bw.write(footerStr);
-    bw.close();
-    const stat = fs.statSync(bw.filePath);
-    const gd = groupsData[g]!;
-    console.log(
-      `  Group ${g + 1}: ${gd.elementCount} elements, ${gd.totalIds} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(bw.filePath)}`,
-    );
-  }
-}
+    const mask = idGroupMask[id];
+    if (mask === 0) return;
 
-function emitLine(
-  raw: string,
-  writers: (BufferedWriter | null)[],
-  groupsData: (GroupData | null)[],
-  idGroupMask: Uint32Array,
-): void {
-  if (raw.charCodeAt(0) !== 35) return; // '#'
-  let id = 0;
-  for (let i = 1; i < raw.length; i++) {
-    const c = raw.charCodeAt(i);
-    if (c >= 48 && c <= 57) {
-      id = id * 10 + (c - 48);
-    } else {
-      break;
+    for (let g = 0; g < groupsData.length; g++) {
+      if (!(mask & (1 << g))) continue;
+      const gd = groupsData[g]!;
+      const line = gd.rewrittenLines.has(id) ? gd.rewrittenLines.get(id)! : raw;
+      writers[g]!.write(line);
+      writers[g]!.write("\n");
     }
-  }
-  if (id === 0 || id >= idGroupMask.length) return;
-
-  const mask = idGroupMask[id];
-  if (mask === 0) return;
-
-  for (let g = 0; g < groupsData.length; g++) {
-    if (!(mask & (1 << g))) continue;
-    const gd = groupsData[g]!;
-    const line = gd.rewrittenLines.has(id) ? gd.rewrittenLines.get(id)! : raw;
-    writers[g]!.write(line);
-    writers[g]!.write("\n");
   }
 }
