@@ -682,8 +682,8 @@ function resolveStyles(
 // ---------------------------------------------------------------------------
 
 export interface IfcSplitterIO {
-  readableStream(path: string): Promise<ReadableStream>;
-  writableStream(path: string): Promise<WritableStream>;
+  readableStream(path: string): Promise<ReadableStream<string | undefined>>;
+  writableStream(path: string): Promise<WritableStream<string>>;
 }
 
 export type IfcSplitterStage =
@@ -1172,8 +1172,10 @@ export class IfcSplitter {
     callback: (line: string) => void | Promise<void>,
   ): Promise<void> {
     let tail = "";
+    const readableStream = await this.io.readableStream(filePath);
 
-    for await (const chunk of await this.io.readableStream(filePath)) {
+    for await (const chunk of streamAsyncIterator(readableStream)) {
+      if (!chunk) continue;
       let start = 0;
       let idx = chunk.indexOf("\n");
       // First line: prepend leftover from previous chunk
@@ -1334,5 +1336,18 @@ export class IfcSplitter {
       stage,
       timeElapsed: performance.measure(stage).duration,
     });
+  }
+}
+
+async function* streamAsyncIterator<T>(stream: ReadableStream<T>) {
+  const reader = stream.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      yield value;
+    }
+  } finally {
+    reader.releaseLock();
   }
 }
