@@ -7,6 +7,37 @@
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
+export interface IfcSplitterIO {
+  readableStream(path: string): Promise<ReadableStream<string | undefined>>;
+  writableStream(path: string): Promise<WritableStream<string>>;
+}
+
+export type IfcSplitterStage =
+  | "parse"
+  | "spatial"
+  | "voidfill"
+  | "stylemaps"
+  | "classify"
+  | "aggregate"
+  | "cluster"
+  | "distribute"
+  | "index-rels"
+  | "resolve"
+  | "build-mask"
+  | "write";
+
+export interface IfcSplitterEvents {
+  progress: {
+    stage: IfcSplitterStage;
+    timeElapsed: number;
+  };
+  warning: {
+    message: string;
+    context: { id: number; type?: string };
+  };
+  data: (GroupData | null)[];
+}
+
 /** Mapping of void/fill relationships between walls, openings, and fillers (doors/windows). */
 export interface VoidFillMap {
   wallToOpenings: Map<number, Set<number>>;
@@ -681,37 +712,6 @@ function resolveStyles(
 // Main split logic
 // ---------------------------------------------------------------------------
 
-export interface IfcSplitterIO {
-  readableStream(path: string): Promise<ReadableStream<string | undefined>>;
-  writableStream(path: string): Promise<WritableStream<string>>;
-}
-
-export type IfcSplitterStage =
-  | "index"
-  | "spatial"
-  | "voidfill"
-  | "stylemaps"
-  | "classify"
-  | "aggregate"
-  | "cluster"
-  | "distribute"
-  | "index-rels"
-  | "resolve"
-  | "build-mask"
-  | "write";
-
-export interface IfcSplitterEvents {
-  progress: {
-    stage: IfcSplitterStage;
-    timeElapsed: number;
-  };
-  warning: {
-    message: string;
-    context: { id: number; type?: string };
-  };
-  data: (GroupData | null)[];
-}
-
 export class IfcSplitter {
   protected readonly io: IfcSplitterIO;
   protected readonly eventTarget: EventTarget;
@@ -754,9 +754,9 @@ export class IfcSplitter {
     outputPath: (groupId: number) => string,
   ): Promise<Map<string, Set<number>>> {
     // 1. Parse
-    this.mark("index");
+    this.mark("parse");
     const { header, footer, index } = await this.parseIfc(inputPath);
-    this.emitProgressEvent("index");
+    this.emitProgressEvent("parse");
 
     // 2. Identify spatial structure (shared in all files)
     this.mark("spatial");
@@ -960,7 +960,7 @@ export class IfcSplitter {
     inputPath: string,
     elementIds: number[],
     outputPath: string,
-  ): Promise<void> {
+  ): Promise<Set<number>> {
     // 1. Parse
     const { header, footer, index } = await this.parseIfc(inputPath);
 
@@ -1110,6 +1110,8 @@ export class IfcSplitter {
     await writer.write(`${footer.join("\n")}\n`);
     await writer.close();
     this.emitProgressEvent("write");
+
+    return fileIds;
   }
 
   async parseIfc(filePath: string): Promise<ParseResult> {
