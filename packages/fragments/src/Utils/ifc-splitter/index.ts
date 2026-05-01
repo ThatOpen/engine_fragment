@@ -3,12 +3,14 @@
 /* eslint-disable no-cond-assign */
 /* eslint-disable no-bitwise */
 
+import { IfcDecoderStream } from "../ifc-stream";
+
 // ---------------------------------------------------------------------------
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
 export interface IfcSplitterIO {
-  readableStream(path: string): Promise<ReadableStream<string | undefined>>;
+  readableStream(path: string): Promise<ReadableStream<Uint8Array>>;
   writableStream(path: string): Promise<WritableStream<string>>;
 }
 
@@ -1173,38 +1175,13 @@ export class IfcSplitter {
     filePath: string,
     callback: (line: string) => void | Promise<void>,
   ): Promise<void> {
-    let tail = "";
-    const readableStream = await this.io.readableStream(filePath);
+    const readableStream = (await this.io.readableStream(filePath)).pipeThrough(
+      new IfcDecoderStream(),
+    );
 
-    for await (const chunk of streamAsyncIterator(readableStream)) {
-      if (!chunk) continue;
-      let start = 0;
-      let idx = chunk.indexOf("\n");
-      // First line: prepend leftover from previous chunk
-      if (idx !== -1) {
-        let end = idx;
-        if (end > 0 && chunk.charCodeAt(end - 1) === 13) end--;
-        await callback(
-          tail
-            ? tail + chunk.substring(start, end)
-            : chunk.substring(start, end),
-        );
-        tail = "";
-        start = idx + 1;
-      } else {
-        tail += chunk;
-        continue;
-      }
-      // Remaining lines — hot loop, no tail concat needed
-      while ((idx = chunk.indexOf("\n", start)) !== -1) {
-        let end = idx;
-        if (end > start && chunk.charCodeAt(end - 1) === 13) end--;
-        await callback(chunk.substring(start, end));
-        start = idx + 1;
-      }
-      if (start < chunk.length) tail = chunk.substring(start);
+    for await (const line of streamAsyncIterator(readableStream)) {
+      await callback(line);
     }
-    if (tail) await callback(tail);
   }
 
   protected async writeSplitOutput(
