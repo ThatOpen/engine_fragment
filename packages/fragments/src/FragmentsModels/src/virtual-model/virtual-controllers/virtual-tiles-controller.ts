@@ -609,19 +609,24 @@ export class VirtualTilesController {
       // its semantics here is a localised change.
       //
       // Two-step lookup per the schema:
-      //   Sample.item           → itemIndex
+      //   Sample.item             → itemIndex
       //   meshes_items[itemIndex] → localIdIndex
       //   local_ids[localIdIndex] → localId
       // Mirrors `VirtualPropertiesController.getLocalIdsFromItemIds`.
-      // Falling back to itemIndex on a missing slot keeps the buffer
-      // populated rather than zeroed, preserving uniqueness for
-      // picking even when a stray index can't resolve.
+      // On a missing slot we write `0` rather than the raw itemIndex —
+      // raw itemIndex is the wrong namespace and could collide with
+      // unrelated localIds, silently routing pickers to the wrong
+      // item. Picker consumers are expected to treat decoded `0` as
+      // "no item under cursor".
       const itemIndex = this.itemId(sample.sample);
       const localIdIndex = this.meshes.meshesItems(itemIndex);
-      const localId =
-        localIdIndex !== null
-          ? (this._model.localIds(localIdIndex) ?? itemIndex)
-          : itemIndex;
+      let localId = 0;
+      if (localIdIndex !== null) {
+        const resolved = this._model.localIds(localIdIndex);
+        if (resolved !== null && resolved !== undefined) {
+          localId = resolved;
+        }
+      }
       tile.ids!.fill(localId, start, end);
     }
   }
