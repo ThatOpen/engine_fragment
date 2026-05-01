@@ -32068,6 +32068,12 @@ const _VirtualTilesController = class _VirtualTilesController {
     __publicField(this, "_boxes");
     __publicField(this, "_items");
     __publicField(this, "_materials");
+    /**
+     * FlatBuffer Model handle. Held to translate the per-sample item
+     * index into the user-facing localId when filling the geometry's
+     * `id` per-vertex attribute.
+     */
+    __publicField(this, "_model");
     __publicField(this, "_modelId");
     __publicField(this, "_lastView", {
       rotation: new Vector3(),
@@ -32127,6 +32133,7 @@ const _VirtualTilesController = class _VirtualTilesController {
       data.connection,
       data.multithreading
     );
+    this._model = data.model;
     this.meshes = data.model.meshes();
     this._sampleAmount = this.meshes.samplesLength();
     this._samples = new ItemConfigController(this._sampleAmount);
@@ -32494,7 +32501,10 @@ const _VirtualTilesController = class _VirtualTilesController {
     if (geometry.objectClass === ObjectClass.SHELL) {
       const start = tile.vertexLocation[location];
       const end = start + geometry.positionCount / 3;
-      tile.ids.fill(this.itemId(sample.sample), start, end);
+      const itemIndex = this.itemId(sample.sample);
+      const localIdIndex = this.meshes.meshesItems(itemIndex);
+      const localId = localIdIndex !== null ? this._model.localIds(localIdIndex) ?? itemIndex : itemIndex;
+      tile.ids.fill(localId, start, end);
     }
   }
   getTileVisibility(tile, locations) {

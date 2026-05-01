@@ -82,6 +82,12 @@ export class VirtualTilesController {
   private readonly _boxes: VirtualBoxController;
   private readonly _items: ItemConfigController;
   private readonly _materials: number[];
+  /**
+   * FlatBuffer Model handle. Held to translate the per-sample item
+   * index into the user-facing localId when filling the geometry's
+   * `id` per-vertex attribute.
+   */
+  private readonly _model: Model;
   private readonly _modelId: string;
 
   private readonly _lastView = {
@@ -147,6 +153,7 @@ export class VirtualTilesController {
       data.connection,
       data.multithreading,
     );
+    this._model = data.model;
     this.meshes = data.model.meshes() as Meshes;
     this._sampleAmount = this.meshes.samplesLength();
     this._samples = new ItemConfigController(this._sampleAmount);
@@ -593,7 +600,29 @@ export class VirtualTilesController {
     if (geometry.objectClass === ObjectClass.SHELL) {
       const start = tile.vertexLocation[location];
       const end = start + geometry.positionCount! / 3;
-      tile.ids!.fill(this.itemId(sample.sample), start, end);
+      // Per-vertex `id` attribute on tile geometry stores the
+      // user-facing **localId**, not the internal item index.
+      // Consumers (currently only GPU-readback pickers) can read this
+      // attribute as a colour-encoded value and decode straight to a
+      // localId — no worker round-trip needed to translate. The id
+      // buffer isn't otherwise consumed inside fragments, so flipping
+      // its semantics here is a localised change.
+      //
+      // Two-step lookup per the schema:
+      //   Sample.item           → itemIndex
+      //   meshes_items[itemIndex] → localIdIndex
+      //   local_ids[localIdIndex] → localId
+      // Mirrors `VirtualPropertiesController.getLocalIdsFromItemIds`.
+      // Falling back to itemIndex on a missing slot keeps the buffer
+      // populated rather than zeroed, preserving uniqueness for
+      // picking even when a stray index can't resolve.
+      const itemIndex = this.itemId(sample.sample);
+      const localIdIndex = this.meshes.meshesItems(itemIndex);
+      const localId =
+        localIdIndex !== null
+          ? (this._model.localIds(localIdIndex) ?? itemIndex)
+          : itemIndex;
+      tile.ids!.fill(localId, start, end);
     }
   }
 
