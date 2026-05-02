@@ -101,13 +101,22 @@ export class FragmentsModels {
      * main thread. Set this once at FragmentsModels construction; changing
      * it after a model has been loaded has no effect on already-loaded
      * models (they keep the value they were created with).
+     *
+     * Default 16 ms (one frame at 60 Hz). The previous 64 ms default
+     * left tile updates sitting in the worker's outflow buffer for up
+     * to ~1 frame longer than necessary; lowering it tightens the
+     * latency between worker work and visible result on every
+     * interaction. Apps with very heavy worker output may want to
+     * raise this to reduce postMessage frequency.
      */
-    meshConnectionRate: 64,
+    meshConnectionRate: 16,
     /**
      * Number of queued mesh requests that triggers an immediate flush.
-     * Same setup-time semantics as {@link meshConnectionRate}.
+     * Same setup-time semantics as {@link meshConnectionRate}. Default
+     * 4 — bursts of work flush within a frame instead of being
+     * pinned to the rate timer.
      */
-    meshConnectionThreshold: 16,
+    meshConnectionThreshold: 4,
     /**
      * Delay in milliseconds between worker-side update loops when work is
      * complete. Note: each worker has a single shared update loop, so when
@@ -115,8 +124,14 @@ export class FragmentsModels {
      * `threadGroup`), the most recently loaded model's value applies to
      * every model on that worker. Set this once at FragmentsModels
      * construction and treat it as a global tuning knob.
+     *
+     * Default 32 ms (~30 Hz). The previous 128 ms default left the
+     * worker idling for up to ~8 frames between iterations, which on
+     * interactive workloads showed up as visible lag between RPC and
+     * visual settle. Apps with low-end CPUs may want to raise it to
+     * reduce idle-loop overhead.
      */
-    threadUpdaterDelay: 128,
+    threadUpdaterDelay: 32,
   };
 
   /** Coordinates of the first loaded model, used for coordinate system alignment */
