@@ -92,9 +92,15 @@ export class FragmentsModels {
     maxUpdateRate: 100,
     /** Graphics quality level - 0 is low quality, 1 is high quality */
     graphicsQuality: 0,
-    /** Force update rate in milliseconds */
+    /**
+     * @deprecated The polling-based force-flush implementation has
+     * been replaced by a sequence-fence one (`forceUpdateFinish`
+     * resolves the moment a FINISH stamped with the relevant seq
+     * arrives). These knobs are no longer read; kept only to avoid
+     * breaking apps that set them.
+     */
     forceUpdateRate: 200,
-    /** Force update buffer time in milliseconds */
+    /** @deprecated See {@link forceUpdateRate}. */
     forceUpdateBuffer: 200,
     /**
      * Interval in milliseconds to flush queued mesh requests from thread to
@@ -385,12 +391,11 @@ export class FragmentsModels {
     }
     await Promise.all(modelUpdates);
 
-    // This might not be ideal
     if (force) {
-      await this.models.forceUpdateFinish(
-        this.settings.forceUpdateRate,
-        this.settings.forceUpdateBuffer,
-      );
+      // Sequence-fence based: resolves precisely when every RPC
+      // dispatched up to this call has had its effects flushed to
+      // main and applied. No polling, no buffer.
+      await this.models.forceUpdateFinish();
     } else {
       this.models.update();
     }

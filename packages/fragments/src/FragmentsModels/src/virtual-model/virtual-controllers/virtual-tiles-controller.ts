@@ -37,6 +37,7 @@ import {
 } from "../../../../Schema";
 import { ItemConfigController } from "./item-config-controller";
 import { MeshConnection } from "../../multithreading/mesh-connection";
+import { thread } from "../../multithreading/fragments-thread";
 import { RaycastController } from "./raycast-controller";
 import { VirtualMemoryController } from "./virtual-memory-controller";
 
@@ -416,6 +417,14 @@ export class VirtualTilesController {
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.FINISH,
       modelId: this._modelId,
+      // Stamp with the highest seq this worker has seen on incoming
+      // RPCs. Because RPC handlers serialize with the update tick on
+      // the worker (single-threaded JS), any RPC that finished before
+      // this tick has had its state changes processed during it — so
+      // any tile updates emitted in this batch reflect those RPCs'
+      // effects. Main uses the stamp to resolve `forceUpdateFinish`
+      // waiters precisely, no buffer / poll required.
+      seq: thread.lastSeenSeq,
     });
     this.tilesUpdated = true;
   }

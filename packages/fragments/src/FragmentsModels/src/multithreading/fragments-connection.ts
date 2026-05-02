@@ -104,6 +104,25 @@ export class FragmentsConnection extends Connection {
     return response.result;
   }
 
+  /**
+   * Tag every outbound request with a monotonic `seq`. The worker
+   * tracks the highest seq it has processed and stamps emitted
+   * `FINISH` tile requests with it; main uses the stamp to resolve
+   * `forceUpdateFinish` waiters without polling. Only set if not
+   * already present so internal callers can override (none currently
+   * do, but keeps the contract explicit).
+   *
+   * Done at the connection level rather than per-helper so every
+   * RPC type — EXECUTE, REFRESH_VIEW, GET_BOXES, etc. — is covered
+   * uniformly.
+   */
+  override fetch(input: any, content?: any[]) {
+    if (input.seq === undefined) {
+      input.seq = MultithreadingHelper.nextSeq();
+    }
+    return super.fetch(input, content);
+  }
+
   protected override async fetchConnection(input: any): Promise<MessagePort> {
     const thread = this._data.getAndCheckThread(input.modelId);
     if (thread) {

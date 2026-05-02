@@ -73,9 +73,40 @@ export class MultithreadingHelper {
     return data;
   }
 
+  /**
+   * Monotonic sequence counter for RPC fence tracking. Every EXECUTE
+   * request gets a fresh seq; the worker tags emitted FINISH tile
+   * requests with the highest seq it has processed since the previous
+   * FINISH, and main uses that to resolve `forceUpdateFinish` waiters
+   * without polling.
+   *
+   * Module-level rather than per-FragmentsModels because the seq
+   * space only needs to be unique across messages a single main
+   * thread is sending; multiple FragmentsModels in the same window
+   * would race on a shared counter regardless. This is simpler and
+   * avoids threading through the helper's API.
+   */
+  private static _seq = 0;
+
+  /**
+   * Last seq dispatched. Snapshot at `forceUpdateFinish` call time
+   * to know which seq must settle before we can resolve.
+   */
+  static get lastDispatchedSeq() {
+    return MultithreadingHelper._seq;
+  }
+
+  static nextSeq() {
+    MultithreadingHelper._seq += 1;
+    return MultithreadingHelper._seq;
+  }
+
   static getExecuteRequest(modelId: string, method: string, args: any) {
     const parameters = Array.from(args);
     const className = MultiThreadingRequestClass.EXECUTE;
+    // `seq` is attached at the FragmentsConnection.fetch level so every
+    // main → worker request (EXECUTE, REFRESH_VIEW, GET_BOXES, …) gets
+    // tagged consistently. Tagging here would only cover EXECUTE.
     return { class: className, modelId, function: method, parameters };
   }
 
