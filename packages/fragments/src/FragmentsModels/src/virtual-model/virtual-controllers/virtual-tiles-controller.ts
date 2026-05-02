@@ -82,12 +82,6 @@ export class VirtualTilesController {
   private readonly _boxes: VirtualBoxController;
   private readonly _items: ItemConfigController;
   private readonly _materials: number[];
-  /**
-   * FlatBuffer Model handle. Held to translate the per-sample item
-   * index into the user-facing localId when filling the geometry's
-   * `id` per-vertex attribute.
-   */
-  private readonly _model: Model;
   private readonly _modelId: string;
 
   private readonly _lastView = {
@@ -153,7 +147,6 @@ export class VirtualTilesController {
       data.connection,
       data.multithreading,
     );
-    this._model = data.model;
     this.meshes = data.model.meshes() as Meshes;
     this._sampleAmount = this.meshes.samplesLength();
     this._samples = new ItemConfigController(this._sampleAmount);
@@ -608,43 +601,35 @@ export class VirtualTilesController {
     if (geometry.objectClass === ObjectClass.SHELL) {
       const start = tile.vertexLocation[location];
       const end = start + geometry.positionCount! / 3;
-      // Per-vertex `id` attribute on tile geometry stores the
-      // user-facing **localId**, not the internal item index.
-      // Consumers (currently only GPU-readback pickers) can read this
-      // attribute as a colour-encoded value and decode straight to a
-      // localId — no worker round-trip needed to translate. The id
-      // buffer isn't otherwise consumed inside fragments, so flipping
-      // its semantics here is a localised change.
+      // Per-vertex `id` attribute on tile geometry stores the internal
+      // **itemId** (the FlatBuffer's `sample.item()` index, also the key
+      // for `boxes.sampleOf`). We chose itemId rather than the user-
+      // facing `localId` because picker consumers that need geometry —
+      // snap, item-shell extraction — can pull samples for an itemId
+      // in O(1) via `boxes.sampleOf`, whereas a localId-keyed fetch
+      // has to scan the whole sample table to find matches. That scan
+      // dominates first-snap latency on big models (~1 s on superbig).
       //
-      // Two-step lookup per the schema:
-      //   Sample.item             → itemIndex
-      //   meshes_items[itemIndex] → localIdIndex
-      //   local_ids[localIdIndex] → localId
-      // Mirrors `VirtualPropertiesController.getLocalIdsFromItemIds`.
-      // On a missing slot we write `0` rather than the raw itemIndex —
-      // raw itemIndex is the wrong namespace and could collide with
-      // unrelated localIds, silently routing pickers to the wrong
-      // item. Picker consumers are expected to treat decoded `0` as
-      // "no item under cursor".
-      const itemIndex = this.itemId(sample.sample);
-      const localIdIndex = this.meshes.meshesItems(itemIndex);
-      let localId = 0;
-      if (localIdIndex !== null) {
-        const resolved = this._model.localIds(localIdIndex);
-        if (resolved !== null && resolved !== undefined) {
-          localId = resolved;
-        }
-      }
-      // Big-endian byte split of the uint32 localId. The picker shader
-      // reads this as `attribute vec4 id` (itemSize=4, normalized=false)
-      // and writes it straight to gl_FragColor, so the readback yields
-      // the four bytes in the same order. Top byte uses division (not
-      // `>>> 24`) because JS bitwise ops are 32-bit signed and would
-      // mishandle ids with the high bit set.
-      const b0 = Math.floor(localId / 0x1000000) & 0xff;
-      const b1 = Math.floor(localId / 0x10000) & 0xff;
-      const b2 = Math.floor(localId / 0x100) & 0xff;
-      const b3 = localId & 0xff;
+      // Consumers that want the user-facing localId translate via the
+      // `meshes_items[itemId] → localIds[..]` path. Fragments exposes
+      // a flat lookup table on the main thread (`itemIdToLocalIdMap`)
+      // so this stays synchronous.
+      //
+      // Encoding: `itemId + 1` so the decoded `0` byte stays reserved
+      // as the "no item under cursor" void sentinel — itemId 0 is a
+      // valid item, so we can't write it raw. Decoder subtracts 1.
+      const itemId = this.itemId(sample.sample);
+      const encoded = (itemId + 1) >>> 0;
+      // Big-endian byte split of the uint32 encoded value. The picker
+      // shader reads this as `attribute vec4 id` (itemSize=4,
+      // normalized=false) and writes it straight to gl_FragColor, so
+      // the readback yields the four bytes in the same order. Top
+      // byte uses division (not `>>> 24`) because JS bitwise ops are
+      // 32-bit signed and would mishandle ids with the high bit set.
+      const b0 = Math.floor(encoded / 0x1000000) & 0xff;
+      const b1 = Math.floor(encoded / 0x10000) & 0xff;
+      const b2 = Math.floor(encoded / 0x100) & 0xff;
+      const b3 = encoded & 0xff;
       const buf = tile.ids! as Uint8Array;
       for (let i = start; i < end; i++) {
         const o = i * 4;

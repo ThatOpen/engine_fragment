@@ -206,6 +206,21 @@ export class EditManager {
     ) as Promise<number[]>;
   }
 
+  /**
+   * Fast snap-only fetch keyed by `itemId` — the FlatBuffer
+   * `sample.item()` index that the GPU picker now writes into the
+   * per-vertex `id` attribute. Returns just the data the snap path
+   * needs (samples, transforms, SHELL representations); skips the
+   * whole-sample-table scan that `getElements` does.
+   *
+   * Returns `null` if the item has no shells (e.g. line-only items).
+   */
+  async getItemSnapData(model: FragmentsModel, itemId: number) {
+    return model.threads.invoke(model.modelId, "getItemSnapData", [
+      itemId,
+    ]) as Promise<EDIT.ElementData | null>;
+  }
+
   async getElements(model: FragmentsModel, localIds: Iterable<number>) {
     const itemsData = (await model.threads.invoke(
       model.modelId,

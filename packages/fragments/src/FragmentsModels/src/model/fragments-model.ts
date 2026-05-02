@@ -1011,6 +1011,15 @@ export class FragmentsModel {
   }
 
   /**
+   * Fast snap-only fetch keyed by **itemId**. See
+   * `EditManager.getItemSnapData`. Internal — picker / SnapResolver
+   * consume this. App code should keep using `_getElements` (localId).
+   */
+  async _getItemSnapData(itemId: number) {
+    return this._editManager.getItemSnapData(this, itemId);
+  }
+
+  /**
    * Internal method to finish processing. Don't use this directly.
    */
   _finishProcessing() {

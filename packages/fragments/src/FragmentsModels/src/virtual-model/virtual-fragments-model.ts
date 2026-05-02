@@ -761,6 +761,16 @@ export class VirtualFragmentsModel {
     return EditUtils.getElementsData(this, filtered);
   }
 
+  /**
+   * Fast snap-only data fetch keyed by **itemId** (the FlatBuffer's
+   * `sample.item()` index). See `EditUtils.getItemSnapData` for the
+   * rationale; in short, it uses `boxes.sampleOf(itemId)` for an O(1)
+   * sample lookup instead of walking the full sample table.
+   */
+  getItemSnapData(itemId: number) {
+    return EditUtils.getItemSnapData(this, itemId);
+  }
+
   setLodMode(lodMode: LodMode) {
     this.tiles.setLodMode(lodMode);
   }

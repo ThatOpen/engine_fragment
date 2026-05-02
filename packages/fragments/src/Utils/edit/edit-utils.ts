@@ -36,6 +36,7 @@ export class EditUtils {
   static getItems = FF.getItems;
   static getGlobalTranformsIdsOfItems = FF.getGlobalTranformsIdsOfItems;
   static getElementsData = FF.getElementsData;
+  static getItemSnapData = FF.getItemSnapData;
   static getGeometryIndicesFromRepresentations =
     FF.getGeometryIndicesFromRepresentations;
   static getRootModelId = FF.getRootModelId;

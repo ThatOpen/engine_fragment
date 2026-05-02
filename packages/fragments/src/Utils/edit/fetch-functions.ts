@@ -593,3 +593,91 @@ export function getElementsData(
 
   return result;
 }
+
+/**
+ * Fast snap-only fetch keyed by **itemId** (the FlatBuffer's
+ * `sample.item()` index, also the key for `boxes.sampleOf`). Returns
+ * just the data the snap resolver needs — samples, localTransforms,
+ * globalTransforms, and SHELL representations. Skips materials and
+ * any non-SHELL representations that the snap path ignores.
+ *
+ * Why a separate fetch instead of `getElementsData(localId)`: that
+ * function walks every sample in the model (`for i < samplesLength()`)
+ * and filters by localId. On a model with millions of samples a single
+ * fetch costs ~1 s regardless of how few items you ask for. Here we
+ * use the existing `boxes.sampleOf(itemId)` reverse index — already
+ * built — to jump straight to the relevant samples in O(1), then
+ * decode just those (~10 samples for a typical item). Drops first-snap
+ * latency on big models from ~1 s to a few ms.
+ */
+export function getItemSnapData(
+  vModel: VirtualFragmentsModel,
+  itemId: number,
+): ET.ElementData | null {
+  const model = vModel.data;
+  const meshes = model.meshes()!;
+
+  const sampleIndices = vModel.boxes.sampleOf(itemId);
+  if (!sampleIndices || sampleIndices.length === 0) return null;
+
+  const result: ET.ElementData = {
+    samples: {},
+    localTransforms: {},
+    globalTransforms: {},
+    representations: {},
+    materials: {},
+  };
+
+  // Resolve the user-facing localId once for `globalTransforms.itemId`
+  // so consumers that key on it (mirrors `getElementsData`) keep
+  // working. We don't otherwise need the localId — the rest of the
+  // fetch is keyed by itemId.
+  const localIdIndex = meshes.meshesItems(itemId);
+  const localId =
+    localIdIndex !== null ? (model.localIds(localIdIndex) ?? itemId) : itemId;
+
+  // The global transform is identified by `itemId` and is the same
+  // across every sample of the item, so we materialise it once.
+  const tempTransform = new TFB.Transform();
+  meshes.globalTransforms(itemId, tempTransform);
+  const gTransform = getTransformData(tempTransform);
+  const gtId = meshes.globalTransformIds(itemId)!;
+  result.globalTransforms[gtId] = { ...gTransform, itemId: localId };
+
+  const tempRepresentation = new TFB.Representation();
+  const tempShell = new TFB.Shell();
+
+  for (const sampleIndex of sampleIndices) {
+    const sample = meshes.samples(sampleIndex)!;
+    const ltIndex = sample.localTransform()!;
+    const representationIndex = sample.representation()!;
+
+    const sampleLocalId = meshes.sampleIds(sampleIndex)!;
+    const ltId = meshes.localTransformIds(ltIndex)!;
+    const reprId = meshes.representationIds(representationIndex)!;
+
+    result.samples[sampleLocalId] = {
+      item: gtId,
+      localTransform: ltId,
+      // Snap doesn't read material; keep the field shape but point
+      // at a sentinel so callers see a stable type.
+      material: 0,
+      representation: reprId,
+    };
+
+    meshes.localTransforms(ltIndex, tempTransform);
+    result.localTransforms[ltId] = getTransformData(tempTransform);
+
+    if (result.representations[reprId]) continue;
+    meshes.representations(representationIndex, tempRepresentation);
+    const repr = getRepresentationData(tempRepresentation);
+    if (repr.representationClass === TFB.RepresentationClass.SHELL) {
+      meshes.shells(repr.id!, tempShell);
+      const shell = getShellData(tempShell);
+      repr.geometry = shell;
+    }
+    result.representations[reprId] = repr;
+  }
+
+  return result;
+}
