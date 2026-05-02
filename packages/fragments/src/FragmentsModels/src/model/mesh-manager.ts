@@ -215,7 +215,11 @@ export class MeshManager {
 
   private setItemIds(itemIds: any, geometry: THREE.BufferGeometry) {
     if (itemIds) {
-      geometry.setAttribute("id", new THREE.BufferAttribute(itemIds, 1, false));
+      // 4 bytes per vertex (the four bytes of the localId, big-
+      // endian). Bound as `vec4` so the picker shader can pass
+      // them straight to `gl_FragColor` and decode the full uint32
+      // at the readback step.
+      geometry.setAttribute("id", new THREE.BufferAttribute(itemIds, 4, false));
       this.cleanAttributeMemory(geometry, "id");
     }
   }

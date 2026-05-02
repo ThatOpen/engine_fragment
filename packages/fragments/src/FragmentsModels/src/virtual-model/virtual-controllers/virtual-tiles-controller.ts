@@ -512,7 +512,15 @@ export class VirtualTilesController {
     ) {
       return;
     }
-    tile.ids = new Float32Array(tile.positionCount! / 3);
+    // Per-vertex localId is stored as 4 contiguous bytes per vertex.
+    // Bound on the main thread as `BufferAttribute(buf, 4, false)`,
+    // the GPU picker shader reads the localId as `attribute vec4 id`
+    // (each component a 0–255 float) and writes those bytes
+    // unchanged into `gl_FragColor` — no decode math, no precision
+    // games, full uint32 range. Stored as `Uint8Array(N * 4)`, which
+    // is the same byte cost as the previous `Float32Array(N)` per-
+    // vertex storage but supports the full localId range exactly.
+    tile.ids = new Uint8Array((tile.positionCount! / 3) * 4);
     tile.usedMemory += tile.ids.byteLength;
   }
 
@@ -627,7 +635,24 @@ export class VirtualTilesController {
           localId = resolved;
         }
       }
-      tile.ids!.fill(localId, start, end);
+      // Big-endian byte split of the uint32 localId. The picker shader
+      // reads this as `attribute vec4 id` (itemSize=4, normalized=false)
+      // and writes it straight to gl_FragColor, so the readback yields
+      // the four bytes in the same order. Top byte uses division (not
+      // `>>> 24`) because JS bitwise ops are 32-bit signed and would
+      // mishandle ids with the high bit set.
+      const b0 = Math.floor(localId / 0x1000000) & 0xff;
+      const b1 = Math.floor(localId / 0x10000) & 0xff;
+      const b2 = Math.floor(localId / 0x100) & 0xff;
+      const b3 = localId & 0xff;
+      const buf = tile.ids! as Uint8Array;
+      for (let i = start; i < end; i++) {
+        const o = i * 4;
+        buf[o] = b0;
+        buf[o + 1] = b1;
+        buf[o + 2] = b2;
+        buf[o + 3] = b3;
+      }
     }
   }
 
