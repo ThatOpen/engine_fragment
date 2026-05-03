@@ -4,6 +4,14 @@
 /* eslint-disable no-bitwise */
 
 import { Event } from "../event";
+import {
+  extractArgsString,
+  extractLineMeta,
+  extractRefs,
+  parseHashRef,
+  splitIfcArgs,
+} from "../ifc-parsing-utils";
+import { streamAsyncIterator } from "../ifc-stream";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
@@ -86,10 +94,6 @@ export interface GroupData {
 // ---------------------------------------------------------------------------
 // Internal interfaces
 // ---------------------------------------------------------------------------
-interface ExtractIdResult {
-  id: number;
-  type: string;
-}
 
 interface ParseResult {
   header: string[];
@@ -204,102 +208,6 @@ const shouldRewriteType = (type: string): boolean => {
   if (type === "IFCPRESENTATIONLAYERASSIGNMENT") return true;
   return false;
 };
-
-// ---------------------------------------------------------------------------
-// Parse helpers — manual charCode-based extractors for speed on 37M+ lines
-// ---------------------------------------------------------------------------
-function extractId(raw: string): ExtractIdResult | null {
-  if (raw.charCodeAt(0) !== 35) return null; // '#'
-  let id = 0;
-  let i = 1;
-  while (i < raw.length) {
-    const c = raw.charCodeAt(i);
-    if (c >= 48 && c <= 57) {
-      id = id * 10 + (c - 48);
-      i++;
-    } else break;
-  }
-  if (id === 0) return null;
-  while (i < raw.length && raw.charCodeAt(i) <= 32) i++;
-  if (raw.charCodeAt(i) !== 61) return null; // '='
-  i++;
-  while (i < raw.length && raw.charCodeAt(i) <= 32) i++;
-  const ts = i;
-  while (i < raw.length) {
-    const c = raw.charCodeAt(i);
-    if ((c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c === 95) i++;
-    else break;
-  }
-  if (i === ts) return null;
-  return { id, type: raw.substring(ts, i) };
-}
-
-function extractRefs(raw: string, skipId?: number): number[] {
-  const refs: number[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    if (raw.charCodeAt(i) === 35) {
-      // '#'
-      let id = 0;
-      i++;
-      while (i < raw.length) {
-        const c = raw.charCodeAt(i);
-        if (c >= 48 && c <= 57) {
-          id = id * 10 + (c - 48);
-          i++;
-        } else break;
-      }
-      if (id > 0 && id !== skipId) refs.push(id);
-      i--; // outer loop will i++
-    }
-  }
-  return refs;
-}
-
-function splitIfcArgs(s: string): string[] {
-  const args: string[] = [];
-  let depth = 0;
-  let inStr = false;
-  let current = "";
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (ch === "'" && !inStr) {
-      inStr = true;
-      current += ch;
-    } else if (ch === "'" && inStr) {
-      inStr = false;
-      current += ch;
-    } else if (inStr) {
-      current += ch;
-    } else if (ch === "(") {
-      depth++;
-      current += ch;
-    } else if (ch === ")") {
-      depth--;
-      current += ch;
-    } else if (ch === "," && depth === 0) {
-      args.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  if (current.trim()) args.push(current.trim());
-  return args;
-}
-
-function parseHashRef(s: string): number | null {
-  const m = s.trim().match(/^#(\d+)$/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-function extractArgsString(raw: string | undefined): string | null {
-  if (!raw) return null;
-  const idx = raw.indexOf("(");
-  if (idx < 0) return null;
-  const lastParen = raw.lastIndexOf(")");
-  if (lastParen < 0) return null;
-  return raw.substring(idx + 1, lastParen);
-}
 
 // ---------------------------------------------------------------------------
 // Compact line storage: sparse arrays indexed by IFC id
@@ -726,6 +634,56 @@ function resolveStyles(
 // Main split logic
 // ---------------------------------------------------------------------------
 
+async function emitSplitLine(
+  writers: (WritableStreamDefaultWriter | null)[],
+  raw: string,
+  groupsData: (GroupData | null)[],
+  idGroupMask: Uint32Array,
+): Promise<void> {
+  if (raw.charCodeAt(0) !== 35) return; // '#'
+  let id = 0;
+  for (let i = 1; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    if (c >= 48 && c <= 57) {
+      id = id * 10 + (c - 48);
+    } else {
+      break;
+    }
+  }
+  if (id === 0 || id >= idGroupMask.length) return;
+
+  const mask = idGroupMask[id];
+  if (mask === 0) return;
+
+  for (let g = 0; g < groupsData.length; g++) {
+    if (!(mask & (1 << g))) continue;
+    const gd = groupsData[g]!;
+    const line = gd.rewrittenLines.get(id) ?? raw;
+    await writers[g]!.write(`${line}\n`);
+  }
+}
+
+async function emitExtractLine(
+  writer: WritableStreamDefaultWriter,
+  raw: string,
+  includeSet: Set<number>,
+  rewrittenLines: Map<number, string>,
+): Promise<void> {
+  if (raw.charCodeAt(0) !== 35) return; // '#'
+  let id = 0;
+  for (let i = 1; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    if (c >= 48 && c <= 57) {
+      id = id * 10 + (c - 48);
+    } else {
+      break;
+    }
+  }
+  if (id === 0 || !includeSet.has(id)) return;
+  const line = rewrittenLines.get(id) ?? raw;
+  await writer.write(`${line}\n`);
+}
+
 export class IfcSplitter {
   protected readonly io: IfcSplitterIO;
   protected readonly eventTarget: EventTarget;
@@ -1147,7 +1105,7 @@ export class IfcSplitter {
         const trimmed = line.trim();
         if (trimmed === "ENDSEC;") {
           if (accumulator) {
-            const info = extractId(accumulator);
+            const info = extractLineMeta(accumulator);
             if (info) {
               const refs = extractRefs(accumulator, info.id);
               index.set(info.id, info.type, refs, accumulator);
@@ -1162,7 +1120,7 @@ export class IfcSplitter {
         accumulator += (accumulator ? " " : "") + trimmed;
         if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
           // ';'
-          const info = extractId(accumulator);
+          const info = extractLineMeta(accumulator);
           if (info) {
             const refs = extractRefs(accumulator, info.id);
             index.set(info.id, info.type, refs, accumulator);
@@ -1262,67 +1220,4 @@ export class IfcSplitter {
       timeElapsed: performance.now() - start,
     });
   }
-}
-
-async function* streamAsyncIterator<T>(stream: ReadableStream<T>) {
-  const reader = stream.getReader();
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) return;
-      yield value;
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-
-async function emitSplitLine(
-  writers: (WritableStreamDefaultWriter | null)[],
-  raw: string,
-  groupsData: (GroupData | null)[],
-  idGroupMask: Uint32Array,
-): Promise<void> {
-  if (raw.charCodeAt(0) !== 35) return; // '#'
-  let id = 0;
-  for (let i = 1; i < raw.length; i++) {
-    const c = raw.charCodeAt(i);
-    if (c >= 48 && c <= 57) {
-      id = id * 10 + (c - 48);
-    } else {
-      break;
-    }
-  }
-  if (id === 0 || id >= idGroupMask.length) return;
-
-  const mask = idGroupMask[id];
-  if (mask === 0) return;
-
-  for (let g = 0; g < groupsData.length; g++) {
-    if (!(mask & (1 << g))) continue;
-    const gd = groupsData[g]!;
-    const line = gd.rewrittenLines.get(id) ?? raw;
-    await writers[g]!.write(`${line}\n`);
-  }
-}
-
-async function emitExtractLine(
-  writer: WritableStreamDefaultWriter,
-  raw: string,
-  includeSet: Set<number>,
-  rewrittenLines: Map<number, string>,
-): Promise<void> {
-  if (raw.charCodeAt(0) !== 35) return; // '#'
-  let id = 0;
-  for (let i = 1; i < raw.length; i++) {
-    const c = raw.charCodeAt(i);
-    if (c >= 48 && c <= 57) {
-      id = id * 10 + (c - 48);
-    } else {
-      break;
-    }
-  }
-  if (id === 0 || !includeSet.has(id)) return;
-  const line = rewrittenLines.get(id) ?? raw;
-  await writer.write(`${line}\n`);
 }
