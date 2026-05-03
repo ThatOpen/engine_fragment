@@ -1,7 +1,6 @@
 #!/usr/bin/env node
-import * as fs from "fs";
 import * as path from "path";
-import { split } from "./index";
+import { IfcSplitterNode } from "./node";
 
 const args = process.argv.slice(2);
 if (args.length < 2) {
@@ -12,10 +11,19 @@ if (args.length < 2) {
 
 const inputPath = path.resolve(args[0]);
 const numGroups = parseInt(args[1], 10);
-const outputDir = args[2] ? path.resolve(args[2]) : undefined;
+const outputDir = args[2] ? path.resolve(args[2]) : path.dirname(inputPath);
 
 try {
-  const splitMap = split({ fs, path }, inputPath, numGroups, outputDir);
+  const splitter = new IfcSplitterNode();
+  splitter.onProgress.add(console.info);
+  splitter.onSplitsResolved.add(console.log);
+  splitter.onExtractWarning.add(console.warn);
+  const splitMap = await splitter.split(inputPath, numGroups, (groupId) =>
+    path.resolve(
+      outputDir,
+      `split_${String(groupId + 1).padStart(3, "0")}.ifc`,
+    ),
+  );
   console.log(splitMap);
 } catch (err) {
   console.error(err);

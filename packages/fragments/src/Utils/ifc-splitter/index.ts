@@ -3,43 +3,62 @@
 /* eslint-disable no-cond-assign */
 /* eslint-disable no-bitwise */
 
-// ---------------------------------------------------------------------------
-// Node.js dependency injection (avoids top-level fs/path imports for bundlers)
-// ---------------------------------------------------------------------------
-
-/** Subset of Node.js `fs` used by the splitter. */
-export interface IfcSplitterFs {
-  openSync(path: string, flags: string): number;
-  readSync(
-    fd: number,
-    buffer: any,
-    offset: number,
-    length: number,
-    position: null,
-  ): number;
-  writeSync(fd: number, data: any, offset?: number, length?: number): number;
-  closeSync(fd: number): void;
-  existsSync(path: string): boolean;
-  mkdirSync(path: string, options?: { recursive?: boolean }): void;
-  statSync(path: string): { size: number };
-}
-
-/** Subset of Node.js `path` used by the splitter. */
-export interface IfcSplitterPath {
-  join(...paths: string[]): string;
-  dirname(p: string): string;
-  basename(p: string): string;
-}
-
-/** Dependencies that must be provided by the caller (Node.js modules). */
-export interface IfcSplitterDeps {
-  fs: IfcSplitterFs;
-  path: IfcSplitterPath;
-}
+import { Event } from "../event";
+import {
+  extractArgsString,
+  extractLineMeta,
+  extractRefs,
+  parseHashRef,
+  splitIfcArgs,
+} from "../ifc-parsing-utils";
+import { streamAsyncIterator } from "../ifc-stream";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
 // ---------------------------------------------------------------------------
+
+export interface IfcSplitterIO {
+  /**
+   * @param path
+   * @throws if {@link path} doesn't exist
+   * @returns a {@link ReadableStream} streaming ifc lines
+   */
+  readableStream(path: string): Promise<ReadableStream<string>>;
+
+  /**
+   * @param path
+   * @returns a {@link WritableStream} able to write ifc lines
+   */
+  writableStream(path: string): Promise<WritableStream<string>>;
+}
+
+export type IfcSplitterStage =
+  | "parse"
+  | "spatial"
+  | "void-fill"
+  | "style-maps"
+  | "classify"
+  | "aggregate"
+  | "cluster"
+  | "distribute"
+  | "relations"
+  | "resolve"
+  | "build-mask"
+  | "write";
+
+export interface IfcSplitterProgressEvent {
+  stage: IfcSplitterStage;
+  timeElapsed: number;
+}
+
+export interface IfcSplitterWarningEvent {
+  message: string;
+  context: { id: number; type?: string };
+}
+
+export interface IfcSplitterGroupsEvent {
+  data: (GroupData | null)[];
+}
 
 /** Mapping of void/fill relationships between walls, openings, and fillers (doors/windows). */
 export interface VoidFillMap {
@@ -75,10 +94,6 @@ export interface GroupData {
 // ---------------------------------------------------------------------------
 // Internal interfaces
 // ---------------------------------------------------------------------------
-interface ExtractIdResult {
-  id: number;
-  type: string;
-}
 
 interface ParseResult {
   header: string[];
@@ -195,192 +210,6 @@ const shouldRewriteType = (type: string): boolean => {
 };
 
 // ---------------------------------------------------------------------------
-// Parse helpers — manual charCode-based extractors for speed on 37M+ lines
-// ---------------------------------------------------------------------------
-function extractId(raw: string): ExtractIdResult | null {
-  if (raw.charCodeAt(0) !== 35) return null; // '#'
-  let id = 0;
-  let i = 1;
-  while (i < raw.length) {
-    const c = raw.charCodeAt(i);
-    if (c >= 48 && c <= 57) {
-      id = id * 10 + (c - 48);
-      i++;
-    } else break;
-  }
-  if (id === 0) return null;
-  while (i < raw.length && raw.charCodeAt(i) <= 32) i++;
-  if (raw.charCodeAt(i) !== 61) return null; // '='
-  i++;
-  while (i < raw.length && raw.charCodeAt(i) <= 32) i++;
-  const ts = i;
-  while (i < raw.length) {
-    const c = raw.charCodeAt(i);
-    if ((c >= 65 && c <= 90) || (c >= 48 && c <= 57) || c === 95) i++;
-    else break;
-  }
-  if (i === ts) return null;
-  return { id, type: raw.substring(ts, i) };
-}
-
-function extractRefs(raw: string, skipId?: number): number[] {
-  const refs: number[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    if (raw.charCodeAt(i) === 35) {
-      // '#'
-      let id = 0;
-      i++;
-      while (i < raw.length) {
-        const c = raw.charCodeAt(i);
-        if (c >= 48 && c <= 57) {
-          id = id * 10 + (c - 48);
-          i++;
-        } else break;
-      }
-      if (id > 0 && id !== skipId) refs.push(id);
-      i--; // outer loop will i++
-    }
-  }
-  return refs;
-}
-
-function splitIfcArgs(s: string): string[] {
-  const args: string[] = [];
-  let depth = 0;
-  let inStr = false;
-  let current = "";
-  for (let i = 0; i < s.length; i++) {
-    const ch = s[i];
-    if (ch === "'" && !inStr) {
-      inStr = true;
-      current += ch;
-    } else if (ch === "'" && inStr) {
-      inStr = false;
-      current += ch;
-    } else if (inStr) {
-      current += ch;
-    } else if (ch === "(") {
-      depth++;
-      current += ch;
-    } else if (ch === ")") {
-      depth--;
-      current += ch;
-    } else if (ch === "," && depth === 0) {
-      args.push(current.trim());
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  if (current.trim()) args.push(current.trim());
-  return args;
-}
-
-function parseHashRef(s: string): number | null {
-  const m = s.trim().match(/^#(\d+)$/);
-  return m ? parseInt(m[1], 10) : null;
-}
-
-function extractArgsString(raw: string | undefined): string | null {
-  if (!raw) return null;
-  const idx = raw.indexOf("(");
-  if (idx < 0) return null;
-  const lastParen = raw.lastIndexOf(")");
-  if (lastParen < 0) return null;
-  return raw.substring(idx + 1, lastParen);
-}
-
-// ---------------------------------------------------------------------------
-// Synchronous chunked file reader — replaces readline (3-5x faster)
-// ---------------------------------------------------------------------------
-function forEachLine(
-  fsLike: IfcSplitterFs,
-  filePath: string,
-  callback: (line: string) => void,
-): void {
-  const CHUNK = 8 * 1024 * 1024;
-  const fd = fsLike.openSync(filePath, "r");
-  const readBuf = Buffer.allocUnsafe(CHUNK);
-  let tail = "";
-  let bytesRead: number;
-  while (
-    (bytesRead = fsLike.readSync(fd, readBuf as any, 0, CHUNK, null)) > 0
-  ) {
-    const chunk = readBuf.toString("utf-8", 0, bytesRead);
-    let start = 0;
-    let idx = chunk.indexOf("\n");
-    // First line: prepend leftover from previous chunk
-    if (idx !== -1) {
-      let end = idx;
-      if (end > 0 && chunk.charCodeAt(end - 1) === 13) end--;
-      callback(
-        tail ? tail + chunk.substring(start, end) : chunk.substring(start, end),
-      );
-      tail = "";
-      start = idx + 1;
-    } else {
-      tail += chunk;
-      continue;
-    }
-    // Remaining lines — hot loop, no tail concat needed
-    while ((idx = chunk.indexOf("\n", start)) !== -1) {
-      let end = idx;
-      if (end > start && chunk.charCodeAt(end - 1) === 13) end--;
-      callback(chunk.substring(start, end));
-      start = idx + 1;
-    }
-    if (start < chunk.length) tail = chunk.substring(start);
-  }
-  if (tail) callback(tail);
-  fsLike.closeSync(fd);
-}
-
-// ---------------------------------------------------------------------------
-// Buffered synchronous file writer — avoids per-line write() syscalls
-// ---------------------------------------------------------------------------
-class BufferedWriter {
-  readonly filePath: string;
-  private fsLike: IfcSplitterFs;
-  private fd: number;
-  private buf: Buffer;
-  private pos: number;
-  private bufSize: number;
-
-  constructor(fsLike: IfcSplitterFs, filePath: string, bufSize: number) {
-    this.filePath = filePath;
-    this.fsLike = fsLike;
-    this.fd = fsLike.openSync(filePath, "w");
-    this.buf = Buffer.allocUnsafe(bufSize);
-    this.pos = 0;
-    this.bufSize = bufSize;
-  }
-
-  write(str: string): void {
-    const bytes = Buffer.byteLength(str, "utf-8");
-    if (this.pos + bytes > this.bufSize) {
-      this.flush();
-      if (bytes > this.bufSize) {
-        this.fsLike.writeSync(this.fd, str);
-        return;
-      }
-    }
-    this.pos += this.buf.write(str, this.pos, "utf-8");
-  }
-
-  flush(): void {
-    if (this.pos > 0) {
-      this.fsLike.writeSync(this.fd, this.buf as any, 0, this.pos);
-      this.pos = 0;
-    }
-  }
-
-  close(): void {
-    this.flush();
-    this.fsLike.closeSync(this.fd);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Compact line storage: sparse arrays indexed by IFC id
 // ---------------------------------------------------------------------------
 class LineIndex {
@@ -451,6 +280,15 @@ class LineIndex {
     return this.specialRaws.get(id);
   }
 
+  getAll(types: Set<string>) {
+    const allElementIds = new Set<number>();
+    for (let id = 0; id <= this.maxId; id++) {
+      const type = this.getType(id);
+      if (type && types.has(type)) allElementIds.add(id);
+    }
+    return allElementIds;
+  }
+
   free(): void {
     // Deliberately null-out fields to reclaim memory before the write pass
     /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -460,64 +298,6 @@ class LineIndex {
     (this as any)._refLen = null;
     (this as any).specialRaws = null;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Streaming IFC parser
-// ---------------------------------------------------------------------------
-function parseIfc(fsLike: IfcSplitterFs, filePath: string): ParseResult {
-  const header: string[] = [];
-  const footer: string[] = [];
-  const index = new LineIndex();
-
-  let section: "header" | "data" | "footer" = "header";
-  let accumulator = "";
-  let lineCount = 0;
-
-  console.time("parse");
-
-  forEachLine(fsLike, filePath, (line: string) => {
-    if (section === "header") {
-      header.push(line);
-      if (line.trim() === "DATA;") section = "data";
-      return;
-    }
-    if (section === "data") {
-      const trimmed = line.trim();
-      if (trimmed === "ENDSEC;") {
-        if (accumulator) {
-          const info = extractId(accumulator);
-          if (info) {
-            const refs = extractRefs(accumulator, info.id);
-            index.set(info.id, info.type, refs, accumulator);
-            lineCount++;
-          }
-          accumulator = "";
-        }
-        section = "footer";
-        footer.push(line);
-        return;
-      }
-      accumulator += (accumulator ? " " : "") + trimmed;
-      if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-        // ';'
-        const info = extractId(accumulator);
-        if (info) {
-          const refs = extractRefs(accumulator, info.id);
-          index.set(info.id, info.type, refs, accumulator);
-          lineCount++;
-        }
-        accumulator = "";
-      }
-      return;
-    }
-    footer.push(line);
-  });
-
-  index.finalize();
-  console.timeEnd("parse");
-  console.log(`  Parsed ${lineCount} data lines (max id: ${index.maxId})`);
-  return { header, footer, index };
 }
 
 // ---------------------------------------------------------------------------
@@ -662,6 +442,38 @@ function buildAggregateMap(
   }
 
   return { parentToChildren, childToParent, aggregateRelIds };
+}
+
+function traverseSpatialStructure(index: LineIndex) {
+  const spatialIds = new Set<number>();
+  for (let id = 0; id <= index.maxId; id++) {
+    const type = index.getType(id);
+    if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
+  }
+  const sharedIds = new Set<number>();
+  for (const sid of spatialIds) {
+    collectDepsAll(sid, index, sharedIds);
+  }
+  for (let id = 0; id <= index.maxId; id++) {
+    const type = index.getType(id);
+    if (type === "IFCRELAGGREGATES") {
+      const raw = index.getRaw(id);
+      const argsStr = extractArgsString(raw);
+      if (argsStr) {
+        const args = splitIfcArgs(argsStr);
+        if (args.length >= 6) {
+          const relatingId = parseHashRef(args[4]);
+          if (relatingId && spatialIds.has(relatingId)) {
+            const listRefs = extractRefs(args[5]);
+            if (listRefs.every((r) => spatialIds.has(r))) {
+              collectDepsAll(id, index, sharedIds);
+            }
+          }
+        }
+      }
+    }
+  }
+  return sharedIds;
 }
 
 function addToSetMap(
@@ -822,577 +634,12 @@ function resolveStyles(
 // Main split logic
 // ---------------------------------------------------------------------------
 
-/**
- * Split an IFC file into N roughly equal groups of building elements.
- * @param inputPath - Absolute or relative path to the source IFC file.
- * @param numGroups - Number of output files to produce (max 32).
- * @param outputDir - Directory for output files. Defaults to `output/` next to the input file.
- */
-export function split(
-  deps: IfcSplitterDeps,
-  inputPath: string,
-  numGroups: number,
-  outputDir?: string,
-): Map<string, Set<number>> {
-  const { fs, path } = deps;
-  if (!fs.existsSync(inputPath)) {
-    console.error(`File not found: ${inputPath}`);
-    process.exit(1);
-  }
-
-  const resolvedOutputDir =
-    outputDir || path.join(path.dirname(inputPath), "output");
-  fs.mkdirSync(resolvedOutputDir, { recursive: true });
-
-  // 1. Parse
-  const { header, footer, index } = parseIfc(fs, inputPath);
-
-  // 2. Identify spatial structure (shared in all files)
-  console.time("spatial");
-  const spatialIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
-  }
-  const sharedIds = new Set<number>();
-  for (const sid of spatialIds) {
-    collectDepsAll(sid, index, sharedIds);
-  }
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type === "IFCRELAGGREGATES") {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (argsStr) {
-        const args = splitIfcArgs(argsStr);
-        if (args.length >= 6) {
-          const relatingId = parseHashRef(args[4]);
-          if (relatingId && spatialIds.has(relatingId)) {
-            const listRefs = extractRefs(args[5]);
-            if (listRefs.every((r) => spatialIds.has(r))) {
-              collectDepsAll(id, index, sharedIds);
-            }
-          }
-        }
-      }
-    }
-  }
-  console.timeEnd("spatial");
-  console.log(`  Shared infrastructure: ${sharedIds.size} lines`);
-
-  // 3. Build void/fill coupling map
-  console.time("voidfill");
-  const vfMap = buildVoidFillMap(index);
-  console.timeEnd("voidfill");
-  console.log(
-    `  Void rels: ${vfMap.wallToOpenings.size} walls with openings, ${vfMap.fillerToOpening.size} fillers`,
-  );
-
-  // 3b. Build reverse style maps
-  console.time("stylemaps");
-  const styleMaps = buildStyleMaps(index);
-  console.timeEnd("stylemaps");
-  console.log(
-    `  Style maps: ${styleMaps.geomToStyledItems.size} styled geometries, ${styleMaps.materialToDefReps.size} material representations`,
-  );
-
-  // 4. Identify all building elements
-  console.time("classify");
-  const allElementIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
-  }
-  console.timeEnd("classify");
-  console.log(`  Found ${allElementIds.size} building elements`);
-
-  // 4b. Build aggregation map
-  console.time("aggregate");
-  const aggMap = buildAggregateMap(index, allElementIds);
-  console.timeEnd("aggregate");
-  console.log(
-    `  Aggregate rels: ${aggMap.parentToChildren.size} parents, ${aggMap.childToParent.size} children`,
-  );
-
-  // 5. Build clusters
-  console.time("cluster");
-  const clusters: Set<number>[] = [];
-  const assigned = new Set<number>();
-  for (const eid of allElementIds) {
-    if (assigned.has(eid)) continue;
-    const cluster = getCluster(eid, vfMap, aggMap);
-    const elementCluster = new Set<number>();
-    for (const cid of cluster) {
-      if (allElementIds.has(cid)) elementCluster.add(cid);
-    }
-    clusters.push(elementCluster);
-    for (const cid of elementCluster) assigned.add(cid);
-  }
-  console.timeEnd("cluster");
-  console.log(`  Built ${clusters.length} clusters`);
-
-  // 6. Distribute clusters into N groups (greedy bin packing)
-  console.time("distribute");
-  const groups: Set<number>[] = Array.from(
-    { length: numGroups },
-    () => new Set(),
-  );
-  const clusterOrder = clusters
-    .map((_, i) => i)
-    .sort((a, b) => clusters[b].size - clusters[a].size);
-  const groupSizes = new Array<number>(numGroups).fill(0);
-
-  for (const ci of clusterOrder) {
-    let minIdx = 0;
-    for (let g = 1; g < numGroups; g++) {
-      if (groupSizes[g] < groupSizes[minIdx]) minIdx = g;
-    }
-    for (const id of clusters[ci]) groups[minIdx].add(id);
-    groupSizes[minIdx] += clusters[ci].size;
-  }
-  console.timeEnd("distribute");
-
-  // 7. Pre-parse all relationship lines that need per-group rewriting.
-  console.time("index-rels");
-  const relEntries: RelEntry[] = [];
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && shouldRewriteType(type)) {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (!argsStr) continue;
-      const args = splitIfcArgs(argsStr);
-      const listIdx = listIdxByType(type);
-      if (args.length <= listIdx) continue;
-      const listRefs = extractRefs(args[listIdx]);
-      if (listRefs.length === 0) continue;
-      const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
-      if (!idMatch) continue;
-      relEntries.push({
-        id,
-        type,
-        args,
-        listIdx,
-        listRefs,
-        idPrefix: idMatch[1],
-      });
-    }
-  }
-  console.timeEnd("index-rels");
-  console.log(`  Found ${relEntries.length} relationship lines to process`);
-
-  // 8. Resolve deps for all groups
-  console.time("resolve");
-  const groupsData: (GroupData | null)[] = [];
-
-  for (let g = 0; g < numGroups; g++) {
-    const groupElementIds = groups[g];
-    if (groupElementIds.size === 0) {
-      groupsData.push(null);
-      console.log(`  Group ${g + 1}: SKIPPED (empty)`);
-      continue;
-    }
-
-    const fileIds = new Set<number>(sharedIds);
-
-    for (const eid of groupElementIds) {
-      collectDeps(eid, index, fileIds, allElementIds);
-    }
-
-    for (const eid of groupElementIds) {
-      const rels = vfMap.relLineIds.get(eid);
-      if (rels) {
-        for (const rid of rels) {
-          collectDeps(rid, index, fileIds, allElementIds);
-        }
-      }
-      const aggRels = aggMap.aggregateRelIds.get(eid);
-      if (aggRels) {
-        for (const rid of aggRels) {
-          collectDeps(rid, index, fileIds, allElementIds);
-        }
-      }
-    }
-
-    resolveStyles(fileIds, index, styleMaps, allElementIds);
-
-    const rewrittenLines = new Map<number, string>();
-    for (const rel of relEntries) {
-      const filtered = rel.listRefs.filter((r) => groupElementIds.has(r));
-      if (filtered.length === 0) continue;
-      const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
-      const newArgs = [...rel.args];
-      newArgs[rel.listIdx] = newList;
-      const rewritten = `${rel.idPrefix}${rel.type}(${newArgs.join(",")});`;
-      rewrittenLines.set(rel.id, rewritten);
-      fileIds.add(rel.id);
-      const refs = index.getRefs(rel.id);
-      if (refs) {
-        for (const rid of refs) {
-          if (!allElementIds.has(rid)) {
-            collectDeps(rid, index, fileIds, allElementIds);
-          }
-        }
-      }
-    }
-
-    const totalIds = fileIds.size;
-    groupsData.push({
-      fileIds,
-      rewrittenLines,
-      elementCount: groupElementIds.size,
-      totalIds,
-      fileName: path.join(
-        resolvedOutputDir,
-        `split_${String(g + 1).padStart(3, "0")}.ifc`,
-      ),
-    });
-    console.log(
-      `  Group ${g + 1}: ${groupElementIds.size} elements, ${totalIds} total IDs`,
-    );
-  }
-
-  console.timeEnd("resolve");
-
-  // Free the index to reclaim memory before the output pass
-  const maxParsedId = index.maxId;
-  index.free();
-
-  // 9. Build Uint32Array bitmask for O(1) write-phase lookups
-  console.time("build-mask");
-  const idGroupMask = new Uint32Array(maxParsedId + 1);
-  for (let g = 0; g < numGroups; g++) {
-    const groupData = groupsData[g];
-    if (!groupData) continue;
-    const bit = 1 << g;
-    for (const id of groupData.fileIds) {
-      idGroupMask[id] |= bit;
-    }
-  }
-  console.timeEnd("build-mask");
-
-  // 10. Second pass: write output files
-  console.time("write");
-  writeOutputFiles(deps, inputPath, header, footer, groupsData, idGroupMask);
-  console.timeEnd("write");
-
-  console.log("\nDone!");
-
-  return new Map(
-    groupsData
-      .filter((g): g is GroupData => !!g)
-      .map((g) => [g.fileName, g.fileIds]),
-  );
-}
-
-/**
- * Extract specific building elements from an IFC file into a new IFC file.
- * @param inputPath  - Absolute or relative path to the source IFC file.
- * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped with a warning.
- * @param outputPath - Path for the output IFC file.
- */
-export function extract(
-  deps: IfcSplitterDeps,
-  inputPath: string,
-  elementIds: number[],
-  outputPath: string,
-): void {
-  const { fs, path } = deps;
-  if (!fs.existsSync(inputPath)) {
-    console.error(`File not found: ${inputPath}`);
-    process.exit(1);
-  }
-
-  const outputDir = path.dirname(outputPath);
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  // 1. Parse
-  const { header, footer, index } = parseIfc(fs, inputPath);
-
-  // 2. Identify spatial structure (shared)
-  console.time("spatial");
-  const spatialIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
-  }
-  const sharedIds = new Set<number>();
-  for (const sid of spatialIds) {
-    collectDepsAll(sid, index, sharedIds);
-  }
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type === "IFCRELAGGREGATES") {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (argsStr) {
-        const args = splitIfcArgs(argsStr);
-        if (args.length >= 6) {
-          const relatingId = parseHashRef(args[4]);
-          if (relatingId && spatialIds.has(relatingId)) {
-            const listRefs = extractRefs(args[5]);
-            if (listRefs.every((r) => spatialIds.has(r))) {
-              collectDepsAll(id, index, sharedIds);
-            }
-          }
-        }
-      }
-    }
-  }
-  console.timeEnd("spatial");
-
-  // 3. Build maps
-  const vfMap = buildVoidFillMap(index);
-  const styleMaps = buildStyleMaps(index);
-  const allElementIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && ELEMENT_TYPES.has(type)) allElementIds.add(id);
-  }
-
-  // Validate requested IDs
-  const requestedIds = new Set<number>();
-  for (const eid of elementIds) {
-    if (allElementIds.has(eid)) {
-      requestedIds.add(eid);
-    } else if (index.has(eid)) {
-      console.warn(
-        `  Warning: #${eid} exists but is not a building element (type: ${index.getType(eid)}), skipping`,
-      );
-    } else {
-      console.warn(`  Warning: #${eid} not found in file, skipping`);
-    }
-  }
-  if (requestedIds.size === 0) {
-    console.error("No valid element IDs to extract.");
-    return;
-  }
-  console.log(`  Extracting ${requestedIds.size} elements`);
-
-  // 4. Cluster: expand void/fill + aggregation for requested elements
-  const aggMap = buildAggregateMap(index, allElementIds);
-  const groupElementIds = new Set<number>(requestedIds);
-  for (const eid of requestedIds) {
-    const cluster = getCluster(eid, vfMap, aggMap);
-    for (const cid of cluster) {
-      if (allElementIds.has(cid)) groupElementIds.add(cid);
-    }
-  }
-  if (groupElementIds.size > requestedIds.size) {
-    console.log(
-      `  Expanded to ${groupElementIds.size} elements (void/fill + aggregation coupling)`,
-    );
-  }
-
-  // 5. Collect all dependencies
-  const fileIds = new Set<number>(sharedIds);
-  for (const eid of groupElementIds) {
-    collectDeps(eid, index, fileIds, allElementIds);
-  }
-  for (const eid of groupElementIds) {
-    const rels = vfMap.relLineIds.get(eid);
-    if (rels) {
-      for (const rid of rels) collectDeps(rid, index, fileIds, allElementIds);
-    }
-    const aggRels = aggMap.aggregateRelIds.get(eid);
-    if (aggRels) {
-      for (const rid of aggRels)
-        collectDeps(rid, index, fileIds, allElementIds);
-    }
-  }
-  resolveStyles(fileIds, index, styleMaps, allElementIds);
-
-  // 6. Rewrite relationship lines
-  const rewrittenLines = new Map<number, string>();
-  for (let id = 0; id <= index.maxId; id++) {
-    const type = index.getType(id);
-    if (type && shouldRewriteType(type)) {
-      const raw = index.getRaw(id);
-      const argsStr = extractArgsString(raw);
-      if (!argsStr) continue;
-      const args = splitIfcArgs(argsStr);
-      const listIdx = listIdxByType(type);
-      if (args.length <= listIdx) continue;
-      const listRefs = extractRefs(args[listIdx]);
-      if (listRefs.length === 0) continue;
-
-      const filtered = listRefs.filter((r) => groupElementIds.has(r));
-      if (filtered.length === 0) continue;
-
-      const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
-      if (!idMatch) continue;
-      const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
-      const newArgs = [...args];
-      newArgs[listIdx] = newList;
-      rewrittenLines.set(id, `${idMatch[1]}${type}(${newArgs.join(",")});`);
-      fileIds.add(id);
-      const refs = index.getRefs(id);
-      if (refs) {
-        for (const rid of refs) {
-          if (!allElementIds.has(rid))
-            collectDeps(rid, index, fileIds, allElementIds);
-        }
-      }
-    }
-  }
-
-  console.log(`  Total lines in output: ${fileIds.size}`);
-
-  // 7. Free index, write output
-  // const maxParsedId = index.maxId;
-  index.free();
-
-  // Build simple inclusion set
-  const includeSet = new Set<number>(fileIds);
-
-  console.time("write");
-  const bw = new BufferedWriter(fs, outputPath, 4 * 1024 * 1024);
-  bw.write(`${header.join("\n")}\n`);
-
-  let section: "header" | "data" | "footer" = "header";
-  let accumulator = "";
-
-  forEachLine(fs, inputPath, (line: string) => {
-    if (section === "header") {
-      if (line.trim() === "DATA;") section = "data";
-      return;
-    }
-    if (section === "data") {
-      const trimmed = line.trim();
-      if (trimmed === "ENDSEC;") {
-        if (accumulator) {
-          emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
-          accumulator = "";
-        }
-        section = "footer";
-        return;
-      }
-
-      if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-        emitSingleLine(trimmed, bw, includeSet, rewrittenLines);
-        return;
-      }
-
-      accumulator += (accumulator ? " " : "") + trimmed;
-      if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-        emitSingleLine(accumulator, bw, includeSet, rewrittenLines);
-        accumulator = "";
-      }
-    }
-  });
-
-  bw.write(`${footer.join("\n")}\n`);
-  bw.close();
-  console.timeEnd("write");
-
-  const stat = fs.statSync(outputPath);
-  console.log(
-    `  Output: ${groupElementIds.size} elements, ${fileIds.size} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(outputPath)}`,
-  );
-  console.log("\nDone!");
-}
-
-function emitSingleLine(
+async function emitSplitLine(
+  writers: (WritableStreamDefaultWriter | null)[],
   raw: string,
-  writer: BufferedWriter,
-  includeSet: Set<number>,
-  rewrittenLines: Map<number, string>,
-): void {
-  if (raw.charCodeAt(0) !== 35) return; // '#'
-  let id = 0;
-  for (let i = 1; i < raw.length; i++) {
-    const c = raw.charCodeAt(i);
-    if (c >= 48 && c <= 57) {
-      id = id * 10 + (c - 48);
-    } else {
-      break;
-    }
-  }
-  if (id === 0 || !includeSet.has(id)) return;
-  const line = rewrittenLines.has(id) ? rewrittenLines.get(id)! : raw;
-  writer.write(line);
-  writer.write("\n");
-}
-
-// ---------------------------------------------------------------------------
-// Second-pass output writer
-// ---------------------------------------------------------------------------
-function writeOutputFiles(
-  deps: IfcSplitterDeps,
-  inputPath: string,
-  header: string[],
-  footer: string[],
   groupsData: (GroupData | null)[],
   idGroupMask: Uint32Array,
-): void {
-  const { fs, path } = deps;
-  const numGroups = groupsData.length;
-
-  const writers: (BufferedWriter | null)[] = [];
-  const headerStr = `${header.join("\n")}\n`;
-  for (let g = 0; g < numGroups; g++) {
-    const groupData = groupsData[g];
-    if (!groupData) {
-      writers.push(null);
-      continue;
-    }
-    const bw = new BufferedWriter(fs, groupData.fileName, 4 * 1024 * 1024);
-    bw.write(headerStr);
-    writers.push(bw);
-  }
-
-  let section: "header" | "data" | "footer" = "header";
-  let accumulator = "";
-
-  forEachLine(fs, inputPath, (line: string) => {
-    if (section === "header") {
-      if (line.trim() === "DATA;") section = "data";
-      return;
-    }
-    if (section === "data") {
-      const trimmed = line.trim();
-      if (trimmed === "ENDSEC;") {
-        if (accumulator) {
-          emitLine(accumulator, writers, groupsData, idGroupMask);
-          accumulator = "";
-        }
-        section = "footer";
-        return;
-      }
-
-      if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-        emitLine(trimmed, writers, groupsData, idGroupMask);
-        return;
-      }
-
-      accumulator += (accumulator ? " " : "") + trimmed;
-      if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-        emitLine(accumulator, writers, groupsData, idGroupMask);
-        accumulator = "";
-      }
-    }
-  });
-
-  const footerStr = `${footer.join("\n")}\n`;
-  for (let g = 0; g < numGroups; g++) {
-    const bw = writers[g];
-    if (!bw) continue;
-    bw.write(footerStr);
-    bw.close();
-    const stat = fs.statSync(bw.filePath);
-    const gd = groupsData[g]!;
-    console.log(
-      `  Group ${g + 1}: ${gd.elementCount} elements, ${gd.totalIds} total lines, ${(stat.size / 1024 / 1024).toFixed(1)} MB -> ${path.basename(bw.filePath)}`,
-    );
-  }
-}
-
-function emitLine(
-  raw: string,
-  writers: (BufferedWriter | null)[],
-  groupsData: (GroupData | null)[],
-  idGroupMask: Uint32Array,
-): void {
+): Promise<void> {
   if (raw.charCodeAt(0) !== 35) return; // '#'
   let id = 0;
   for (let i = 1; i < raw.length; i++) {
@@ -1411,8 +658,566 @@ function emitLine(
   for (let g = 0; g < groupsData.length; g++) {
     if (!(mask & (1 << g))) continue;
     const gd = groupsData[g]!;
-    const line = gd.rewrittenLines.has(id) ? gd.rewrittenLines.get(id)! : raw;
-    writers[g]!.write(line);
-    writers[g]!.write("\n");
+    const line = gd.rewrittenLines.get(id) ?? raw;
+    await writers[g]!.write(`${line}\n`);
+  }
+}
+
+async function emitExtractLine(
+  writer: WritableStreamDefaultWriter,
+  raw: string,
+  includeSet: Set<number>,
+  rewrittenLines: Map<number, string>,
+): Promise<void> {
+  if (raw.charCodeAt(0) !== 35) return; // '#'
+  let id = 0;
+  for (let i = 1; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    if (c >= 48 && c <= 57) {
+      id = id * 10 + (c - 48);
+    } else {
+      break;
+    }
+  }
+  if (id === 0 || !includeSet.has(id)) return;
+  const line = rewrittenLines.get(id) ?? raw;
+  await writer.write(`${line}\n`);
+}
+
+export class IfcSplitter {
+  protected readonly io: IfcSplitterIO;
+  protected readonly eventTarget: EventTarget;
+
+  constructor(ifcSplitterIO: IfcSplitterIO) {
+    this.io = ifcSplitterIO;
+    this.eventTarget = new EventTarget();
+  }
+
+  readonly onProgress = new Event<IfcSplitterProgressEvent>();
+
+  readonly onSplitsResolved = new Event<IfcSplitterGroupsEvent>();
+
+  /**
+   * Fires from `extract` when an id is missing or has a wrong type
+   */
+  readonly onExtractWarning = new Event<IfcSplitterWarningEvent>();
+
+  /**
+   * Split an IFC file into N roughly equal groups of building elements.
+   * @param inputPath - Absolute or relative path to the source IFC file.
+   * @param numGroups - Number of output files to produce (max 32).
+   * @param outputPath - Given `groupId` returns output file path.
+   */
+  async split(
+    inputPath: string,
+    numGroups: number,
+    outputPath: (groupId: number) => string,
+  ): Promise<Map<string, Set<number>>> {
+    // 1. Parse
+    const parseStart = performance.now();
+    const { header, footer, index } = await this.parseIfc(inputPath);
+    this.emitProgressEvent("parse", parseStart);
+
+    // 2. Identify spatial structure (shared in all files)
+    const spatialStart = performance.now();
+    const sharedIds = traverseSpatialStructure(index);
+    this.emitProgressEvent("spatial", spatialStart);
+
+    // 3. Build void/fill coupling map
+    const voidFillStart = performance.now();
+    const vfMap = buildVoidFillMap(index);
+    this.emitProgressEvent("void-fill", voidFillStart);
+
+    // 3b. Build reverse style maps
+    const styleMapsStart = performance.now();
+    const styleMaps = buildStyleMaps(index);
+    this.emitProgressEvent("style-maps", styleMapsStart);
+
+    // 4. Identify all building elements
+    const classifyStart = performance.now();
+    const allElementIds = index.getAll(ELEMENT_TYPES);
+    this.emitProgressEvent("classify", classifyStart);
+
+    // 4b. Build aggregation map
+    const aggregateStart = performance.now();
+    const aggMap = buildAggregateMap(index, allElementIds);
+    this.emitProgressEvent("aggregate", aggregateStart);
+
+    // 5. Build clusters
+    const clusterStart = performance.now();
+    const clusters: Set<number>[] = [];
+    const assigned = new Set<number>();
+    for (const eid of allElementIds) {
+      if (assigned.has(eid)) continue;
+      const cluster = getCluster(eid, vfMap, aggMap);
+      const elementCluster = new Set<number>();
+      for (const cid of cluster) {
+        if (allElementIds.has(cid)) elementCluster.add(cid);
+      }
+      clusters.push(elementCluster);
+      for (const cid of elementCluster) assigned.add(cid);
+    }
+    this.emitProgressEvent("cluster", clusterStart);
+
+    // 6. Distribute clusters into N groups (greedy bin packing)
+    const distributeStart = performance.now();
+    const groups: Set<number>[] = Array.from(
+      { length: numGroups },
+      () => new Set(),
+    );
+    const clusterOrder = clusters
+      .map((_, i) => i)
+      .sort((a, b) => clusters[b].size - clusters[a].size);
+    const groupSizes = new Array<number>(numGroups).fill(0);
+
+    for (const ci of clusterOrder) {
+      let minIdx = 0;
+      for (let g = 1; g < numGroups; g++) {
+        if (groupSizes[g] < groupSizes[minIdx]) minIdx = g;
+      }
+      for (const id of clusters[ci]) groups[minIdx].add(id);
+      groupSizes[minIdx] += clusters[ci].size;
+    }
+    this.emitProgressEvent("distribute", distributeStart);
+
+    // 7. Pre-parse all relationship lines that need per-group rewriting.
+    const relationsStart = performance.now();
+    const relEntries: RelEntry[] = [];
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && shouldRewriteType(type)) {
+        const raw = index.getRaw(id);
+        const argsStr = extractArgsString(raw);
+        if (!argsStr) continue;
+        const args = splitIfcArgs(argsStr);
+        const listIdx = listIdxByType(type);
+        if (args.length <= listIdx) continue;
+        const listRefs = extractRefs(args[listIdx]);
+        if (listRefs.length === 0) continue;
+        const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
+        if (!idMatch) continue;
+        relEntries.push({
+          id,
+          type,
+          args,
+          listIdx,
+          listRefs,
+          idPrefix: idMatch[1],
+        });
+      }
+    }
+    this.emitProgressEvent("relations", relationsStart);
+
+    // 8. Resolve deps for all groups
+    const resolveStart = performance.now();
+    const groupsData: (GroupData | null)[] = [];
+
+    for (let g = 0; g < numGroups; g++) {
+      const groupElementIds = groups[g];
+      if (groupElementIds.size === 0) {
+        groupsData.push(null);
+        continue;
+      }
+
+      const fileIds = new Set<number>(sharedIds);
+
+      for (const eid of groupElementIds) {
+        collectDeps(eid, index, fileIds, allElementIds);
+      }
+
+      for (const eid of groupElementIds) {
+        const rels = vfMap.relLineIds.get(eid);
+        if (rels) {
+          for (const rid of rels) {
+            collectDeps(rid, index, fileIds, allElementIds);
+          }
+        }
+        const aggRels = aggMap.aggregateRelIds.get(eid);
+        if (aggRels) {
+          for (const rid of aggRels) {
+            collectDeps(rid, index, fileIds, allElementIds);
+          }
+        }
+      }
+
+      resolveStyles(fileIds, index, styleMaps, allElementIds);
+
+      const rewrittenLines = new Map<number, string>();
+      for (const rel of relEntries) {
+        const filtered = rel.listRefs.filter((r) => groupElementIds.has(r));
+        if (filtered.length === 0) continue;
+        const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
+        const newArgs = [...rel.args];
+        newArgs[rel.listIdx] = newList;
+        const rewritten = `${rel.idPrefix}${rel.type}(${newArgs.join(",")});`;
+        rewrittenLines.set(rel.id, rewritten);
+        fileIds.add(rel.id);
+        const refs = index.getRefs(rel.id);
+        if (refs) {
+          for (const rid of refs) {
+            if (!allElementIds.has(rid)) {
+              collectDeps(rid, index, fileIds, allElementIds);
+            }
+          }
+        }
+      }
+
+      const totalIds = fileIds.size;
+      groupsData.push({
+        fileIds,
+        rewrittenLines,
+        elementCount: groupElementIds.size,
+        totalIds,
+        fileName: outputPath(g),
+      });
+    }
+
+    this.emitProgressEvent("resolve", resolveStart);
+    this.onSplitsResolved.trigger({ data: groupsData });
+
+    // Free the index to reclaim memory before the output pass
+    const maxParsedId = index.maxId;
+    index.free();
+
+    // 9. Build Uint32Array bitmask for O(1) write-phase lookups
+    const buildMaskStart = performance.now();
+    const idGroupMask = new Uint32Array(maxParsedId + 1);
+    for (let g = 0; g < numGroups; g++) {
+      const groupData = groupsData[g];
+      if (!groupData) continue;
+      const bit = 1 << g;
+      for (const id of groupData.fileIds) {
+        idGroupMask[id] |= bit;
+      }
+    }
+    this.emitProgressEvent("build-mask", buildMaskStart);
+
+    // 10. Second pass: write output files
+    const writeStart = performance.now();
+    await this.writeSplitOutput(
+      inputPath,
+      header,
+      footer,
+      groupsData,
+      idGroupMask,
+    );
+    this.emitProgressEvent("write", writeStart);
+
+    return new Map(
+      groupsData
+        .filter((g): g is GroupData => !!g)
+        .map((g) => [g.fileName, g.fileIds]),
+    );
+  }
+
+  /**
+   * Extract specific building elements from an IFC file into a new IFC file.
+   * @param inputPath  - Absolute or relative path to the source IFC file.
+   * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped with a warning.
+   * @param outputPath - Path for the output IFC file.
+   */
+  async extract(
+    inputPath: string,
+    elementIds: number[],
+    outputPath: string,
+  ): Promise<Set<number>> {
+    // 1. Parse
+    const parseStart = performance.now();
+    const { header, footer, index } = await this.parseIfc(inputPath);
+    this.emitProgressEvent("parse", parseStart);
+
+    // 2. Identify spatial structure (shared)
+    const spatialStart = performance.now();
+    const sharedIds = traverseSpatialStructure(index);
+    this.emitProgressEvent("spatial", spatialStart);
+
+    // 3. Build maps
+    const voidFillStart = performance.now();
+    const vfMap = buildVoidFillMap(index);
+    this.emitProgressEvent("void-fill", voidFillStart);
+
+    const styleMapsStart = performance.now();
+    const styleMaps = buildStyleMaps(index);
+    this.emitProgressEvent("style-maps", styleMapsStart);
+
+    const classifyStart = performance.now();
+    const allElementIds = index.getAll(ELEMENT_TYPES);
+    this.emitProgressEvent("classify", classifyStart);
+
+    // 4. Cluster: expand void/fill + aggregation for requested elements
+    const aggregateStart = performance.now();
+    const aggMap = buildAggregateMap(index, allElementIds);
+    this.emitProgressEvent("aggregate", aggregateStart);
+
+    const clusterStart = performance.now();
+
+    // Validate requested IDs
+    const requestedIds = new Set<number>();
+    for (const eid of elementIds) {
+      if (allElementIds.has(eid)) {
+        requestedIds.add(eid);
+      } else if (index.has(eid)) {
+        const type = index.getType(eid);
+        this.onExtractWarning.trigger({
+          message: `Skipping #${eid}: type '${type}' is not a building element`,
+          context: { id: eid, type },
+        });
+      } else {
+        this.onExtractWarning.trigger({
+          message: `Skipping #${eid}: not found`,
+          context: { id: eid },
+        });
+      }
+    }
+    if (requestedIds.size === 0) {
+      throw new Error("No valid element IDs found.");
+    }
+
+    const groupElementIds = new Set<number>(requestedIds);
+    for (const eid of requestedIds) {
+      const cluster = getCluster(eid, vfMap, aggMap);
+      for (const cid of cluster) {
+        if (allElementIds.has(cid)) groupElementIds.add(cid);
+      }
+    }
+    this.emitProgressEvent("cluster", clusterStart);
+
+    // 5. Collect all dependencies
+    const resolveStart = performance.now();
+
+    const fileIds = new Set<number>(sharedIds);
+    for (const eid of groupElementIds) {
+      collectDeps(eid, index, fileIds, allElementIds);
+    }
+    for (const eid of groupElementIds) {
+      const rels = vfMap.relLineIds.get(eid);
+      if (rels) {
+        for (const rid of rels) collectDeps(rid, index, fileIds, allElementIds);
+      }
+      const aggRels = aggMap.aggregateRelIds.get(eid);
+      if (aggRels) {
+        for (const rid of aggRels)
+          collectDeps(rid, index, fileIds, allElementIds);
+      }
+    }
+    resolveStyles(fileIds, index, styleMaps, allElementIds);
+
+    this.emitProgressEvent("resolve", resolveStart);
+
+    // 6. Rewrite relationship lines
+    const relationsStart = performance.now();
+    const rewrittenLines = new Map<number, string>();
+    for (let id = 0; id <= index.maxId; id++) {
+      const type = index.getType(id);
+      if (type && shouldRewriteType(type)) {
+        const raw = index.getRaw(id);
+        const argsStr = extractArgsString(raw);
+        if (!argsStr) continue;
+        const args = splitIfcArgs(argsStr);
+        const listIdx = listIdxByType(type);
+        if (args.length <= listIdx) continue;
+        const listRefs = extractRefs(args[listIdx]);
+        if (listRefs.length === 0) continue;
+
+        const filtered = listRefs.filter((r) => groupElementIds.has(r));
+        if (filtered.length === 0) continue;
+
+        const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
+        if (!idMatch) continue;
+        const newList = `(${filtered.map((r) => `#${r}`).join(",")})`;
+        const newArgs = [...args];
+        newArgs[listIdx] = newList;
+        rewrittenLines.set(id, `${idMatch[1]}${type}(${newArgs.join(",")});`);
+        fileIds.add(id);
+        const refs = index.getRefs(id);
+        if (refs) {
+          for (const rid of refs) {
+            if (!allElementIds.has(rid))
+              collectDeps(rid, index, fileIds, allElementIds);
+          }
+        }
+      }
+    }
+    this.emitProgressEvent("relations", relationsStart);
+
+    // 7. Free index, write output
+    index.free();
+
+    const writeStart = performance.now();
+    const writer = (await this.io.writableStream(outputPath)).getWriter();
+    await writer.write(`${header.join("\n")}\n`);
+
+    let section: "header" | "data" | "footer" = "header";
+    let accumulator = "";
+
+    await this.forEachLine(inputPath, async (line: string) => {
+      if (section === "header") {
+        if (line.trim() === "DATA;") section = "data";
+        return;
+      }
+      if (section === "data") {
+        const trimmed = line.trim();
+        if (trimmed === "ENDSEC;") {
+          if (accumulator) {
+            await emitExtractLine(writer, accumulator, fileIds, rewrittenLines);
+            accumulator = "";
+          }
+          section = "footer";
+          return;
+        }
+
+        if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
+          await emitExtractLine(writer, trimmed, fileIds, rewrittenLines);
+          return;
+        }
+
+        accumulator += (accumulator ? " " : "") + trimmed;
+        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
+          await emitExtractLine(writer, accumulator, fileIds, rewrittenLines);
+          accumulator = "";
+        }
+      }
+    });
+
+    await writer.write(`${footer.join("\n")}\n`);
+    await writer.close();
+    this.emitProgressEvent("write", writeStart);
+
+    return fileIds;
+  }
+
+  async parseIfc(filePath: string): Promise<ParseResult> {
+    const header: string[] = [];
+    const footer: string[] = [];
+    const index = new LineIndex();
+
+    let section: "header" | "data" | "footer" = "header";
+    let accumulator = "";
+    let lineCount = 0;
+
+    await this.forEachLine(filePath, (line: string) => {
+      if (section === "header") {
+        header.push(line);
+        if (line.trim() === "DATA;") section = "data";
+        return;
+      }
+      if (section === "data") {
+        const trimmed = line.trim();
+        if (trimmed === "ENDSEC;") {
+          if (accumulator) {
+            const info = extractLineMeta(accumulator);
+            if (info) {
+              const refs = extractRefs(accumulator, info.id);
+              index.set(info.id, info.type, refs, accumulator);
+              lineCount++;
+            }
+            accumulator = "";
+          }
+          section = "footer";
+          footer.push(line);
+          return;
+        }
+        accumulator += (accumulator ? " " : "") + trimmed;
+        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
+          // ';'
+          const info = extractLineMeta(accumulator);
+          if (info) {
+            const refs = extractRefs(accumulator, info.id);
+            index.set(info.id, info.type, refs, accumulator);
+            lineCount++;
+          }
+          accumulator = "";
+        }
+        return;
+      }
+      footer.push(line);
+    });
+
+    index.finalize();
+
+    return { header, footer, index };
+  }
+
+  /**
+   * Chunked file reader — replaces readline (3-5x faster)
+   */
+  async forEachLine(
+    filePath: string,
+    callback: (line: string) => void | Promise<void>,
+  ): Promise<void> {
+    const readableStream = await this.io.readableStream(filePath);
+
+    for await (const line of streamAsyncIterator(readableStream)) {
+      await callback(line);
+    }
+  }
+
+  protected async writeSplitOutput(
+    inputPath: string,
+    header: string[],
+    footer: string[],
+    groupsData: (GroupData | null)[],
+    idGroupMask: Uint32Array,
+  ): Promise<void> {
+    const headerStr = `${header.join("\n")}\n`;
+
+    const writers: (WritableStreamDefaultWriter | null)[] = await Promise.all(
+      groupsData.map(async (groupData) => {
+        if (!groupData) return null;
+        const writer = (
+          await this.io.writableStream(groupData.fileName)
+        ).getWriter();
+        await writer.write(headerStr);
+        return writer;
+      }),
+    );
+
+    let section: "header" | "data" | "footer" = "header";
+    let accumulator = "";
+
+    await this.forEachLine(inputPath, async (line: string) => {
+      if (section === "header") {
+        if (line.trim() === "DATA;") section = "data";
+        return;
+      }
+      if (section === "data") {
+        const trimmed = line.trim();
+        if (trimmed === "ENDSEC;") {
+          if (accumulator) {
+            await emitSplitLine(writers, accumulator, groupsData, idGroupMask);
+            accumulator = "";
+          }
+          section = "footer";
+          return;
+        }
+
+        if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
+          await emitSplitLine(writers, trimmed, groupsData, idGroupMask);
+          return;
+        }
+
+        accumulator += (accumulator ? " " : "") + trimmed;
+        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
+          await emitSplitLine(writers, accumulator, groupsData, idGroupMask);
+          accumulator = "";
+        }
+      }
+    });
+
+    const footerStr = `${footer.join("\n")}\n`;
+    await Promise.all(
+      writers.map(async (writer) => {
+        if (!writer) return;
+        await writer.write(footerStr);
+        await writer.close();
+      }),
+    );
+  }
+
+  protected emitProgressEvent(stage: IfcSplitterStage, start: number) {
+    this.onProgress.trigger({
+      stage,
+      timeElapsed: performance.now() - start,
+    });
   }
 }
