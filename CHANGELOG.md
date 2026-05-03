@@ -1,5 +1,56 @@
 # Changelog
 
+## [3.5.0](https://github.com/ThatOpen/engine_fragment/compare/v3.4.0...v3.5.0) (2026-05-03)
+
+
+### Features
+
+* add contributing guide ([908eea0](https://github.com/ThatOpen/engine_fragment/commit/908eea0a59a2eabe0cd00df86d44aa98e594eb00))
+* add edit API to SingleThreadedFragmentsModel ([864dc23](https://github.com/ThatOpen/engine_fragment/commit/864dc237a140ebb5fd1f9d12d17f408275049e60))
+* add frag load progress callback ([ac639f9](https://github.com/ThatOpen/engine_fragment/commit/ac639f9715e85d87dc5c17e42d5352d38b661bed))
+* add VirtualMultithreadingConfig ([#194](https://github.com/ThatOpen/engine_fragment/issues/194)) ([ebd7750](https://github.com/ThatOpen/engine_fragment/commit/ebd7750032cad5fde842087292f3828e8b17612a))
+* allow to get items chunks ([d65be31](https://github.com/ThatOpen/engine_fragment/commit/d65be31ab52d5c7963726b398c039bf4c5fc09fa))
+* **edit:** add CREATE/UPDATE/DELETE_INDEX edit requests ([f8aa07f](https://github.com/ThatOpen/engine_fragment/commit/f8aa07f61805b93b19f6912eb36f3b079d777198)), closes [#164](https://github.com/ThatOpen/engine_fragment/issues/164)
+* **editor:** add createIndex/updateIndex/deleteIndex convenience methods ([a17707e](https://github.com/ThatOpen/engine_fragment/commit/a17707e323789219bedf78b2649b268a70a15eda)), closes [#164](https://github.com/ThatOpen/engine_fragment/issues/164)
+* expose getLocalIdsFromItemIds on the public model API ([18742ff](https://github.com/ThatOpen/engine_fragment/commit/18742ff96dafc307d25bea3abe0cca13ef2c7e5f))
+* full uint32 localId range in tile id attribute ([fe11440](https://github.com/ThatOpen/engine_fragment/commit/fe11440b702850769bf94f18e983ec51345a9bef))
+* **grids:** stamp userData kinds and expose grid material ([e383064](https://github.com/ThatOpen/engine_fragment/commit/e38306467edafa18000142676d4ceb692ffca42f)), closes [#192](https://github.com/ThatOpen/engine_fragment/issues/192)
+* implement model load abort ([bddbcfc](https://github.com/ThatOpen/engine_fragment/commit/bddbcfc7cfc5266cc5c311c19ae51caa0d22522a))
+* implement worker control ([c5fac67](https://github.com/ThatOpen/engine_fragment/commit/c5fac678c41a586b02b0c527227887bd7f65e208))
+* improve worker fetch logic ([d03b6a0](https://github.com/ThatOpen/engine_fragment/commit/d03b6a063a7e7536c687c6b12e8c08aadbce1ba4))
+* itemId-keyed snap fetch + picker encoding ([0f48bb6](https://github.com/ThatOpen/engine_fragment/commit/0f48bb62da6463f2988aeb3c1bedb2e99a479e15))
+* **model:** add VirtualIndexesController ([049a057](https://github.com/ThatOpen/engine_fragment/commit/049a057d52921bc8d1cd859d3097c94cedcd602b)), closes [#164](https://github.com/ThatOpen/engine_fragment/issues/164)
+* **model:** expose user-defined index reads on FragmentsModel ([4a33282](https://github.com/ThatOpen/engine_fragment/commit/4a33282195f19bbc3dc81994175a2ed7a60edfe6)), closes [#164](https://github.com/ThatOpen/engine_fragment/issues/164)
+* **model:** make index reads see pending edits ([5a08811](https://github.com/ThatOpen/engine_fragment/commit/5a08811c5534940bc48e01ff6a31e1b0b91a9029)), closes [#164](https://github.com/ThatOpen/engine_fragment/issues/164)
+* **schema:** add ModelIndex table for user-defined lookups ([fd52cbc](https://github.com/ThatOpen/engine_fragment/commit/fd52cbce2e6e6bddbd740f788f1d39f1fb44d39b)), closes [#164](https://github.com/ThatOpen/engine_fragment/issues/164)
+* **split:** return map of file paths to localIds ([#195](https://github.com/ThatOpen/engine_fragment/issues/195)) ([cf6345b](https://github.com/ThatOpen/engine_fragment/commit/cf6345ba9ce67c6fef9b56e29ab653042a6b84f2))
+* store localId in tile geometry id attribute ([7c69110](https://github.com/ThatOpen/engine_fragment/commit/7c69110bef484f648c679be73399ac34b197396e))
+
+
+### Bug Fixes
+
+* correct docs that break docusaurus ([7ff557c](https://github.com/ThatOpen/engine_fragment/commit/7ff557c620e7df59db807fcbc8908b8f5cd57e91))
+* correct worker url ([162f083](https://github.com/ThatOpen/engine_fragment/commit/162f083a225195c06ea1201162a5115172f8df10))
+* deliver both minified and non-minified code ([2ebcbe5](https://github.com/ThatOpen/engine_fragment/commit/2ebcbe5fa1f673add5b5ab2f1f39ff4bddb68bd5))
+* get rid of debug logs ([03cd103](https://github.com/ThatOpen/engine_fragment/commit/03cd10361670d0285040f16b83210967f94b5cba))
+* **highlight:** clear all items on no-args resetHighlight ([00e7fe0](https://github.com/ThatOpen/engine_fragment/commit/00e7fe0335f0b13e6349363dbfe7dc36221c8761))
+* **ifc-splitter:** add  `IFCMECHANICALFASTENER` to elements types ([#179](https://github.com/ThatOpen/engine_fragment/issues/179)) ([e33a9b0](https://github.com/ThatOpen/engine_fragment/commit/e33a9b0f918e38e2d3947d76218b95fabe70bdf6))
+* improve the getItemsByVisibility ([e68c376](https://github.com/ThatOpen/engine_fragment/commit/e68c376d7f679e51d7bfa09aedde118ba616ea00))
+* include type entities and solve DefinesOccurrence typo ([79b134a](https://github.com/ThatOpen/engine_fragment/commit/79b134adbc0d2e6a9704fedb28d9da9feb7b129e))
+* read alignments when vertical data is missing ([5f67ad4](https://github.com/ThatOpen/engine_fragment/commit/5f67ad4ce6b1d530a0b0abc2065f5be8d5c29c9a))
+* solve bug due to rebar circle curve edge case ([fab19d6](https://github.com/ThatOpen/engine_fragment/commit/fab19d6700f0b6ee14a0072d45b8b455674ab14a))
+* solve grid bug in some bim models ([161b5b6](https://github.com/ThatOpen/engine_fragment/commit/161b5b6c6a92bb3fcb23b317bef61a564e24c880))
+* solve ifc splitter missing lines ([bbf890c](https://github.com/ThatOpen/engine_fragment/commit/bbf890ca2213007a1f91de6fbb0c3a4f1f5f9c6c))
+* **TS:** `ProcessData#readCallback` type/jsdocs ([#178](https://github.com/ThatOpen/engine_fragment/issues/178)) ([0f89ec0](https://github.com/ThatOpen/engine_fragment/commit/0f89ec0a1a00b437b37cdd3f801fe14b588f36da))
+* upgrade examples to latest three.js version ([a73bf32](https://github.com/ThatOpen/engine_fragment/commit/a73bf32d9cc628daf75f6d270bef65d160426f92))
+* write 0 sentinel instead of raw itemIndex when localId lookup misses ([7c560a5](https://github.com/ThatOpen/engine_fragment/commit/7c560a59b10f490e78e8d30017d0a243fa55e3ec))
+
+
+### Performance Improvements
+
+* lower default worker timing knobs ([6c5b7db](https://github.com/ThatOpen/engine_fragment/commit/6c5b7db61282f00f1b5a2b7df068c41134542c72))
+* sequence-fenced update(true), drain on every FINISH ([aaf44ba](https://github.com/ThatOpen/engine_fragment/commit/aaf44ba0014e81cdfa213c0d212b3ce1e49a011d))
+
 ## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
 
 
