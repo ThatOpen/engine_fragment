@@ -15,9 +15,9 @@ const outputDir = args[2] ? path.resolve(args[2]) : path.dirname(inputPath);
 
 try {
   const splitter = new IfcSplitterNode();
-  splitter.on("progress", console.info);
-  splitter.on("data", console.log);
-  splitter.on("warning", console.warn);
+  splitter.onProgress.add(console.info);
+  splitter.onSplitsResolved.add(console.log);
+  splitter.onExtractWarning.add(console.warn);
   const splitMap = await splitter.split(inputPath, numGroups, (groupId) =>
     path.resolve(
       outputDir,
