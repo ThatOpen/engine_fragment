@@ -3,40 +3,52 @@
 /* eslint-disable no-cond-assign */
 /* eslint-disable no-bitwise */
 
-import { IfcDecoderStream } from "../ifc-stream";
+import { Event } from "../event";
 
 // ---------------------------------------------------------------------------
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
 export interface IfcSplitterIO {
-  readableStream(path: string): Promise<ReadableStream<Uint8Array>>;
+  /**
+   * @param path
+   * @throws if {@link path} doesn't exist
+   * @returns a {@link ReadableStream} streaming ifc lines
+   */
+  readableStream(path: string): Promise<ReadableStream<string>>;
+
+  /**
+   * @param path
+   * @returns a {@link WritableStream} able to write ifc lines
+   */
   writableStream(path: string): Promise<WritableStream<string>>;
 }
 
 export type IfcSplitterStage =
   | "parse"
   | "spatial"
-  | "voidfill"
-  | "stylemaps"
+  | "void-fill"
+  | "style-maps"
   | "classify"
   | "aggregate"
   | "cluster"
   | "distribute"
-  | "index-rels"
+  | "relations"
   | "resolve"
   | "build-mask"
   | "write";
 
-export interface IfcSplitterEvents {
-  progress: {
-    stage: IfcSplitterStage;
-    timeElapsed: number;
-  };
-  warning: {
-    message: string;
-    context: { id: number; type?: string };
-  };
+export interface IfcSplitterProgressEvent {
+  stage: IfcSplitterStage;
+  timeElapsed: number;
+}
+
+export interface IfcSplitterWarningEvent {
+  message: string;
+  context: { id: number; type?: string };
+}
+
+export interface IfcSplitterGroupsEvent {
   data: (GroupData | null)[];
 }
 
@@ -723,26 +735,14 @@ export class IfcSplitter {
     this.eventTarget = new EventTarget();
   }
 
-  on<K extends keyof IfcSplitterEvents>(
-    type: K,
-    callback: (data: IfcSplitterEvents[K]) => void,
-    options?: Parameters<EventTarget["addEventListener"]>["2"],
-  ) {
-    this.eventTarget.addEventListener(
-      type as string,
-      (e) => callback((e as CustomEvent<IfcSplitterEvents[K]>).detail),
-      options,
-    );
-  }
+  readonly onProgress = new Event<IfcSplitterProgressEvent>();
 
-  protected dispatch<K extends keyof IfcSplitterEvents>(
-    type: K,
-    event: IfcSplitterEvents[K],
-  ) {
-    return this.eventTarget.dispatchEvent(
-      new CustomEvent<IfcSplitterEvents[K]>(type as string, { detail: event }),
-    );
-  }
+  readonly onSplitsResolved = new Event<IfcSplitterGroupsEvent>();
+
+  /**
+   * Fires from `extract` when an id is missing or has a wrong type
+   */
+  readonly onExtractWarning = new Event<IfcSplitterWarningEvent>();
 
   /**
    * Split an IFC file into N roughly equal groups of building elements.
@@ -756,37 +756,37 @@ export class IfcSplitter {
     outputPath: (groupId: number) => string,
   ): Promise<Map<string, Set<number>>> {
     // 1. Parse
-    this.mark("parse");
+    const parseStart = performance.now();
     const { header, footer, index } = await this.parseIfc(inputPath);
-    this.emitProgressEvent("parse");
+    this.emitProgressEvent("parse", parseStart);
 
     // 2. Identify spatial structure (shared in all files)
-    this.mark("spatial");
+    const spatialStart = performance.now();
     const sharedIds = traverseSpatialStructure(index);
-    this.emitProgressEvent("spatial");
+    this.emitProgressEvent("spatial", spatialStart);
 
     // 3. Build void/fill coupling map
-    this.mark("voidfill");
+    const voidFillStart = performance.now();
     const vfMap = buildVoidFillMap(index);
-    this.emitProgressEvent("voidfill");
+    this.emitProgressEvent("void-fill", voidFillStart);
 
     // 3b. Build reverse style maps
-    this.mark("stylemaps");
+    const styleMapsStart = performance.now();
     const styleMaps = buildStyleMaps(index);
-    this.emitProgressEvent("stylemaps");
+    this.emitProgressEvent("style-maps", styleMapsStart);
 
     // 4. Identify all building elements
-    this.mark("classify");
+    const classifyStart = performance.now();
     const allElementIds = index.getAll(ELEMENT_TYPES);
-    this.emitProgressEvent("classify");
+    this.emitProgressEvent("classify", classifyStart);
 
     // 4b. Build aggregation map
-    this.mark("aggregate");
+    const aggregateStart = performance.now();
     const aggMap = buildAggregateMap(index, allElementIds);
-    this.emitProgressEvent("aggregate");
+    this.emitProgressEvent("aggregate", aggregateStart);
 
     // 5. Build clusters
-    this.mark("cluster");
+    const clusterStart = performance.now();
     const clusters: Set<number>[] = [];
     const assigned = new Set<number>();
     for (const eid of allElementIds) {
@@ -799,10 +799,10 @@ export class IfcSplitter {
       clusters.push(elementCluster);
       for (const cid of elementCluster) assigned.add(cid);
     }
-    this.emitProgressEvent("cluster");
+    this.emitProgressEvent("cluster", clusterStart);
 
     // 6. Distribute clusters into N groups (greedy bin packing)
-    this.mark("distribute");
+    const distributeStart = performance.now();
     const groups: Set<number>[] = Array.from(
       { length: numGroups },
       () => new Set(),
@@ -820,10 +820,10 @@ export class IfcSplitter {
       for (const id of clusters[ci]) groups[minIdx].add(id);
       groupSizes[minIdx] += clusters[ci].size;
     }
-    this.emitProgressEvent("distribute");
+    this.emitProgressEvent("distribute", distributeStart);
 
     // 7. Pre-parse all relationship lines that need per-group rewriting.
-    this.mark("index-rels");
+    const relationsStart = performance.now();
     const relEntries: RelEntry[] = [];
     for (let id = 0; id <= index.maxId; id++) {
       const type = index.getType(id);
@@ -848,10 +848,10 @@ export class IfcSplitter {
         });
       }
     }
-    this.emitProgressEvent("index-rels");
+    this.emitProgressEvent("relations", relationsStart);
 
     // 8. Resolve deps for all groups
-    this.mark("resolve");
+    const resolveStart = performance.now();
     const groupsData: (GroupData | null)[] = [];
 
     for (let g = 0; g < numGroups; g++) {
@@ -914,15 +914,15 @@ export class IfcSplitter {
       });
     }
 
-    this.emitProgressEvent("resolve");
-    this.dispatch("data", groupsData);
+    this.emitProgressEvent("resolve", resolveStart);
+    this.onSplitsResolved.trigger({ data: groupsData });
 
     // Free the index to reclaim memory before the output pass
     const maxParsedId = index.maxId;
     index.free();
 
     // 9. Build Uint32Array bitmask for O(1) write-phase lookups
-    this.mark("build-mask");
+    const buildMaskStart = performance.now();
     const idGroupMask = new Uint32Array(maxParsedId + 1);
     for (let g = 0; g < numGroups; g++) {
       const groupData = groupsData[g];
@@ -932,10 +932,10 @@ export class IfcSplitter {
         idGroupMask[id] |= bit;
       }
     }
-    this.emitProgressEvent("build-mask");
+    this.emitProgressEvent("build-mask", buildMaskStart);
 
     // 10. Second pass: write output files
-    this.mark("write");
+    const writeStart = performance.now();
     await this.writeSplitOutput(
       inputPath,
       header,
@@ -943,7 +943,7 @@ export class IfcSplitter {
       groupsData,
       idGroupMask,
     );
-    this.emitProgressEvent("write");
+    this.emitProgressEvent("write", writeStart);
 
     return new Map(
       groupsData
@@ -964,17 +964,34 @@ export class IfcSplitter {
     outputPath: string,
   ): Promise<Set<number>> {
     // 1. Parse
+    const parseStart = performance.now();
     const { header, footer, index } = await this.parseIfc(inputPath);
+    this.emitProgressEvent("parse", parseStart);
 
     // 2. Identify spatial structure (shared)
-    this.mark("spatial");
+    const spatialStart = performance.now();
     const sharedIds = traverseSpatialStructure(index);
-    this.emitProgressEvent("spatial");
+    this.emitProgressEvent("spatial", spatialStart);
 
     // 3. Build maps
+    const voidFillStart = performance.now();
     const vfMap = buildVoidFillMap(index);
+    this.emitProgressEvent("void-fill", voidFillStart);
+
+    const styleMapsStart = performance.now();
     const styleMaps = buildStyleMaps(index);
+    this.emitProgressEvent("style-maps", styleMapsStart);
+
+    const classifyStart = performance.now();
     const allElementIds = index.getAll(ELEMENT_TYPES);
+    this.emitProgressEvent("classify", classifyStart);
+
+    // 4. Cluster: expand void/fill + aggregation for requested elements
+    const aggregateStart = performance.now();
+    const aggMap = buildAggregateMap(index, allElementIds);
+    this.emitProgressEvent("aggregate", aggregateStart);
+
+    const clusterStart = performance.now();
 
     // Validate requested IDs
     const requestedIds = new Set<number>();
@@ -983,12 +1000,12 @@ export class IfcSplitter {
         requestedIds.add(eid);
       } else if (index.has(eid)) {
         const type = index.getType(eid);
-        this.dispatch("warning", {
+        this.onExtractWarning.trigger({
           message: `Skipping #${eid}: type '${type}' is not a building element`,
           context: { id: eid, type },
         });
       } else {
-        this.dispatch("warning", {
+        this.onExtractWarning.trigger({
           message: `Skipping #${eid}: not found`,
           context: { id: eid },
         });
@@ -998,8 +1015,6 @@ export class IfcSplitter {
       throw new Error("No valid element IDs found.");
     }
 
-    // 4. Cluster: expand void/fill + aggregation for requested elements
-    const aggMap = buildAggregateMap(index, allElementIds);
     const groupElementIds = new Set<number>(requestedIds);
     for (const eid of requestedIds) {
       const cluster = getCluster(eid, vfMap, aggMap);
@@ -1007,8 +1022,11 @@ export class IfcSplitter {
         if (allElementIds.has(cid)) groupElementIds.add(cid);
       }
     }
+    this.emitProgressEvent("cluster", clusterStart);
 
     // 5. Collect all dependencies
+    const resolveStart = performance.now();
+
     const fileIds = new Set<number>(sharedIds);
     for (const eid of groupElementIds) {
       collectDeps(eid, index, fileIds, allElementIds);
@@ -1026,7 +1044,10 @@ export class IfcSplitter {
     }
     resolveStyles(fileIds, index, styleMaps, allElementIds);
 
+    this.emitProgressEvent("resolve", resolveStart);
+
     // 6. Rewrite relationship lines
+    const relationsStart = performance.now();
     const rewrittenLines = new Map<number, string>();
     for (let id = 0; id <= index.maxId; id++) {
       const type = index.getType(id);
@@ -1059,11 +1080,12 @@ export class IfcSplitter {
         }
       }
     }
+    this.emitProgressEvent("relations", relationsStart);
 
     // 7. Free index, write output
     index.free();
 
-    this.mark("write");
+    const writeStart = performance.now();
     const writer = (await this.io.writableStream(outputPath)).getWriter();
     await writer.write(`${header.join("\n")}\n`);
 
@@ -1079,12 +1101,7 @@ export class IfcSplitter {
         const trimmed = line.trim();
         if (trimmed === "ENDSEC;") {
           if (accumulator) {
-            await this.emitExtractLine(
-              writer,
-              accumulator,
-              fileIds,
-              rewrittenLines,
-            );
+            await emitExtractLine(writer, accumulator, fileIds, rewrittenLines);
             accumulator = "";
           }
           section = "footer";
@@ -1092,18 +1109,13 @@ export class IfcSplitter {
         }
 
         if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-          await this.emitExtractLine(writer, trimmed, fileIds, rewrittenLines);
+          await emitExtractLine(writer, trimmed, fileIds, rewrittenLines);
           return;
         }
 
         accumulator += (accumulator ? " " : "") + trimmed;
         if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-          await this.emitExtractLine(
-            writer,
-            accumulator,
-            fileIds,
-            rewrittenLines,
-          );
+          await emitExtractLine(writer, accumulator, fileIds, rewrittenLines);
           accumulator = "";
         }
       }
@@ -1111,7 +1123,7 @@ export class IfcSplitter {
 
     await writer.write(`${footer.join("\n")}\n`);
     await writer.close();
-    this.emitProgressEvent("write");
+    this.emitProgressEvent("write", writeStart);
 
     return fileIds;
   }
@@ -1175,9 +1187,7 @@ export class IfcSplitter {
     filePath: string,
     callback: (line: string) => void | Promise<void>,
   ): Promise<void> {
-    const readableStream = (await this.io.readableStream(filePath)).pipeThrough(
-      new IfcDecoderStream(),
-    );
+    const readableStream = await this.io.readableStream(filePath);
 
     for await (const line of streamAsyncIterator(readableStream)) {
       await callback(line);
@@ -1216,12 +1226,7 @@ export class IfcSplitter {
         const trimmed = line.trim();
         if (trimmed === "ENDSEC;") {
           if (accumulator) {
-            await this.emitSplitLine(
-              writers,
-              accumulator,
-              groupsData,
-              idGroupMask,
-            );
+            await emitSplitLine(writers, accumulator, groupsData, idGroupMask);
             accumulator = "";
           }
           section = "footer";
@@ -1229,18 +1234,13 @@ export class IfcSplitter {
         }
 
         if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-          await this.emitSplitLine(writers, trimmed, groupsData, idGroupMask);
+          await emitSplitLine(writers, trimmed, groupsData, idGroupMask);
           return;
         }
 
         accumulator += (accumulator ? " " : "") + trimmed;
         if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-          await this.emitSplitLine(
-            writers,
-            accumulator,
-            groupsData,
-            idGroupMask,
-          );
+          await emitSplitLine(writers, accumulator, groupsData, idGroupMask);
           accumulator = "";
         }
       }
@@ -1250,70 +1250,16 @@ export class IfcSplitter {
     await Promise.all(
       writers.map(async (writer) => {
         if (!writer) return;
-        writer.write(footerStr);
-        writer.close();
+        await writer.write(footerStr);
+        await writer.close();
       }),
     );
   }
 
-  protected async emitSplitLine(
-    writers: (WritableStreamDefaultWriter | null)[],
-    raw: string,
-    groupsData: (GroupData | null)[],
-    idGroupMask: Uint32Array,
-  ): Promise<void> {
-    if (raw.charCodeAt(0) !== 35) return; // '#'
-    let id = 0;
-    for (let i = 1; i < raw.length; i++) {
-      const c = raw.charCodeAt(i);
-      if (c >= 48 && c <= 57) {
-        id = id * 10 + (c - 48);
-      } else {
-        break;
-      }
-    }
-    if (id === 0 || id >= idGroupMask.length) return;
-
-    const mask = idGroupMask[id];
-    if (mask === 0) return;
-
-    for (let g = 0; g < groupsData.length; g++) {
-      if (!(mask & (1 << g))) continue;
-      const gd = groupsData[g]!;
-      const line = gd.rewrittenLines.get(id) ?? raw;
-      await writers[g]!.write(`${line}\n`);
-    }
-  }
-
-  protected async emitExtractLine(
-    writer: WritableStreamDefaultWriter,
-    raw: string,
-    includeSet: Set<number>,
-    rewrittenLines: Map<number, string>,
-  ): Promise<void> {
-    if (raw.charCodeAt(0) !== 35) return; // '#'
-    let id = 0;
-    for (let i = 1; i < raw.length; i++) {
-      const c = raw.charCodeAt(i);
-      if (c >= 48 && c <= 57) {
-        id = id * 10 + (c - 48);
-      } else {
-        break;
-      }
-    }
-    if (id === 0 || !includeSet.has(id)) return;
-    const line = rewrittenLines.get(id) ?? raw;
-    await writer.write(`${line}\n`);
-  }
-
-  protected mark(stage: IfcSplitterStage) {
-    performance.mark(stage);
-  }
-
-  protected emitProgressEvent(stage: IfcSplitterStage) {
-    this.dispatch("progress", {
+  protected emitProgressEvent(stage: IfcSplitterStage, start: number) {
+    this.onProgress.trigger({
       stage,
-      timeElapsed: performance.measure(stage).duration,
+      timeElapsed: performance.now() - start,
     });
   }
 }
@@ -1329,4 +1275,54 @@ async function* streamAsyncIterator<T>(stream: ReadableStream<T>) {
   } finally {
     reader.releaseLock();
   }
+}
+
+async function emitSplitLine(
+  writers: (WritableStreamDefaultWriter | null)[],
+  raw: string,
+  groupsData: (GroupData | null)[],
+  idGroupMask: Uint32Array,
+): Promise<void> {
+  if (raw.charCodeAt(0) !== 35) return; // '#'
+  let id = 0;
+  for (let i = 1; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    if (c >= 48 && c <= 57) {
+      id = id * 10 + (c - 48);
+    } else {
+      break;
+    }
+  }
+  if (id === 0 || id >= idGroupMask.length) return;
+
+  const mask = idGroupMask[id];
+  if (mask === 0) return;
+
+  for (let g = 0; g < groupsData.length; g++) {
+    if (!(mask & (1 << g))) continue;
+    const gd = groupsData[g]!;
+    const line = gd.rewrittenLines.get(id) ?? raw;
+    await writers[g]!.write(`${line}\n`);
+  }
+}
+
+async function emitExtractLine(
+  writer: WritableStreamDefaultWriter,
+  raw: string,
+  includeSet: Set<number>,
+  rewrittenLines: Map<number, string>,
+): Promise<void> {
+  if (raw.charCodeAt(0) !== 35) return; // '#'
+  let id = 0;
+  for (let i = 1; i < raw.length; i++) {
+    const c = raw.charCodeAt(i);
+    if (c >= 48 && c <= 57) {
+      id = id * 10 + (c - 48);
+    } else {
+      break;
+    }
+  }
+  if (id === 0 || !includeSet.has(id)) return;
+  const line = rewrittenLines.get(id) ?? raw;
+  await writer.write(`${line}\n`);
 }
