@@ -67,3 +67,31 @@ export class IfcDecoderStream extends TransformStream<Uint8Array, string> {
     });
   }
 }
+
+/**
+ * Backward compatible stream async iterator
+ * ```typescript
+ * for await (const line of streamAsyncIterator(readableStream)) {
+ *   await callback(line);
+ * }
+ * ```
+ *
+ * Modern environments support stream async iterator out of the box:
+ * ```typescript
+ * for await (const line of readableStream) {
+ *   await callback(line);
+ * }
+ * ```
+ */
+export async function* streamAsyncIterator<T>(stream: ReadableStream<T>) {
+  const reader = stream.getReader();
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      yield value;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
