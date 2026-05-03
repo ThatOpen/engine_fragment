@@ -49,6 +49,9 @@
     "test-node": "yarn tsx ./src/Importers/IfcImporter/node-example.ts",
     "test-indexes": "yarn tsx ./src/FragmentsModels/test-indexes.ts"
   },
+  "engines": {
+    "node": ">=17"
+  },
   "dependencies": {
     "earcut": "^3.0.1",
     "flatbuffers": "25.2.10",

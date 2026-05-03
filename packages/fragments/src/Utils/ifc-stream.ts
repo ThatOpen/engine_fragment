@@ -1,4 +1,4 @@
-const cr = "\r";
+const crCharCode = 13; // "\r";
 const nl = "\n";
 
 /**
@@ -8,6 +8,9 @@ const nl = "\n";
  * ```ts
  * let blob: Blob;
  * 
+ * // node
+ * blob = await fs.openAsBlob(path, { type: "text/plain" });
+ * 
  * const ifcStream = blob
  *   .stream()
  *   .pipeThrough(new IfcDecoderStream());
@@ -15,11 +18,6 @@ const nl = "\n";
  * for await (const line of ifcStream) {
  *   // parse line
  * }
- * ```
- * 
- * @example node
- * ```ts
- * let blob = await fs.openAsBlob(path, { type: "text/plain" });
  * ```
  */
 export class IfcDecoderStream extends TransformStream<Uint8Array, string> {
@@ -36,7 +34,7 @@ export class IfcDecoderStream extends TransformStream<Uint8Array, string> {
 
         if (idx !== -1) {
           let end = idx;
-          if (end > 0 && text.charAt(end - 1) === cr) end--;
+          if (end > 0 && text.charCodeAt(end - 1) === crCharCode) end--;
           controller.enqueue(
             tail
               ? tail + text.substring(start, end)
@@ -52,7 +50,7 @@ export class IfcDecoderStream extends TransformStream<Uint8Array, string> {
 
         while (idx !== -1) {
           let end = idx;
-          if (end > start && text.charAt(end - 1) === cr) end--;
+          if (end > start && text.charCodeAt(end - 1) === crCharCode) end--;
           controller.enqueue(text.substring(start, end));
           start = idx + 1;
           idx = text.indexOf(nl, start);
