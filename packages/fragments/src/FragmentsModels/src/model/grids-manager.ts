@@ -22,6 +22,14 @@ interface FontConfig {
    * @default 12
    */
   curveSegments: number;
+
+  /**
+   * Label offset from line's tip, negative values will offset label onto line.
+   * When using negative values that may exceed the axis line,
+   * you may want to set the label's material `side` to `THREE.DoubleSide`.
+   * @default 0.5
+   */
+  offset: number;
 }
 
 interface FlatLabelConfig extends FontConfig {
@@ -90,24 +98,36 @@ export class GridsManager {
 
   async getGrids({ labels }: GridsConfig = {}) {
     let labelsNeedUpdate = false;
+    let labelsNeedRepositioning = false;
+
     if (labels?.show) {
-      const a = this._labelConfig;
-      const b: FlatLabelConfig = {
+      const incomingConfig: FlatLabelConfig = {
         size: 0.2,
         direction: "ltr",
         curveSegments: 12,
+        offset: 0.5,
         ...labels.config,
         font: labels.font,
       };
+
+      if (
+        !!this._labelConfig &&
+        this._labelConfig.offset !== incomingConfig.offset
+      ) {
+        this._labelConfig.offset = incomingConfig.offset;
+        labelsNeedRepositioning = true;
+      }
+
       const isEqual =
-        a &&
-        a.font === b.font &&
-        a.size === b.size &&
-        a.direction === b.direction &&
-        a.curveSegments === b.curveSegments;
+        !!this._labelConfig &&
+        this._labelConfig.font === incomingConfig.font &&
+        this._labelConfig.size === incomingConfig.size &&
+        this._labelConfig.direction === incomingConfig.direction &&
+        this._labelConfig.curveSegments === incomingConfig.curveSegments;
+
       if (!isEqual) {
         labelsNeedUpdate = true;
-        this._labelConfig = b;
+        this._labelConfig = incomingConfig;
       }
     } else if (this._labelConfig) {
       labelsNeedUpdate = true;
@@ -119,11 +139,13 @@ export class GridsManager {
       labelsNeedUpdate = true;
     }
 
+    const axisGroups: THREE.Group[] = [];
+
     if (labelsNeedUpdate) {
       const staleCache = [...this._labelMap];
       this._labelMap.clear();
 
-      const pairs: [THREE.Group, THREE.Object3D[]][] = [];
+      const pairs: [THREE.Group, [THREE.Object3D, THREE.Object3D]][] = [];
 
       this._grids.traverse((object) => {
         if (object.userData.kind === "label") {
@@ -132,16 +154,14 @@ export class GridsManager {
           label.removeFromParent();
         } else if (this._labelConfig && object.userData.kind === "axis") {
           const gridAxisGroup = object as THREE.Group;
-          const gridAxis = gridAxisGroup.children[0] as THREE.Line;
-          const { tag, axis } = gridAxis.userData;
-          const position = gridAxis.geometry.getAttribute("position").array;
+          const { tag, axis } = gridAxisGroup.userData;
           const labels = this.createGridLabels({
             tag,
             axis,
-            position,
             config: this._labelConfig,
           });
           pairs.push([gridAxisGroup, labels]);
+          axisGroups.push(gridAxisGroup);
         }
       });
 
@@ -151,6 +171,44 @@ export class GridsManager {
 
       for (const [, geometry] of staleCache) {
         geometry.dispose();
+      }
+    } else if (labelsNeedRepositioning) {
+      this._grids.traverse((object) => {
+        if (object.userData.kind === "axis") {
+          const gridAxisGroup = object as THREE.Group;
+          axisGroups.push(gridAxisGroup);
+        }
+      });
+    }
+
+    for (const group of axisGroups) {
+      // safeguard against consumer mutations
+      const [line, label0, label1] = group.children as [
+        THREE.Line | undefined,
+        THREE.Mesh | undefined,
+        THREE.Mesh | undefined,
+      ];
+      const position = line?.geometry.getAttribute("position").array;
+      if (!position) continue;
+      const [m0, m1] = this.getGridLabelMatrices(
+        position,
+        this._labelConfig?.offset ?? 0.5,
+      );
+      if (label0) {
+        label0.matrix.copy(m0);
+        label0.matrix.decompose(
+          label0.position,
+          label0.quaternion,
+          label0.scale,
+        );
+      }
+      if (label1) {
+        label1.matrix.copy(m1);
+        label1.matrix.decompose(
+          label1.position,
+          label1.quaternion,
+          label1.scale,
+        );
       }
     }
 
@@ -271,14 +329,12 @@ export class GridsManager {
   createGridLabels({
     tag,
     axis,
-    position,
     config,
   }: {
     tag: string;
     axis: string;
-    position: THREE.TypedArray;
     config: FlatLabelConfig;
-  }) {
+  }): [THREE.Mesh, THREE.Mesh] {
     let geometry = this._labelMap.get(tag);
     if (!geometry) {
       const { font, size, direction, curveSegments } = config;
@@ -291,29 +347,13 @@ export class GridsManager {
     }
 
     const mesh0 = new THREE.Mesh(geometry, this._labelMaterial);
-    const mesh1 = new THREE.Mesh(geometry, this._labelMaterial);
-
-    const a = new THREE.Vector3().fromArray(position.slice(0, 3));
-    const b = new THREE.Vector3().fromArray(position.slice(-3));
-    const offset = new THREE.Vector3()
-      .subVectors(b, a)
-      .normalize()
-      .multiplyScalar(0.5);
-    const aPos = a.clone().sub(offset);
-    const bPos = b.clone().add(offset);
-    const z = new THREE.Vector3(0, 0, 1);
-    const m0 = new THREE.Matrix4().setPosition(aPos).lookAt(aPos, a, z);
-    const m1 = new THREE.Matrix4().setPosition(bPos).lookAt(bPos, b, z);
-
-    mesh0.applyMatrix4(m0);
-    mesh1.applyMatrix4(m1);
-
     mesh0.userData.kind = "label";
     mesh0.userData.tag = tag;
     mesh0.userData.axis = axis;
     mesh0.userData.index = 0;
     mesh0.renderOrder = 1;
 
+    const mesh1 = new THREE.Mesh(geometry, this._labelMaterial);
     mesh1.userData.kind = "label";
     mesh1.userData.tag = tag;
     mesh1.userData.axis = axis;
@@ -321,6 +361,21 @@ export class GridsManager {
     mesh1.renderOrder = 1;
 
     return [mesh0, mesh1];
+  }
+
+  getGridLabelMatrices(position: THREE.TypedArray, offsetScalar: number) {
+    const a = new THREE.Vector3().fromArray(position.slice(0, 3));
+    const b = new THREE.Vector3().fromArray(position.slice(-3));
+    const offset = new THREE.Vector3()
+      .subVectors(b, a)
+      .normalize()
+      .multiplyScalar(offsetScalar);
+    const aPos = a.clone().sub(offset);
+    const bPos = b.clone().add(offset);
+    const z = new THREE.Vector3(0, 0, 1);
+    const m0 = new THREE.Matrix4().setPosition(aPos).lookAt(aPos, b, z);
+    const m1 = new THREE.Matrix4().setPosition(bPos).lookAt(bPos, a, z);
+    return [m0, m1];
   }
 
   dispose() {
