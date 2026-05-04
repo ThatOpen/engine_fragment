@@ -1,6 +1,63 @@
 import * as THREE from "three";
+import { Font } from "three/examples/jsm/Addons.js";
 import { FragmentsModel } from "./fragments-model";
 import { GridData } from "./model-types";
+
+interface FontConfig {
+  /**
+   * @see {@link Font.generateShapes}
+   * @default 0.2
+   */
+  size: number;
+
+  /**
+   * @see {@link Font.generateShapes}
+   * @default "ltr"
+   */
+  direction: "ltr" | "rtl" | "tb";
+
+  /**
+   * Number of segments per shape. Expects a `Integer`.
+   * @see {@link THREE.ShapeGeometry}
+   * @default 12
+   */
+  curveSegments: number;
+}
+
+interface FlatLabelConfig extends FontConfig {
+  font: Font;
+}
+
+type LabelConfig =
+  | {
+      show: true;
+
+      /**
+       * Three {@link Font} instance
+       *
+       * Convert font file to json: https://gero3.github.io/facetype.js/
+       *
+       * @example
+       * import { Font, FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
+       *
+       * const font: Font = await new Promise((resolve, reject) =>
+       *   new FontLoader().load(
+       *     new URL("./assets/font.json", import.meta.url).href,
+       *     resolve,
+       *     undefined,
+       *     reject
+       *   )
+       * );
+       */
+      font: Font;
+
+      config?: Partial<FontConfig>;
+    }
+  | { show?: false };
+
+export interface GridsConfig {
+  labels?: LabelConfig;
+}
 
 export class GridsManager {
   private model: FragmentsModel;
@@ -15,14 +72,65 @@ export class GridsManager {
     gapSize: 0.3,
   });
 
+  private _labelMaterial = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    flatShading: true,
+    side: THREE.FrontSide,
+    depthTest: false,
+  });
+
+  private _labelConfig?: FlatLabelConfig;
+  private _labelMap = new Map<string, THREE.BufferGeometry>();
+
   constructor(model: FragmentsModel) {
     this.model = model;
   }
 
-  async getGrids() {
+  async getGrids({ labels }: GridsConfig = {}) {
+    let labelsNeedUpdate = false;
+    if (labels?.show) {
+      const a = this._labelConfig;
+      const b: FlatLabelConfig = {
+        size: 0.2,
+        direction: "ltr",
+        curveSegments: 12,
+        ...labels.config,
+        font: labels.font,
+      };
+      const isEqual =
+        a &&
+        a.font === b.font &&
+        a.size === b.size &&
+        a.direction === b.direction &&
+        a.curveSegments === b.curveSegments;
+      if (!isEqual) {
+        labelsNeedUpdate = true;
+        this._labelConfig = b;
+      }
+    } else if (this._labelConfig) {
+      labelsNeedUpdate = true;
+      delete this._labelConfig;
+    }
+
     if (!this._grids.children.length) {
       await this.constructGrids();
+      labelsNeedUpdate = true;
     }
+
+    if (labelsNeedUpdate) {
+      this._labelMap.forEach((geometry) => geometry.dispose());
+      this._labelMap.clear();
+      this._grids.traverse((object) => {
+        if (object.userData.kind === "label") {
+          // remove stale labels
+          object.removeFromParent();
+        } else if (this._labelConfig && object.userData.kind === "axis") {
+          const gridAxis = object as THREE.Line;
+          this.appendGridLabels(gridAxis, this._labelConfig);
+        }
+      });
+    }
+
     return this._grids;
   }
 
@@ -102,6 +210,56 @@ export class GridsManager {
     }
   }
 
+  appendGridLabels(gridAxis: THREE.Line, config: FlatLabelConfig) {
+    const { tag, axis } = gridAxis.userData;
+    const position = gridAxis.geometry.getAttribute(
+      "position",
+    ) as THREE.BufferAttribute;
+
+    let geometry = this._labelMap.get(tag);
+    if (!geometry) {
+      const { font, size, direction, curveSegments } = config;
+      const shapes = font.generateShapes(tag, size, direction);
+      geometry = new THREE.ShapeGeometry(shapes, curveSegments);
+      geometry.computeBoundingBox();
+      geometry.center();
+      geometry.computeBoundingSphere();
+      this._labelMap.set(tag, geometry);
+    }
+
+    const mesh0 = new THREE.Mesh(geometry, this._labelMaterial);
+    const mesh1 = new THREE.Mesh(geometry, this._labelMaterial);
+
+    const a = new THREE.Vector3().fromArray(position.array.slice(0, 3));
+    const b = new THREE.Vector3().fromArray(position.array.slice(-3));
+    const offset = new THREE.Vector3()
+      .subVectors(b, a)
+      .normalize()
+      .multiplyScalar(0.5);
+    const aPos = a.clone().sub(offset);
+    const bPos = b.clone().add(offset);
+    const z = new THREE.Vector3(0, 0, 1);
+    const m0 = new THREE.Matrix4().setPosition(aPos).lookAt(aPos, a, z);
+    const m1 = new THREE.Matrix4().setPosition(bPos).lookAt(bPos, b, z);
+
+    mesh0.applyMatrix4(m0);
+    mesh1.applyMatrix4(m1);
+
+    mesh0.userData.kind = "label";
+    mesh0.userData.tag = tag;
+    mesh0.userData.axis = axis;
+    mesh0.userData.index = 0;
+    mesh0.renderOrder = 1;
+
+    mesh1.userData.kind = "label";
+    mesh1.userData.tag = tag;
+    mesh1.userData.axis = axis;
+    mesh1.userData.index = 1;
+    mesh1.renderOrder = 1;
+
+    gridAxis.parent!.add(mesh0, mesh1);
+  }
+
   dispose() {
     this._grids.removeFromParent();
     for (const grid of this._grids.children) {
@@ -112,5 +270,7 @@ export class GridsManager {
     }
     this._gridMaterial.dispose();
     this._gridMaterial = undefined as any;
+    this._labelMap.forEach((geometry) => geometry.dispose());
+    this._labelMap.clear();
   }
 }

@@ -40,7 +40,7 @@ import { DataManager } from "./data-manager";
 import { SequenceManager } from "./sequence-manager";
 import { EditManager } from "./edit-manager";
 import { Editor } from "../edit";
-import { GridsManager } from "./grids-manager";
+import { GridsConfig, GridsManager } from "./grids-manager";
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -651,14 +651,19 @@ export class FragmentsModel {
   /**
    * Get the grids of the model (if any).
    *
-   * Returns a `THREE.Group` with one child per grid (each child carries
-   * `userData.id = localId` and `userData.kind = "grid"`). Each grid's
-   * children are `THREE.Line` instances with `userData.kind = "axis"`,
+   * Returns a `THREE.Group` with one child per grid (each child is a `THREE.Group`
+   * that carries `userData.id = localId` and `userData.kind = "grid"`).
+   * Each grid's children are `THREE.Line` instances with `userData.kind = "axis"`,
    * `userData.tag` (the axis label), and `userData.axis` ("uAxes",
    * "vAxes", or "wAxes").
+   *
+   * When opting in to showing labels, two `THREE.SHAPE` instances with
+   * `userData.kind = "label"`, `userData.tag` (the axis label), `userData.axis` ("uAxes",
+   * "vAxes", or "wAxes") and `userData.index` (the label's index, `0` or `1`)
+   * are appended to the grid for each axis.
    */
-  async getGrids() {
-    return this._gridsManager.getGrids();
+  async getGrids(config?: GridsConfig) {
+    return this._gridsManager.getGrids(config);
   }
 
   /**
