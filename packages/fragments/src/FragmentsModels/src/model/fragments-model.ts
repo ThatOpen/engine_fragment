@@ -1,46 +1,46 @@
 import * as THREE from "three";
 import {
+  AttributesUniqueValuesParams,
+  AttrsChange,
   BIMMesh,
-  MaterialDefinition,
+  CurrentLod,
+  Identifier,
+  ItemInformationType,
   ItemsDataConfig,
-  RectangleRaycastData,
+  ItemSelectionType,
+  ItemsQueryConfig,
+  ItemsQueryParams,
+  LodMode,
+  MaterialDefinition,
   RaycastData,
+  RectangleRaycastData,
+  RelsChange,
+  ResultInputType,
+  SelectionInputType,
   SnappingRaycastData,
   VirtualModelConfig,
-  ItemSelectionType,
-  ItemInformationType,
-  SelectionInputType,
-  ResultInputType,
-  AttrsChange,
-  Identifier,
-  RelsChange,
-  ItemsQueryParams,
-  AttributesUniqueValuesParams,
-  CurrentLod,
-  ItemsQueryConfig,
-  LodMode,
 } from "./model-types";
 
-import { MiscHelper } from "../utils";
 import { FragmentsConnection } from "../multithreading/fragments-connection";
+import { MiscHelper } from "../utils";
 import { MeshManager } from "./mesh-manager";
 
-import { AlignmentsManager } from "./alignments-manager";
 import { DataMap, EditRequest, Event } from "../../../Utils";
-import { SetupManager } from "./setup-manager";
+import { Editor } from "../edit";
+import { AlignmentsManager } from "./alignments-manager";
 import { BoxManager } from "./box-manager";
 import { CoordinatesManager } from "./coordinates-manager";
-import { ItemsManager } from "./items-manager";
-import { ViewManager } from "./view-manager";
-import { RaycastManager } from "./raycast-manager";
-import { VisibilityManager } from "./visibility-manager";
-import { HighlightManager } from "./highlight-manager";
-import { SectionManager } from "./section-manager";
 import { DataManager } from "./data-manager";
-import { SequenceManager } from "./sequence-manager";
 import { EditManager } from "./edit-manager";
-import { Editor } from "../edit";
-import { GridsManager } from "./grids-manager";
+import { GridsConfig, GridsManager } from "./grids-manager";
+import { HighlightManager } from "./highlight-manager";
+import { ItemsManager } from "./items-manager";
+import { RaycastManager } from "./raycast-manager";
+import { SectionManager } from "./section-manager";
+import { SequenceManager } from "./sequence-manager";
+import { SetupManager } from "./setup-manager";
+import { ViewManager } from "./view-manager";
+import { VisibilityManager } from "./visibility-manager";
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -492,7 +492,7 @@ export class FragmentsModel {
       this.modelId,
       "getAttributesUniqueValues",
       [params],
-    )) as Record<string, { value: any, localIds: number[] }[]>;
+    )) as Record<string, { value: any; localIds: number[] }[]>;
     return values;
   }
 
@@ -651,18 +651,26 @@ export class FragmentsModel {
   /**
    * Get the grids of the model (if any).
    *
-   * Returns a `THREE.Group` with one child per grid (each child carries
-   * `userData.id = localId` and `userData.kind = "grid"`). Each grid's
-   * children are `THREE.Line` instances with `userData.kind = "axis"`,
-   * `userData.tag` (the axis label), and `userData.axis` ("uAxes",
-   * "vAxes", or "wAxes").
+   * Returns a `THREE.Group` with one child per grid (each child is a `THREE.Group`
+   * that carries `userData.id = localId` and `userData.kind = "grid"`).
+   *
+   * Each grid's children are `THREE.Group` instances with `userData.kind = "axis"`,
+   * acting as an axis container.
+   * A `THREE.LINE` instance with `userData.kind = "line"` is appended to it.
+   *
+   * When opting in to showing labels, two `THREE.SHAPE` instances with
+   * `userData.kind = "label"` and `userData.index` (the label's index, `0` or `1`)
+   * are appended to the axis container.
+   *
+   * All grid's descendants (`"axis"`, `"line"`, `"label"`) carry `userData.tag` (the axis label value)
+   * and `userData.axis` (`"uAxes"`, `"vAxes"`, or `"wAxes"`).
    */
-  async getGrids() {
-    return this._gridsManager.getGrids();
+  async getGrids(config?: GridsConfig) {
+    return this._gridsManager.getGrids(config);
   }
 
   /**
-   * The shared `LineDashedMaterial` used to render every grid axis line.
+   * The shared material used to render every grid axis line.
    * Mutating its properties (color, opacity, dash sizes, etc.) updates all
    * rendered grid lines immediately. Use `setGridMaterial` to swap to a
    * different material instance.
@@ -675,8 +683,26 @@ export class FragmentsModel {
    * Replace the shared grid material. The previous material is disposed
    * after the swap.
    */
-  setGridMaterial(material: THREE.LineDashedMaterial) {
+  setGridMaterial(material: THREE.LineBasicMaterial) {
     this._gridsManager.setGridMaterial(material);
+  }
+
+  /**
+   * The shared material used to render every grid axis label.
+   * Mutating its properties (color, opacity, dash sizes, etc.) updates all
+   * rendered grid labels immediately. Use `setGridLabelMaterial` to swap to a
+   * different material instance.
+   */
+  getGridLabelMaterial() {
+    return this._gridsManager.getLabelMaterial();
+  }
+
+  /**
+   * Replace the shared grid label material. The previous material is disposed
+   * after the swap.
+   */
+  setGridLabelMaterial(material: THREE.Material) {
+    this._gridsManager.setLabelMaterial(material);
   }
 
   /**

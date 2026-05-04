@@ -17,6 +17,8 @@ import * as OBC from "@thatopen/components";
 import * as BUI from "@thatopen/ui";
 import Stats from "stats.js";
 // You have to import * as FRAGS from "@thatopen/fragments"
+import type { MeshPhongMaterial } from "three";
+import { Font, FontLoader } from "three/examples/jsm/Addons.js";
 import * as FRAGS from "../..";
 
 /* MD
@@ -108,11 +110,42 @@ fragments.models.materials.list.onItemSet.add(({ value: material }) => {
   With the core already set up, let's create a simple function to load the Fragments Model from the binary data and add it to the scene. This function ensures seamless integration of the converted model into our application:
 */
 
+let gridLabelOffset = 0;
+let updateGrids = () => {};
+
 const loadModel = async () => {
   if (!fragmentBytes) return;
   const model = await fragments.load(fragmentBytes, { modelId: "example" });
   model.useCamera(world.camera.three);
   world.scene.three.add(model.object);
+  const font = await new Promise<Font>((resolve, reject) => {
+    new FontLoader().load(
+      // convert font file to json: https://gero3.github.io/facetype.js/
+      new URL("../../../../../resources/Roboto_Regular.json", import.meta.url)
+        .href,
+      resolve,
+      (e) => console.log("Font loading progress", e.loaded / e.total),
+      reject,
+    );
+  });
+  const grids = await model.getGrids({
+    labels: {
+      show: true,
+      font,
+      config: { offset: gridLabelOffset },
+    },
+  });
+  updateGrids = () =>
+    model.getGrids({
+      labels: {
+        show: true,
+        font,
+        config: { offset: gridLabelOffset },
+      },
+    });
+  model.getGridMaterial().color.set("black");
+  (model.getGridLabelMaterial() as MeshPhongMaterial).color.set("black");
+  world.scene.three.add(grids);
   await fragments.update(true);
 };
 
@@ -147,6 +180,11 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
       URL.revokeObjectURL(a.href);
     };
 
+    const onLabelOffsetChange = (e: any) => {
+      gridLabelOffset = Number(e.target.value);
+      updateGrids();
+    };
+
     let content = BUI.html`
       <bim-label style="white-space: normal;">💡 Open the console to see more information</bim-label>
       <bim-button label="Load IFC" @click=${convertIFC}></bim-button>
@@ -157,6 +195,7 @@ const [panel, updatePanel] = BUI.Component.create<BUI.PanelSection, any>(
         <bim-button label="Add Model" @click=${loadModel}></bim-button>
         <bim-button label="Remove Model" @click=${removeModel}></bim-button>
         <bim-button label="Download Fragments" @click=${onDownload}></bim-button>
+        <bim-number-input label="Grid Label Offset" slider  step=0.1 value=${gridLabelOffset} @change=${onLabelOffsetChange}></bim-number-input>
       `;
     }
 
