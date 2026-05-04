@@ -48,7 +48,7 @@ type LabelConfig =
        * @example
        * import { Font, FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
        *
-       * const font: Font = await new Promise((resolve, reject) =>
+       * const font = await new Promise<Font>((resolve, reject) =>
        *   new FontLoader().load(
        *     new URL("./assets/font.json", import.meta.url).href,
        *     resolve,
