@@ -64,15 +64,17 @@ export class GridsManager {
 
   private _grids = new THREE.Group();
 
-  private _gridMaterial = new THREE.LineDashedMaterial({
-    color: 0xffffff,
-    linewidth: 5,
-    depthTest: false,
-    dashSize: 1,
-    gapSize: 0.3,
-  });
+  private _gridMaterial: THREE.LineBasicMaterial = new THREE.LineDashedMaterial(
+    {
+      color: 0xffffff,
+      linewidth: 5,
+      depthTest: false,
+      dashSize: 1,
+      gapSize: 0.3,
+    },
+  );
 
-  private _labelMaterial = new THREE.MeshPhongMaterial({
+  private _labelMaterial: THREE.Material = new THREE.MeshPhongMaterial({
     color: 0xffffff,
     flatShading: true,
     side: THREE.FrontSide,
@@ -135,13 +137,13 @@ export class GridsManager {
   }
 
   /**
-   * The shared `LineDashedMaterial` used for every grid axis. Mutating its
+   * The shared line material used for every grid axis. Mutating its
    * properties (color, opacity, dash sizes, etc.) updates all rendered grid
    * lines without needing to traverse the returned `Object3D`. Replace it
    * with a different material via `setGridMaterial` if you need a different
    * material class.
    */
-  getGridMaterial(): THREE.LineDashedMaterial {
+  getGridMaterial(): THREE.LineBasicMaterial {
     return this._gridMaterial;
   }
 
@@ -150,12 +152,39 @@ export class GridsManager {
    * reassigns their `.material`, then disposes the previous material to
    * release GPU resources.
    */
-  setGridMaterial(material: THREE.LineDashedMaterial): void {
+  setGridMaterial(material: THREE.LineBasicMaterial): void {
     const prev = this._gridMaterial;
     this._gridMaterial = material;
     this._grids.traverse((child) => {
       if (child instanceof THREE.Line) {
         child.material = material;
+      }
+    });
+    if (prev !== material) prev.dispose();
+  }
+
+  /**
+   * The shared material used for every grid axis label. Mutating its
+   * properties (color, opacity, dash sizes, etc.) updates all rendered grid
+   * labels without needing to traverse the returned `Object3D`. Replace it
+   * with a different material via `setGridMaterial` if you need a different
+   * material class.
+   */
+  getLabelMaterial(): THREE.Material {
+    return this._labelMaterial;
+  }
+
+  /**
+   * Replace the shared label material. Walks already-constructed labels and
+   * reassigns their `.material`, then disposes the previous material to
+   * release GPU resources.
+   */
+  setLabelMaterial(material: THREE.Material): void {
+    const prev = this._labelMaterial;
+    this._labelMaterial = material;
+    this._grids.traverse((child) => {
+      if (child.userData.kind === "label") {
+        (child as THREE.Mesh).material = material;
       }
     });
     if (prev !== material) prev.dispose();
@@ -270,6 +299,9 @@ export class GridsManager {
     }
     this._gridMaterial.dispose();
     this._gridMaterial = undefined as any;
+    this._labelMaterial.dispose();
+    this._labelMaterial = undefined as any;
+    delete this._labelConfig;
     this._labelMap.forEach((geometry) => geometry.dispose());
     this._labelMap.clear();
   }
