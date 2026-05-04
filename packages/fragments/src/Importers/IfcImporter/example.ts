@@ -17,6 +17,7 @@ import * as OBC from "@thatopen/components";
 import * as BUI from "@thatopen/ui";
 import Stats from "stats.js";
 // You have to import * as FRAGS from "@thatopen/fragments"
+import type { MeshPhongMaterial } from "three";
 import { Font, FontLoader } from "three/examples/jsm/Addons.js";
 import * as FRAGS from "../..";
 
@@ -120,11 +121,18 @@ const loadModel = async () => {
       new URL("../../../../../resources/Roboto_Regular.json", import.meta.url)
         .href,
       resolve,
-      (e) => console.log("Font loading progress", e),
+      (e) => console.log("Font loading progress", e.loaded / e.total),
       reject,
     );
   });
-  const grids = await model.getGrids({ labels: { show: true, font } });
+  const grids = await model.getGrids({
+    labels: {
+      show: true,
+      font,
+    },
+  });
+  model.getGridMaterial().color.set("black");
+  (model.getGridLabelMaterial() as MeshPhongMaterial).color.set("black");
   world.scene.three.add(grids);
   await fragments.update(true);
 };
