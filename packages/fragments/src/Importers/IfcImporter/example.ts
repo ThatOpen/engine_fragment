@@ -17,6 +17,7 @@ import * as OBC from "@thatopen/components";
 import * as BUI from "@thatopen/ui";
 import Stats from "stats.js";
 // You have to import * as FRAGS from "@thatopen/fragments"
+import { Font, FontLoader } from "three/examples/jsm/Addons.js";
 import * as FRAGS from "../..";
 
 /* MD
@@ -113,6 +114,18 @@ const loadModel = async () => {
   const model = await fragments.load(fragmentBytes, { modelId: "example" });
   model.useCamera(world.camera.three);
   world.scene.three.add(model.object);
+  const font = await new Promise<Font>((resolve, reject) => {
+    new FontLoader().load(
+      // convert font file to json: https://gero3.github.io/facetype.js/
+      new URL("../../../../../resources/Roboto_Regular.json", import.meta.url)
+        .href,
+      resolve,
+      (e) => console.log("Font loading progress", e),
+      reject,
+    );
+  });
+  const grids = await model.getGrids({ labels: { show: true, font } });
+  world.scene.three.add(grids);
   await fragments.update(true);
 };
 
