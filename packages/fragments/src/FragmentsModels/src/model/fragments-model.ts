@@ -653,14 +653,17 @@ export class FragmentsModel {
    *
    * Returns a `THREE.Group` with one child per grid (each child is a `THREE.Group`
    * that carries `userData.id = localId` and `userData.kind = "grid"`).
-   * Each grid's children are `THREE.Line` instances with `userData.kind = "axis"`,
-   * `userData.tag` (the axis label), and `userData.axis` ("uAxes",
-   * "vAxes", or "wAxes").
+   *
+   * Each grid's children are `THREE.Group` instances with `userData.kind = "axis"`,
+   * acting as an axis container.
+   * A `THREE.LINE` instance with `userData.kind = "line"` is appended to it.
    *
    * When opting in to showing labels, two `THREE.SHAPE` instances with
-   * `userData.kind = "label"`, `userData.tag` (the axis label), `userData.axis` ("uAxes",
-   * "vAxes", or "wAxes") and `userData.index` (the label's index, `0` or `1`)
-   * are appended to the grid for each axis.
+   * `userData.kind = "label"` and `userData.index` (the label's index, `0` or `1`)
+   * are appended to the axis container.
+   *
+   * All grid's descendants (`"axis"`, `"line"`, `"label"`) carry `userData.tag` (the axis label value)
+   * and `userData.axis` (`"uAxes"`, `"vAxes"`, or `"wAxes"`).
    */
   async getGrids(config?: GridsConfig) {
     return this._gridsManager.getGrids(config);

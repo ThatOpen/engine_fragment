@@ -120,17 +120,38 @@ export class GridsManager {
     }
 
     if (labelsNeedUpdate) {
-      this._labelMap.forEach((geometry) => geometry.dispose());
+      const staleCache = [...this._labelMap];
       this._labelMap.clear();
+
+      const pairs: [THREE.Group, THREE.Object3D[]][] = [];
+
       this._grids.traverse((object) => {
         if (object.userData.kind === "label") {
           // remove stale labels
-          object.removeFromParent();
+          const label = object as THREE.Mesh;
+          label.removeFromParent();
         } else if (this._labelConfig && object.userData.kind === "axis") {
-          const gridAxis = object as THREE.Line;
-          this.appendGridLabels(gridAxis, this._labelConfig);
+          const gridAxisGroup = object as THREE.Group;
+          const gridAxis = gridAxisGroup.children[0] as THREE.Line;
+          const { tag, axis } = gridAxis.userData;
+          const position = gridAxis.geometry.getAttribute("position").array;
+          const labels = this.createGridLabels({
+            tag,
+            axis,
+            position,
+            config: this._labelConfig,
+          });
+          pairs.push([gridAxisGroup, labels]);
         }
       });
+
+      for (const [group, labels] of pairs) {
+        group.add(...labels);
+      }
+
+      for (const [, geometry] of staleCache) {
+        geometry.dispose();
+      }
     }
 
     return this._grids;
@@ -230,21 +251,34 @@ export class GridsManager {
         new THREE.BufferAttribute(positions, 3),
       );
       const axisLine = new THREE.Line(geometry, this._gridMaterial);
-      axisLine.userData.tag = tag;
-      axisLine.userData.kind = "axis";
-      axisLine.userData.axis = axis;
       axisLine.computeLineDistances();
+      axisLine.userData.tag = tag;
+      axisLine.userData.kind = "line";
+      axisLine.userData.axis = axis;
       axisLine.renderOrder = 1;
-      grid.add(axisLine);
+
+      const axisGroup = new THREE.Group();
+      axisGroup.userData.tag = tag;
+      axisGroup.userData.kind = "axis";
+      axisGroup.userData.axis = axis;
+      axisGroup.renderOrder = 1;
+
+      axisGroup.add(axisLine);
+      grid.add(axisGroup);
     }
   }
 
-  appendGridLabels(gridAxis: THREE.Line, config: FlatLabelConfig) {
-    const { tag, axis } = gridAxis.userData;
-    const position = gridAxis.geometry.getAttribute(
-      "position",
-    ) as THREE.BufferAttribute;
-
+  createGridLabels({
+    tag,
+    axis,
+    position,
+    config,
+  }: {
+    tag: string;
+    axis: string;
+    position: THREE.TypedArray;
+    config: FlatLabelConfig;
+  }) {
     let geometry = this._labelMap.get(tag);
     if (!geometry) {
       const { font, size, direction, curveSegments } = config;
@@ -259,8 +293,8 @@ export class GridsManager {
     const mesh0 = new THREE.Mesh(geometry, this._labelMaterial);
     const mesh1 = new THREE.Mesh(geometry, this._labelMaterial);
 
-    const a = new THREE.Vector3().fromArray(position.array.slice(0, 3));
-    const b = new THREE.Vector3().fromArray(position.array.slice(-3));
+    const a = new THREE.Vector3().fromArray(position.slice(0, 3));
+    const b = new THREE.Vector3().fromArray(position.slice(-3));
     const offset = new THREE.Vector3()
       .subVectors(b, a)
       .normalize()
@@ -286,7 +320,7 @@ export class GridsManager {
     mesh1.userData.index = 1;
     mesh1.renderOrder = 1;
 
-    gridAxis.parent!.add(mesh0, mesh1);
+    return [mesh0, mesh1];
   }
 
   dispose() {
