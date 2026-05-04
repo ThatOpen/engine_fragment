@@ -1,12 +1,11 @@
 // import * as WEBIFC from "web-ifc"
-import * as OBC from "@thatopen/components";
-import * as OBF from "@thatopen/components-front";
 import * as FB from "flatbuffers";
 import pako from "pako";
-import Stats from "stats.js";
+import * as OBC from "@thatopen/components";
+import * as OBF from "@thatopen/components-front";
 import * as THREE from "three";
+import Stats from "stats.js";
 // import { FragmentsModels, IfcSerializer, getObject } from "../../../dist";
-import { Font, FontLoader } from "three/examples/jsm/Addons.js";
 import { FragmentsModels, IfcImporter, getObject } from "../../index";
 import * as TFB from "../../Schema";
 
@@ -154,16 +153,7 @@ const run = async (serialize: boolean) => {
     const absoluteAlignments = await model.getAlignments();
     world.scene.three.add(absoluteAlignments);
 
-    const font = await new Promise<Font>((resolve, reject) => {
-      new FontLoader().load(
-        // convert font file to json: https://gero3.github.io/facetype.js/
-        new URL("/resources/Roboto_Regular.json", import.meta.url).href,
-        resolve,
-        undefined,
-        reject,
-      );
-    });
-    const grids = await model.getGrids({ labels: { show: true, font } });
+    const grids = await model.getGrids();
     world.scene.three.add(grids);
 
     // const horizontalAlignments = await model.getHorizontalAlignments();
