@@ -347,16 +347,19 @@ export class RaycastController {
       if ("facePoints" in result) {
         const sample = this._meshes.samples(id, this._temp.sample)!;
         TransformHelper.get(sample, this._meshes, this._temp.m3);
-        for (let i = 0; i < result.facePoints.length; i += 3) {
-          const x = result.facePoints[i];
-          const y = result.facePoints[i + 1];
-          const z = result.facePoints[i + 2];
+        const sourceFacePoints = result.facePoints;
+        const transformedFacePoints = new Float64Array(sourceFacePoints.length);
+        for (let i = 0; i < sourceFacePoints.length; i += 3) {
+          const x = sourceFacePoints[i];
+          const y = sourceFacePoints[i + 1];
+          const z = sourceFacePoints[i + 2];
           this._temp.v1.set(x, y, z);
           this._temp.v1.applyMatrix4(this._temp.m3);
-          result.facePoints[i] = this._temp.v1.x;
-          result.facePoints[i + 1] = this._temp.v1.y;
-          result.facePoints[i + 2] = this._temp.v1.z;
+          transformedFacePoints[i] = this._temp.v1.x;
+          transformedFacePoints[i + 1] = this._temp.v1.y;
+          transformedFacePoints[i + 2] = this._temp.v1.z;
         }
+        result.facePoints = transformedFacePoints;
       }
 
       result.sampleId = id;
