@@ -49,6 +49,17 @@ export class MaterialManager {
     this._modelMaterialMapping.delete(modelId);
   }
 
+  /**
+   * Release a model's slot in the per-model definitions and mapping tables
+   * without disposing the underlying THREE materials in `list`. Used by
+   * `editor.save()` so a fresh model can register under the same modelId
+   * while the outgoing model's tiles still render normally.
+   */
+  releaseModelSlot(modelId: string) {
+    this._definitions.delete(modelId);
+    this._modelMaterialMapping.delete(modelId);
+  }
+
   get(data: MaterialDefinition, request: any) {
     const { modelId, objectClass, currentLod, templateId } = request;
     if (!(modelId && objectClass !== undefined && currentLod !== undefined)) {

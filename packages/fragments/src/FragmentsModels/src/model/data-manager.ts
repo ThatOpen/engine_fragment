@@ -19,10 +19,20 @@ export class DataManager {
     meshes: MeshManager,
     alignments: AlignmentsManager,
     grids: GridsManager,
+    options?: { keepInScene?: boolean },
   ) {
     meshes.list.delete(model.modelId);
     await this.requestModelDelete(model);
     model.threads.delete(model.modelId);
+    if (options?.keepInScene) {
+      // Free the modelId slot in the shared MaterialManager so the
+      // replacement model can register its own definitions without
+      // appending to ours (which would corrupt material indices). The
+      // actual THREE materials in `list` stay alive so the outgoing
+      // tiles keep rendering until `finalizeDispose` runs.
+      meshes.materials.releaseModelSlot(model.modelId);
+      return;
+    }
     model.object.removeFromParent();
     this.deleteAllTiles(model);
     meshes.materials.dispose(model.modelId);

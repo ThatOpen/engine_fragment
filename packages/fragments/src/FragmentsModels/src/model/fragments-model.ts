@@ -223,8 +223,15 @@ export class FragmentsModel {
   /**
    * Dispose the model. Use this when you're done with the model.
    * If you use the {@link FragmentsModels.dispose} method, this will be called automatically for all models.
+   *
+   * @param options.keepInScene - If true, frees the model's worker slot,
+   *   registry entries and shared MaterialManager slot but leaves the THREE
+   *   object, tiles, materials in `list`, alignments and grids in place.
+   *   Caller must finalize the visual cleanup later via
+   *   {@link finalizeDispose}. Used by `editor.save()` to swap in a freshly
+   *   loaded model without a blank frame.
    */
-  async dispose() {
+  async dispose(options?: { keepInScene?: boolean }) {
     this._isLoaded = false;
     this.visibleItems.clear();
     this.onViewUpdated.reset();
@@ -233,7 +240,33 @@ export class FragmentsModel {
       this._meshManager,
       this._alignmentsManager,
       this._gridsManager,
+      options,
     );
+  }
+
+  /**
+   * Finalize a deferred dispose. Removes the THREE object from its parent,
+   * tears down tile meshes (geometry only — materials are shared via the
+   * MaterialManager and may be reused by a replacement model under the
+   * same modelId), and disposes the model's alignments and grids.
+   *
+   * Only call this after `dispose({ keepInScene: true })`. The tile map
+   * is cleared with events disabled to bypass the onBeforeDelete listener
+   * registered in the constructor (which would otherwise dispose tile
+   * materials).
+   */
+  finalizeDispose() {
+    this.object.removeFromParent();
+
+    this.tiles.eventsEnabled = false;
+    for (const [, mesh] of this.tiles) {
+      this.object.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    this.tiles.clear();
+
+    this._alignmentsManager.dispose();
+    this._gridsManager.dispose();
   }
 
   /**
