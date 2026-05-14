@@ -15,6 +15,21 @@ export * from "./src";
 
 declare const __FRAGMENTS_VERSION__: string;
 
+export interface FragmentsModelsOptions {
+  /**
+   * If true, creates classic (non-module) workers. Use together with `toClassicWorker()`.
+   */
+  classicWorker?: boolean;
+  /**
+   * Effective max worker cap. Defaults to `navigator.hardwareConcurrency - 3`, floored at 2. Set explicitly for CI environments or when you know your workload.
+   */
+  maxWorkers?: number;
+  /**
+   * Reserved worker capacity per named thread group. Workers are spawned lazily (nothing is spawned until the first load targets a pool). A model loaded with `threadGroup: "x"` always lands on group "x"'s pool; default-pool loads never touch a reserved worker. The sum of group sizes must leave at least one slot for the default pool, otherwise init throws.
+   */
+  threadGroups?: Record<string, number>;
+}
+
 /**
  * The main class for managing multiple 3D models loaded from fragments files. Handles loading, disposing, updating, raycasting, highlighting and coordinating multiple FragmentsModel instances. This class acts as the main entry point for working with fragments models. A FragmentsModels instance needs a worker to process fragments off the main thread. The recommended way to obtain the worker URL is via the static FragmentsModels.getWorker method, which fetches the version-matched worker from unpkg. Check the method docs for more info.
  */
@@ -165,18 +180,8 @@ export class FragmentsModels {
    *
    * @param workerURL - The URL of the worker script that will handle the fragments processing. If omitted, it falls back to the worker bundled with the package (only works with bundlers that can resolve `new URL("./Worker/worker.mjs", import.meta.url)`).
    * @param options - Optional configuration.
-   * @param options.classicWorker - If true, creates classic (non-module) workers. Use together with `toClassicWorker()`.
-   * @param options.maxWorkers - Effective max worker cap. Defaults to `navigator.hardwareConcurrency - 3`, floored at 2. Set explicitly for CI environments or when you know your workload.
-   * @param options.threadGroups - Reserved worker capacity per named thread group. Workers are spawned lazily (nothing is spawned until the first load targets a pool). A model loaded with `threadGroup: "x"` always lands on group "x"'s pool; default-pool loads never touch a reserved worker. The sum of group sizes must leave at least one slot for the default pool, otherwise init throws.
    */
-  constructor(
-    workerURL?: string,
-    options?: {
-      classicWorker?: boolean;
-      maxWorkers?: number;
-      threadGroups?: Record<string, number>;
-    },
-  ) {
+  constructor(workerURL?: string, options?: FragmentsModelsOptions) {
     const url =
       workerURL ?? new URL("./Worker/worker.mjs", import.meta.url).href;
     const requestEvent = this.newRequestEvent();
