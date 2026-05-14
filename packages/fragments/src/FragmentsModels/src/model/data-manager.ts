@@ -60,6 +60,12 @@ export class DataManager {
     ]) as Promise<Uint32Array | string[] | null>;
   }
 
+  async getIndexValues(model: FragmentsModel, name: string) {
+    return model.threads.invoke(model.modelId, "getIndexValues", [
+      name,
+    ]) as Promise<number[] | string[] | null>;
+  }
+
   async hasIndexEntry(
     model: FragmentsModel,
     name: string,

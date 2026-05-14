@@ -115,6 +115,14 @@ export class VirtualIndexesController {
       : this.materializeStringKeys(entry);
   }
 
+  getValues(name: string): string[] | number[] | null {
+    const entry = this.resolve(name);
+    if (!entry) return null;
+    if (entry.info.valueType === "none") return null;
+    const inverse = this.inverseMap(entry);
+    return Array.from(inverse.keys());
+  }
+
   /**
    * Test whether a key exists in the named index without resolving its value.
    */

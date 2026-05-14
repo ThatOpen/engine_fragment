@@ -109,6 +109,13 @@ export class SingleThreadedFragmentsModel {
   }
 
   /**
+   * Get the values of an index. Useful for inverse lookups.
+   */
+  getIndexValues(name: string) {
+    return this._virtualModel.getIndexValues(name);
+  }
+
+  /**
    * Test whether a key exists in the named index without resolving its value.
    */
   hasIndexEntry(name: string, key: string | number) {
