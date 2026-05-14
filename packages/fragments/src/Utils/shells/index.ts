@@ -65,8 +65,8 @@ export class GeomsFbUtils {
   // It's 65535, but we leave some margin
   static ushortMaxValue = 65000;
 
-  static round(value: number, precission: number) {
-    return Math.round(value * precission) / precission;
+  static round(value: number, precision: number) {
+    return Math.round(value * precision) / precision;
   }
 
   static getAABB(vertices: Float32Array | number[]) {
