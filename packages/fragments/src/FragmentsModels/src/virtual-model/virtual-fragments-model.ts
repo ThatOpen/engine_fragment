@@ -137,7 +137,10 @@ export class VirtualFragmentsModel {
     return this.indexes.getEntry(name, key);
   }
 
-  getInverseIndexEntry(name: string, value: string | number): InverseIndexEntry {
+  getInverseIndexEntry(
+    name: string,
+    value: string | number,
+  ): InverseIndexEntry {
     return this.indexes.getInverseEntry(name, value);
   }
 
@@ -498,11 +501,11 @@ export class VirtualFragmentsModel {
 
     // Generate a delta model containing only these items + their geometry
     const { model } = EditUtils.edit(this.data, requests, {
-      raw: true,
+      raw,
       delta: true,
     });
 
-    return raw ? model : pako.deflate(model as ArrayBuffer);
+    return model;
   }
 
   dispose() {
@@ -564,14 +567,14 @@ export class VirtualFragmentsModel {
     return this.tiles.tilesUpdated;
   }
 
-  edit(requests: EditRequest[]) {
+  edit(requests: EditRequest[], raw = false) {
     const ids = EditUtils.solveIds(requests, this._nextId);
     this._nextId += ids.length;
     for (const request of requests) {
       this.requests.push(request);
     }
     const { model, items } = EditUtils.edit(this.data, this.requests, {
-      raw: true,
+      raw,
       delta: true,
     });
     // Clear the previous hidden-for-edit set before applying the new one.
@@ -588,13 +591,13 @@ export class VirtualFragmentsModel {
     this._nextId = this.getMaxLocalId();
   }
 
-  save() {
+  save(raw = false) {
     this.requests.push({
       type: EditRequestType.UPDATE_MAX_LOCAL_ID,
       localId: this._nextId,
     });
     const { model } = EditUtils.edit(this.data, this.requests, {
-      raw: true,
+      raw,
       delta: false,
     });
     return model;
