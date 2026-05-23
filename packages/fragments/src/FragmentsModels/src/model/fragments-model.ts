@@ -294,6 +294,14 @@ export class FragmentsModel {
   }
 
   /**
+   * Get key at given index.
+   * Useful for keys-only indexes but valid for any mode.
+   */
+  getIndexKey(name: string, index: number) {
+    return this._dataManager.getIndexKey(this, name, index);
+  }
+
+  /**
    * Get the values of an index. Useful for inverse lookups.
    */
   getIndexValues(name: string) {

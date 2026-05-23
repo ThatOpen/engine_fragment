@@ -129,6 +129,10 @@ export class VirtualFragmentsModel {
     return this.indexes.getKeys(name);
   }
 
+  getIndexKey(name: string, index: number): string | number | null {
+    return this.indexes.getKey(name, index);
+  }
+
   getIndexValues(name: string): string[] | number[] | null {
     return this.indexes.getValues(name);
   }

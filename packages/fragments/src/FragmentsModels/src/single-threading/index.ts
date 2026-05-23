@@ -109,6 +109,14 @@ export class SingleThreadedFragmentsModel {
   }
 
   /**
+   * Get key at given index.
+   * Useful for keys-only indexes but valid for any mode.
+   */
+  getIndexKey(name: string, index: number): string | number | null {
+    return this._virtualModel.getIndexKey(name, index);
+  }
+
+  /**
    * Get the values of an index. Useful for inverse lookups.
    */
   getIndexValues(name: string) {
