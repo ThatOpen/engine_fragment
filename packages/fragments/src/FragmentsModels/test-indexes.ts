@@ -221,6 +221,109 @@ eq("getEntry('nope', 1)", controller.getEntry("nope", 1), null);
 // ---------------------------------------------------------------------------
 console.log("\nEdit pipeline (save & reload)");
 
+const indexValidation: {
+  label: string;
+  request: EditRequest;
+  expectedValidationError: { message: string; cause?: number[] };
+}[] = [
+  {
+    label: "validate index 1:1 values length",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: { name: "withGeometry", keys: [10, 20, 30], values: [1] },
+    },
+    expectedValidationError: {
+      message:
+        "Invalid index request: unexpected values vector length, expected 3, actual 1",
+    },
+  },
+  {
+    label: "validate index end length",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        end: [0, 1, 2, 5],
+      },
+    },
+    expectedValidationError: {
+      message:
+        "Invalid index request: unexpected end vector length, expected 3, actual 4",
+    },
+  },
+  {
+    label: "validate index end vector",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        end: [0, 1, 6],
+      },
+    },
+    expectedValidationError: {
+      message: "Invalid index request: out of bounds end vector entries",
+      cause: [2],
+    },
+  },
+  {
+    label: "validate index start length",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        end: [1, 2, 5],
+        start: [0, 1],
+      },
+    },
+    expectedValidationError: {
+      message:
+        "Invalid index request: unexpected start vector length, expected 3, actual 2",
+    },
+  },
+  {
+    label: "validate index start vector",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        end: [0, 1, 5],
+        start: [0, 2, 4],
+      },
+    },
+    expectedValidationError: {
+      message: "Invalid index request: out of bounds start vector entries",
+      cause: [1],
+    },
+  },
+];
+
+for (const { label, request, expectedValidationError } of indexValidation) {
+  try {
+    EditUtils.edit(model, [request], {
+      raw: true,
+      delta: false,
+    });
+    throw new Error("Valid index", { cause: [-1] });
+  } catch (error) {
+    eq(label, (error as Error).message, expectedValidationError.message);
+    if (expectedValidationError.cause) {
+      eqArr(
+        label,
+        (error as Error).cause as number[],
+        expectedValidationError.cause,
+      );
+    }
+  }
+}
+
 const requests: EditRequest[] = [
   // Drop "tags" entirely
   { type: EditRequestType.DELETE_INDEX, name: "tags" },
