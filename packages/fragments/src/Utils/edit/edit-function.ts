@@ -316,6 +316,57 @@ export function edit(
       request.type === ET.EditRequestType.CREATE_INDEX ||
       request.type === ET.EditRequestType.UPDATE_INDEX
     ) {
+      // Validate index definition
+      const { keys, values, end, start } = request.data;
+      // 1:1
+      if (values && !end) {
+        if (values.length !== keys.length) {
+          throw new Error(
+            `Invalid index request: unexpected values vector length, expected ${keys.length}, actual ${values.length}`,
+          );
+        }
+      }
+      // 1:N linear/non-linear
+      if (values && end) {
+        if (end.length !== keys.length) {
+          throw new Error(
+            `Invalid index request: unexpected end vector length, expected ${keys.length}, actual ${end.length}`,
+          );
+        }
+        if (start && start.length !== keys.length) {
+          throw new Error(
+            `Invalid index request: unexpected start vector length, expected ${keys.length}, actual ${start.length}`,
+          );
+        }
+
+        const endErrors: number[] = [];
+        const startErrors: number[] = [];
+        for (let index = 0; index < keys.length; index++) {
+          const valuesEnd = end[index];
+          if (valuesEnd < 0 || valuesEnd > values.length) {
+            endErrors.push(index);
+          }
+          if (start) {
+            const valuesStart = start[index];
+            if (valuesStart < 0 || valuesStart > valuesEnd) {
+              startErrors.push(index);
+            }
+          }
+        }
+        if (endErrors.length) {
+          throw new Error(
+            "Invalid index request: out of bounds end vector entries",
+            { cause: endErrors },
+          );
+        }
+        if (startErrors.length) {
+          throw new Error(
+            "Invalid index request: out of bounds start vector entries",
+            { cause: startErrors },
+          );
+        }
+      }
+
       // CREATE is a no-op if the index already exists in the source model;
       // we resolve that against `model.indexes` later when materializing the
       // vector. UPDATE always wins, so it lands here unconditionally.
