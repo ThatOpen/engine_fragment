@@ -3,6 +3,8 @@ import pako from "pako";
 import {
   CurrentLod,
   Identifier,
+  IndexEntry,
+  InverseIndexEntry,
   ItemsDataConfig,
   ItemsQueryConfig,
   ItemsQueryParams,
@@ -104,14 +106,14 @@ export class SingleThreadedFragmentsModel {
    * iteration) but valid for any mode. Number keys come back as a
    * `Uint32Array`, string keys as `string[]`.
    */
-  getIndexKeys(name: string) {
-    return this._virtualModel.getIndexKeys(name);
+  getIndexKeys<K extends string | number>(name: string) {
+    return this._virtualModel.getIndexKeys<K>(name);
   }
 
   /**
    * Test whether a key exists in the named index without resolving its value.
    */
-  hasIndexEntry(name: string, key: string | number) {
+  hasIndexEntry<K extends string | number>(name: string, key: K) {
     return this._virtualModel.hasIndexEntry(name, key);
   }
 
@@ -119,15 +121,21 @@ export class SingleThreadedFragmentsModel {
    * Forward lookup of a single entry in the named index. The return shape
    * depends on the index mode.
    */
-  getIndexEntry(name: string, key: string | number) {
-    return this._virtualModel.getIndexEntry(name, key);
+  getIndexEntry<K extends string | number, V extends IndexEntry>(
+    name: string,
+    key: K,
+  ) {
+    return this._virtualModel.getIndexEntry<K, V>(name, key);
   }
 
   /**
    * Inverse lookup. Returns every key that maps to `value`.
    */
-  getInverseIndexEntry(name: string, value: string | number) {
-    return this._virtualModel.getInverseIndexEntry(name, value);
+  getInverseIndexEntry<K extends string | number, V extends string | number>(
+    name: string,
+    value: K,
+  ) {
+    return this._virtualModel.getInverseIndexEntry<K, V>(name, value);
   }
 
   /**

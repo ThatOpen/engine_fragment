@@ -35,6 +35,7 @@ import {
   IndexInfo,
   InverseIndexEntry,
   LodMode,
+  IndexArrayType,
 } from "../model/model-types";
 
 import { VirtualBoxController } from "../bounding-boxes";
@@ -125,20 +126,28 @@ export class VirtualFragmentsModel {
     return this.indexes.getInfo(name);
   }
 
-  getIndexKeys(name: string): Uint32Array | string[] | null {
-    return this.indexes.getKeys(name);
+  getIndexKeys<K extends string | number>(
+    name: string,
+  ): IndexArrayType<K> | null {
+    return this.indexes.getKeys(name) as IndexArrayType<K> | null;
   }
 
-  hasIndexEntry(name: string, key: string | number): boolean {
+  hasIndexEntry<K extends string | number>(name: string, key: K): boolean {
     return this.indexes.has(name, key);
   }
 
-  getIndexEntry(name: string, key: string | number): IndexEntry {
-    return this.indexes.getEntry(name, key);
+  getIndexEntry<K extends string | number, V extends IndexEntry>(
+    name: string,
+    key: K,
+  ): V {
+    return this.indexes.getEntry(name, key) as V;
   }
 
-  getInverseIndexEntry(name: string, value: string | number): InverseIndexEntry {
-    return this.indexes.getInverseEntry(name, value);
+  getInverseIndexEntry<K extends string | number, V extends string | number>(
+    name: string,
+    value: K,
+  ): IndexArrayType<V> {
+    return this.indexes.getInverseEntry(name, value) as IndexArrayType<V>;
   }
 
   getItemsByConfig(condition: (item: number) => boolean) {

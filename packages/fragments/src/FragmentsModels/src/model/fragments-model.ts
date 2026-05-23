@@ -19,6 +19,8 @@ import {
   CurrentLod,
   ItemsQueryConfig,
   LodMode,
+  IndexEntry,
+  InverseIndexEntry,
 } from "./model-types";
 
 import { MiscHelper } from "../utils";
@@ -289,14 +291,14 @@ export class FragmentsModel {
    * iteration) but valid for any mode. Number keys come back as a
    * `Uint32Array`, string keys as `string[]`.
    */
-  async getIndexKeys(name: string) {
-    return this._dataManager.getIndexKeys(this, name);
+  async getIndexKeys<K extends string | number>(name: string) {
+    return this._dataManager.getIndexKeys<K>(this, name);
   }
 
   /**
    * Test whether a key exists in the named index without resolving its value.
    */
-  async hasIndexEntry(name: string, key: string | number) {
+  async hasIndexEntry<K extends string | number>(name: string, key: K) {
     return this._dataManager.hasIndexEntry(this, name, key);
   }
 
@@ -304,8 +306,11 @@ export class FragmentsModel {
    * Forward lookup of a single entry in the named index. The return shape
    * depends on the index mode (see {@link IndexEntry}).
    */
-  async getIndexEntry(name: string, key: string | number) {
-    return this._dataManager.getIndexEntry(this, name, key);
+  async getIndexEntry<K extends string | number, V extends IndexEntry>(
+    name: string,
+    key: K,
+  ) {
+    return this._dataManager.getIndexEntry<K, V>(this, name, key);
   }
 
   /**
@@ -313,8 +318,11 @@ export class FragmentsModel {
    * returns every key that maps to `value`. The inverse map is built lazily
    * on first call and cached for the model's lifetime.
    */
-  async getInverseIndexEntry(name: string, value: string | number) {
-    return this._dataManager.getInverseIndexEntry(this, name, value);
+  async getInverseIndexEntry<
+    K extends string | number,
+    V extends string | number,
+  >(name: string, value: K) {
+    return this._dataManager.getInverseIndexEntry<K, V>(this, name, value);
   }
 
   async getItemsWithGeometryCategories() {
@@ -492,7 +500,7 @@ export class FragmentsModel {
       this.modelId,
       "getAttributesUniqueValues",
       [params],
-    )) as Record<string, { value: any, localIds: number[] }[]>;
+    )) as Record<string, { value: any; localIds: number[] }[]>;
     return values;
   }
 

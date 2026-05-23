@@ -7,6 +7,7 @@ import {
   IndexEntry,
   IndexInfo,
   InverseIndexEntry,
+  IndexArrayType,
 } from "./model-types";
 import { AlignmentsManager } from "./alignments-manager";
 import { FragmentsModel } from "./fragments-model";
@@ -54,16 +55,19 @@ export class DataManager {
     ]) as Promise<IndexInfo | null>;
   }
 
-  async getIndexKeys(model: FragmentsModel, name: string) {
-    return model.threads.invoke(model.modelId, "getIndexKeys", [
-      name,
-    ]) as Promise<Uint32Array | string[] | null>;
-  }
-
-  async hasIndexEntry(
+  async getIndexKeys<K extends string | number>(
     model: FragmentsModel,
     name: string,
-    key: string | number,
+  ) {
+    return model.threads.invoke(model.modelId, "getIndexKeys", [
+      name,
+    ]) as Promise<IndexArrayType<K> | null>;
+  }
+
+  async hasIndexEntry<K extends string | number>(
+    model: FragmentsModel,
+    name: string,
+    key: K,
   ) {
     return model.threads.invoke(model.modelId, "hasIndexEntry", [
       name,
@@ -71,26 +75,25 @@ export class DataManager {
     ]) as Promise<boolean>;
   }
 
-  async getIndexEntry(
+  async getIndexEntry<K extends string | number, V extends IndexEntry>(
     model: FragmentsModel,
     name: string,
-    key: string | number,
+    key: K,
   ) {
     return model.threads.invoke(model.modelId, "getIndexEntry", [
       name,
       key,
-    ]) as Promise<IndexEntry>;
+    ]) as Promise<V>;
   }
 
-  async getInverseIndexEntry(
-    model: FragmentsModel,
-    name: string,
-    value: string | number,
-  ) {
+  async getInverseIndexEntry<
+    K extends string | number,
+    V extends string | number,
+  >(model: FragmentsModel, name: string, value: K) {
     return model.threads.invoke(model.modelId, "getInverseIndexEntry", [
       name,
       value,
-    ]) as Promise<InverseIndexEntry>;
+    ]) as Promise<IndexArrayType<V>>;
   }
 
   async getMaxLocalId(model: FragmentsModel) {
