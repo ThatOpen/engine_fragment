@@ -33,7 +33,6 @@ import {
   ItemsQueryConfig,
   IndexEntry,
   IndexInfo,
-  InverseIndexEntry,
   LodMode,
   IndexArrayType,
 } from "../model/model-types";
@@ -139,8 +138,8 @@ export class VirtualFragmentsModel {
   getIndexEntry<K extends string | number, V extends IndexEntry>(
     name: string,
     key: K,
-  ): V {
-    return this.indexes.getEntry(name, key) as V;
+  ): V | null {
+    return this.indexes.getEntry(name, key) as V | null;
   }
 
   getInverseIndexEntry<K extends string | number, V extends string | number>(

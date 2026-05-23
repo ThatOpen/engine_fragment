@@ -434,7 +434,7 @@ export interface IndexInfo {
  * values) for the 1:N modes. The `Uint32Array` is a zero-copy view over the
  * underlying buffer; do not mutate it.
  */
-export type IndexEntry = string | number | Uint32Array | string[] | null;
+export type IndexEntry = string | number | Uint32Array | string[];
 
 /**
  * Inverse-lookup result. For an index with forward direction `key -> value`,

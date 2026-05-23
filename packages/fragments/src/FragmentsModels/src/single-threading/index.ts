@@ -4,7 +4,6 @@ import {
   CurrentLod,
   Identifier,
   IndexEntry,
-  InverseIndexEntry,
   ItemsDataConfig,
   ItemsQueryConfig,
   ItemsQueryParams,

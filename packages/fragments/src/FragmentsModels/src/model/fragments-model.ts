@@ -20,7 +20,6 @@ import {
   ItemsQueryConfig,
   LodMode,
   IndexEntry,
-  InverseIndexEntry,
 } from "./model-types";
 
 import { MiscHelper } from "../utils";

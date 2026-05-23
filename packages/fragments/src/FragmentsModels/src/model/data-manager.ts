@@ -6,7 +6,6 @@ import {
   ItemsQueryConfig,
   IndexEntry,
   IndexInfo,
-  InverseIndexEntry,
   IndexArrayType,
 } from "./model-types";
 import { AlignmentsManager } from "./alignments-manager";
@@ -83,7 +82,7 @@ export class DataManager {
     return model.threads.invoke(model.modelId, "getIndexEntry", [
       name,
       key,
-    ]) as Promise<V>;
+    ]) as Promise<V | null>;
   }
 
   async getInverseIndexEntry<
