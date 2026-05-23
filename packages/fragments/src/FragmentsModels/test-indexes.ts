@@ -261,12 +261,12 @@ const indexValidation: {
         name: "withGeometry",
         keys: [10, 20, 30],
         values: [1, 2, 3, 4, 5],
-        end: [0, 1, 6],
+        end: [-1, 1, 6],
       },
     },
     expectedValidationError: {
       message: "Invalid index request: out of bounds end vector entries",
-      cause: [2],
+      cause: [0, 2],
     },
   },
   {
@@ -295,12 +295,12 @@ const indexValidation: {
         keys: [10, 20, 30],
         values: [1, 2, 3, 4, 5],
         end: [0, 1, 5],
-        start: [0, 2, 4],
+        start: [0, 2, -1],
       },
     },
     expectedValidationError: {
       message: "Invalid index request: out of bounds start vector entries",
-      cause: [1],
+      cause: [1, 2],
     },
   },
 ];
