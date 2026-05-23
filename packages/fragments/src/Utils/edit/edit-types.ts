@@ -538,7 +538,11 @@ export interface IndexValidationError extends Error {
       }
     | {
         type: "invalid-bounds";
-        errors: { index: number; start: number; end: number }[];
+        errors: {
+          index: number;
+          start: number;
+          end: number;
+        }[];
       };
 }
 
