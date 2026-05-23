@@ -322,7 +322,15 @@ export function edit(
       if (values && !end) {
         if (values.length !== keys.length) {
           throw new Error(
-            `Invalid index request: unexpected values vector length, expected ${keys.length}, actual ${values.length}`,
+            "Invalid index request: unexpected values vector length",
+            {
+              cause: {
+                type: "invalid-length",
+                key: "values",
+                expected: keys.length,
+                actual: values.length,
+              } satisfies ET.IndexValidationError["cause"],
+            },
           );
         }
       }
@@ -330,40 +338,58 @@ export function edit(
       if (values && end) {
         if (end.length !== keys.length) {
           throw new Error(
-            `Invalid index request: unexpected end vector length, expected ${keys.length}, actual ${end.length}`,
+            "Invalid index request: unexpected end vector length",
+            {
+              cause: {
+                type: "invalid-length",
+                key: "end",
+                expected: keys.length,
+                actual: end.length,
+              } satisfies ET.IndexValidationError["cause"],
+            },
           );
         }
         if (start && start.length !== keys.length) {
           throw new Error(
-            `Invalid index request: unexpected start vector length, expected ${keys.length}, actual ${start.length}`,
+            "Invalid index request: unexpected start vector length",
+            {
+              cause: {
+                type: "invalid-length",
+                key: "start",
+                expected: keys.length,
+                actual: start.length,
+              } satisfies ET.IndexValidationError["cause"],
+            },
           );
         }
 
-        const endErrors: number[] = [];
-        const startErrors: number[] = [];
+        const errors: {
+          index: number;
+          start: number;
+          end: number;
+        }[] = [];
         for (let index = 0; index < keys.length; index++) {
+          const valuesStart = start?.[index] ?? end[index - 1] ?? 0;
           const valuesEnd = end[index];
-          if (valuesEnd < 0 || valuesEnd > values.length) {
-            endErrors.push(index);
-          }
-          if (start) {
-            const valuesStart = start[index];
-            if (valuesStart < 0 || valuesStart > valuesEnd) {
-              startErrors.push(index);
-            }
+          if (
+            valuesStart < 0 ||
+            valuesEnd > values.length ||
+            valuesStart > valuesEnd
+          ) {
+            errors.push({
+              index,
+              start: valuesStart,
+              end: valuesEnd,
+            });
           }
         }
-        if (endErrors.length) {
-          throw new Error(
-            "Invalid index request: out of bounds end vector entries",
-            { cause: endErrors },
-          );
-        }
-        if (startErrors.length) {
-          throw new Error(
-            "Invalid index request: out of bounds start vector entries",
-            { cause: startErrors },
-          );
+        if (errors.length) {
+          throw new Error("Invalid index request: out of bounds value slices", {
+            cause: {
+              type: "invalid-bounds",
+              errors,
+            } satisfies ET.IndexValidationError["cause"],
+          });
         }
       }
 

@@ -13,7 +13,12 @@ import * as flatbuffers from "flatbuffers";
 import { Meshes, Model, ModelIndex, Transform } from "../Schema";
 import { VirtualIndexesController } from "./src/virtual-model/virtual-controllers/virtual-indexes-controller";
 import type { VirtualFragmentsModel } from "./src/virtual-model";
-import { EditRequest, EditRequestType, EditUtils } from "../Utils";
+import {
+  EditRequest,
+  EditRequestType,
+  EditUtils,
+  IndexValidationError,
+} from "../Utils";
 
 let pass = 0;
 let fail = 0;
@@ -224,17 +229,23 @@ console.log("\nEdit pipeline (save & reload)");
 const indexValidation: {
   label: string;
   request: EditRequest;
-  expectedValidationError: { message: string; cause?: number[] };
+  expectedValidationError: IndexValidationError["cause"];
 }[] = [
   {
     label: "validate index 1:1 values length",
     request: {
       type: EditRequestType.CREATE_INDEX,
-      data: { name: "withGeometry", keys: [10, 20, 30], values: [1] },
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1],
+      },
     },
     expectedValidationError: {
-      message:
-        "Invalid index request: unexpected values vector length, expected 3, actual 1",
+      type: "invalid-length",
+      key: "values",
+      expected: 3,
+      actual: 1,
     },
   },
   {
@@ -249,8 +260,10 @@ const indexValidation: {
       },
     },
     expectedValidationError: {
-      message:
-        "Invalid index request: unexpected end vector length, expected 3, actual 4",
+      type: "invalid-length",
+      key: "end",
+      expected: 3,
+      actual: 4,
     },
   },
   {
@@ -261,12 +274,12 @@ const indexValidation: {
         name: "withGeometry",
         keys: [10, 20, 30],
         values: [1, 2, 3, 4, 5],
-        end: [-1, 1, 6],
+        end: [0, 3, 2],
       },
     },
     expectedValidationError: {
-      message: "Invalid index request: out of bounds end vector entries",
-      cause: [0, 2],
+      type: "invalid-bounds",
+      errors: [{ index: 2, start: 3, end: 2 }],
     },
   },
   {
@@ -282,8 +295,10 @@ const indexValidation: {
       },
     },
     expectedValidationError: {
-      message:
-        "Invalid index request: unexpected start vector length, expected 3, actual 2",
+      type: "invalid-length",
+      key: "start",
+      expected: 3,
+      actual: 2,
     },
   },
   {
@@ -294,13 +309,16 @@ const indexValidation: {
         name: "withGeometry",
         keys: [10, 20, 30],
         values: [1, 2, 3, 4, 5],
-        end: [0, 1, 5],
         start: [0, 2, -1],
+        end: [0, 1, 5],
       },
     },
     expectedValidationError: {
-      message: "Invalid index request: out of bounds start vector entries",
-      cause: [1, 2],
+      type: "invalid-bounds",
+      errors: [
+        { index: 1, start: 2, end: 1 },
+        { index: 2, start: -1, end: 5 },
+      ],
     },
   },
 ];
@@ -311,16 +329,9 @@ for (const { label, request, expectedValidationError } of indexValidation) {
       raw: true,
       delta: false,
     });
-    throw new Error("Valid index", { cause: [-1] });
+    throw new Error("Valid index", { cause: null });
   } catch (error) {
-    eq(label, (error as Error).message, expectedValidationError.message);
-    if (expectedValidationError.cause) {
-      eqArr(
-        label,
-        (error as Error).cause as number[],
-        expectedValidationError.cause,
-      );
-    }
+    eq(label, (error as Error).cause, expectedValidationError);
   }
 }
 
