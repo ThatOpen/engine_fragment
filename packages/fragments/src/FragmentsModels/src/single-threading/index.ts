@@ -196,7 +196,7 @@ export class SingleThreadedFragmentsModel {
    * @param ids - The IDs of the items to look up.
    */
   getItemsChildren(ids: Identifier[]) {
-    this._virtualModel.getItemsChildren(ids);
+    return this._virtualModel.getItemsChildren(ids);
   }
 
   /**
