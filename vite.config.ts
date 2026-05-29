@@ -1,20 +1,20 @@
 /* eslint-disable import/no-extraneous-dependencies */
 import * as fs from "fs";
+import { globSync } from "glob";
 import * as path from "path";
 import { defineConfig } from "vite";
-import { globSync } from "glob";
 import * as fragmentsPackageJson from "./packages/fragments/package.json";
 
 const writeIndexHTML = () => {
   let links: string = "";
   const examplePaths = globSync("packages/**/src/**/example*.html");
   for (const examplePath of examplePaths) {
-    const directory = path.dirname(examplePath);
-    const packageNameMatch = directory.match(/packages\\([^\\]+)/);
-    if (!(packageNameMatch && packageNameMatch.length > 1)) continue;
-    const packageName = packageNameMatch[1];
-    const exampleName = path.basename(directory);
-    links += `<a style="width: fit-content;" href="./${examplePath}">${packageName}/${exampleName}</a>\n`;
+    const directorySegments = path.dirname(examplePath).split(path.sep);
+    const packageName = directorySegments
+      .slice(1, directorySegments.indexOf("src"))
+      .join("/");
+    const exampleName = directorySegments[directorySegments.length - 1];
+    links += `<a style="width: fit-content;" href="./${directorySegments.join("/")}">${packageName}/${exampleName}</a>\n`;
   }
   const index = `
   <!DOCTYPE html>
