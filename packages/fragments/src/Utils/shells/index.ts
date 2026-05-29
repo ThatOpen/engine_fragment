@@ -65,11 +65,19 @@ export class GeomsFbUtils {
   // It's 65535, but we leave some margin
   static ushortMaxValue = 65000;
 
-  static round(value: number, precission: number) {
-    return Math.round(value * precission) / precission;
+  static round(value: number, precision: number) {
+    return Math.round(value * precision) / precision;
   }
 
-  static getAABB(vertices: Float32Array | number[]) {
+  static floor(value: number, precision: number) {
+    return Math.floor(value * precision) / precision;
+  }
+
+  static ceil(value: number, precision: number) {
+    return Math.ceil(value * precision) / precision;
+  }
+
+  static getAABB(vertices: Float32Array | number[], precision?: number) {
     let minX = Number.POSITIVE_INFINITY;
     let minY = Number.POSITIVE_INFINITY;
     let minZ = Number.POSITIVE_INFINITY;
@@ -90,10 +98,31 @@ export class GeomsFbUtils {
       if (z > maxZ) maxZ = z;
     }
 
-    return {
-      min: { x: minX, y: minY, z: minZ },
-      max: { x: maxX, y: maxY, z: maxZ },
-    };
+    return precision
+      ? {
+          min: {
+            x: this.floor(minX, precision),
+            y: this.floor(minY, precision),
+            z: this.floor(minZ, precision),
+          },
+          max: {
+            x: this.ceil(maxX, precision),
+            y: this.ceil(maxY, precision),
+            z: this.ceil(maxZ, precision),
+          },
+        }
+      : {
+          min: {
+            x: minX,
+            y: minY,
+            z: minZ,
+          },
+          max: {
+            x: maxX,
+            y: maxY,
+            z: maxZ,
+          },
+        };
   }
 
   static transformFromMatrix(
@@ -250,6 +279,7 @@ export class GeomsFbUtils {
   ) {
     const pointsMap = new Map<string, number[]>();
     const profiles = new Map<number, number[]>();
+    const { precision } = settings;
 
     const getPointIndex = (x: number, y: number, z: number) => {
       const key = `${x},${y},${z}`;
@@ -257,7 +287,12 @@ export class GeomsFbUtils {
         return pointsMap.get(key)![0];
       }
       const index = pointsMap.size;
-      pointsMap.set(key, [index, x, y, z]);
+      pointsMap.set(key, [
+        index,
+        this.round(x, precision),
+        this.round(y, precision),
+        this.round(z, precision),
+      ]);
       return index;
     };
 
@@ -329,7 +364,7 @@ export class GeomsFbUtils {
     const vertexCount = position.length / 3;
     const tooBigToShell = vertexCount > threshold;
 
-    const bbox = this.getAABB(position);
+    const bbox = this.getAABB(position, precision);
 
     if (
       bbox.min.x === 0 &&

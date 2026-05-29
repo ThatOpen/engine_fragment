@@ -7,14 +7,14 @@ export class Points {
   tempV2 = new THREE.Vector3();
   tempV3 = new THREE.Vector3();
 
-  precission: number;
+  precision: number;
 
-  constructor(precission: number) {
-    this.precission = precission;
+  constructor(precision: number) {
+    this.precision = precision;
   }
 
   create(vertices: Float32Array, index: number) {
-    const point = new Point(vertices, index, this.list.size, this.precission);
+    const point = new Point(vertices, index, this.list.size, this.precision);
     if (!this.list.has(point.hash)) {
       this.list.set(point.hash, point);
     }
@@ -50,7 +50,7 @@ export class Points {
       position[index3 * 3 + 2],
     );
 
-    const pointPrecision = (1 / this.precission) * 10;
+    const pointPrecision = (1 / this.precision) * 10;
     const d1Valid = this.tempV1.distanceTo(this.tempV2) > pointPrecision;
     const d2Valid = this.tempV1.distanceTo(this.tempV3) > pointPrecision;
     const d3Valid = this.tempV2.distanceTo(this.tempV3) > pointPrecision;
