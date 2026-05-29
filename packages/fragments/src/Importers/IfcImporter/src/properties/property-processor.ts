@@ -587,17 +587,40 @@ export class IfcPropertyProcessor {
             attr.startsWith("Related"),
           );
           if (!(relatingKey && relatedKey)) continue;
-          const relatingID = attrs[relatingKey].value;
+
+          // The relating attribute may be unset/null in valid IFC. Skip if so.
+          const relatingAttr = attrs[relatingKey];
+          if (
+            !relatingAttr ||
+            relatingAttr.value === undefined ||
+            relatingAttr.value === null
+          ) {
+            continue;
+          }
+          const relatingID = relatingAttr.value;
 
           const rawRelatedIDs = attrs[relatedKey];
           let relatedIDs: number[] = [];
           if (Array.isArray(rawRelatedIDs)) {
-            relatedIDs = rawRelatedIDs.map(
-              ({ value }: { value: number }) => value,
-            );
-          } else {
+            // Filter out null entries (e.g. virtual boundaries with no element).
+            relatedIDs = rawRelatedIDs
+              .filter(
+                (related) =>
+                  related &&
+                  related.value !== undefined &&
+                  related.value !== null,
+              )
+              .map(({ value }: { value: number }) => value);
+          } else if (
+            rawRelatedIDs &&
+            rawRelatedIDs.value !== undefined &&
+            rawRelatedIDs.value !== null
+          ) {
             relatedIDs = [rawRelatedIDs.value];
           }
+
+          // Nothing valid to relate (e.g. a virtual space boundary) → skip.
+          if (relatedIDs.length === 0) continue;
 
           this.addRelation(relatingID, forRelating, relatedIDs);
           for (const relatedID of relatedIDs) {
@@ -606,9 +629,6 @@ export class IfcPropertyProcessor {
         } catch (e) {
           console.log(`Problem reading relations for ${expressID}`);
           console.log(e);
-          await new Promise((resolve) => {
-            setTimeout(resolve, 100);
-          });
           continue;
         }
       }
