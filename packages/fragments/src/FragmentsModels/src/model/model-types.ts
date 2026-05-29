@@ -352,7 +352,7 @@ export interface RaycastResult {
   /** The second edge of the snapped edge */
   snappedEdgeP2?: THREE.Vector3;
   /** The points of the raycasted face */
-  facePoints?: Float32Array;
+  facePoints?: Float64Array;
   /** The indices of the raycasted face */
   faceIndices?: Uint16Array;
 }
