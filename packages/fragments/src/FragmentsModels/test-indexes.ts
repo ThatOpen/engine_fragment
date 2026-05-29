@@ -13,7 +13,12 @@ import * as flatbuffers from "flatbuffers";
 import { Meshes, Model, ModelIndex, Transform } from "../Schema";
 import { VirtualIndexesController } from "./src/virtual-model/virtual-controllers/virtual-indexes-controller";
 import type { VirtualFragmentsModel } from "./src/virtual-model";
-import { EditRequest, EditRequestType, EditUtils } from "../Utils";
+import {
+  EditRequest,
+  EditRequestType,
+  EditUtils,
+  IndexValidationError,
+} from "../Utils";
 
 let pass = 0;
 let fail = 0;
@@ -224,6 +229,115 @@ eq("getEntry('nope', 1)", controller.getEntry("nope", 1), null);
 // re-parse the resulting buffer and verify the new state.
 // ---------------------------------------------------------------------------
 console.log("\nEdit pipeline (save & reload)");
+
+const indexValidation: {
+  label: string;
+  request: EditRequest;
+  expectedValidationError: IndexValidationError["cause"];
+}[] = [
+  {
+    label: "validate index 1:1 values length",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1],
+      },
+    },
+    expectedValidationError: {
+      type: "invalid-length",
+      key: "values",
+      expected: 3,
+      actual: 1,
+    },
+  },
+  {
+    label: "validate index end length",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        end: [0, 1, 2, 5],
+      },
+    },
+    expectedValidationError: {
+      type: "invalid-length",
+      key: "end",
+      expected: 3,
+      actual: 4,
+    },
+  },
+  {
+    label: "validate index end vector",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        end: [0, 3, 2],
+      },
+    },
+    expectedValidationError: {
+      type: "invalid-bounds",
+      errors: [{ index: 2, start: 3, end: 2 }],
+    },
+  },
+  {
+    label: "validate index start length",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        end: [1, 2, 5],
+        start: [0, 1],
+      },
+    },
+    expectedValidationError: {
+      type: "invalid-length",
+      key: "start",
+      expected: 3,
+      actual: 2,
+    },
+  },
+  {
+    label: "validate index start vector",
+    request: {
+      type: EditRequestType.CREATE_INDEX,
+      data: {
+        name: "withGeometry",
+        keys: [10, 20, 30],
+        values: [1, 2, 3, 4, 5],
+        start: [0, 2, -1],
+        end: [0, 1, 5],
+      },
+    },
+    expectedValidationError: {
+      type: "invalid-bounds",
+      errors: [
+        { index: 1, start: 2, end: 1 },
+        { index: 2, start: -1, end: 5 },
+      ],
+    },
+  },
+];
+
+for (const { label, request, expectedValidationError } of indexValidation) {
+  try {
+    EditUtils.edit(model, [request], {
+      raw: true,
+      delta: false,
+    });
+    throw new Error("Valid index", { cause: null });
+  } catch (error) {
+    eq(label, (error as Error).cause, expectedValidationError);
+  }
+}
 
 const requests: EditRequest[] = [
   // Drop "tags" entirely

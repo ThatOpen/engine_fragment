@@ -528,10 +528,29 @@ export interface RawIndexData {
   start?: number[];
 }
 
+export interface IndexValidationError extends Error {
+  cause:
+    | {
+        type: "invalid-length";
+        key: "values" | "end" | "start";
+        expected: number;
+        actual: number;
+      }
+    | {
+        type: "invalid-bounds";
+        errors: {
+          index: number;
+          start: number;
+          end: number;
+        }[];
+      };
+}
+
 /**
  * Interface for create index edit requests. Indexes are name-keyed, so
  * `data.name` identifies the index. Fails silently if an index with the
  * same name already exists; use UPDATE_INDEX to replace.
+ * @throws IndexValidationError {@link IndexValidationError}
  */
 export interface CreateIndexRequest extends BaseEditRequest {
   type: EditRequestType.CREATE_INDEX;
@@ -542,6 +561,7 @@ export interface CreateIndexRequest extends BaseEditRequest {
  * Interface for update index edit requests. Replaces the entire index
  * identified by `data.name`. Use DELETE_INDEX + CREATE_INDEX if you want
  * to rename.
+ * @throws IndexValidationError {@link IndexValidationError}
  */
 export interface UpdateIndexRequest extends BaseEditRequest {
   type: EditRequestType.UPDATE_INDEX;
