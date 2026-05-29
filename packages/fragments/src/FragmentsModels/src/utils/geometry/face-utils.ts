@@ -12,7 +12,12 @@ export class FaceUtils {
     const yDim = 1;
     const zDim = 2;
 
-    const isMostlyHorizontal = absZ > absX && absZ > absY;
+    // Use `>=` so that faces whose normal has two equal components
+    // (e.g. a 45° slope with normal (0, ±√2/2, ±√2/2)) still pick a
+    // dominant axis instead of falling through to the X-axis branch,
+    // which would project onto a plane parallel to the face and collapse
+    // it to a 1D line — earcut would then emit zero triangles.
+    const isMostlyHorizontal = absZ >= absX && absZ >= absY;
     if (isMostlyHorizontal) {
       const lookingUp = normal.z > 0;
       if (lookingUp) {
@@ -21,7 +26,7 @@ export class FaceUtils {
       return [yDim, xDim];
     }
 
-    const isMostlyLookingToY = absY > absX && absY > absZ;
+    const isMostlyLookingToY = absY >= absX && absY >= absZ;
     if (isMostlyLookingToY) {
       const isLookingYPositive = normal.y > 0;
       if (isLookingYPositive) {
