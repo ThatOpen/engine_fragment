@@ -92,10 +92,12 @@ export class EditHelper {
     const camera = model.camera || undefined;
     const newModelBuffer = await model._save();
 
-    // Dispose all model
-    await model.dispose();
+    // Free up the modelId slot in the worker + registries, but keep the
+    // model's THREE object, tiles and materials in scene so the user does
+    // not see a blank frame while the new model loads.
+    await model.dispose({ keepInScene: true });
 
-    // Add new model
+    // Load new model with the same id (the slot is now free).
     const newModel = await this._fragments.load(newModelBuffer as any, {
       modelId,
       raw: true,
@@ -108,6 +110,9 @@ export class EditHelper {
     if (parent) {
       parent.add(newModel.object);
     }
+
+    // New model is in scene now. Tear down the old visuals.
+    model.finalizeDispose();
 
     // Return actions (e.g. to create action history, control z, etc.)
     return requests;
