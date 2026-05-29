@@ -387,11 +387,12 @@ export class SingleThreadedFragmentsModel {
    * Apply a batch of edit requests. Accumulates onto this model's
    * pending-edit history; call {@link save} to flatten them into a new
    * committed buffer or {@link reset} to discard.
-   * @returns The delta flatbuffer bytes and the local IDs assigned to
+   * @param [raw] whether to return the raw buffer or the the result of {@link pako.deflate}.
+   * @returns The delta raw/deflated flatbuffer bytes and the local IDs assigned to
    * any newly-created items.
    */
-  edit(requests: EditRequest[]) {
-    return this._virtualModel.edit(requests);
+  edit(requests: EditRequest[], raw = false) {
+    return this._virtualModel.edit(requests, raw);
   }
 
   /** Discard all pending edits on this model. */
@@ -401,10 +402,11 @@ export class SingleThreadedFragmentsModel {
 
   /**
    * Flatten the current pending-edit history into a new committed buffer.
-   * @returns The raw flatbuffer bytes of the updated model.
+   * @param [raw] whether to return the raw buffer or the the result of {@link pako.deflate}.
+   * @returns The raw/deflated flatbuffer bytes of the updated model.
    */
-  save() {
-    return this._virtualModel.save();
+  save(raw = false) {
+    return this._virtualModel.save(raw);
   }
 
   /** Undo the last edit. */
