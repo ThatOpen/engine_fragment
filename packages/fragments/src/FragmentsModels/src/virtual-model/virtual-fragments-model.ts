@@ -567,7 +567,7 @@ export class VirtualFragmentsModel {
     return this.tiles.tilesUpdated;
   }
 
-  edit(requests: EditRequest[], raw = false) {
+  edit(requests: EditRequest[], raw = true) {
     const ids = EditUtils.solveIds(requests, this._nextId);
     this._nextId += ids.length;
     for (const request of requests) {
@@ -591,7 +591,7 @@ export class VirtualFragmentsModel {
     this._nextId = this.getMaxLocalId();
   }
 
-  save(raw = false) {
+  save(raw = true) {
     this.requests.push({
       type: EditRequestType.UPDATE_MAX_LOCAL_ID,
       localId: this._nextId,
