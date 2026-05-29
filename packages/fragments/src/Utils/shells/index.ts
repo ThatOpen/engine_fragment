@@ -25,37 +25,35 @@ export type ShellData = {
 };
 
 export type GeometryProcessSettings = {
-  // Geometries larger than this threshold will be processed as raw data
-  // a good value seem to be 3000
-  /*
+  /**
    * Maximum number of vertices to try to define a brep shell. If the number of vertices is greater than the threshold, the geometry will be saved as raw data, consuming more space.
    */
   threshold: number;
-  /*
+  /**
    * Precision of the vertices when computing breps.
    */
   precision: number;
-  /*
+  /**
    * Precision of the normals when computing breps.
    */
   normalPrecision: number;
-  /*
+  /**
    * Precision of the plane constants for coplanarity when computing breps.
    */
   planePrecision: number;
-  /*
+  /**
    * The threshold use to distinguish hard and smooth faces.
    */
   faceThreshold: number;
-  /*
+  /**
    * The thresholds use to distinguish hard and smooth faces for each category. It overrides the global faceThreshold.
    */
   categoryFaceThresholds?: Map<number, number>;
-  /*
+  /**
    * Whether to force ifc spaces to be transparent.
    */
   forceTransparentSpaces: boolean;
-  /*
+  /**
    * Whether to process IfcRelSpaceBoundary2ndLevel entities and generate meshes from their IfcConnectionSurfaceGeometry.
    */
   processIfcRelSpaceBoundarySecondLevel?: boolean;
