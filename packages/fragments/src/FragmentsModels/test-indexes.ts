@@ -32,9 +32,9 @@ const log = (ok: boolean, label: string, got: unknown, want: unknown) => {
 const eq = (label: string, got: unknown, want: unknown) =>
   log(JSON.stringify(got) === JSON.stringify(want), label, got, want);
 
-const eqArr = (label: string, got: ArrayLike<number> | null, want: number[]) => {
+const eqArr = <T>(label: string, got: ArrayLike<T> | null, want: T[]) => {
   if (got === null) return log(false, label, got, want);
-  const arr = Array.from(got as ArrayLike<number>);
+  const arr = Array.from(got);
   log(JSON.stringify(arr) === JSON.stringify(want), label, arr, want);
 };
 
@@ -163,6 +163,8 @@ eq("getInfo('tags')", controller.getInfo("tags"), {
   valueType: "string",
   size: 3,
 });
+eqArr("getKeys('tags')", controller.getKeys("tags"), [1, 2, 3]);
+eqArr("getValues('tags')", controller.getValues("tags"), ["A", "B"]);
 eq("getEntry('tags', 1)", controller.getEntry("tags", 1), "A");
 eq("getEntry('tags', 2)", controller.getEntry("tags", 2), "B");
 eq("getEntry('tags', 3)", controller.getEntry("tags", 3), "A");
@@ -189,6 +191,8 @@ eq("getInfo('descendants')", controller.getInfo("descendants"), {
   valueType: "number",
   size: 2,
 });
+eqArr("getKeys('descendants')", controller.getKeys("descendants"), [100, 202]);
+eqArr("getValues('descendants')", controller.getValues("descendants"), [101, 102, 202, 300, 301, 302]);
 eqArr(
   "getEntry('descendants', 100)",
   controller.getEntry("descendants", 100) as Uint32Array,

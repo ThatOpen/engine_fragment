@@ -294,6 +294,21 @@ export class FragmentsModel {
   }
 
   /**
+   * Get key at given index.
+   * Useful for keys-only indexes but valid for any mode.
+   */
+  getIndexKey(name: string, index: number) {
+    return this._dataManager.getIndexKey(this, name, index);
+  }
+
+  /**
+   * Get the values of an index. Useful for inverse lookups.
+   */
+  getIndexValues(name: string) {
+    return this._dataManager.getIndexValues(this, name);
+  }
+
+  /**
    * Test whether a key exists in the named index without resolving its value.
    */
   async hasIndexEntry(name: string, key: string | number) {
@@ -492,7 +507,7 @@ export class FragmentsModel {
       this.modelId,
       "getAttributesUniqueValues",
       [params],
-    )) as Record<string, { value: any, localIds: number[] }[]>;
+    )) as Record<string, { value: any; localIds: number[] }[]>;
     return values;
   }
 
