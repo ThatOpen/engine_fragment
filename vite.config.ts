@@ -14,7 +14,8 @@ const writeIndexHTML = () => {
       .slice(1, directorySegments.indexOf("src"))
       .join("/");
     const exampleName = directorySegments[directorySegments.length - 1];
-    links += `<a style="width: fit-content;" href="./${directorySegments.join("/")}">${packageName}/${exampleName}</a>\n`;
+    const href = examplePath.split(path.sep).join("/");
+    links += `<a style="width: fit-content;" href="./${href}">${packageName}/${exampleName}</a>\n`;
   }
   const index = `
   <!DOCTYPE html>
