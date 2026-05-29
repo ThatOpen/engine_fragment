@@ -19,6 +19,7 @@ import {
   CurrentLod,
   ItemsQueryConfig,
   LodMode,
+  IndexEntry,
 } from "./model-types";
 
 import { MiscHelper } from "../utils";
@@ -289,29 +290,29 @@ export class FragmentsModel {
    * iteration) but valid for any mode. Number keys come back as a
    * `Uint32Array`, string keys as `string[]`.
    */
-  async getIndexKeys(name: string) {
-    return this._dataManager.getIndexKeys(this, name);
+  async getIndexKeys<K extends string | number>(name: string) {
+    return this._dataManager.getIndexKeys<K>(this, name);
   }
 
   /**
    * Get key at given index.
    * Useful for keys-only indexes but valid for any mode.
    */
-  getIndexKey(name: string, index: number) {
-    return this._dataManager.getIndexKey(this, name, index);
+  getIndexKey<K extends string | number>(name: string, index: number) {
+    return this._dataManager.getIndexKey<K>(this, name, index);
   }
 
   /**
    * Get the values of an index. Useful for inverse lookups.
    */
-  getIndexValues(name: string) {
-    return this._dataManager.getIndexValues(this, name);
+  getIndexValues<V extends string | number>(name: string) {
+    return this._dataManager.getIndexValues<V>(this, name);
   }
 
   /**
    * Test whether a key exists in the named index without resolving its value.
    */
-  async hasIndexEntry(name: string, key: string | number) {
+  async hasIndexEntry<K extends string | number>(name: string, key: K) {
     return this._dataManager.hasIndexEntry(this, name, key);
   }
 
@@ -319,8 +320,11 @@ export class FragmentsModel {
    * Forward lookup of a single entry in the named index. The return shape
    * depends on the index mode (see {@link IndexEntry}).
    */
-  async getIndexEntry(name: string, key: string | number) {
-    return this._dataManager.getIndexEntry(this, name, key);
+  async getIndexEntry<K extends string | number, V extends IndexEntry>(
+    name: string,
+    key: K,
+  ) {
+    return this._dataManager.getIndexEntry<K, V>(this, name, key);
   }
 
   /**
@@ -328,8 +332,11 @@ export class FragmentsModel {
    * returns every key that maps to `value`. The inverse map is built lazily
    * on first call and cached for the model's lifetime.
    */
-  async getInverseIndexEntry(name: string, value: string | number) {
-    return this._dataManager.getInverseIndexEntry(this, name, value);
+  async getInverseIndexEntry<
+    K extends string | number,
+    V extends string | number,
+  >(name: string, value: K) {
+    return this._dataManager.getInverseIndexEntry<K, V>(this, name, value);
   }
 
   async getItemsWithGeometryCategories() {

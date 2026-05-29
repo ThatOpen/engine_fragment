@@ -3,6 +3,7 @@ import pako from "pako";
 import {
   CurrentLod,
   Identifier,
+  IndexEntry,
   ItemsDataConfig,
   ItemsQueryConfig,
   ItemsQueryParams,
@@ -104,29 +105,32 @@ export class SingleThreadedFragmentsModel {
    * iteration) but valid for any mode. Number keys come back as a
    * `Uint32Array`, string keys as `string[]`.
    */
-  getIndexKeys(name: string) {
-    return this._virtualModel.getIndexKeys(name);
+  getIndexKeys<K extends string | number>(name: string) {
+    return this._virtualModel.getIndexKeys<K>(name);
   }
 
   /**
    * Get key at given index.
    * Useful for keys-only indexes but valid for any mode.
    */
-  getIndexKey(name: string, index: number): string | number | null {
-    return this._virtualModel.getIndexKey(name, index);
+  getIndexKey<K extends string | number>(
+    name: string,
+    index: number,
+  ): K | null {
+    return this._virtualModel.getIndexKey<K>(name, index);
   }
 
   /**
    * Get the values of an index. Useful for inverse lookups.
    */
-  getIndexValues(name: string) {
-    return this._virtualModel.getIndexValues(name);
+  getIndexValues<V extends string | number>(name: string) {
+    return this._virtualModel.getIndexValues<V>(name);
   }
 
   /**
    * Test whether a key exists in the named index without resolving its value.
    */
-  hasIndexEntry(name: string, key: string | number) {
+  hasIndexEntry<K extends string | number>(name: string, key: K) {
     return this._virtualModel.hasIndexEntry(name, key);
   }
 
@@ -134,15 +138,21 @@ export class SingleThreadedFragmentsModel {
    * Forward lookup of a single entry in the named index. The return shape
    * depends on the index mode.
    */
-  getIndexEntry(name: string, key: string | number) {
-    return this._virtualModel.getIndexEntry(name, key);
+  getIndexEntry<K extends string | number, V extends IndexEntry>(
+    name: string,
+    key: K,
+  ) {
+    return this._virtualModel.getIndexEntry<K, V>(name, key);
   }
 
   /**
    * Inverse lookup. Returns every key that maps to `value`.
    */
-  getInverseIndexEntry(name: string, value: string | number) {
-    return this._virtualModel.getInverseIndexEntry(name, value);
+  getInverseIndexEntry<K extends string | number, V extends string | number>(
+    name: string,
+    value: K,
+  ) {
+    return this._virtualModel.getInverseIndexEntry<K, V>(name, value);
   }
 
   /**

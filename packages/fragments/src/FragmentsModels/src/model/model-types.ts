@@ -132,10 +132,10 @@ export type MaterialDefinition = {
 
   /** The local ID of the material */
   localId?: number;
-  
+
   /**
    * Internal array tracking which properties were explicitly set by the caller.
-   * Used with preserveOriginalMaterial to avoid overwriting original material 
+   * Used with preserveOriginalMaterial to avoid overwriting original material
    * properties with default values during serialization.
    */
   _explicitProps?: string[];
@@ -434,7 +434,7 @@ export interface IndexInfo {
  * values) for the 1:N modes. The `Uint32Array` is a zero-copy view over the
  * underlying buffer; do not mutate it.
  */
-export type IndexEntry = string | number | Uint32Array | string[] | null;
+export type IndexEntry = string | number | Uint32Array | string[];
 
 /**
  * Inverse-lookup result. For an index with forward direction `key -> value`,
@@ -442,6 +442,12 @@ export type IndexEntry = string | number | Uint32Array | string[] | null;
  * for number-keyed indexes and `string[]` for string-keyed ones.
  */
 export type InverseIndexEntry = Uint32Array | string[] | null;
+
+export type IndexArrayType<T extends string | number> = T extends string
+  ? string[]
+  : T extends number
+    ? Uint32Array
+    : never;
 
 /**
  * Interface representing the configuration for item data in a Fragments model.

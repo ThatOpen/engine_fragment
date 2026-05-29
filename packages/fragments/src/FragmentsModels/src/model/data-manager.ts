@@ -6,7 +6,7 @@ import {
   ItemsQueryConfig,
   IndexEntry,
   IndexInfo,
-  InverseIndexEntry,
+  IndexArrayType,
 } from "./model-types";
 import { AlignmentsManager } from "./alignments-manager";
 import { FragmentsModel } from "./fragments-model";
@@ -54,29 +54,39 @@ export class DataManager {
     ]) as Promise<IndexInfo | null>;
   }
 
-  async getIndexKeys(model: FragmentsModel, name: string) {
+  async getIndexKeys<K extends string | number>(
+    model: FragmentsModel,
+    name: string,
+  ) {
     return model.threads.invoke(model.modelId, "getIndexKeys", [
       name,
-    ]) as Promise<Uint32Array | string[] | null>;
+    ]) as Promise<IndexArrayType<K> | null>;
   }
 
-  async getIndexKey(model: FragmentsModel, name: string, index: number) {
+  async getIndexKey<K extends string | number>(
+    model: FragmentsModel,
+    name: string,
+    index: number,
+  ) {
     return model.threads.invoke(model.modelId, "getIndexKey", [
       name,
       index,
-    ]) as Promise<number | string | null>;
+    ]) as Promise<K | null>;
   }
 
-  async getIndexValues(model: FragmentsModel, name: string) {
-    return model.threads.invoke(model.modelId, "getIndexValues", [
-      name,
-    ]) as Promise<number[] | string[] | null>;
-  }
-
-  async hasIndexEntry(
+  async getIndexValues<V extends string | number>(
     model: FragmentsModel,
     name: string,
-    key: string | number,
+  ) {
+    return model.threads.invoke(model.modelId, "getIndexValues", [
+      name,
+    ]) as Promise<V[] | null>;
+  }
+
+  async hasIndexEntry<K extends string | number>(
+    model: FragmentsModel,
+    name: string,
+    key: K,
   ) {
     return model.threads.invoke(model.modelId, "hasIndexEntry", [
       name,
@@ -84,26 +94,25 @@ export class DataManager {
     ]) as Promise<boolean>;
   }
 
-  async getIndexEntry(
+  async getIndexEntry<K extends string | number, V extends IndexEntry>(
     model: FragmentsModel,
     name: string,
-    key: string | number,
+    key: K,
   ) {
     return model.threads.invoke(model.modelId, "getIndexEntry", [
       name,
       key,
-    ]) as Promise<IndexEntry>;
+    ]) as Promise<V | null>;
   }
 
-  async getInverseIndexEntry(
-    model: FragmentsModel,
-    name: string,
-    value: string | number,
-  ) {
+  async getInverseIndexEntry<
+    K extends string | number,
+    V extends string | number,
+  >(model: FragmentsModel, name: string, value: K) {
     return model.threads.invoke(model.modelId, "getInverseIndexEntry", [
       name,
       value,
-    ]) as Promise<InverseIndexEntry>;
+    ]) as Promise<IndexArrayType<V> | null>;
   }
 
   async getMaxLocalId(model: FragmentsModel) {

@@ -128,7 +128,7 @@ export class VirtualIndexesController {
     if (!entry) return null;
     if (entry.info.valueType === "none") return null;
     const inverse = this.inverseMap(entry);
-    return Array.from(inverse.keys());
+    return Array.from(inverse.keys()) as string[] | number[];
   }
 
   /**
@@ -146,7 +146,7 @@ export class VirtualIndexesController {
    * mode (see {@link IndexEntry}). Returns `null` if the index or key is
    * missing, or the key type doesn't match.
    */
-  getEntry(name: string, key: string | number): IndexEntry {
+  getEntry(name: string, key: string | number): IndexEntry | null {
     const entry = this.resolve(name);
     if (!entry) return null;
     if (typeof key !== entry.info.keyType) return null;
