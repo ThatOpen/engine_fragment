@@ -38,7 +38,7 @@
   },
   "scripts": {
     "dev": "vite --host",
-    "test": "jest",
+    "test": "vitest --run",
     "build": "tsc --p ./tsconfig-build.json && vite build && vite build --config vite.config-worker.ts && yarn copy-worker",
     "prepublishOnly": "yarn build",
     "publish-repo": "npm publish",
@@ -83,6 +83,7 @@
     "ts-node": "^10.0.0",
     "tsx": "^4.19.2",
     "typescript": "5.4.2",
+    "vitest": "^4.1.7",
     "web-ifc": "0.0.77"
   },
   "peerDependencies": {
