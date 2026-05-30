@@ -1,7 +1,8 @@
-import { VirtualFragmentsModel } from "../virtual-fragments-model";
+import type { Matrix3Tuple } from "three";
+import type { VirtualFragmentsModel } from "../virtual-fragments-model";
 
 export class CoordinatesHelper {
-  getPositions(model: VirtualFragmentsModel, localIds: number[]) {
+  getPositions(model: VirtualFragmentsModel, localIds?: number[]) {
     const positions: { x: number; y: number; z: number }[] = [];
     const itemIds = model.properties.getItemIdsFromLocalIds(localIds);
     for (const id of itemIds) {
@@ -18,7 +19,7 @@ export class CoordinatesHelper {
     return positions;
   }
 
-  getCoordinates(model: VirtualFragmentsModel): number[] {
+  getCoordinates(model: VirtualFragmentsModel): Matrix3Tuple {
     const meshes = model.data.meshes()!;
     const coords = meshes.coordinates()!;
     const position = coords.position()!;

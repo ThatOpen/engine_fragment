@@ -43,7 +43,10 @@ export class CoordinatesManager {
 
   async getCoordinates(model: FragmentsModel) {
     const id = model.modelId;
-    return model.threads.invoke(id, "getCoordinates") as Promise<number[]>;
+    return model.threads.invoke(
+      id,
+      "getCoordinates",
+    ) as Promise<THREE.Matrix3Tuple>;
   }
 
   async getPositions(model: FragmentsModel, localIds?: number[]) {
