@@ -47,21 +47,18 @@ export function applyChangesToIds(
   ids: number[] | Uint32Array | Set<number>,
   key: EditKey,
   addCreatedElements: boolean,
-) {
+): number[] {
   const resultSet = new Set(ids);
   const deleteType = EditRequestType[`DELETE_${key}`];
   const createType = EditRequestType[`CREATE_${key}`];
-  if (actions) {
-    for (const action of actions) {
-      if (action.type === deleteType) {
-        resultSet.delete(action.localId as number);
-        continue;
-      }
-      if (addCreatedElements && action.type === createType) {
-        resultSet.add(action.localId as number);
-      }
+  for (const action of actions) {
+    if (action.type === deleteType) {
+      resultSet.delete(action.localId as number);
+      continue;
     }
-    return Array.from(resultSet);
+    if (addCreatedElements && action.type === createType) {
+      resultSet.add(action.localId as number);
+    }
   }
-  return ids;
+  return Array.from(resultSet);
 }

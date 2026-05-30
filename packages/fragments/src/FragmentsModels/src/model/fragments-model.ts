@@ -5,6 +5,7 @@ import {
   BIMMesh,
   CurrentLod,
   Identifier,
+  IndexEntry,
   ItemInformationType,
   ItemsDataConfig,
   ItemSelectionType,
@@ -19,7 +20,6 @@ import {
   SelectionInputType,
   SnappingRaycastData,
   VirtualModelConfig,
-  IndexEntry,
 } from "./model-types";
 
 import { FragmentsConnection } from "../multithreading/fragments-connection";
@@ -33,6 +33,7 @@ import { BoxManager } from "./box-manager";
 import { CoordinatesManager } from "./coordinates-manager";
 import { DataManager } from "./data-manager";
 import { EditManager } from "./edit-manager";
+import { IFragmentsModel } from "./fragments-model-interface";
 import { GridsConfig, GridsManager } from "./grids-manager";
 import { HighlightManager } from "./highlight-manager";
 import { ItemsManager } from "./items-manager";
@@ -46,7 +47,7 @@ import { VisibilityManager } from "./visibility-manager";
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
  */
-export class FragmentsModel {
+export class FragmentsModel implements IFragmentsModel<true> {
   /**
    * A map of attribute changes that have occurred in the model.
    * The key is the local ID of the item, and the value is the change.
@@ -273,7 +274,7 @@ export class FragmentsModel {
   /**
    * Get the spatial structure of the model.
    */
-  async getSpatialStructure() {
+  getSpatialStructure() {
     return this._dataManager.getSpatialStructure(this);
   }
 
@@ -281,7 +282,7 @@ export class FragmentsModel {
    * Get the local IDs corresponding to the specified GUIDs.
    * @param guids - Array of GUIDs to look up.
    */
-  async getLocalIdsByGuids(guids: string[]) {
+  getLocalIdsByGuids(guids: string[]) {
     return this._dataManager.getLocalIdsByGuids(this, guids);
   }
 
@@ -291,14 +292,14 @@ export class FragmentsModel {
    * per-vertex `id` attribute and need to map back to the public id
    * space.
    */
-  async getLocalIdsFromItemIds(itemIds: Iterable<number>) {
+  getLocalIdsFromItemIds(itemIds: Iterable<number>) {
     return this._dataManager.getLocalIdsFromItemIds(this, itemIds);
   }
 
   /**
    * Get all the categories of the model.
    */
-  async getCategories() {
+  getCategories() {
     return this._dataManager.getCategories(this);
   }
 
@@ -306,7 +307,7 @@ export class FragmentsModel {
    * Get the names of every user-defined index stored on this model. See the
    * `ModelIndex` schema for the supported shapes.
    */
-  async getIndexNames() {
+  getIndexNames() {
     return this._dataManager.getIndexNames(this);
   }
 
@@ -314,7 +315,7 @@ export class FragmentsModel {
    * Describe the shape of a named index without performing any lookups.
    * Returns `null` if no index with that name exists.
    */
-  async getIndexInfo(name: string) {
+  getIndexInfo(name: string) {
     return this._dataManager.getIndexInfo(this, name);
   }
 
@@ -323,7 +324,7 @@ export class FragmentsModel {
    * iteration) but valid for any mode. Number keys come back as a
    * `Uint32Array`, string keys as `string[]`.
    */
-  async getIndexKeys<K extends string | number>(name: string) {
+  getIndexKeys<K extends string | number>(name: string) {
     return this._dataManager.getIndexKeys<K>(this, name);
   }
 
@@ -345,7 +346,7 @@ export class FragmentsModel {
   /**
    * Test whether a key exists in the named index without resolving its value.
    */
-  async hasIndexEntry<K extends string | number>(name: string, key: K) {
+  hasIndexEntry<K extends string | number>(name: string, key: K) {
     return this._dataManager.hasIndexEntry(this, name, key);
   }
 
@@ -353,7 +354,7 @@ export class FragmentsModel {
    * Forward lookup of a single entry in the named index. The return shape
    * depends on the index mode (see {@link IndexEntry}).
    */
-  async getIndexEntry<K extends string | number, V extends IndexEntry>(
+  getIndexEntry<K extends string | number, V extends IndexEntry>(
     name: string,
     key: K,
   ) {
@@ -365,35 +366,35 @@ export class FragmentsModel {
    * returns every key that maps to `value`. The inverse map is built lazily
    * on first call and cached for the model's lifetime.
    */
-  async getInverseIndexEntry<
-    K extends string | number,
-    V extends string | number,
-  >(name: string, value: K) {
+  getInverseIndexEntry<K extends string | number, V extends string | number>(
+    name: string,
+    value: K,
+  ) {
     return this._dataManager.getInverseIndexEntry<K, V>(this, name, value);
   }
 
-  async getItemsWithGeometryCategories() {
+  getItemsWithGeometryCategories() {
     return this._dataManager.getItemsWithGeometryCategories(this);
   }
 
   /**
    * Get all the items of the model that have geometry.
    */
-  async getItemsWithGeometry() {
+  getItemsWithGeometry() {
     return this._dataManager.getItemsWithGeometry(this);
   }
 
   /**
    * Get all the items ids of the model that have geometry.
    */
-  async getItemsIdsWithGeometry() {
+  getItemsIdsWithGeometry() {
     return this._dataManager.getItemsIdsWithGeometry(this);
   }
 
   /**
    * Get the metadata of the model.
    */
-  async getMetadata<T extends Record<string, any> = Record<string, any>>() {
+  getMetadata<T extends Record<string, any> = Record<string, any>>() {
     return this._dataManager.getMetadata<T>(this);
   }
 
@@ -402,7 +403,7 @@ export class FragmentsModel {
    * Returns null if the source IFC file did not contain IFCPROJECTEDCRS
    * or IFCCOORDINATEREFERENCESYSTEM entities.
    */
-  async getCRS() {
+  getCRS() {
     return this._dataManager.getCRS(this);
   }
 
@@ -410,7 +411,7 @@ export class FragmentsModel {
    * Get the GUIDs corresponding to the specified local IDs.
    * @param localIds - Array of local IDs to look up.
    */
-  async getGuidsByLocalIds(localIds: number[]) {
+  getGuidsByLocalIds(localIds: number[]) {
     return this._dataManager.getGuidsByLocalIds(this, localIds);
   }
 
@@ -418,7 +419,7 @@ export class FragmentsModel {
    * Get the buffer of the model.
    * @param raw - Whether to get the raw buffer. If false, it will be compressed.
    */
-  async getBuffer(raw = false) {
+  getBuffer(raw = false) {
     return this._dataManager.getBuffer(this, raw);
   }
 
@@ -427,7 +428,7 @@ export class FragmentsModel {
    * @param localIds - The local IDs of the items to include.
    * @param raw - Whether to get the raw buffer. If false, it will be compressed.
    */
-  async getSubsetBuffer(localIds: number[], raw = false) {
+  getSubsetBuffer(localIds: number[], raw = false) {
     return this.threads.invoke(this.modelId, "getSubsetBuffer", [
       localIds,
       raw,
@@ -438,7 +439,7 @@ export class FragmentsModel {
    * Get all the items of the model that belong to the specified category.
    * @param category - The category to look up.
    */
-  async getItemsOfCategories(categories: RegExp[]) {
+  getItemsOfCategories(categories: RegExp[]) {
     return this._dataManager.getItemsOfCategories(this, categories);
   }
 
@@ -470,7 +471,7 @@ export class FragmentsModel {
    * @param config - Optional query configuration.
    * @returns A promise that resolves to the items matching the query.
    */
-  async getItemsByQuery(params: ItemsQueryParams, config?: ItemsQueryConfig) {
+  getItemsByQuery(params: ItemsQueryParams, config?: ItemsQueryConfig) {
     return this._dataManager.getItemsByQuery(this, params, config);
   }
 
@@ -493,11 +494,11 @@ export class FragmentsModel {
    * @param localIds - An array of local IDs for which the geometry data is requested.
    * @param lod - The level of detail for the geometry (optional).
    */
-  async getItemsGeometry(localIds: number[], lod = CurrentLod.GEOMETRY) {
+  getItemsGeometry(localIds: number[], lod = CurrentLod.GEOMETRY) {
     return this._editManager.getItemsGeometry(this, localIds, lod);
   }
 
-  async getGeometries(ids: number[]) {
+  getGeometries(ids: number[]) {
     return this._editManager.getGeometries(this, ids);
   }
 
@@ -582,7 +583,7 @@ export class FragmentsModel {
   /**
    * Get the maximum local ID of the model.
    */
-  async getMaxLocalId() {
+  getMaxLocalId() {
     return this._dataManager.getMaxLocalId(this);
   }
 
@@ -598,7 +599,7 @@ export class FragmentsModel {
    * Get the spatial structure children of the specified items.
    * @param ids - The IDs of the items to look up.
    */
-  async getItemsChildren(ids: Identifier[]) {
+  getItemsChildren(ids: Identifier[]) {
     return this._itemsManager.getItemsChildren(this, ids);
   }
 
@@ -630,7 +631,7 @@ export class FragmentsModel {
    *   },
    * });
    */
-  async getItemsData(ids: Identifier[], config?: Partial<ItemsDataConfig>) {
+  getItemsData(ids: Identifier[], config?: Partial<ItemsDataConfig>) {
     return this._itemsManager.getItemsData(this, ids, config);
   }
 
@@ -638,14 +639,14 @@ export class FragmentsModel {
    * Get the absolute positions of the specified items.
    * @param localIds - The local IDs of the items to look up.
    */
-  async getPositions(localIds?: number[]) {
+  getPositions(localIds?: number[]) {
     return this._coordinatesManager.getPositions(this, localIds);
   }
 
   /**
    * Gets coordinates of the model.
    */
-  async getCoordinates() {
+  getCoordinates() {
     return this._coordinatesManager.getCoordinates(this);
   }
 
@@ -655,7 +656,7 @@ export class FragmentsModel {
    * This method utilizes the `_coordinatesManager` to compute and return a
    * `THREE.Matrix4` object based on the original model coordinates.
    */
-  async getCoordinationMatrix() {
+  getCoordinationMatrix() {
     return this._coordinatesManager.getCoordinationMatrix(this);
   }
 
@@ -663,7 +664,7 @@ export class FragmentsModel {
    * Get the merged bounding box of the specified items.
    * @param localIds - The local IDs of the items to look up.
    */
-  async getMergedBox(localIds: number[]) {
+  getMergedBox(localIds: number[]) {
     return this._boxManager.getMergedBox(this, localIds);
   }
 
@@ -671,28 +672,28 @@ export class FragmentsModel {
    * Get the individual bounding boxes of the specified items.
    * @param localIds - The local IDs of the items to look up.
    */
-  async getBoxes(localIds?: number[]) {
+  getBoxes(localIds?: number[]) {
     return this._boxManager.getBoxes(this, localIds);
   }
 
   /**
    * Get the absolute alignments of the model (if any).
    */
-  async getAlignments() {
+  getAlignments() {
     return this._alignmentsManager.getAlignments();
   }
 
   /**
    * Get the horizontal alignments of the model (if any).
    */
-  async getHorizontalAlignments() {
+  getHorizontalAlignments() {
     return this._alignmentsManager.getHorizontalAlignments();
   }
 
   /**
    * Get the vertical alignments of the model (if any).
    */
-  async getVerticalAlignments() {
+  getVerticalAlignments() {
     return this._alignmentsManager.getVerticalAlignments();
   }
 
@@ -720,7 +721,7 @@ export class FragmentsModel {
    * All grid's descendants (`"axis"`, `"line"`, `"label"`) carry `userData.tag` (the axis label value)
    * and `userData.axis` (`"uAxes"`, `"vAxes"`, or `"wAxes"`).
    */
-  async getGrids(config?: GridsConfig) {
+  getGrids(config?: GridsConfig) {
     return this._gridsManager.getGrids(config);
   }
 
@@ -773,7 +774,7 @@ export class FragmentsModel {
    * Sets the LOD / culling mode of the model.
    * @param lodMode - The LOD / culling mode to set.
    */
-  async setLodMode(lodMode: LodMode) {
+  setLodMode(lodMode: LodMode) {
     return this._viewManager.setLodMode(this, lodMode);
   }
 
@@ -781,7 +782,7 @@ export class FragmentsModel {
    * Performs a rectangle raycast on the model.
    * @param data - The data of the rectangle raycast.
    */
-  async rectangleRaycast(data: RectangleRaycastData) {
+  rectangleRaycast(data: RectangleRaycastData) {
     return this._raycastManager.rectangleRaycast(this, this._meshManager, data);
   }
 
@@ -789,7 +790,7 @@ export class FragmentsModel {
    * Performs a raycast on the model.
    * @param data - The data of the raycast.
    */
-  async raycast(data: RaycastData) {
+  raycast(data: RaycastData) {
     return this._raycastManager.raycast(this, data);
   }
 
@@ -797,7 +798,7 @@ export class FragmentsModel {
    * Performs a raycast on the model and returns all the results.
    * @param data - The data of the raycast.
    */
-  async raycastAll(data: RaycastData) {
+  raycastAll(data: RaycastData) {
     return this._raycastManager.raycastAll(this, data);
   }
 
@@ -805,7 +806,7 @@ export class FragmentsModel {
    * Performs a raycast on the model with snapping.
    * @param data - The data of the raycast.
    */
-  async raycastWithSnapping(data: SnappingRaycastData) {
+  raycastWithSnapping(data: SnappingRaycastData) {
     return this._raycastManager.raycastWithSnapping(this, data);
   }
 
@@ -832,7 +833,7 @@ export class FragmentsModel {
    * Gets the items by visibility.
    * @param visible - Whether the items should be visible.
    */
-  async getItemsByVisibility(visible: boolean) {
+  getItemsByVisibility(visible: boolean) {
     return this._visibilityManager.getItemsByVisibility(this, visible);
   }
 
@@ -840,14 +841,14 @@ export class FragmentsModel {
    * Gets the items by visibility.
    * @param localIds - The local IDs of the items to get the visibility of.
    */
-  async getVisible(localIds: number[]) {
+  getVisible(localIds: number[]) {
     return this._visibilityManager.getVisible(this, localIds);
   }
 
   /**
    * Resets the visibility of all items.
    */
-  async resetVisible() {
+  resetVisible() {
     return this._visibilityManager.resetVisible(this);
   }
 
@@ -856,7 +857,7 @@ export class FragmentsModel {
    * @param localIds - The local IDs of the items to highlight. If undefined, all items will be highlighted.
    * @param highlightMaterial - The material to use for the highlight.
    */
-  async highlight(
+  highlight(
     localIds: number[] | undefined,
     highlightMaterial: MaterialDefinition,
   ) {
@@ -868,10 +869,7 @@ export class FragmentsModel {
    * @param localIds - The local IDs of the items to color. If undefined, all items will be colored.
    * @param color - The color to apply.
    */
-  async setColor(
-    localIds: number[] | undefined,
-    color: MaterialDefinition["color"],
-  ) {
+  setColor(localIds: number[] | undefined, color: MaterialDefinition["color"]) {
     return this._highlightManager.setColor(this, localIds, color);
   }
 
@@ -879,7 +877,7 @@ export class FragmentsModel {
    * Resets the color of the specified items to their original color while preserving other highlight properties (like opacity).
    * @param localIds - The local IDs of the items to reset color for. If undefined, all items will be affected.
    */
-  async resetColor(localIds: number[] | undefined) {
+  resetColor(localIds: number[] | undefined) {
     return this._highlightManager.resetColor(this, localIds);
   }
 
@@ -888,7 +886,7 @@ export class FragmentsModel {
    * @param localIds - The local IDs of the items to change opacity for. If undefined, all items will be affected.
    * @param opacity - The opacity to apply (0 to 1).
    */
-  async setOpacity(localIds: number[] | undefined, opacity: number) {
+  setOpacity(localIds: number[] | undefined, opacity: number) {
     return this._highlightManager.setOpacity(this, localIds, opacity);
   }
 
@@ -896,7 +894,7 @@ export class FragmentsModel {
    * Resets the opacity of the specified items to their original opacity while preserving other highlight properties (like color).
    * @param localIds - The local IDs of the items to reset opacity for. If undefined, all items will be affected.
    */
-  async resetOpacity(localIds: number[] | undefined) {
+  resetOpacity(localIds: number[] | undefined) {
     return this._highlightManager.resetOpacity(this, localIds);
   }
 
@@ -904,7 +902,7 @@ export class FragmentsModel {
    * Gets the highlight of the specified items.
    * @param localIds - The local IDs of the items to get the highlight of. If undefined, it will return the highlight of all items.
    */
-  async getHighlight(localIds?: number[]) {
+  getHighlight(localIds?: number[]) {
     return this._highlightManager.getHighlight(this, localIds);
   }
 
@@ -912,14 +910,14 @@ export class FragmentsModel {
    * Resets the highlight of the specified items.
    * @param localIds - The local IDs of the items to reset the highlight of. If undefined, it will reset the highlight of all items.
    */
-  async resetHighlight(localIds?: number[]) {
+  resetHighlight(localIds?: number[]) {
     return this._highlightManager.resetHighlight(this, localIds);
   }
 
   /**
    * Gets the item IDs of the items that are highlighted.
    */
-  async getHighlightItemIds() {
+  getHighlightItemIds() {
     return this._highlightManager.getHighlightItemIds(this);
   }
 
@@ -928,14 +926,14 @@ export class FragmentsModel {
    * @param plane - The plane to get the section of.
    * @param localIds - The local IDs of the items to get the section of. If undefined, it will return the section of all items.
    */
-  async getSection(plane: THREE.Plane, localIds?: number[]) {
+  getSection(plane: THREE.Plane, localIds?: number[]) {
     return this._sectionManager.getSection(this, plane, localIds);
   }
 
   /**
    * Gets all the materials IDs of the model.
    */
-  async getMaterialsIds() {
+  getMaterialsIds() {
     return this._editManager.getMaterialsIds(this);
   }
 
@@ -943,14 +941,14 @@ export class FragmentsModel {
    * Gets the materials of the model.
    * @param localIds - The local IDs of the materials to get. If undefined, it will return all materials.
    */
-  async getMaterials(localIds?: Iterable<number>) {
+  getMaterials(localIds?: Iterable<number>) {
     return this._editManager.getMaterials(this, localIds);
   }
 
   /**
    * Gets all the representations IDs of the model.
    */
-  async getRepresentationsIds() {
+  getRepresentationsIds() {
     return this._editManager.getRepresentationsIds(this);
   }
 
@@ -958,14 +956,14 @@ export class FragmentsModel {
    * Gets the representations of the model.
    * @param localIds - The local IDs of the representations to get. If undefined, it will return all representations.
    */
-  async getRepresentations(localIds?: Iterable<number>) {
+  getRepresentations(localIds?: Iterable<number>) {
     return this._editManager.getRepresentations(this, localIds);
   }
 
   /**
    * Gets all the local transforms IDs of the model.
    */
-  async getLocalTransformsIds() {
+  getLocalTransformsIds() {
     return this._editManager.getLocalTransformsIds(this);
   }
 
@@ -973,14 +971,14 @@ export class FragmentsModel {
    * Gets the local transforms of the model.
    * @param localIds - The local IDs of the local transforms to get. If undefined, it will return all local transforms.
    */
-  async getLocalTransforms(localIds?: Iterable<number>) {
+  getLocalTransforms(localIds?: Iterable<number>) {
     return this._editManager.getLocalTransforms(this, localIds);
   }
 
   /**
    * Gets all the global transforms IDs of the model.
    */
-  async getGlobalTransformsIds() {
+  getGlobalTransformsIds() {
     return this._editManager.getGlobalTransformsIds(this);
   }
 
@@ -988,14 +986,14 @@ export class FragmentsModel {
    * Gets the global transforms of the model.
    * @param localIds - The local IDs of the global transforms to get. If undefined, it will return all global transforms.
    */
-  async getGlobalTransforms(localIds?: Iterable<number>) {
+  getGlobalTransforms(localIds?: Iterable<number>) {
     return this._editManager.getGlobalTransforms(this, localIds);
   }
 
   /**
    * Gets all the samples IDs of the model.
    */
-  async getSamplesIds() {
+  getSamplesIds() {
     return this._editManager.getSamplesIds(this);
   }
 
@@ -1003,7 +1001,7 @@ export class FragmentsModel {
    * Gets the samples of the model.
    * @param localIds - The local IDs of the samples to get. If undefined, it will return all samples.
    */
-  async getSamples(localIds?: Iterable<number>) {
+  getSamples(localIds?: Iterable<number>) {
     return this._editManager.getSamples(this, localIds);
   }
 
@@ -1018,14 +1016,14 @@ export class FragmentsModel {
    * for each chunk to draw only the matching slices. No highlight
    * material slot is allocated; the call is read-only.
    */
-  async getItemDrawChunks(localIds: Iterable<number>) {
+  getItemDrawChunks(localIds: Iterable<number>) {
     return this._dataManager.getItemDrawChunks(this, localIds);
   }
 
   /**
    * Gets all the items IDs of the model.
    */
-  async getItemsIds() {
+  getItemsIds() {
     return this._editManager.getItemsIds(this);
   }
 
@@ -1033,7 +1031,7 @@ export class FragmentsModel {
    * Gets the items of the model.
    * @param localIds - The local IDs of the items to get. If undefined, it will return all items.
    */
-  async getItems(localIds?: Iterable<number>) {
+  getItems(localIds?: Iterable<number>) {
     return this._editManager.getItems(this, localIds);
   }
 
@@ -1041,7 +1039,7 @@ export class FragmentsModel {
    * Gets the relations of the model.
    * @param localIds - The local IDs of the relations to get. If undefined, it will return all relations.
    */
-  async getRelations(localIds?: number[]) {
+  getRelations(localIds?: number[]) {
     return this._editManager.getRelations(this, localIds);
   }
 
@@ -1049,14 +1047,14 @@ export class FragmentsModel {
    * Gets the global transforms IDs of the items of the model.
    * @param ids - The local IDs of the items to get the global transforms IDs of.
    */
-  async getGlobalTranformsIdsOfItems(ids: number[]) {
+  getGlobalTranformsIdsOfItems(ids: number[]) {
     return this._editManager.getGlobalTranformsIdsOfItems(this, ids);
   }
 
   /**
    * Gets the edited elements of the model.
    */
-  async getEditedElements() {
+  getEditedElements() {
     return this._editManager.getEditedElements(this);
   }
 
@@ -1069,10 +1067,7 @@ export class FragmentsModel {
    * @returns The computed result after processing the sequence of actions, or `null` if the result function is not found.
    * @experimental
    */
-  async getSequenced<
-    T extends ItemInformationType,
-    U extends ItemSelectionType,
-  >(
+  getSequenced<T extends ItemInformationType, U extends ItemSelectionType>(
     result: T,
     fromItems: U[],
     inputs?: {
@@ -1087,7 +1082,7 @@ export class FragmentsModel {
     await this._meshManager.requests.handleRequest(this._meshManager, request);
   }
 
-  async _getElements(localIds: Iterable<number>) {
+  _getElements(localIds: Iterable<number>) {
     return this._editManager.getElements(this, localIds);
   }
 
@@ -1096,7 +1091,7 @@ export class FragmentsModel {
    * `EditManager.getItemSnapData`. Internal — picker / SnapResolver
    * consume this. App code should keep using `_getElements` (localId).
    */
-  async _getItemSnapData(itemId: number) {
+  _getItemSnapData(itemId: number) {
     return this._editManager.getItemSnapData(this, itemId);
   }
 
@@ -1143,28 +1138,28 @@ export class FragmentsModel {
    * Internal method to edit the model. Don't use this directly.
    * @param requests - The requests to edit the model.
    */
-  async _edit(requests: EditRequest[]) {
+  _edit(requests: EditRequest[]) {
     return this._editManager.edit(this, requests);
   }
 
   /**
    * Internal method to reset the model. Don't use this directly.
    */
-  async _reset() {
+  _reset() {
     return this._editManager.reset(this);
   }
 
   /**
    * Internal method to save the model. Don't use this directly.
    */
-  async _save() {
+  _save() {
     return this._editManager.save(this);
   }
 
   /**
    * Internal method to get the requests of the model. Don't use this directly.
    */
-  async _getRequests() {
+  _getRequests() {
     return this._editManager.getRequests(this);
   }
 
@@ -1172,7 +1167,7 @@ export class FragmentsModel {
    * Internal method to set the requests of the model. Don't use this directly.
    * @param data - The data to set the requests of the model.
    */
-  async _setRequests(data: {
+  _setRequests(data: {
     requests?: EditRequest[];
     undoneRequests?: EditRequest[];
   }) {
@@ -1183,7 +1178,7 @@ export class FragmentsModel {
    * Internal method to select a request of the model. Don't use this directly.
    * @param index - The index of the request to select.
    */
-  async _selectRequest(index: number) {
+  _selectRequest(index: number) {
     return this._editManager.selectRequest(this, index);
   }
 }
