@@ -102,6 +102,7 @@ export interface IModelGeometry<Async extends boolean> {
     localIds: number[],
     lod?: CurrentLod,
   ): Promisify<MeshData[][], Async>;
+  getItemsVolume(localIds: number[]): Promisify<number, Async>;
   getItemDrawChunks(localIds: Iterable<number>): Promisify<DrawChunk[], Async>;
   getSection(
     plane: THREE.Plane,

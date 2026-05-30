@@ -258,6 +258,10 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
     return this._virtualModel.getItemsGeometry(localIds, lod);
   }
 
+  getItemsVolume(localIds: number[]) {
+    return this._virtualModel.getItemsVolume(localIds);
+  }
+
   /**
    * Query items based on specified parameters.
    * @param params - The query parameters.
