@@ -982,30 +982,9 @@ export class IfcSplitter {
     }
     this.emitProgressEvent("cluster", clusterStart);
 
-    // 5. Collect all dependencies
-    const resolveStart = performance.now();
-
-    const fileIds = new Set<number>(sharedIds);
-    for (const eid of groupElementIds) {
-      collectDeps(eid, index, fileIds, allElementIds);
-    }
-    for (const eid of groupElementIds) {
-      const rels = vfMap.relLineIds.get(eid);
-      if (rels) {
-        for (const rid of rels) collectDeps(rid, index, fileIds, allElementIds);
-      }
-      const aggRels = aggMap.aggregateRelIds.get(eid);
-      if (aggRels) {
-        for (const rid of aggRels)
-          collectDeps(rid, index, fileIds, allElementIds);
-      }
-    }
-    resolveStyles(fileIds, index, styleMaps, allElementIds);
-
-    this.emitProgressEvent("resolve", resolveStart);
-
-    // 6. Rewrite relationship lines
+    // 5. Rewrite relationship lines
     const relationsStart = performance.now();
+    const fileIds = new Set<number>(sharedIds);
     const rewrittenLines = new Map<number, string>();
     for (let id = 0; id <= index.maxId; id++) {
       const type = index.getType(id);
@@ -1039,6 +1018,26 @@ export class IfcSplitter {
       }
     }
     this.emitProgressEvent("relations", relationsStart);
+
+    // 6. Collect all dependencies
+    const resolveStart = performance.now();
+    for (const eid of groupElementIds) {
+      collectDeps(eid, index, fileIds, allElementIds);
+    }
+    for (const eid of groupElementIds) {
+      const rels = vfMap.relLineIds.get(eid);
+      if (rels) {
+        for (const rid of rels) collectDeps(rid, index, fileIds, allElementIds);
+      }
+      const aggRels = aggMap.aggregateRelIds.get(eid);
+      if (aggRels) {
+        for (const rid of aggRels)
+          collectDeps(rid, index, fileIds, allElementIds);
+      }
+    }
+    resolveStyles(fileIds, index, styleMaps, allElementIds);
+
+    this.emitProgressEvent("resolve", resolveStart);
 
     // 7. Free index, write output
     index.free();
