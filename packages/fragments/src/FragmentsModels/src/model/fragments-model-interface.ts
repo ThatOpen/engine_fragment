@@ -143,11 +143,11 @@ export interface IModelIndex<Async extends boolean> {
 
 /** Binary serialization of the full model or an item subset. */
 export interface IModelSerializer<Async extends boolean> {
-  getBuffer(raw?: boolean): Promisify<ArrayBuffer | Uint8Array, Async>;
+  getBuffer(raw?: boolean): Promisify<ArrayBufferLike | Uint8Array, Async>;
   getSubsetBuffer(
     localIds: number[],
     raw?: boolean,
-  ): Promisify<ArrayBuffer | Uint8Array, Async>;
+  ): Promisify<ArrayBufferLike | Uint8Array, Async>;
 }
 
 export interface IFragmentsModel<Async extends boolean = false>
