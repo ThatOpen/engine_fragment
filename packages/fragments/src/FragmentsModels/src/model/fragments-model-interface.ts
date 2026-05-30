@@ -38,6 +38,65 @@ export type DrawChunk = {
   size: Uint32Array;
 };
 
+/** Model metadata, spatial structure, categories, and CRS. */
+export interface IModelProperties<Async extends boolean> {
+  getSpatialStructure(): Promisify<SpatialTreeItem, Async>;
+  getCategories(): Promisify<string[], Async>;
+  getMetadata<T extends Record<string, any>>(): Promisify<T, Async>;
+  getCRS(): Promisify<CRSData | null, Async>;
+}
+
+/** Local-ID / GUID / item-ID translation and enumeration. */
+export interface IModelIds<Async extends boolean> {
+  getMaxLocalId(): Promisify<number, Async>;
+  getLocalIds(): Promisify<number[], Async>;
+  getLocalIdsByGuids(guids: string[]): Promisify<(number | null)[], Async>;
+  getGuidsByLocalIds(localIds: number[]): Promisify<(string | null)[], Async>;
+  getLocalIdsFromItemIds(itemIds: Iterable<number>): Promisify<number[], Async>;
+}
+
+/**
+ * Item-level queries — geometry presence, categories, children, data,
+ * and arbitrary attribute/relation predicates.
+ */
+export interface IItemsQuery<Async extends boolean> {
+  /**
+   * MISALIGNMENT: FragmentsModel's `DataManager` maps the raw local IDs into
+   * `Item[]` objects; SingleThreaded and VirtualFragmentsModel return `number[]`.
+   */
+  getItemsWithGeometry(): Promisify<number[], Async>;
+  getItemsOfCategories(
+    categories: RegExp[],
+  ): Promisify<Record<string, number[]>, Async>;
+  getItemsChildren(ids: Identifier[]): Promisify<number[], Async>;
+  /**
+   * MISALIGNMENT: SingleThreaded declares `ids: number[]`; FragmentsModel uses
+   * the broader `ids: Identifier[]` (`string | number`).
+   */
+  getItemsData(
+    ids: Identifier[],
+    config?: Partial<ItemsDataConfig>,
+  ): Promisify<ItemData[], Async>;
+  getItemsByQuery(
+    params: ItemsQueryParams,
+    config?: ItemsQueryConfig,
+  ): Promisify<number[], Async>;
+}
+
+/** Mesh geometry extraction, draw-chunk lookup, and cross-section computation. */
+export interface IModelGeometry<Async extends boolean> {
+  getItemsGeometry(
+    localIds: number[],
+    lod?: CurrentLod,
+  ): Promisify<MeshData[][], Async>;
+  getItemDrawChunks(localIds: Iterable<number>): Promisify<DrawChunk[], Async>;
+  getSection(
+    plane: THREE.Plane,
+    localIds?: number[],
+  ): Promisify<ModelSection, Async>;
+}
+
+/** Spatial positions and world-space coordinates. */
 export interface ICoordinatesHelper<Async extends boolean> {
   getPositions(
     localIds?: number[],
@@ -45,34 +104,66 @@ export interface ICoordinatesHelper<Async extends boolean> {
   getCoordinates(): Promisify<THREE.Matrix3Tuple, Async>;
 }
 
+/** Binary serialization of the full model or an item subset. */
+export interface IModelSerializer<Async extends boolean> {
+  getBuffer(raw?: boolean): Promisify<ArrayBuffer | Uint8Array, Async>;
+  getSubsetBuffer(
+    localIds: number[],
+    raw?: boolean,
+  ): Promisify<ArrayBuffer | Uint8Array, Async>;
+}
+
+/**
+ * Low-level access to the FlatBuffer tables: materials, representations,
+ * transforms, samples, items, and relations.
+ */
+export interface IRawModelData<Async extends boolean> {
+  getMaterialsIds(): Promisify<number[], Async>;
+  getMaterials(
+    ids?: Iterable<number>,
+  ): Promisify<Map<number, RawMaterial>, Async>;
+  getRepresentationsIds(): Promisify<number[], Async>;
+  getRepresentations(
+    ids?: Iterable<number>,
+  ): Promisify<Map<number, RawRepresentation>, Async>;
+  getLocalTransformsIds(): Promisify<number[], Async>;
+  getLocalTransforms(
+    ids?: Iterable<number>,
+  ): Promisify<Map<number, RawTransformData>, Async>;
+  getGlobalTransformsIds(): Promisify<number[], Async>;
+  getGlobalTransforms(
+    ids?: Iterable<number>,
+  ): Promisify<Map<number, RawGlobalTransformData>, Async>;
+  getSamplesIds(): Promisify<number[], Async>;
+  getSamples(ids?: Iterable<number>): Promisify<Map<number, RawSample>, Async>;
+  getItemsIds(): Promisify<number[], Async>;
+  getItems(ids?: Iterable<number>): Promisify<Map<number, RawItemData>, Async>;
+  getRelations(ids?: number[]): Promisify<Map<number, RawRelationData>, Async>;
+  getGlobalTranformsIdsOfItems(ids: number[]): Promisify<number[], Async>;
+}
+
+/** User-defined per-model indexes (see the `ModelIndex` schema). */
 export interface IModelIndex<Async extends boolean> {
   getIndexNames(): Promisify<string[], Async>;
-
   getIndexInfo(name: string): Promisify<IndexInfo | null, Async>;
-
   getIndexKeys<K extends string | number>(
     name: string,
   ): Promisify<IndexArrayType<K> | null, Async>;
-
   getIndexKey<K extends string | number>(
     name: string,
     index: number,
   ): Promisify<K | null, Async>;
-
   getIndexValues<V extends string | number>(
     name: string,
   ): Promisify<V[] | null, Async>;
-
   hasIndexEntry<K extends string | number>(
     name: string,
     key: K,
   ): Promisify<boolean, Async>;
-
   getIndexEntry<K extends string | number, V extends IndexEntry>(
     name: string,
     key: K,
   ): Promisify<V | null, Async>;
-
   getInverseIndexEntry<K extends string | number, V extends string | number>(
     name: string,
     value: K,
@@ -113,122 +204,16 @@ export interface IModelIndex<Async extends boolean> {
  * - `reset()` / `save()` — same; `_reset()` / `_save()` are internal in FragmentsModel.
  * - `undo()` / `redo()` — SingleThreaded only; no equivalent in FragmentsModel.
  * - `getRequests()` / `setRequests()` / `selectRequest()` — SingleThreaded only; `_getRequests()` etc. are internal in FragmentsModel.
- *
- * **Signature discrepancies:**
- * - `getItemsData`: SingleThreaded declares `ids: number[]`; FragmentsModel uses the broader `ids: Identifier[]` (`string | number`).
- * - `getItemsWithGeometry`: SingleThreaded / VirtualFragmentsModel return local-ID arrays (`number[]`);
- *   FragmentsModel enriches them into `Item[]` via `DataManager`.
- * - `*Ids()` methods (`getMaterialsIds`, `getRepresentationsIds`, etc.): the underlying
- *   `applyChangesToIds` helper has a return type of `number[] | Uint32Array | Set<number>`
- *   because TypeScript cannot prove the `actions: EditRequest[]` branch is always taken.
- *   The interface uses `number[]` as the intended type; TypeScript will flag any implementation
- *   that leaks the wider union.
- * - `getSection`: always returns `Promise<ModelSection>` in both variants because
- *   `VirtualFragmentsModel.getSection` is async — the `Async` generic does not apply.
  */
 export interface IFragmentsModel<Async extends boolean = false>
-  extends ICoordinatesHelper<Async>,
-    IModelIndex<Async> {
+  extends IModelIndex<Async>,
+    ICoordinatesHelper<Async>,
+    IModelProperties<Async>,
+    IModelIds<Async>,
+    IItemsQuery<Async>,
+    IModelGeometry<Async>,
+    IModelSerializer<Async>,
+    IRawModelData<Async> {
   readonly modelId: string;
-
-  // ---------------------------------------------------------------------------
-  // Spatial structure & properties
-  // ---------------------------------------------------------------------------
-
-  getSpatialStructure(): Promisify<SpatialTreeItem, Async>;
-  getCategories(): Promisify<string[], Async>;
-  getMetadata<T extends Record<string, any>>(): Promisify<T, Async>;
-  getCRS(): Promisify<CRSData | null, Async>;
-  getMaxLocalId(): Promisify<number, Async>;
-  getLocalIds(): Promisify<number[], Async>;
-  getLocalIdsByGuids(guids: string[]): Promisify<(number | null)[], Async>;
-  getGuidsByLocalIds(localIds: number[]): Promisify<(string | null)[], Async>;
-  getLocalIdsFromItemIds(itemIds: Iterable<number>): Promisify<number[], Async>;
-
-  // ---------------------------------------------------------------------------
-  // Items
-  // ---------------------------------------------------------------------------
-
-  /**
-   * MISALIGNMENT: FragmentsModel's `DataManager` maps the raw local IDs into
-   * `Item[]` objects; SingleThreaded and VirtualFragmentsModel return `number[]`.
-   */
-  getItemsWithGeometry(): Promisify<number[], Async>;
-  getItemsOfCategories(
-    categories: RegExp[],
-  ): Promisify<Record<string, number[]>, Async>;
-  getItemsChildren(ids: Identifier[]): Promisify<number[], Async>;
-  /**
-   * MISALIGNMENT: SingleThreaded declares `ids: number[]`; FragmentsModel uses
-   * the broader `ids: Identifier[]` (`string | number`).
-   */
-  getItemsData(
-    ids: Identifier[],
-    config?: Partial<ItemsDataConfig>,
-  ): Promisify<ItemData[], Async>;
-  getItemsByQuery(
-    params: ItemsQueryParams,
-    config?: ItemsQueryConfig,
-  ): Promisify<number[], Async>;
-
-  // ---------------------------------------------------------------------------
-  // Geometry & positions
-  // ---------------------------------------------------------------------------
-
-  getItemsGeometry(
-    localIds: number[],
-    lod?: CurrentLod,
-  ): Promisify<MeshData[][], Async>;
-  getItemDrawChunks(localIds: Iterable<number>): Promisify<DrawChunk[], Async>;
-  /**
-   * Always returns `Promise<ModelSection>` regardless of `Async` because
-   * `VirtualFragmentsModel.getSection` is inherently async in both variants.
-   */
-  getSection(
-    plane: THREE.Plane,
-    localIds?: number[],
-  ): Promisify<ModelSection, Async>;
-
-  // ---------------------------------------------------------------------------
-  // Serialization
-  // ---------------------------------------------------------------------------
-
-  getBuffer(raw?: boolean): Promisify<ArrayBuffer | Uint8Array, Async>;
-  getSubsetBuffer(
-    localIds: number[],
-    raw?: boolean,
-  ): Promisify<ArrayBuffer | Uint8Array, Async>;
-
-  // ---------------------------------------------------------------------------
-  // Raw model data (materials, transforms, representations, samples)
-  // ---------------------------------------------------------------------------
-
-  getMaterialsIds(): Promisify<number[], Async>;
-  getMaterials(
-    ids?: Iterable<number>,
-  ): Promisify<Map<number, RawMaterial>, Async>;
-  getRepresentationsIds(): Promisify<number[], Async>;
-  getRepresentations(
-    ids?: Iterable<number>,
-  ): Promisify<Map<number, RawRepresentation>, Async>;
-  getLocalTransformsIds(): Promisify<number[], Async>;
-  getLocalTransforms(
-    ids?: Iterable<number>,
-  ): Promisify<Map<number, RawTransformData>, Async>;
-  getGlobalTransformsIds(): Promisify<number[], Async>;
-  getGlobalTransforms(
-    ids?: Iterable<number>,
-  ): Promisify<Map<number, RawGlobalTransformData>, Async>;
-  getSamplesIds(): Promisify<number[], Async>;
-  getSamples(ids?: Iterable<number>): Promisify<Map<number, RawSample>, Async>;
-  getItemsIds(): Promisify<number[], Async>;
-  getItems(ids?: Iterable<number>): Promisify<Map<number, RawItemData>, Async>;
-  getRelations(ids?: number[]): Promisify<Map<number, RawRelationData>, Async>;
-  getGlobalTranformsIdsOfItems(ids: number[]): Promisify<number[], Async>;
-
-  // ---------------------------------------------------------------------------
-  // Lifecycle
-  // ---------------------------------------------------------------------------
-
   dispose(): Promisify<void, Async>;
 }
