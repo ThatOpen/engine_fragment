@@ -64,7 +64,7 @@ export interface IItemsQuery<Async extends boolean> {
    * MISALIGNMENT: FragmentsModel's `DataManager` maps the raw local IDs into
    * `Item[]` objects; SingleThreaded and VirtualFragmentsModel return `number[]`.
    */
-  getItemsWithGeometry(): Promisify<number[], Async>;
+  getItemsIdsWithGeometry(): Promisify<number[], Async>;
   getItemsOfCategories(
     categories: RegExp[],
   ): Promisify<Record<string, number[]>, Async>;

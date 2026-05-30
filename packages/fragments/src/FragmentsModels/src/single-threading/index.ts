@@ -163,7 +163,7 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
   /**
    * Get all the items of the model that have geometry.
    */
-  getItemsWithGeometry() {
+  getItemsIdsWithGeometry() {
     return this._virtualModel.getItemsWithGeometry();
   }
 
