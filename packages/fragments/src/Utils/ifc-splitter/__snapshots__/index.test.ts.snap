@@ -24,10 +24,10 @@ exports[`extract ifc > onProgress 1`] = `
     "stage": "cluster",
   },
   {
-    "stage": "resolve",
+    "stage": "relations",
   },
   {
-    "stage": "relations",
+    "stage": "resolve",
   },
   {
     "stage": "write",
