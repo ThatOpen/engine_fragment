@@ -1,0 +1,77 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`extract ifc > onProgress 1`] = `
+[
+  {
+    "stage": "parse",
+  },
+  {
+    "stage": "spatial",
+  },
+  {
+    "stage": "void-fill",
+  },
+  {
+    "stage": "style-maps",
+  },
+  {
+    "stage": "classify",
+  },
+  {
+    "stage": "aggregate",
+  },
+  {
+    "stage": "cluster",
+  },
+  {
+    "stage": "resolve",
+  },
+  {
+    "stage": "relations",
+  },
+  {
+    "stage": "write",
+  },
+]
+`;
+
+exports[`split ifc > onProgress 1`] = `
+[
+  {
+    "stage": "parse",
+  },
+  {
+    "stage": "spatial",
+  },
+  {
+    "stage": "void-fill",
+  },
+  {
+    "stage": "style-maps",
+  },
+  {
+    "stage": "classify",
+  },
+  {
+    "stage": "aggregate",
+  },
+  {
+    "stage": "cluster",
+  },
+  {
+    "stage": "distribute",
+  },
+  {
+    "stage": "relations",
+  },
+  {
+    "stage": "resolve",
+  },
+  {
+    "stage": "build-mask",
+  },
+  {
+    "stage": "write",
+  },
+]
+`;
