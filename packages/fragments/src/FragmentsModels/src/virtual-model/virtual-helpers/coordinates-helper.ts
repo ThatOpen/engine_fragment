@@ -1,4 +1,3 @@
-import type { Matrix3Tuple } from "three";
 import type { VirtualFragmentsModel } from "../virtual-fragments-model";
 
 export class CoordinatesHelper {
@@ -19,7 +18,7 @@ export class CoordinatesHelper {
     return positions;
   }
 
-  getCoordinates(model: VirtualFragmentsModel): Matrix3Tuple {
+  getCoordinates(model: VirtualFragmentsModel): number[] {
     const meshes = model.data.meshes()!;
     const coords = meshes.coordinates()!;
     const position = coords.position()!;

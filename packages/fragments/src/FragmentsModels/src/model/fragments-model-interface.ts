@@ -111,7 +111,7 @@ export interface IModelGeometry<Async extends boolean> {
   getPositions(
     localIds?: number[],
   ): Promisify<{ x: number; y: number; z: number }[], Async>;
-  getCoordinates(): Promisify<THREE.Matrix3Tuple, Async>;
+  getCoordinates(): Promisify<number[], Async>;
 }
 
 /** User-defined indexes, see {@link VirtualIndexesController}. */
