@@ -161,6 +161,13 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
   }
 
   /**
+   * @deprecated use {@link getItemsIdsWithGeometry}
+   */
+  getItemsWithGeometry() {
+    return this.getItemsIdsWithGeometry();
+  }
+
+  /**
    * Get all the items of the model that have geometry.
    */
   getItemsIdsWithGeometry() {
