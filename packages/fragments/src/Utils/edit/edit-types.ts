@@ -543,6 +543,17 @@ export interface IndexValidationError extends Error {
           start: number;
           end: number;
         }[];
+      }
+    | {
+        // Number keys/values are stored as Uint32, so they must be
+        // non-negative integers within range. Anything else would be silently
+        // corrupted (negatives wrap, floats truncate).
+        type: "invalid-number";
+        key: "keys" | "values";
+        errors: {
+          index: number;
+          value: number;
+        }[];
       };
 }
 

@@ -318,6 +318,38 @@ export function edit(
     ) {
       // Validate index definition
       const { keys, values, end, start } = request.data;
+      // Number keys/values are stored as Uint32, so they must be non-negative
+      // integers in range. Reject negatives/floats/overflow with a clear error
+      // instead of silently corrupting them (negatives wrap, floats truncate).
+      const validateNumbers = (
+        items: (number | string)[] | undefined,
+        key: "keys" | "values",
+      ) => {
+        if (!items || items.length === 0 || typeof items[0] !== "number") {
+          return;
+        }
+        const numberErrors: { index: number; value: number }[] = [];
+        for (let index = 0; index < items.length; index++) {
+          const value = items[index] as number;
+          if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) {
+            numberErrors.push({ index, value });
+          }
+        }
+        if (numberErrors.length) {
+          throw new Error(
+            `Invalid index request: ${key} must be non-negative 32-bit integers`,
+            {
+              cause: {
+                type: "invalid-number",
+                key,
+                errors: numberErrors,
+              } satisfies ET.IndexValidationError["cause"],
+            },
+          );
+        }
+      };
+      validateNumbers(keys, "keys");
+      validateNumbers(values, "values");
       // 1:1
       if (values && !end) {
         if (values.length !== keys.length) {
