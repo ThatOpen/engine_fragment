@@ -466,15 +466,11 @@ export class IfcGeometryProcessor {
 
       materialsLocalIds.push(nextId++);
 
-      TFB.Material.createMaterial(
-        builder,
-        r,
-        g,
-        b,
-        a,
-        TFB.RenderedFaces.ONE,
-        0,
-      );
+      const renderedFaces = this._serializer.doubleSidedMaterials
+        ? TFB.RenderedFaces.TWO
+        : TFB.RenderedFaces.ONE;
+
+      TFB.Material.createMaterial(builder, r, g, b, a, renderedFaces, 0);
     }
 
     const materials = builder.endVector();

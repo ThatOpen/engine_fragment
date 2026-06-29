@@ -131,6 +131,16 @@ export class IfcImporter {
   replaceSiteElevation = true;
 
   /**
+   * Whether the generated materials should render both faces (double-sided)
+   * instead of just the front face.
+   * @remarks Some exporters (e.g. certain Revit pipelines) produce geometry
+   * whose winding is not consistent, so front-face-only rendering can hide
+   * those faces. Enable this to render both sides. Defaults to false
+   * (front-face only) to match the previous behavior.
+   */
+  doubleSidedMaterials = false;
+
+  /**
    * If set, ignores the items that are further away to the origin than this value.
    * Keep in mind that if your IFC is correctly georreferenced, this value should never
    * be too high. If it's too high, it's either because your file uses absolute coordinates,
