@@ -114,6 +114,49 @@ export class LodHelper {
     itemFilter.needsUpdate = true;
   }
 
+  // Writes a per-instance highlight color over the same chunk ranges that
+  // setLodHighlight flags as highlighted, so each item keeps its own color at
+  // LOD/WIRES distance instead of all collapsing to a single uniform (#230).
+  // `colors[i]` is parallel to `data`'s chunks; undefined entries are skipped.
+  static setLodHighlightColors(
+    geometry: LODGeometry,
+    data: any,
+    colors: (THREE.Color | undefined)[],
+  ): void {
+    const itemFilter = geometry.getItemFilter();
+    if (!itemFilter) return;
+    const count = itemFilter.count;
+
+    let colorAttr = this.getInstancedAttribute(geometry, "itemHighlightColor");
+    if (!colorAttr || colorAttr.count !== count) {
+      // Default white matches the previous highlightColor uniform default for
+      // any highlighted-but-uncolored instance.
+      colorAttr = new THREE.InstancedBufferAttribute(
+        new Float32Array(count * 3).fill(1),
+        3,
+      );
+      geometry.setAttribute("itemHighlightColor", colorAttr);
+    }
+
+    const bufferData = colorAttr.array as Float32Array;
+    for (let i = 0; i < data.position.length; ++i) {
+      const color = colors[i];
+      if (!color) continue;
+      const first = Math.floor(data.position[i] / 2);
+      const size = data.size[i] / 2;
+      // Clamp to `count`. The "all" sentinel (and any oversized size) must not
+      // run the loop past the instance count: Array.fill clamps internally, but
+      // this manual loop would otherwise spin billions of times and hang.
+      const end = size === 0xffffffff ? count : Math.min(first + size, count);
+      for (let inst = first; inst < end; ++inst) {
+        bufferData[inst * 3] = color.r;
+        bufferData[inst * 3 + 1] = color.g;
+        bufferData[inst * 3 + 2] = color.b;
+      }
+    }
+    colorAttr.needsUpdate = true;
+  }
+
   static getInstancedAttribute(
     geometry: THREE.InstancedBufferGeometry,
     name: string,
@@ -147,6 +190,7 @@ export class LodHelper {
 
   private static disposeAllData(geometry: THREE.InstancedBufferGeometry) {
     delete geometry.attributes.itemFilter;
+    delete geometry.attributes.itemHighlightColor;
     delete geometry.attributes.position;
     geometry.index = null;
     geometry.dispose();
