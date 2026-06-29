@@ -1,5 +1,5 @@
-import * as THREE from "three";
 import { ByteBuffer } from "flatbuffers";
+import * as THREE from "three";
 
 import pako from "pako";
 
@@ -11,37 +11,39 @@ import {
 } from "three-mesh-bvh";
 
 import {
-  VirtualMaterialController,
-  VirtualTilesController,
-  VirtualPropertiesController,
-  RaycastController,
-  AlignmentsController,
-  ItemConfigController,
-  VirtualIndexesController,
-} from "./virtual-controllers";
-import {
-  MaterialDefinition,
-  SnappingClass,
-  VirtualModelConfig,
-  ItemSelectionType,
-  ItemInformationType,
-  Identifier,
-  ItemsQueryParams,
-  MeshData,
   AttributesUniqueValuesParams,
   CurrentLod,
-  ItemsQueryConfig,
+  Identifier,
+  IndexArrayType,
   IndexEntry,
   IndexInfo,
+  ItemInformationType,
+  ItemSelectionType,
+  ItemsQueryConfig,
+  ItemsQueryParams,
   LodMode,
-  IndexArrayType,
+  MaterialDefinition,
+  MeshData,
+  SnappingClass,
+  VirtualModelConfig,
 } from "../model/model-types";
+import {
+  AlignmentsController,
+  ItemConfigController,
+  RaycastController,
+  VirtualIndexesController,
+  VirtualMaterialController,
+  VirtualPropertiesController,
+  VirtualTilesController,
+} from "./virtual-controllers";
 
 import { VirtualBoxController } from "../bounding-boxes";
 
-import { Connection } from "../multithreading/connection";
 import { Model } from "../../../Schema";
+import { Connection } from "../multithreading/connection";
 
+import { EditRequest, EditRequestType, EditUtils } from "../../../Utils";
+import { GridsController } from "./virtual-controllers/grids-controller";
 import {
   CoordinatesHelper,
   GeometryHelper,
@@ -52,9 +54,7 @@ import {
   SequenceHelper,
   VisibilityHelper,
 } from "./virtual-helpers";
-import { EditRequest, EditRequestType, EditUtils } from "../../../Utils";
 import { TileData } from "./virtual-meshes";
-import { GridsController } from "./virtual-controllers/grids-controller";
 
 export class VirtualFragmentsModel {
   data: Model;
@@ -157,7 +157,10 @@ export class VirtualFragmentsModel {
     name: string,
     value: K,
   ): IndexArrayType<V> | null {
-    return this.indexes.getInverseEntry(name, value) as IndexArrayType<V> | null;
+    return this.indexes.getInverseEntry(
+      name,
+      value,
+    ) as IndexArrayType<V> | null;
   }
 
   getItemsByConfig(condition: (item: number) => boolean) {
@@ -335,7 +338,7 @@ export class VirtualFragmentsModel {
     return this._coordinatesHelper.getCoordinates(this);
   }
 
-  getPositions(localIds: number[]) {
+  getPositions(localIds?: number[]) {
     return this._coordinatesHelper.getPositions(this, localIds);
   }
 
@@ -465,16 +468,16 @@ export class VirtualFragmentsModel {
     return this._raycastHelper.rectangleRaycast(this, frustum, fullyIncluded);
   }
 
-  async getSection(plane: THREE.Plane, localIds?: number[]) {
+  getSection(plane: THREE.Plane, localIds?: number[]) {
     const indices = this.properties.getItemIdsFromLocalIds(localIds);
     return this._sectionHelper.getSection(this, plane, indices);
   }
 
-  async getAlignments() {
+  getAlignments() {
     return this._alignments.getAlignments();
   }
 
-  async getGrids() {
+  getGrids() {
     return this._grids.getGrids();
   }
 

@@ -12,7 +12,7 @@ export class AlignmentsController {
     this._fragments = virtualFragmentsModel;
   }
 
-  async getAlignments() {
+  getAlignments() {
     const allAlignments: AlignmentData[] = [];
 
     // TODO: Extend AlignmentDataItem to optionally have implicit geometry

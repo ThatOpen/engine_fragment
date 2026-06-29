@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### ⚠ BREAKING CHANGES
+
+* `SingleThreadedFragmentsModel`: renamed `getItemsWithGeometry` to `getItemsIdsWithGeometry` for compatibility with `FragmentsModel` interface.
+
+
 ## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
 
 

@@ -1,7 +1,7 @@
-import { VirtualFragmentsModel } from "../virtual-fragments-model";
+import type { VirtualFragmentsModel } from "../virtual-fragments-model";
 
 export class CoordinatesHelper {
-  getPositions(model: VirtualFragmentsModel, localIds: number[]) {
+  getPositions(model: VirtualFragmentsModel, localIds?: number[]) {
     const positions: { x: number; y: number; z: number }[] = [];
     const itemIds = model.properties.getItemIdsFromLocalIds(localIds);
     for (const id of itemIds) {
