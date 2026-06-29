@@ -76,6 +76,10 @@ export class ThreadModelCreator extends ThreadController {
     // Register early so the catch block can dispose the partial model.
     this.thread.list.set(modelId, model);
 
+    // Resume the update loop now that there is a model to drive. The loop stops
+    // itself when the model list empties, so this re-arms it after idle (#234).
+    this.thread.controllerManager.updater.start();
+
     notify("parsing", 1);
     throwIfAborted();
 
