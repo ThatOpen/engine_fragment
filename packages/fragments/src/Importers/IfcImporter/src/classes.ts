@@ -341,6 +341,7 @@ export const ifcClasses = {
     WEBIFC.IFCSIGN,
     WEBIFC.IFCPAVEMENT,
     WEBIFC.IFCROAD,
+    WEBIFC.IFCBRIDGE,
     WEBIFC.IFCBRIDGEPART,
   ]),
 };
