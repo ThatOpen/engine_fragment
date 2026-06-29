@@ -1,8 +1,13 @@
 import * as THREE from "three";
-import { SnappingClass } from "../../model/model-types";
+import { CurrentLod, SnappingClass } from "../../model/model-types";
 import { VirtualBoxController } from "../../bounding-boxes";
 import { VirtualTilesController, VirtualMeshManager } from "..";
-import { TransformHelper, CameraUtils, PlanesUtils } from "../../utils";
+import {
+  TransformHelper,
+  CameraUtils,
+  PlanesUtils,
+  MiscHelper,
+} from "../../utils";
 import { Representation, Sample, Model, Meshes } from "../../../../Schema";
 import { ItemConfigController } from "./item-config-controller";
 
@@ -124,9 +129,261 @@ export class RaycastController {
     if (!lookup) {
       return [];
     }
-    const itemIds = lookup.collideFrustum(planes, frustum, fullyInside);
-    const raycastedItemIds = this.filterVisible(itemIds);
+    // Always gather the touching superset (fullyInside=false). Both modes then
+    // narrow-phase on real geometry: a concave item can be fully inside the
+    // selection even when its AABB is not, and can have its AABB touch the
+    // selection while no geometry does. The broad-phase box test alone is wrong
+    // for both.
+    const itemIds = lookup.collideFrustum(planes, frustum, false);
+    let raycastedItemIds = this.filterVisible(itemIds);
+    if (raycastedItemIds.length) {
+      raycastedItemIds = this.narrowPhaseFrustum(
+        raycastedItemIds,
+        frustum,
+        planes,
+        fullyInside,
+      );
+    }
     return this.localIdsFromItemIds(raycastedItemIds);
+  }
+
+  // Filters broad-phase sample candidates by testing their real geometry
+  // against the selection frustum (+ clipping planes). Mirrors the section/clip
+  // generator: builds a transient BVH per representation (cached for this call)
+  // and shapecasts it; the frustum is moved into each sample's local space so
+  // instanced items that share one local geometry are handled by transform.
+  // fullyInside === true keeps only items whose geometry is entirely inside;
+  // false keeps items whose geometry touches the selection.
+  private narrowPhaseFrustum(
+    sampleIds: number[],
+    frustum: THREE.Frustum,
+    clipPlanes: THREE.Plane[],
+    fullyInside: boolean,
+  ): number[] {
+    const worldPlanes =
+      clipPlanes && clipPlanes.length
+        ? [...frustum.planes, ...clipPlanes]
+        : frustum.planes;
+    const geomCache = new Map<number, THREE.BufferGeometry[]>();
+    const result: number[] = [];
+    const start = performance.now();
+    let exceeded = false;
+
+    for (const sampleId of sampleIds) {
+      // If we run out of time budget, keep the remaining broad-phase results
+      // rather than dropping them (over-select beats losing a selection).
+      if (exceeded) {
+        result.push(sampleId);
+        continue;
+      }
+      const box = this._boxes.get(sampleId);
+      // Fast accept: AABB fully inside the selection volume => all geometry is
+      // inside too, so it is selected in both modes.
+      if (CameraUtils.isIncluded(box, worldPlanes)) {
+        result.push(sampleId);
+        continue;
+      }
+      if (
+        this.sampleMatchesFrustum(
+          sampleId,
+          frustum,
+          clipPlanes,
+          fullyInside,
+          geomCache,
+        )
+      ) {
+        result.push(sampleId);
+      }
+      exceeded = this.isTimeExceeded(start);
+    }
+
+    for (const [, geometries] of geomCache) {
+      for (const geometry of geometries) {
+        // @ts-ignore three-mesh-bvh prototype augmentation
+        geometry.disposeBoundsTree?.();
+        geometry.dispose();
+      }
+    }
+    return result;
+  }
+
+  private sampleMatchesFrustum(
+    sampleId: number,
+    frustum: THREE.Frustum,
+    clipPlanes: THREE.Plane[],
+    fullyInside: boolean,
+    geomCache: Map<number, THREE.BufferGeometry[]>,
+  ): boolean {
+    const sample = this._meshes.samples(sampleId, this._temp.sample);
+    if (!sample) return !fullyInside;
+    const reprId = sample.representation();
+
+    // Resolve the sample's world transform before building geometry (the build
+    // path reuses shared scratch state).
+    TransformHelper.get(this._temp.sample, this._meshes, this._temp.m1);
+    this._temp.m2.copy(this._temp.m1).invert();
+
+    let geometries = geomCache.get(reprId);
+    if (!geometries) {
+      geometries = this.buildSampleGeometries(sampleId);
+      geomCache.set(reprId, geometries);
+    }
+    // No triangle geometry (e.g. curve-only representations). For crossing keep
+    // the broad-phase result; for window we cannot confirm full containment, so
+    // drop it rather than over-select.
+    if (geometries.length === 0) return !fullyInside;
+
+    const localPlanes = this.toLocalPlanes(frustum, clipPlanes, this._temp.m2);
+
+    if (fullyInside) {
+      // Window: every vertex must be inside the frustum (exact for a convex
+      // frustum, since all geometry is a convex combination of its vertices).
+      for (const geometry of geometries) {
+        if (!this.geometryFullyInside(geometry, localPlanes)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    // Crossing: any triangle intersecting the frustum is enough.
+    for (const geometry of geometries) {
+      if (this.geometryIntersectsPlanes(geometry, localPlanes)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // True only if every vertex of the geometry is inside every plane.
+  private geometryFullyInside(
+    geometry: THREE.BufferGeometry,
+    planes: THREE.Plane[],
+  ): boolean {
+    const position = geometry.getAttribute("position");
+    const array = position.array as ArrayLike<number>;
+    const vertex = this._temp.v1;
+    for (let i = 0; i < array.length; i += 3) {
+      vertex.set(array[i], array[i + 1], array[i + 2]);
+      for (const plane of planes) {
+        if (plane.distanceToPoint(vertex) < 0) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private buildSampleGeometries(sampleId: number): THREE.BufferGeometry[] {
+    const geometries: THREE.BufferGeometry[] = [];
+    const sampleGeom = this._tiles.fetchSample(sampleId, CurrentLod.GEOMETRY);
+    MiscHelper.forEach(sampleGeom.geometries, (geometryData: any) => {
+      if (!geometryData.indexBuffer || !geometryData.positionBuffer) {
+        return;
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setIndex(Array.from(geometryData.indexBuffer));
+      geometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(geometryData.positionBuffer, 3),
+      );
+      // @ts-ignore three-mesh-bvh prototype augmentation
+      geometry.computeBoundsTree();
+      geometries.push(geometry);
+    });
+    return geometries;
+  }
+
+  private toLocalPlanes(
+    frustum: THREE.Frustum,
+    clipPlanes: THREE.Plane[],
+    toLocal: THREE.Matrix4,
+  ): THREE.Plane[] {
+    const local: THREE.Plane[] = [];
+    this.pushLocalPlanes(frustum.planes, toLocal, local);
+    if (clipPlanes) {
+      this.pushLocalPlanes(clipPlanes, toLocal, local);
+    }
+    return local;
+  }
+
+  private pushLocalPlanes(
+    planes: THREE.Plane[],
+    toLocal: THREE.Matrix4,
+    out: THREE.Plane[],
+  ): void {
+    for (const plane of planes) {
+      // The perspective selection frustum's far plane has constant = Infinity
+      // (it extends to infinity). Transforming it produces a NaN plane (its
+      // coplanar point is at infinity), which would clip away everything. It
+      // constrains nothing, so skip any non-finite plane.
+      if (!Number.isFinite(plane.constant)) {
+        continue;
+      }
+      out.push(new THREE.Plane().copy(plane).applyMatrix4(toLocal));
+    }
+  }
+
+  private geometryIntersectsPlanes(
+    geometry: THREE.BufferGeometry,
+    planes: THREE.Plane[],
+  ): boolean {
+    let hit = false;
+    // @ts-ignore three-mesh-bvh prototype augmentation
+    geometry.boundsTree.shapecast({
+      intersectsBounds: (box: THREE.Box3) => CameraUtils.collides(box, planes),
+      intersectsTriangle: (tri: THREE.Triangle) => {
+        if (this.triangleIntersectsFrustum(tri, planes)) {
+          hit = true;
+          return true; // stop traversal on first intersecting triangle
+        }
+        return false;
+      },
+    });
+    return hit;
+  }
+
+  // Exact triangle-vs-frustum test by clipping. The frustum is the intersection
+  // of its plane half-spaces, so clipping the triangle polygon against every
+  // plane (Sutherland-Hodgman) yields exactly triangle ∩ frustum. Non-empty
+  // result means they really intersect. This avoids the false positives a
+  // "not fully outside any single plane" test gives on large triangles.
+  private triangleIntersectsFrustum(
+    tri: THREE.Triangle,
+    planes: THREE.Plane[],
+  ): boolean {
+    let poly: THREE.Vector3[] = [tri.a, tri.b, tri.c];
+    for (const plane of planes) {
+      poly = this.clipPolygonByPlane(poly, plane);
+      if (poly.length === 0) {
+        return false;
+      }
+    }
+    return poly.length > 0;
+  }
+
+  // Clips a convex polygon to the inside (distance >= 0) half-space of a plane.
+  private clipPolygonByPlane(
+    poly: THREE.Vector3[],
+    plane: THREE.Plane,
+  ): THREE.Vector3[] {
+    const out: THREE.Vector3[] = [];
+    const count = poly.length;
+    for (let i = 0; i < count; i++) {
+      const current = poly[i];
+      const next = poly[(i + 1) % count];
+      const dCurrent = plane.distanceToPoint(current);
+      const dNext = plane.distanceToPoint(next);
+      if (dCurrent >= 0) {
+        out.push(current);
+      }
+      // Edge crosses the plane: add the intersection point.
+      if (dCurrent >= 0 !== dNext >= 0) {
+        const t = dCurrent / (dCurrent - dNext);
+        out.push(new THREE.Vector3().lerpVectors(current, next, t));
+      }
+    }
+    return out;
   }
 
   private snapCastEdges(data: CastData, snaps: Snap[]) {
