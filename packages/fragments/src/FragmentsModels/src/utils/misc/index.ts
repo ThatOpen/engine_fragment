@@ -3,3 +3,4 @@ export * from "./multi-buffer-data";
 export * from "./misc-helper";
 export * from "./gpu";
 export * from "./bit-utils";
+export * from "./buffer";

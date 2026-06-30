@@ -5,6 +5,7 @@ import {
   VirtualModelConfig,
   LoadProgressEvent,
   MultiThreadingRequestClass,
+  isRawBuffer,
 } from "./src";
 import { FragmentsConnection } from "./src/multithreading/fragments-connection";
 import { ThreadHandler } from "./src/multithreading/connection-handlers";
@@ -222,7 +223,7 @@ export class FragmentsModels {
    * @param options - Configuration options for loading the model.
    * @param options.modelId - Unique identifier for the model.
    * @param options.camera - Optional camera to use for model culling and LOD.
-   * @param options.raw - If true, loads raw (uncompressed) data. Default is false.
+   * @param options.raw - Whether the buffer is raw (uncompressed) or deflated. If omitted, it is auto-detected from the buffer (see {@link isRawBuffer}).
    * @param options.userData - Optional custom data to attach to the model.
    * @param options.virtualModelConfig - Optional configuration for virtual model setup.
    * @returns Promise resolving to the loaded FragmentsModel instance.
@@ -280,9 +281,15 @@ export class FragmentsModels {
       this._progressCallbacks.set(options.modelId, options.onProgress);
     }
 
+    // Auto-detect compression when the caller did not specify it, so a raw or
+    // deflated buffer both just work. An explicit `raw` always wins.
+    const bytes =
+      buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const raw = options.raw ?? isRawBuffer(bytes);
+
     try {
       this.models.list.set(model.modelId, model);
-      await model._setup(buffer, options.raw, virtualModelConfig);
+      await model._setup(buffer, raw, virtualModelConfig);
       if (this.settings.autoCoordinate) {
         const coordinates = await model.getCoordinates();
         if (this.baseCoordinates === null) {

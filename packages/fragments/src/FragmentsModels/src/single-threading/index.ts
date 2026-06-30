@@ -10,6 +10,7 @@ import {
 } from "../model";
 import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 import { EditRequest } from "../../../Utils";
+import { isRawBuffer } from "../utils/misc/buffer";
 
 /**
  * The main class for managing a 3D model loaded from a fragments file in a single thread. It's designed for easy data querying in the backend, so all the 3D visualization logic is not present.
@@ -27,12 +28,15 @@ export class SingleThreadedFragmentsModel {
 
   /**
    * The constructor of the fragments model.
+   * @param raw - Whether `modelData` is raw (uncompressed) or deflated. If
+   * omitted, it is auto-detected from the buffer (see {@link isRawBuffer}).
    */
-  constructor(modelId: string, modelData: Uint8Array, raw = false) {
+  constructor(modelId: string, modelData: Uint8Array, raw?: boolean) {
     this._modelId = modelId;
 
+    const isRaw = raw ?? isRawBuffer(modelData);
     let data = modelData;
-    if (!raw) {
+    if (!isRaw) {
       data = pako.inflate(modelData);
     }
 
