@@ -1,27 +1,14 @@
 var __defProp = Object.defineProperty;
+var __typeError = (msg) => {
+  throw TypeError(msg);
+};
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __publicField = (obj, key, value) => {
-  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
-  return value;
-};
-var __accessCheck = (obj, member, msg) => {
-  if (!member.has(obj))
-    throw TypeError("Cannot " + msg);
-};
-var __privateGet = (obj, member, getter) => {
-  __accessCheck(obj, member, "read from private field");
-  return getter ? getter.call(obj) : member.get(obj);
-};
-var __privateAdd = (obj, member, value) => {
-  if (member.has(obj))
-    throw TypeError("Cannot add the same private member more than once");
-  member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-};
-var __privateSet = (obj, member, value, setter) => {
-  __accessCheck(obj, member, "write to private field");
-  setter ? setter.call(obj, value) : member.set(obj, value);
-  return value;
-};
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
+var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
+var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
+var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
+var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 var __privateWrapper = (obj, member, setter, getter) => ({
   set _(value) {
     __privateSet(obj, member, value, setter);
@@ -30,11 +17,7 @@ var __privateWrapper = (obj, member, setter, getter) => ({
     return __privateGet(obj, member, getter);
   }
 });
-var __privateMethod = (obj, member, method) => {
-  __accessCheck(obj, member, "access private method");
-  return method;
-};
-var _a, _constructing, _max, _maxSize, _dispose, _onInsert, _disposeAfter, _fetchMethod, _memoMethod, _size, _calculatedSize, _keyMap, _keyList, _valList, _next, _prev, _head, _tail, _free, _disposed, _sizes, _starts, _ttls, _hasDispose, _hasFetchMethod, _hasDisposeAfter, _hasOnInsert, _initializeTTLTracking, initializeTTLTracking_fn, _updateItemAge, _statusTTL, _setItemTTL, _isStale, _initializeSizeTracking, initializeSizeTracking_fn, _removeItemSize, _addItemSize, _requireSize, _indexes, indexes_fn, _rindexes, rindexes_fn, _isValidIndex, isValidIndex_fn, _b, _evict, evict_fn, _backgroundFetch, backgroundFetch_fn, _isBackgroundFetch, isBackgroundFetch_fn, _connect, connect_fn, _moveToTail, moveToTail_fn, _delete, delete_fn, _clear, clear_fn, _c;
+var _a, _constructing, _b, _c, _max, _maxSize, _dispose, _onInsert, _disposeAfter, _fetchMethod, _memoMethod, _size, _calculatedSize, _keyMap, _keyList, _valList, _next, _prev, _head, _tail, _free, _disposed, _sizes, _starts, _ttls, _hasDispose, _hasFetchMethod, _hasDisposeAfter, _hasOnInsert, _LRUCache_instances, initializeTTLTracking_fn, _updateItemAge, _statusTTL, _setItemTTL, _isStale, initializeSizeTracking_fn, _removeItemSize, _addItemSize, _requireSize, indexes_fn, rindexes_fn, isValidIndex_fn, evict_fn, backgroundFetch_fn, isBackgroundFetch_fn, connect_fn, moveToTail_fn, delete_fn, clear_fn, _d;
 class ConnectionHandlers {
   constructor() {
     __publicField(this, "_list", /* @__PURE__ */ new Map());
@@ -65,10 +48,10 @@ class ConnectionHandlers {
 }
 /**
  * @license
- * Copyright 2010-2025 Three.js Authors
+ * Copyright 2010-2026 Three.js Authors
  * SPDX-License-Identifier: MIT
  */
-const REVISION = "182";
+const REVISION = "184";
 const FrontSide = 0;
 const BackSide = 1;
 const DoubleSide = 2;
@@ -103,8 +86,7 @@ const WebGLCoordinateSystem = 2e3;
 const WebGPUCoordinateSystem = 2001;
 function arrayNeedsUint32(array) {
   for (let i = array.length - 1; i >= 0; --i) {
-    if (array[i] >= 65535)
-      return true;
+    if (array[i] >= 65535) return true;
   }
   return false;
 }
@@ -112,22 +94,45 @@ function createElementNS(name) {
   return document.createElementNS("http://www.w3.org/1999/xhtml", name);
 }
 const _cache = {};
+function enhanceLogMessage(params) {
+  const message = params[0];
+  if (typeof message === "string" && message.startsWith("TSL:")) {
+    const stackTrace = params[1];
+    if (stackTrace && stackTrace.isStackTrace) {
+      params[0] += " " + stackTrace.getLocation();
+    } else {
+      params[1] = 'Stack trace not available. Enable "THREE.Node.captureStackTrace" to capture stack traces.';
+    }
+  }
+  return params;
+}
 function warn(...params) {
+  params = enhanceLogMessage(params);
   const message = "THREE." + params.shift();
   {
-    console.warn(message, ...params);
+    const stackTrace = params[0];
+    if (stackTrace && stackTrace.isStackTrace) {
+      console.warn(stackTrace.getError(message));
+    } else {
+      console.warn(message, ...params);
+    }
   }
 }
 function error(...params) {
+  params = enhanceLogMessage(params);
   const message = "THREE." + params.shift();
   {
-    console.error(message, ...params);
+    const stackTrace = params[0];
+    if (stackTrace && stackTrace.isStackTrace) {
+      console.error(stackTrace.getError(message));
+    } else {
+      console.error(message, ...params);
+    }
   }
 }
 function warnOnce(...params) {
   const message = params.join(" ");
-  if (message in _cache)
-    return;
+  if (message in _cache) return;
   _cache[message] = true;
   warn(...params);
 }
@@ -139,8 +144,7 @@ class EventDispatcher {
    * @param {Function} listener - The function that gets called when the event is fired.
    */
   addEventListener(type, listener) {
-    if (this._listeners === void 0)
-      this._listeners = {};
+    if (this._listeners === void 0) this._listeners = {};
     const listeners = this._listeners;
     if (listeners[type] === void 0) {
       listeners[type] = [];
@@ -158,8 +162,7 @@ class EventDispatcher {
    */
   hasEventListener(type, listener) {
     const listeners = this._listeners;
-    if (listeners === void 0)
-      return false;
+    if (listeners === void 0) return false;
     return listeners[type] !== void 0 && listeners[type].indexOf(listener) !== -1;
   }
   /**
@@ -170,8 +173,7 @@ class EventDispatcher {
    */
   removeEventListener(type, listener) {
     const listeners = this._listeners;
-    if (listeners === void 0)
-      return;
+    if (listeners === void 0) return;
     const listenerArray = listeners[type];
     if (listenerArray !== void 0) {
       const index = listenerArray.indexOf(listener);
@@ -187,8 +189,7 @@ class EventDispatcher {
    */
   dispatchEvent(event) {
     const listeners = this._listeners;
-    if (listeners === void 0)
-      return;
+    if (listeners === void 0) return;
     const listenerArray = listeners[event.type];
     if (listenerArray !== void 0) {
       event.target = this;
@@ -238,18 +239,14 @@ function pingpong(x, length = 1) {
   return length - Math.abs(euclideanModulo(x, length * 2) - length);
 }
 function smoothstep(x, min, max) {
-  if (x <= min)
-    return 0;
-  if (x >= max)
-    return 1;
+  if (x <= min) return 0;
+  if (x >= max) return 1;
   x = (x - min) / (max - min);
   return x * x * (3 - 2 * x);
 }
 function smootherstep(x, min, max) {
-  if (x <= min)
-    return 0;
-  if (x >= max)
-    return 1;
+  if (x <= min) return 0;
+  if (x >= max) return 1;
   x = (x - min) / (max - min);
   return x * x * x * (x * (x * 6 - 15) + 10);
 }
@@ -263,8 +260,7 @@ function randFloatSpread(range) {
   return range * (0.5 - Math.random());
 }
 function seededRandom(s) {
-  if (s !== void 0)
-    _seed = s;
+  if (s !== void 0) _seed = s;
   let t = _seed += 1831565813;
   t = Math.imul(t ^ t >>> 15, t | 1);
   t ^= t + Math.imul(t ^ t >>> 7, t | 61);
@@ -603,7 +599,7 @@ const MathUtils = {
    */
   denormalize
 };
-class Vector2 {
+const _Vector2 = class _Vector2 {
   /**
    * Constructs a new 2D vector.
    *
@@ -611,7 +607,6 @@ class Vector2 {
    * @param {number} [y=0] - The y value of this vector.
    */
   constructor(x = 0, y = 0) {
-    Vector2.prototype.isVector2 = true;
     this.x = x;
     this.y = y;
   }
@@ -1060,8 +1055,7 @@ class Vector2 {
    */
   angleTo(v) {
     const denominator = Math.sqrt(this.lengthSq() * v.lengthSq());
-    if (denominator === 0)
-      return Math.PI / 2;
+    if (denominator === 0) return Math.PI / 2;
     const theta = this.dot(v) / denominator;
     return Math.acos(clamp(theta, -1, 1));
   }
@@ -1211,7 +1205,9 @@ class Vector2 {
     yield this.x;
     yield this.y;
   }
-}
+};
+_Vector2.prototype.isVector2 = true;
+let Vector2 = _Vector2;
 class Quaternion {
   /**
    * Constructs a new quaternion.
@@ -1238,26 +1234,12 @@ class Quaternion {
    * @param {number} srcOffset0 - An offset into the first source array.
    * @param {Array<number>} src1 -  The source array of the second quaternion.
    * @param {number} srcOffset1 - An offset into the second source array.
-   * @param {number} t - The interpolation factor in the range `[0,1]`.
+   * @param {number} t - The interpolation factor. A value in the range `[0,1]` will interpolate. A value outside the range `[0,1]` will extrapolate.
    * @see {@link Quaternion#slerp}
    */
   static slerpFlat(dst, dstOffset, src0, srcOffset0, src1, srcOffset1, t) {
     let x0 = src0[srcOffset0 + 0], y0 = src0[srcOffset0 + 1], z0 = src0[srcOffset0 + 2], w0 = src0[srcOffset0 + 3];
     let x1 = src1[srcOffset1 + 0], y1 = src1[srcOffset1 + 1], z1 = src1[srcOffset1 + 2], w1 = src1[srcOffset1 + 3];
-    if (t <= 0) {
-      dst[dstOffset + 0] = x0;
-      dst[dstOffset + 1] = y0;
-      dst[dstOffset + 2] = z0;
-      dst[dstOffset + 3] = w0;
-      return;
-    }
-    if (t >= 1) {
-      dst[dstOffset + 0] = x1;
-      dst[dstOffset + 1] = y1;
-      dst[dstOffset + 2] = z1;
-      dst[dstOffset + 3] = w1;
-      return;
-    }
     if (w0 !== w1 || x0 !== x1 || y0 !== y1 || z0 !== z1) {
       let dot = x0 * x1 + y0 * y1 + z0 * z1 + w0 * w1;
       if (dot < 0) {
@@ -1471,8 +1453,7 @@ class Quaternion {
       default:
         warn("Quaternion: .setFromEuler() encountered an unknown order: " + order);
     }
-    if (update === true)
-      this._onChangeCallback();
+    if (update === true) this._onChangeCallback();
     return this;
   }
   /**
@@ -1577,8 +1558,7 @@ class Quaternion {
    */
   rotateTowards(q, step) {
     const angle = this.angleTo(q);
-    if (angle === 0)
-      return this;
+    if (angle === 0) return this;
     const t = Math.min(1, step / angle);
     this.slerp(q, t);
     return this;
@@ -1703,17 +1683,13 @@ class Quaternion {
     return this;
   }
   /**
-   * Performs a spherical linear interpolation between quaternions.
+   * Performs a spherical linear interpolation between this quaternion and the target quaternion.
    *
    * @param {Quaternion} qb - The target quaternion.
-   * @param {number} t - The interpolation factor in the closed interval `[0, 1]`.
+   * @param {number} t - The interpolation factor. A value in the range `[0,1]` will interpolate. A value outside the range `[0,1]` will extrapolate.
    * @return {Quaternion} A reference to this quaternion.
    */
   slerp(qb, t) {
-    if (t <= 0)
-      return this;
-    if (t >= 1)
-      return this.copy(qb);
     let x = qb._x, y = qb._y, z = qb._z, w = qb._w;
     let dot = this.dot(qb);
     if (dot < 0) {
@@ -1849,7 +1825,7 @@ class Quaternion {
     yield this._w;
   }
 }
-class Vector3 {
+const _Vector3 = class _Vector3 {
   /**
    * Constructs a new 3D vector.
    *
@@ -1858,7 +1834,6 @@ class Vector3 {
    * @param {number} [z=0] - The z value of this vector.
    */
   constructor(x = 0, y = 0, z = 0) {
-    Vector3.prototype.isVector3 = true;
     this.x = x;
     this.y = y;
     this.z = z;
@@ -1872,8 +1847,7 @@ class Vector3 {
    * @return {Vector3} A reference to this vector.
    */
   set(x, y, z) {
-    if (z === void 0)
-      z = this.z;
+    if (z === void 0) z = this.z;
     this.x = x;
     this.y = y;
     this.z = z;
@@ -1892,7 +1866,7 @@ class Vector3 {
     return this;
   }
   /**
-   * Sets the vector's x component to the given value
+   * Sets the vector's x component to the given value.
    *
    * @param {number} x - The value to set.
    * @return {Vector3} A reference to this vector.
@@ -1902,7 +1876,7 @@ class Vector3 {
     return this;
   }
   /**
-   * Sets the vector's y component to the given value
+   * Sets the vector's y component to the given value.
    *
    * @param {number} y - The value to set.
    * @return {Vector3} A reference to this vector.
@@ -1912,7 +1886,7 @@ class Vector3 {
     return this;
   }
   /**
-   * Sets the vector's z component to the given value
+   * Sets the vector's z component to the given value.
    *
    * @param {number} z - The value to set.
    * @return {Vector3} A reference to this vector.
@@ -2113,7 +2087,7 @@ class Vector3 {
    * @return {Vector3} A reference to this vector.
    */
   applyEuler(euler) {
-    return this.applyQuaternion(_quaternion$4.setFromEuler(euler));
+    return this.applyQuaternion(_quaternion$5.setFromEuler(euler));
   }
   /**
    * Applies a rotation specified by an axis and an angle to this vector.
@@ -2123,7 +2097,7 @@ class Vector3 {
    * @return {Vector3} A reference to this vector.
    */
   applyAxisAngle(axis, angle) {
-    return this.applyQuaternion(_quaternion$4.setFromAxisAngle(axis, angle));
+    return this.applyQuaternion(_quaternion$5.setFromAxisAngle(axis, angle));
   }
   /**
    * Multiplies this vector with the given 3x3 matrix.
@@ -2484,8 +2458,7 @@ class Vector3 {
    */
   projectOnVector(v) {
     const denominator = v.lengthSq();
-    if (denominator === 0)
-      return this.set(0, 0, 0);
+    if (denominator === 0) return this.set(0, 0, 0);
     const scalar = v.dot(this) / denominator;
     return this.copy(v).multiplyScalar(scalar);
   }
@@ -2517,8 +2490,7 @@ class Vector3 {
    */
   angleTo(v) {
     const denominator = Math.sqrt(this.lengthSq() * v.lengthSq());
-    if (denominator === 0)
-      return Math.PI / 2;
+    if (denominator === 0) return Math.PI / 2;
     const theta = this.dot(v) / denominator;
     return Math.acos(clamp(theta, -1, 1));
   }
@@ -2755,10 +2727,12 @@ class Vector3 {
     yield this.y;
     yield this.z;
   }
-}
+};
+_Vector3.prototype.isVector3 = true;
+let Vector3 = _Vector3;
 const _vector$c = /* @__PURE__ */ new Vector3();
-const _quaternion$4 = /* @__PURE__ */ new Quaternion();
-class Matrix3 {
+const _quaternion$5 = /* @__PURE__ */ new Quaternion();
+const _Matrix3 = class _Matrix3 {
   /**
    * Constructs a new 3x3 matrix. The arguments are supposed to be
    * in row-major order. If no arguments are provided, the constructor
@@ -2775,7 +2749,6 @@ class Matrix3 {
    * @param {number} [n33] - 3-3 matrix element.
    */
   constructor(n11, n12, n13, n21, n22, n23, n31, n32, n33) {
-    Matrix3.prototype.isMatrix3 = true;
     this.elements = [
       1,
       0,
@@ -2978,8 +2951,7 @@ class Matrix3 {
    */
   invert() {
     const te = this.elements, n11 = te[0], n21 = te[1], n31 = te[2], n12 = te[3], n22 = te[4], n32 = te[5], n13 = te[6], n23 = te[7], n33 = te[8], t11 = n33 * n22 - n32 * n23, t12 = n32 * n13 - n33 * n12, t13 = n23 * n12 - n22 * n13, det = n11 * t11 + n21 * t12 + n31 * t13;
-    if (det === 0)
-      return this.set(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    if (det === 0) return this.set(0, 0, 0, 0, 0, 0, 0, 0, 0);
     const detInv = 1 / det;
     te[0] = t11 * detInv;
     te[1] = (n31 * n23 - n33 * n21) * detInv;
@@ -3189,8 +3161,7 @@ class Matrix3 {
     const te = this.elements;
     const me = matrix.elements;
     for (let i = 0; i < 9; i++) {
-      if (te[i] !== me[i])
-        return false;
+      if (te[i] !== me[i]) return false;
     }
     return true;
   }
@@ -3236,7 +3207,9 @@ class Matrix3 {
   clone() {
     return new this.constructor().fromArray(this.elements);
   }
-}
+};
+_Matrix3.prototype.isMatrix3 = true;
+let Matrix3 = _Matrix3;
 const _m3 = /* @__PURE__ */ new Matrix3();
 const LINEAR_REC709_TO_XYZ = /* @__PURE__ */ new Matrix3().set(
   0.4123908,
@@ -3313,8 +3286,7 @@ function createColorManagement() {
       return this.spaces[colorSpace].primaries;
     },
     getTransfer: function(colorSpace) {
-      if (colorSpace === NoColorSpace)
-        return LinearTransfer;
+      if (colorSpace === NoColorSpace) return LinearTransfer;
       return this.spaces[colorSpace].transfer;
     },
     getToneMappingMode: function(colorSpace) {
@@ -3399,8 +3371,7 @@ class ImageUtils {
     if (image instanceof HTMLCanvasElement) {
       canvas = image;
     } else {
-      if (_canvas === void 0)
-        _canvas = createElementNS("canvas");
+      if (_canvas === void 0) _canvas = createElementNS("canvas");
       _canvas.width = image.width;
       _canvas.height = image.height;
       const context = _canvas.getContext("2d");
@@ -3479,7 +3450,7 @@ class Source {
     if (typeof HTMLVideoElement !== "undefined" && data instanceof HTMLVideoElement) {
       target.set(data.videoWidth, data.videoHeight, 0);
     } else if (typeof VideoFrame !== "undefined" && data instanceof VideoFrame) {
-      target.set(data.displayHeight, data.displayWidth, 0);
+      target.set(data.displayWidth, data.displayHeight, 0);
     } else if (data !== null) {
       target.set(data.width, data.height, data.depth || 0);
     } else {
@@ -3497,8 +3468,7 @@ class Source {
    * @param {boolean} value
    */
   set needsUpdate(value) {
-    if (value === true)
-      this.version++;
+    if (value === true) this.version++;
   }
   /**
    * Serializes the source into JSON.
@@ -3610,6 +3580,7 @@ class Texture extends EventDispatcher {
     this.isRenderTargetTexture = false;
     this.isArrayTexture = image && image.depth && image.depth > 1 ? true : false;
     this.pmremVersion = 0;
+    this.normalized = false;
   }
   /**
    * The width of the texture in pixels.
@@ -3637,11 +3608,11 @@ class Texture extends EventDispatcher {
   get image() {
     return this.source.data;
   }
-  set image(value = null) {
+  set image(value) {
     this.source.data = value;
   }
   /**
-   * Updates the texture transformation matrix from the from the properties {@link Texture#offset},
+   * Updates the texture transformation matrix from the properties {@link Texture#offset},
    * {@link Texture#repeat}, {@link Texture#rotation}, and {@link Texture#center}.
    */
   updateMatrix() {
@@ -3690,6 +3661,7 @@ class Texture extends EventDispatcher {
     this.format = source.format;
     this.internalFormat = source.internalFormat;
     this.type = source.type;
+    this.normalized = source.normalized;
     this.offset.copy(source.offset);
     this.repeat.copy(source.repeat);
     this.center.copy(source.center);
@@ -3766,6 +3738,7 @@ class Texture extends EventDispatcher {
       format: this.format,
       internalFormat: this.internalFormat,
       type: this.type,
+      normalized: this.normalized,
       colorSpace: this.colorSpace,
       minFilter: this.minFilter,
       magFilter: this.magFilter,
@@ -3775,8 +3748,7 @@ class Texture extends EventDispatcher {
       premultiplyAlpha: this.premultiplyAlpha,
       unpackAlignment: this.unpackAlignment
     };
-    if (Object.keys(this.userData).length > 0)
-      output.userData = this.userData;
+    if (Object.keys(this.userData).length > 0) output.userData = this.userData;
     if (!isRootObject) {
       meta.textures[this.uuid] = output;
     }
@@ -3798,8 +3770,7 @@ class Texture extends EventDispatcher {
    * @return {Vector2} The transformed uv vector.
    */
   transformUv(uv) {
-    if (this.mapping !== UVMapping)
-      return uv;
+    if (this.mapping !== UVMapping) return uv;
     uv.applyMatrix3(this.matrix);
     if (uv.x < 0 || uv.x > 1) {
       switch (this.wrapS) {
@@ -3872,7 +3843,7 @@ class Texture extends EventDispatcher {
 Texture.DEFAULT_IMAGE = null;
 Texture.DEFAULT_MAPPING = UVMapping;
 Texture.DEFAULT_ANISOTROPY = 1;
-class Vector4 {
+const _Vector4 = class _Vector4 {
   /**
    * Constructs a new 4D vector.
    *
@@ -3882,7 +3853,6 @@ class Vector4 {
    * @param {number} [w=1] - The w value of this vector.
    */
   constructor(x = 0, y = 0, z = 0, w = 1) {
-    Vector4.prototype.isVector4 = true;
     this.x = x;
     this.y = y;
     this.z = z;
@@ -4283,8 +4253,7 @@ class Vector4 {
       return this;
     }
     let s = Math.sqrt((m32 - m23) * (m32 - m23) + (m13 - m31) * (m13 - m31) + (m21 - m12) * (m21 - m12));
-    if (Math.abs(s) < 1e-3)
-      s = 1;
+    if (Math.abs(s) < 1e-3) s = 1;
     this.x = (m32 - m23) / s;
     this.y = (m13 - m31) / s;
     this.z = (m21 - m12) / s;
@@ -4602,1216 +4571,10 @@ class Vector4 {
     yield this.z;
     yield this.w;
   }
-}
-class Box3 {
-  /**
-   * Constructs a new bounding box.
-   *
-   * @param {Vector3} [min=(Infinity,Infinity,Infinity)] - A vector representing the lower boundary of the box.
-   * @param {Vector3} [max=(-Infinity,-Infinity,-Infinity)] - A vector representing the upper boundary of the box.
-   */
-  constructor(min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity)) {
-    this.isBox3 = true;
-    this.min = min;
-    this.max = max;
-  }
-  /**
-   * Sets the lower and upper boundaries of this box.
-   * Please note that this method only copies the values from the given objects.
-   *
-   * @param {Vector3} min - The lower boundary of the box.
-   * @param {Vector3} max - The upper boundary of the box.
-   * @return {Box3} A reference to this bounding box.
-   */
-  set(min, max) {
-    this.min.copy(min);
-    this.max.copy(max);
-    return this;
-  }
-  /**
-   * Sets the upper and lower bounds of this box so it encloses the position data
-   * in the given array.
-   *
-   * @param {Array<number>} array - An array holding 3D position data.
-   * @return {Box3} A reference to this bounding box.
-   */
-  setFromArray(array) {
-    this.makeEmpty();
-    for (let i = 0, il = array.length; i < il; i += 3) {
-      this.expandByPoint(_vector$b.fromArray(array, i));
-    }
-    return this;
-  }
-  /**
-   * Sets the upper and lower bounds of this box so it encloses the position data
-   * in the given buffer attribute.
-   *
-   * @param {BufferAttribute} attribute - A buffer attribute holding 3D position data.
-   * @return {Box3} A reference to this bounding box.
-   */
-  setFromBufferAttribute(attribute) {
-    this.makeEmpty();
-    for (let i = 0, il = attribute.count; i < il; i++) {
-      this.expandByPoint(_vector$b.fromBufferAttribute(attribute, i));
-    }
-    return this;
-  }
-  /**
-   * Sets the upper and lower bounds of this box so it encloses the position data
-   * in the given array.
-   *
-   * @param {Array<Vector3>} points - An array holding 3D position data as instances of {@link Vector3}.
-   * @return {Box3} A reference to this bounding box.
-   */
-  setFromPoints(points) {
-    this.makeEmpty();
-    for (let i = 0, il = points.length; i < il; i++) {
-      this.expandByPoint(points[i]);
-    }
-    return this;
-  }
-  /**
-   * Centers this box on the given center vector and sets this box's width, height and
-   * depth to the given size values.
-   *
-   * @param {Vector3} center - The center of the box.
-   * @param {Vector3} size - The x, y and z dimensions of the box.
-   * @return {Box3} A reference to this bounding box.
-   */
-  setFromCenterAndSize(center, size) {
-    const halfSize = _vector$b.copy(size).multiplyScalar(0.5);
-    this.min.copy(center).sub(halfSize);
-    this.max.copy(center).add(halfSize);
-    return this;
-  }
-  /**
-   * Computes the world-axis-aligned bounding box for the given 3D object
-   * (including its children), accounting for the object's, and children's,
-   * world transforms. The function may result in a larger box than strictly necessary.
-   *
-   * @param {Object3D} object - The 3D object to compute the bounding box for.
-   * @param {boolean} [precise=false] - If set to `true`, the method computes the smallest
-   * world-axis-aligned bounding box at the expense of more computation.
-   * @return {Box3} A reference to this bounding box.
-   */
-  setFromObject(object, precise = false) {
-    this.makeEmpty();
-    return this.expandByObject(object, precise);
-  }
-  /**
-   * Returns a new box with copied values from this instance.
-   *
-   * @return {Box3} A clone of this instance.
-   */
-  clone() {
-    return new this.constructor().copy(this);
-  }
-  /**
-   * Copies the values of the given box to this instance.
-   *
-   * @param {Box3} box - The box to copy.
-   * @return {Box3} A reference to this bounding box.
-   */
-  copy(box) {
-    this.min.copy(box.min);
-    this.max.copy(box.max);
-    return this;
-  }
-  /**
-   * Makes this box empty which means in encloses a zero space in 3D.
-   *
-   * @return {Box3} A reference to this bounding box.
-   */
-  makeEmpty() {
-    this.min.x = this.min.y = this.min.z = Infinity;
-    this.max.x = this.max.y = this.max.z = -Infinity;
-    return this;
-  }
-  /**
-   * Returns true if this box includes zero points within its bounds.
-   * Note that a box with equal lower and upper bounds still includes one
-   * point, the one both bounds share.
-   *
-   * @return {boolean} Whether this box is empty or not.
-   */
-  isEmpty() {
-    return this.max.x < this.min.x || this.max.y < this.min.y || this.max.z < this.min.z;
-  }
-  /**
-   * Returns the center point of this box.
-   *
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The center point.
-   */
-  getCenter(target) {
-    return this.isEmpty() ? target.set(0, 0, 0) : target.addVectors(this.min, this.max).multiplyScalar(0.5);
-  }
-  /**
-   * Returns the dimensions of this box.
-   *
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The size.
-   */
-  getSize(target) {
-    return this.isEmpty() ? target.set(0, 0, 0) : target.subVectors(this.max, this.min);
-  }
-  /**
-   * Expands the boundaries of this box to include the given point.
-   *
-   * @param {Vector3} point - The point that should be included by the bounding box.
-   * @return {Box3} A reference to this bounding box.
-   */
-  expandByPoint(point) {
-    this.min.min(point);
-    this.max.max(point);
-    return this;
-  }
-  /**
-   * Expands this box equilaterally by the given vector. The width of this
-   * box will be expanded by the x component of the vector in both
-   * directions. The height of this box will be expanded by the y component of
-   * the vector in both directions. The depth of this box will be
-   * expanded by the z component of the vector in both directions.
-   *
-   * @param {Vector3} vector - The vector that should expand the bounding box.
-   * @return {Box3} A reference to this bounding box.
-   */
-  expandByVector(vector) {
-    this.min.sub(vector);
-    this.max.add(vector);
-    return this;
-  }
-  /**
-   * Expands each dimension of the box by the given scalar. If negative, the
-   * dimensions of the box will be contracted.
-   *
-   * @param {number} scalar - The scalar value that should expand the bounding box.
-   * @return {Box3} A reference to this bounding box.
-   */
-  expandByScalar(scalar) {
-    this.min.addScalar(-scalar);
-    this.max.addScalar(scalar);
-    return this;
-  }
-  /**
-   * Expands the boundaries of this box to include the given 3D object and
-   * its children, accounting for the object's, and children's, world
-   * transforms. The function may result in a larger box than strictly
-   * necessary (unless the precise parameter is set to true).
-   *
-   * @param {Object3D} object - The 3D object that should expand the bounding box.
-   * @param {boolean} precise - If set to `true`, the method expands the bounding box
-   * as little as necessary at the expense of more computation.
-   * @return {Box3} A reference to this bounding box.
-   */
-  expandByObject(object, precise = false) {
-    object.updateWorldMatrix(false, false);
-    const geometry = object.geometry;
-    if (geometry !== void 0) {
-      const positionAttribute = geometry.getAttribute("position");
-      if (precise === true && positionAttribute !== void 0 && object.isInstancedMesh !== true) {
-        for (let i = 0, l = positionAttribute.count; i < l; i++) {
-          if (object.isMesh === true) {
-            object.getVertexPosition(i, _vector$b);
-          } else {
-            _vector$b.fromBufferAttribute(positionAttribute, i);
-          }
-          _vector$b.applyMatrix4(object.matrixWorld);
-          this.expandByPoint(_vector$b);
-        }
-      } else {
-        if (object.boundingBox !== void 0) {
-          if (object.boundingBox === null) {
-            object.computeBoundingBox();
-          }
-          _box$4.copy(object.boundingBox);
-        } else {
-          if (geometry.boundingBox === null) {
-            geometry.computeBoundingBox();
-          }
-          _box$4.copy(geometry.boundingBox);
-        }
-        _box$4.applyMatrix4(object.matrixWorld);
-        this.union(_box$4);
-      }
-    }
-    const children = object.children;
-    for (let i = 0, l = children.length; i < l; i++) {
-      this.expandByObject(children[i], precise);
-    }
-    return this;
-  }
-  /**
-   * Returns `true` if the given point lies within or on the boundaries of this box.
-   *
-   * @param {Vector3} point - The point to test.
-   * @return {boolean} Whether the bounding box contains the given point or not.
-   */
-  containsPoint(point) {
-    return point.x >= this.min.x && point.x <= this.max.x && point.y >= this.min.y && point.y <= this.max.y && point.z >= this.min.z && point.z <= this.max.z;
-  }
-  /**
-   * Returns `true` if this bounding box includes the entirety of the given bounding box.
-   * If this box and the given one are identical, this function also returns `true`.
-   *
-   * @param {Box3} box - The bounding box to test.
-   * @return {boolean} Whether the bounding box contains the given bounding box or not.
-   */
-  containsBox(box) {
-    return this.min.x <= box.min.x && box.max.x <= this.max.x && this.min.y <= box.min.y && box.max.y <= this.max.y && this.min.z <= box.min.z && box.max.z <= this.max.z;
-  }
-  /**
-   * Returns a point as a proportion of this box's width, height and depth.
-   *
-   * @param {Vector3} point - A point in 3D space.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} A point as a proportion of this box's width, height and depth.
-   */
-  getParameter(point, target) {
-    return target.set(
-      (point.x - this.min.x) / (this.max.x - this.min.x),
-      (point.y - this.min.y) / (this.max.y - this.min.y),
-      (point.z - this.min.z) / (this.max.z - this.min.z)
-    );
-  }
-  /**
-   * Returns `true` if the given bounding box intersects with this bounding box.
-   *
-   * @param {Box3} box - The bounding box to test.
-   * @return {boolean} Whether the given bounding box intersects with this bounding box.
-   */
-  intersectsBox(box) {
-    return box.max.x >= this.min.x && box.min.x <= this.max.x && box.max.y >= this.min.y && box.min.y <= this.max.y && box.max.z >= this.min.z && box.min.z <= this.max.z;
-  }
-  /**
-   * Returns `true` if the given bounding sphere intersects with this bounding box.
-   *
-   * @param {Sphere} sphere - The bounding sphere to test.
-   * @return {boolean} Whether the given bounding sphere intersects with this bounding box.
-   */
-  intersectsSphere(sphere) {
-    this.clampPoint(sphere.center, _vector$b);
-    return _vector$b.distanceToSquared(sphere.center) <= sphere.radius * sphere.radius;
-  }
-  /**
-   * Returns `true` if the given plane intersects with this bounding box.
-   *
-   * @param {Plane} plane - The plane to test.
-   * @return {boolean} Whether the given plane intersects with this bounding box.
-   */
-  intersectsPlane(plane) {
-    let min, max;
-    if (plane.normal.x > 0) {
-      min = plane.normal.x * this.min.x;
-      max = plane.normal.x * this.max.x;
-    } else {
-      min = plane.normal.x * this.max.x;
-      max = plane.normal.x * this.min.x;
-    }
-    if (plane.normal.y > 0) {
-      min += plane.normal.y * this.min.y;
-      max += plane.normal.y * this.max.y;
-    } else {
-      min += plane.normal.y * this.max.y;
-      max += plane.normal.y * this.min.y;
-    }
-    if (plane.normal.z > 0) {
-      min += plane.normal.z * this.min.z;
-      max += plane.normal.z * this.max.z;
-    } else {
-      min += plane.normal.z * this.max.z;
-      max += plane.normal.z * this.min.z;
-    }
-    return min <= -plane.constant && max >= -plane.constant;
-  }
-  /**
-   * Returns `true` if the given triangle intersects with this bounding box.
-   *
-   * @param {Triangle} triangle - The triangle to test.
-   * @return {boolean} Whether the given triangle intersects with this bounding box.
-   */
-  intersectsTriangle(triangle3) {
-    if (this.isEmpty()) {
-      return false;
-    }
-    this.getCenter(_center);
-    _extents.subVectors(this.max, _center);
-    _v0$2.subVectors(triangle3.a, _center);
-    _v1$7.subVectors(triangle3.b, _center);
-    _v2$4.subVectors(triangle3.c, _center);
-    _f0.subVectors(_v1$7, _v0$2);
-    _f1.subVectors(_v2$4, _v1$7);
-    _f2.subVectors(_v0$2, _v2$4);
-    let axes = [
-      0,
-      -_f0.z,
-      _f0.y,
-      0,
-      -_f1.z,
-      _f1.y,
-      0,
-      -_f2.z,
-      _f2.y,
-      _f0.z,
-      0,
-      -_f0.x,
-      _f1.z,
-      0,
-      -_f1.x,
-      _f2.z,
-      0,
-      -_f2.x,
-      -_f0.y,
-      _f0.x,
-      0,
-      -_f1.y,
-      _f1.x,
-      0,
-      -_f2.y,
-      _f2.x,
-      0
-    ];
-    if (!satForAxes(axes, _v0$2, _v1$7, _v2$4, _extents)) {
-      return false;
-    }
-    axes = [1, 0, 0, 0, 1, 0, 0, 0, 1];
-    if (!satForAxes(axes, _v0$2, _v1$7, _v2$4, _extents)) {
-      return false;
-    }
-    _triangleNormal.crossVectors(_f0, _f1);
-    axes = [_triangleNormal.x, _triangleNormal.y, _triangleNormal.z];
-    return satForAxes(axes, _v0$2, _v1$7, _v2$4, _extents);
-  }
-  /**
-   * Clamps the given point within the bounds of this box.
-   *
-   * @param {Vector3} point - The point to clamp.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The clamped point.
-   */
-  clampPoint(point, target) {
-    return target.copy(point).clamp(this.min, this.max);
-  }
-  /**
-   * Returns the euclidean distance from any edge of this box to the specified point. If
-   * the given point lies inside of this box, the distance will be `0`.
-   *
-   * @param {Vector3} point - The point to compute the distance to.
-   * @return {number} The euclidean distance.
-   */
-  distanceToPoint(point) {
-    return this.clampPoint(point, _vector$b).distanceTo(point);
-  }
-  /**
-   * Returns a bounding sphere that encloses this bounding box.
-   *
-   * @param {Sphere} target - The target sphere that is used to store the method's result.
-   * @return {Sphere} The bounding sphere that encloses this bounding box.
-   */
-  getBoundingSphere(target) {
-    if (this.isEmpty()) {
-      target.makeEmpty();
-    } else {
-      this.getCenter(target.center);
-      target.radius = this.getSize(_vector$b).length() * 0.5;
-    }
-    return target;
-  }
-  /**
-   * Computes the intersection of this bounding box and the given one, setting the upper
-   * bound of this box to the lesser of the two boxes' upper bounds and the
-   * lower bound of this box to the greater of the two boxes' lower bounds. If
-   * there's no overlap, makes this box empty.
-   *
-   * @param {Box3} box - The bounding box to intersect with.
-   * @return {Box3} A reference to this bounding box.
-   */
-  intersect(box) {
-    this.min.max(box.min);
-    this.max.min(box.max);
-    if (this.isEmpty())
-      this.makeEmpty();
-    return this;
-  }
-  /**
-   * Computes the union of this box and another and the given one, setting the upper
-   * bound of this box to the greater of the two boxes' upper bounds and the
-   * lower bound of this box to the lesser of the two boxes' lower bounds.
-   *
-   * @param {Box3} box - The bounding box that will be unioned with this instance.
-   * @return {Box3} A reference to this bounding box.
-   */
-  union(box) {
-    this.min.min(box.min);
-    this.max.max(box.max);
-    return this;
-  }
-  /**
-   * Transforms this bounding box by the given 4x4 transformation matrix.
-   *
-   * @param {Matrix4} matrix - The transformation matrix.
-   * @return {Box3} A reference to this bounding box.
-   */
-  applyMatrix4(matrix) {
-    if (this.isEmpty())
-      return this;
-    _points[0].set(this.min.x, this.min.y, this.min.z).applyMatrix4(matrix);
-    _points[1].set(this.min.x, this.min.y, this.max.z).applyMatrix4(matrix);
-    _points[2].set(this.min.x, this.max.y, this.min.z).applyMatrix4(matrix);
-    _points[3].set(this.min.x, this.max.y, this.max.z).applyMatrix4(matrix);
-    _points[4].set(this.max.x, this.min.y, this.min.z).applyMatrix4(matrix);
-    _points[5].set(this.max.x, this.min.y, this.max.z).applyMatrix4(matrix);
-    _points[6].set(this.max.x, this.max.y, this.min.z).applyMatrix4(matrix);
-    _points[7].set(this.max.x, this.max.y, this.max.z).applyMatrix4(matrix);
-    this.setFromPoints(_points);
-    return this;
-  }
-  /**
-   * Adds the given offset to both the upper and lower bounds of this bounding box,
-   * effectively moving it in 3D space.
-   *
-   * @param {Vector3} offset - The offset that should be used to translate the bounding box.
-   * @return {Box3} A reference to this bounding box.
-   */
-  translate(offset) {
-    this.min.add(offset);
-    this.max.add(offset);
-    return this;
-  }
-  /**
-   * Returns `true` if this bounding box is equal with the given one.
-   *
-   * @param {Box3} box - The box to test for equality.
-   * @return {boolean} Whether this bounding box is equal with the given one.
-   */
-  equals(box) {
-    return box.min.equals(this.min) && box.max.equals(this.max);
-  }
-  /**
-   * Returns a serialized structure of the bounding box.
-   *
-   * @return {Object} Serialized structure with fields representing the object state.
-   */
-  toJSON() {
-    return {
-      min: this.min.toArray(),
-      max: this.max.toArray()
-    };
-  }
-  /**
-   * Returns a serialized structure of the bounding box.
-   *
-   * @param {Object} json - The serialized json to set the box from.
-   * @return {Box3} A reference to this bounding box.
-   */
-  fromJSON(json) {
-    this.min.fromArray(json.min);
-    this.max.fromArray(json.max);
-    return this;
-  }
-}
-const _points = [
-  /* @__PURE__ */ new Vector3(),
-  /* @__PURE__ */ new Vector3(),
-  /* @__PURE__ */ new Vector3(),
-  /* @__PURE__ */ new Vector3(),
-  /* @__PURE__ */ new Vector3(),
-  /* @__PURE__ */ new Vector3(),
-  /* @__PURE__ */ new Vector3(),
-  /* @__PURE__ */ new Vector3()
-];
-const _vector$b = /* @__PURE__ */ new Vector3();
-const _box$4 = /* @__PURE__ */ new Box3();
-const _v0$2 = /* @__PURE__ */ new Vector3();
-const _v1$7 = /* @__PURE__ */ new Vector3();
-const _v2$4 = /* @__PURE__ */ new Vector3();
-const _f0 = /* @__PURE__ */ new Vector3();
-const _f1 = /* @__PURE__ */ new Vector3();
-const _f2 = /* @__PURE__ */ new Vector3();
-const _center = /* @__PURE__ */ new Vector3();
-const _extents = /* @__PURE__ */ new Vector3();
-const _triangleNormal = /* @__PURE__ */ new Vector3();
-const _testAxis = /* @__PURE__ */ new Vector3();
-function satForAxes(axes, v0, v1, v2, extents) {
-  for (let i = 0, j = axes.length - 3; i <= j; i += 3) {
-    _testAxis.fromArray(axes, i);
-    const r = extents.x * Math.abs(_testAxis.x) + extents.y * Math.abs(_testAxis.y) + extents.z * Math.abs(_testAxis.z);
-    const p0 = v0.dot(_testAxis);
-    const p1 = v1.dot(_testAxis);
-    const p2 = v2.dot(_testAxis);
-    if (Math.max(-Math.max(p0, p1, p2), Math.min(p0, p1, p2)) > r) {
-      return false;
-    }
-  }
-  return true;
-}
-const _box$3 = /* @__PURE__ */ new Box3();
-const _v1$6 = /* @__PURE__ */ new Vector3();
-const _v2$3 = /* @__PURE__ */ new Vector3();
-class Sphere {
-  /**
-   * Constructs a new sphere.
-   *
-   * @param {Vector3} [center=(0,0,0)] - The center of the sphere
-   * @param {number} [radius=-1] - The radius of the sphere.
-   */
-  constructor(center = new Vector3(), radius = -1) {
-    this.isSphere = true;
-    this.center = center;
-    this.radius = radius;
-  }
-  /**
-   * Sets the sphere's components by copying the given values.
-   *
-   * @param {Vector3} center - The center.
-   * @param {number} radius - The radius.
-   * @return {Sphere} A reference to this sphere.
-   */
-  set(center, radius) {
-    this.center.copy(center);
-    this.radius = radius;
-    return this;
-  }
-  /**
-   * Computes the minimum bounding sphere for list of points.
-   * If the optional center point is given, it is used as the sphere's
-   * center. Otherwise, the center of the axis-aligned bounding box
-   * encompassing the points is calculated.
-   *
-   * @param {Array<Vector3>} points - A list of points in 3D space.
-   * @param {Vector3} [optionalCenter] - The center of the sphere.
-   * @return {Sphere} A reference to this sphere.
-   */
-  setFromPoints(points, optionalCenter) {
-    const center = this.center;
-    if (optionalCenter !== void 0) {
-      center.copy(optionalCenter);
-    } else {
-      _box$3.setFromPoints(points).getCenter(center);
-    }
-    let maxRadiusSq = 0;
-    for (let i = 0, il = points.length; i < il; i++) {
-      maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(points[i]));
-    }
-    this.radius = Math.sqrt(maxRadiusSq);
-    return this;
-  }
-  /**
-   * Copies the values of the given sphere to this instance.
-   *
-   * @param {Sphere} sphere - The sphere to copy.
-   * @return {Sphere} A reference to this sphere.
-   */
-  copy(sphere) {
-    this.center.copy(sphere.center);
-    this.radius = sphere.radius;
-    return this;
-  }
-  /**
-   * Returns `true` if the sphere is empty (the radius set to a negative number).
-   *
-   * Spheres with a radius of `0` contain only their center point and are not
-   * considered to be empty.
-   *
-   * @return {boolean} Whether this sphere is empty or not.
-   */
-  isEmpty() {
-    return this.radius < 0;
-  }
-  /**
-   * Makes this sphere empty which means in encloses a zero space in 3D.
-   *
-   * @return {Sphere} A reference to this sphere.
-   */
-  makeEmpty() {
-    this.center.set(0, 0, 0);
-    this.radius = -1;
-    return this;
-  }
-  /**
-   * Returns `true` if this sphere contains the given point inclusive of
-   * the surface of the sphere.
-   *
-   * @param {Vector3} point - The point to check.
-   * @return {boolean} Whether this sphere contains the given point or not.
-   */
-  containsPoint(point) {
-    return point.distanceToSquared(this.center) <= this.radius * this.radius;
-  }
-  /**
-   * Returns the closest distance from the boundary of the sphere to the
-   * given point. If the sphere contains the point, the distance will
-   * be negative.
-   *
-   * @param {Vector3} point - The point to compute the distance to.
-   * @return {number} The distance to the point.
-   */
-  distanceToPoint(point) {
-    return point.distanceTo(this.center) - this.radius;
-  }
-  /**
-   * Returns `true` if this sphere intersects with the given one.
-   *
-   * @param {Sphere} sphere - The sphere to test.
-   * @return {boolean} Whether this sphere intersects with the given one or not.
-   */
-  intersectsSphere(sphere) {
-    const radiusSum = this.radius + sphere.radius;
-    return sphere.center.distanceToSquared(this.center) <= radiusSum * radiusSum;
-  }
-  /**
-   * Returns `true` if this sphere intersects with the given box.
-   *
-   * @param {Box3} box - The box to test.
-   * @return {boolean} Whether this sphere intersects with the given box or not.
-   */
-  intersectsBox(box) {
-    return box.intersectsSphere(this);
-  }
-  /**
-   * Returns `true` if this sphere intersects with the given plane.
-   *
-   * @param {Plane} plane - The plane to test.
-   * @return {boolean} Whether this sphere intersects with the given plane or not.
-   */
-  intersectsPlane(plane) {
-    return Math.abs(plane.distanceToPoint(this.center)) <= this.radius;
-  }
-  /**
-   * Clamps a point within the sphere. If the point is outside the sphere, it
-   * will clamp it to the closest point on the edge of the sphere. Points
-   * already inside the sphere will not be affected.
-   *
-   * @param {Vector3} point - The plane to clamp.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The clamped point.
-   */
-  clampPoint(point, target) {
-    const deltaLengthSq = this.center.distanceToSquared(point);
-    target.copy(point);
-    if (deltaLengthSq > this.radius * this.radius) {
-      target.sub(this.center).normalize();
-      target.multiplyScalar(this.radius).add(this.center);
-    }
-    return target;
-  }
-  /**
-   * Returns a bounding box that encloses this sphere.
-   *
-   * @param {Box3} target - The target box that is used to store the method's result.
-   * @return {Box3} The bounding box that encloses this sphere.
-   */
-  getBoundingBox(target) {
-    if (this.isEmpty()) {
-      target.makeEmpty();
-      return target;
-    }
-    target.set(this.center, this.center);
-    target.expandByScalar(this.radius);
-    return target;
-  }
-  /**
-   * Transforms this sphere with the given 4x4 transformation matrix.
-   *
-   * @param {Matrix4} matrix - The transformation matrix.
-   * @return {Sphere} A reference to this sphere.
-   */
-  applyMatrix4(matrix) {
-    this.center.applyMatrix4(matrix);
-    this.radius = this.radius * matrix.getMaxScaleOnAxis();
-    return this;
-  }
-  /**
-   * Translates the sphere's center by the given offset.
-   *
-   * @param {Vector3} offset - The offset.
-   * @return {Sphere} A reference to this sphere.
-   */
-  translate(offset) {
-    this.center.add(offset);
-    return this;
-  }
-  /**
-   * Expands the boundaries of this sphere to include the given point.
-   *
-   * @param {Vector3} point - The point to include.
-   * @return {Sphere} A reference to this sphere.
-   */
-  expandByPoint(point) {
-    if (this.isEmpty()) {
-      this.center.copy(point);
-      this.radius = 0;
-      return this;
-    }
-    _v1$6.subVectors(point, this.center);
-    const lengthSq = _v1$6.lengthSq();
-    if (lengthSq > this.radius * this.radius) {
-      const length = Math.sqrt(lengthSq);
-      const delta = (length - this.radius) * 0.5;
-      this.center.addScaledVector(_v1$6, delta / length);
-      this.radius += delta;
-    }
-    return this;
-  }
-  /**
-   * Expands this sphere to enclose both the original sphere and the given sphere.
-   *
-   * @param {Sphere} sphere - The sphere to include.
-   * @return {Sphere} A reference to this sphere.
-   */
-  union(sphere) {
-    if (sphere.isEmpty()) {
-      return this;
-    }
-    if (this.isEmpty()) {
-      this.copy(sphere);
-      return this;
-    }
-    if (this.center.equals(sphere.center) === true) {
-      this.radius = Math.max(this.radius, sphere.radius);
-    } else {
-      _v2$3.subVectors(sphere.center, this.center).setLength(sphere.radius);
-      this.expandByPoint(_v1$6.copy(sphere.center).add(_v2$3));
-      this.expandByPoint(_v1$6.copy(sphere.center).sub(_v2$3));
-    }
-    return this;
-  }
-  /**
-   * Returns `true` if this sphere is equal with the given one.
-   *
-   * @param {Sphere} sphere - The sphere to test for equality.
-   * @return {boolean} Whether this bounding sphere is equal with the given one.
-   */
-  equals(sphere) {
-    return sphere.center.equals(this.center) && sphere.radius === this.radius;
-  }
-  /**
-   * Returns a new sphere with copied values from this instance.
-   *
-   * @return {Sphere} A clone of this instance.
-   */
-  clone() {
-    return new this.constructor().copy(this);
-  }
-  /**
-   * Returns a serialized structure of the bounding sphere.
-   *
-   * @return {Object} Serialized structure with fields representing the object state.
-   */
-  toJSON() {
-    return {
-      radius: this.radius,
-      center: this.center.toArray()
-    };
-  }
-  /**
-   * Returns a serialized structure of the bounding sphere.
-   *
-   * @param {Object} json - The serialized json to set the sphere from.
-   * @return {Sphere} A reference to this bounding sphere.
-   */
-  fromJSON(json) {
-    this.radius = json.radius;
-    this.center.fromArray(json.center);
-    return this;
-  }
-}
-const _vector$a = /* @__PURE__ */ new Vector3();
-const _segCenter = /* @__PURE__ */ new Vector3();
-const _segDir = /* @__PURE__ */ new Vector3();
-const _diff = /* @__PURE__ */ new Vector3();
-const _edge1 = /* @__PURE__ */ new Vector3();
-const _edge2 = /* @__PURE__ */ new Vector3();
-const _normal$1 = /* @__PURE__ */ new Vector3();
-class Ray {
-  /**
-   * Constructs a new ray.
-   *
-   * @param {Vector3} [origin=(0,0,0)] - The origin of the ray.
-   * @param {Vector3} [direction=(0,0,-1)] - The (normalized) direction of the ray.
-   */
-  constructor(origin = new Vector3(), direction = new Vector3(0, 0, -1)) {
-    this.origin = origin;
-    this.direction = direction;
-  }
-  /**
-   * Sets the ray's components by copying the given values.
-   *
-   * @param {Vector3} origin - The origin.
-   * @param {Vector3} direction - The direction.
-   * @return {Ray} A reference to this ray.
-   */
-  set(origin, direction) {
-    this.origin.copy(origin);
-    this.direction.copy(direction);
-    return this;
-  }
-  /**
-   * Copies the values of the given ray to this instance.
-   *
-   * @param {Ray} ray - The ray to copy.
-   * @return {Ray} A reference to this ray.
-   */
-  copy(ray) {
-    this.origin.copy(ray.origin);
-    this.direction.copy(ray.direction);
-    return this;
-  }
-  /**
-   * Returns a vector that is located at a given distance along this ray.
-   *
-   * @param {number} t - The distance along the ray to retrieve a position for.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} A position on the ray.
-   */
-  at(t, target) {
-    return target.copy(this.origin).addScaledVector(this.direction, t);
-  }
-  /**
-   * Adjusts the direction of the ray to point at the given vector in world space.
-   *
-   * @param {Vector3} v - The target position.
-   * @return {Ray} A reference to this ray.
-   */
-  lookAt(v) {
-    this.direction.copy(v).sub(this.origin).normalize();
-    return this;
-  }
-  /**
-   * Shift the origin of this ray along its direction by the given distance.
-   *
-   * @param {number} t - The distance along the ray to interpolate.
-   * @return {Ray} A reference to this ray.
-   */
-  recast(t) {
-    this.origin.copy(this.at(t, _vector$a));
-    return this;
-  }
-  /**
-   * Returns the point along this ray that is closest to the given point.
-   *
-   * @param {Vector3} point - A point in 3D space to get the closet location on the ray for.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The closest point on this ray.
-   */
-  closestPointToPoint(point, target) {
-    target.subVectors(point, this.origin);
-    const directionDistance = target.dot(this.direction);
-    if (directionDistance < 0) {
-      return target.copy(this.origin);
-    }
-    return target.copy(this.origin).addScaledVector(this.direction, directionDistance);
-  }
-  /**
-   * Returns the distance of the closest approach between this ray and the given point.
-   *
-   * @param {Vector3} point - A point in 3D space to compute the distance to.
-   * @return {number} The distance.
-   */
-  distanceToPoint(point) {
-    return Math.sqrt(this.distanceSqToPoint(point));
-  }
-  /**
-   * Returns the squared distance of the closest approach between this ray and the given point.
-   *
-   * @param {Vector3} point - A point in 3D space to compute the distance to.
-   * @return {number} The squared distance.
-   */
-  distanceSqToPoint(point) {
-    const directionDistance = _vector$a.subVectors(point, this.origin).dot(this.direction);
-    if (directionDistance < 0) {
-      return this.origin.distanceToSquared(point);
-    }
-    _vector$a.copy(this.origin).addScaledVector(this.direction, directionDistance);
-    return _vector$a.distanceToSquared(point);
-  }
-  /**
-   * Returns the squared distance between this ray and the given line segment.
-   *
-   * @param {Vector3} v0 - The start point of the line segment.
-   * @param {Vector3} v1 - The end point of the line segment.
-   * @param {Vector3} [optionalPointOnRay] - When provided, it receives the point on this ray that is closest to the segment.
-   * @param {Vector3} [optionalPointOnSegment] - When provided, it receives the point on the line segment that is closest to this ray.
-   * @return {number} The squared distance.
-   */
-  distanceSqToSegment(v0, v1, optionalPointOnRay, optionalPointOnSegment) {
-    _segCenter.copy(v0).add(v1).multiplyScalar(0.5);
-    _segDir.copy(v1).sub(v0).normalize();
-    _diff.copy(this.origin).sub(_segCenter);
-    const segExtent = v0.distanceTo(v1) * 0.5;
-    const a01 = -this.direction.dot(_segDir);
-    const b0 = _diff.dot(this.direction);
-    const b1 = -_diff.dot(_segDir);
-    const c = _diff.lengthSq();
-    const det = Math.abs(1 - a01 * a01);
-    let s0, s1, sqrDist, extDet;
-    if (det > 0) {
-      s0 = a01 * b1 - b0;
-      s1 = a01 * b0 - b1;
-      extDet = segExtent * det;
-      if (s0 >= 0) {
-        if (s1 >= -extDet) {
-          if (s1 <= extDet) {
-            const invDet = 1 / det;
-            s0 *= invDet;
-            s1 *= invDet;
-            sqrDist = s0 * (s0 + a01 * s1 + 2 * b0) + s1 * (a01 * s0 + s1 + 2 * b1) + c;
-          } else {
-            s1 = segExtent;
-            s0 = Math.max(0, -(a01 * s1 + b0));
-            sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
-          }
-        } else {
-          s1 = -segExtent;
-          s0 = Math.max(0, -(a01 * s1 + b0));
-          sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
-        }
-      } else {
-        if (s1 <= -extDet) {
-          s0 = Math.max(0, -(-a01 * segExtent + b0));
-          s1 = s0 > 0 ? -segExtent : Math.min(Math.max(-segExtent, -b1), segExtent);
-          sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
-        } else if (s1 <= extDet) {
-          s0 = 0;
-          s1 = Math.min(Math.max(-segExtent, -b1), segExtent);
-          sqrDist = s1 * (s1 + 2 * b1) + c;
-        } else {
-          s0 = Math.max(0, -(a01 * segExtent + b0));
-          s1 = s0 > 0 ? segExtent : Math.min(Math.max(-segExtent, -b1), segExtent);
-          sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
-        }
-      }
-    } else {
-      s1 = a01 > 0 ? -segExtent : segExtent;
-      s0 = Math.max(0, -(a01 * s1 + b0));
-      sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
-    }
-    if (optionalPointOnRay) {
-      optionalPointOnRay.copy(this.origin).addScaledVector(this.direction, s0);
-    }
-    if (optionalPointOnSegment) {
-      optionalPointOnSegment.copy(_segCenter).addScaledVector(_segDir, s1);
-    }
-    return sqrDist;
-  }
-  /**
-   * Intersects this ray with the given sphere, returning the intersection
-   * point or `null` if there is no intersection.
-   *
-   * @param {Sphere} sphere - The sphere to intersect.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The intersection point.
-   */
-  intersectSphere(sphere, target) {
-    _vector$a.subVectors(sphere.center, this.origin);
-    const tca = _vector$a.dot(this.direction);
-    const d2 = _vector$a.dot(_vector$a) - tca * tca;
-    const radius2 = sphere.radius * sphere.radius;
-    if (d2 > radius2)
-      return null;
-    const thc = Math.sqrt(radius2 - d2);
-    const t0 = tca - thc;
-    const t1 = tca + thc;
-    if (t1 < 0)
-      return null;
-    if (t0 < 0)
-      return this.at(t1, target);
-    return this.at(t0, target);
-  }
-  /**
-   * Returns `true` if this ray intersects with the given sphere.
-   *
-   * @param {Sphere} sphere - The sphere to intersect.
-   * @return {boolean} Whether this ray intersects with the given sphere or not.
-   */
-  intersectsSphere(sphere) {
-    if (sphere.radius < 0)
-      return false;
-    return this.distanceSqToPoint(sphere.center) <= sphere.radius * sphere.radius;
-  }
-  /**
-   * Computes the distance from the ray's origin to the given plane. Returns `null` if the ray
-   * does not intersect with the plane.
-   *
-   * @param {Plane} plane - The plane to compute the distance to.
-   * @return {?number} Whether this ray intersects with the given sphere or not.
-   */
-  distanceToPlane(plane) {
-    const denominator = plane.normal.dot(this.direction);
-    if (denominator === 0) {
-      if (plane.distanceToPoint(this.origin) === 0) {
-        return 0;
-      }
-      return null;
-    }
-    const t = -(this.origin.dot(plane.normal) + plane.constant) / denominator;
-    return t >= 0 ? t : null;
-  }
-  /**
-   * Intersects this ray with the given plane, returning the intersection
-   * point or `null` if there is no intersection.
-   *
-   * @param {Plane} plane - The plane to intersect.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The intersection point.
-   */
-  intersectPlane(plane, target) {
-    const t = this.distanceToPlane(plane);
-    if (t === null) {
-      return null;
-    }
-    return this.at(t, target);
-  }
-  /**
-   * Returns `true` if this ray intersects with the given plane.
-   *
-   * @param {Plane} plane - The plane to intersect.
-   * @return {boolean} Whether this ray intersects with the given plane or not.
-   */
-  intersectsPlane(plane) {
-    const distToPoint = plane.distanceToPoint(this.origin);
-    if (distToPoint === 0) {
-      return true;
-    }
-    const denominator = plane.normal.dot(this.direction);
-    if (denominator * distToPoint < 0) {
-      return true;
-    }
-    return false;
-  }
-  /**
-   * Intersects this ray with the given bounding box, returning the intersection
-   * point or `null` if there is no intersection.
-   *
-   * @param {Box3} box - The box to intersect.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The intersection point.
-   */
-  intersectBox(box, target) {
-    let tmin, tmax, tymin, tymax, tzmin, tzmax;
-    const invdirx = 1 / this.direction.x, invdiry = 1 / this.direction.y, invdirz = 1 / this.direction.z;
-    const origin = this.origin;
-    if (invdirx >= 0) {
-      tmin = (box.min.x - origin.x) * invdirx;
-      tmax = (box.max.x - origin.x) * invdirx;
-    } else {
-      tmin = (box.max.x - origin.x) * invdirx;
-      tmax = (box.min.x - origin.x) * invdirx;
-    }
-    if (invdiry >= 0) {
-      tymin = (box.min.y - origin.y) * invdiry;
-      tymax = (box.max.y - origin.y) * invdiry;
-    } else {
-      tymin = (box.max.y - origin.y) * invdiry;
-      tymax = (box.min.y - origin.y) * invdiry;
-    }
-    if (tmin > tymax || tymin > tmax)
-      return null;
-    if (tymin > tmin || isNaN(tmin))
-      tmin = tymin;
-    if (tymax < tmax || isNaN(tmax))
-      tmax = tymax;
-    if (invdirz >= 0) {
-      tzmin = (box.min.z - origin.z) * invdirz;
-      tzmax = (box.max.z - origin.z) * invdirz;
-    } else {
-      tzmin = (box.max.z - origin.z) * invdirz;
-      tzmax = (box.min.z - origin.z) * invdirz;
-    }
-    if (tmin > tzmax || tzmin > tmax)
-      return null;
-    if (tzmin > tmin || tmin !== tmin)
-      tmin = tzmin;
-    if (tzmax < tmax || tmax !== tmax)
-      tmax = tzmax;
-    if (tmax < 0)
-      return null;
-    return this.at(tmin >= 0 ? tmin : tmax, target);
-  }
-  /**
-   * Returns `true` if this ray intersects with the given box.
-   *
-   * @param {Box3} box - The box to intersect.
-   * @return {boolean} Whether this ray intersects with the given box or not.
-   */
-  intersectsBox(box) {
-    return this.intersectBox(box, _vector$a) !== null;
-  }
-  /**
-   * Intersects this ray with the given triangle, returning the intersection
-   * point or `null` if there is no intersection.
-   *
-   * @param {Vector3} a - The first vertex of the triangle.
-   * @param {Vector3} b - The second vertex of the triangle.
-   * @param {Vector3} c - The third vertex of the triangle.
-   * @param {boolean} backfaceCulling - Whether to use backface culling or not.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The intersection point.
-   */
-  intersectTriangle(a, b, c, backfaceCulling, target) {
-    _edge1.subVectors(b, a);
-    _edge2.subVectors(c, a);
-    _normal$1.crossVectors(_edge1, _edge2);
-    let DdN = this.direction.dot(_normal$1);
-    let sign2;
-    if (DdN > 0) {
-      if (backfaceCulling)
-        return null;
-      sign2 = 1;
-    } else if (DdN < 0) {
-      sign2 = -1;
-      DdN = -DdN;
-    } else {
-      return null;
-    }
-    _diff.subVectors(this.origin, a);
-    const DdQxE2 = sign2 * this.direction.dot(_edge2.crossVectors(_diff, _edge2));
-    if (DdQxE2 < 0) {
-      return null;
-    }
-    const DdE1xQ = sign2 * this.direction.dot(_edge1.cross(_diff));
-    if (DdE1xQ < 0) {
-      return null;
-    }
-    if (DdQxE2 + DdE1xQ > DdN) {
-      return null;
-    }
-    const QdN = -sign2 * _diff.dot(_normal$1);
-    if (QdN < 0) {
-      return null;
-    }
-    return this.at(QdN / DdN, target);
-  }
-  /**
-   * Transforms this ray with the given 4x4 transformation matrix.
-   *
-   * @param {Matrix4} matrix4 - The transformation matrix.
-   * @return {Ray} A reference to this ray.
-   */
-  applyMatrix4(matrix4) {
-    this.origin.applyMatrix4(matrix4);
-    this.direction.transformDirection(matrix4);
-    return this;
-  }
-  /**
-   * Returns `true` if this ray is equal with the given one.
-   *
-   * @param {Ray} ray - The ray to test for equality.
-   * @return {boolean} Whether this ray is equal with the given one.
-   */
-  equals(ray) {
-    return ray.origin.equals(this.origin) && ray.direction.equals(this.direction);
-  }
-  /**
-   * Returns a new ray with copied values from this instance.
-   *
-   * @return {Ray} A clone of this instance.
-   */
-  clone() {
-    return new this.constructor().copy(this);
-  }
-}
-class Matrix4 {
+};
+_Vector4.prototype.isVector4 = true;
+let Vector4 = _Vector4;
+const _Matrix4 = class _Matrix4 {
   /**
    * Constructs a new 4x4 matrix. The arguments are supposed to be
    * in row-major order. If no arguments are provided, the constructor
@@ -5835,7 +4598,6 @@ class Matrix4 {
    * @param {number} [n44] - 4-4 matrix element.
    */
   constructor(n11, n12, n13, n14, n21, n22, n23, n24, n31, n32, n33, n34, n41, n42, n43, n44) {
-    Matrix4.prototype.isMatrix4 = true;
     this.elements = [
       1,
       0,
@@ -5932,7 +4694,7 @@ class Matrix4 {
    * @return {Matrix4} A clone of this instance.
    */
   clone() {
-    return new Matrix4().fromArray(this.elements);
+    return new _Matrix4().fromArray(this.elements);
   }
   /**
    * Copies the values of the given matrix to this instance.
@@ -6067,9 +4829,9 @@ class Matrix4 {
     }
     const te = this.elements;
     const me = m.elements;
-    const scaleX = 1 / _v1$5.setFromMatrixColumn(m, 0).length();
-    const scaleY = 1 / _v1$5.setFromMatrixColumn(m, 1).length();
-    const scaleZ = 1 / _v1$5.setFromMatrixColumn(m, 2).length();
+    const scaleX = 1 / _v1$7.setFromMatrixColumn(m, 0).length();
+    const scaleY = 1 / _v1$7.setFromMatrixColumn(m, 1).length();
+    const scaleZ = 1 / _v1$7.setFromMatrixColumn(m, 2).length();
     te[0] = me[0] * scaleX;
     te[1] = me[1] * scaleX;
     te[2] = me[2] * scaleX;
@@ -6391,27 +5153,26 @@ class Matrix4 {
    * @return {Matrix4} A reference to this matrix.
    */
   invert() {
-    const te = this.elements, n11 = te[0], n21 = te[1], n31 = te[2], n41 = te[3], n12 = te[4], n22 = te[5], n32 = te[6], n42 = te[7], n13 = te[8], n23 = te[9], n33 = te[10], n43 = te[11], n14 = te[12], n24 = te[13], n34 = te[14], n44 = te[15], t11 = n23 * n34 * n42 - n24 * n33 * n42 + n24 * n32 * n43 - n22 * n34 * n43 - n23 * n32 * n44 + n22 * n33 * n44, t12 = n14 * n33 * n42 - n13 * n34 * n42 - n14 * n32 * n43 + n12 * n34 * n43 + n13 * n32 * n44 - n12 * n33 * n44, t13 = n13 * n24 * n42 - n14 * n23 * n42 + n14 * n22 * n43 - n12 * n24 * n43 - n13 * n22 * n44 + n12 * n23 * n44, t14 = n14 * n23 * n32 - n13 * n24 * n32 - n14 * n22 * n33 + n12 * n24 * n33 + n13 * n22 * n34 - n12 * n23 * n34;
-    const det = n11 * t11 + n21 * t12 + n31 * t13 + n41 * t14;
-    if (det === 0)
-      return this.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+    const te = this.elements, n11 = te[0], n21 = te[1], n31 = te[2], n41 = te[3], n12 = te[4], n22 = te[5], n32 = te[6], n42 = te[7], n13 = te[8], n23 = te[9], n33 = te[10], n43 = te[11], n14 = te[12], n24 = te[13], n34 = te[14], n44 = te[15], t1 = n11 * n22 - n21 * n12, t2 = n11 * n32 - n31 * n12, t3 = n11 * n42 - n41 * n12, t4 = n21 * n32 - n31 * n22, t5 = n21 * n42 - n41 * n22, t6 = n31 * n42 - n41 * n32, t7 = n13 * n24 - n23 * n14, t8 = n13 * n34 - n33 * n14, t9 = n13 * n44 - n43 * n14, t10 = n23 * n34 - n33 * n24, t11 = n23 * n44 - n43 * n24, t12 = n33 * n44 - n43 * n34;
+    const det = t1 * t12 - t2 * t11 + t3 * t10 + t4 * t9 - t5 * t8 + t6 * t7;
+    if (det === 0) return this.set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
     const detInv = 1 / det;
-    te[0] = t11 * detInv;
-    te[1] = (n24 * n33 * n41 - n23 * n34 * n41 - n24 * n31 * n43 + n21 * n34 * n43 + n23 * n31 * n44 - n21 * n33 * n44) * detInv;
-    te[2] = (n22 * n34 * n41 - n24 * n32 * n41 + n24 * n31 * n42 - n21 * n34 * n42 - n22 * n31 * n44 + n21 * n32 * n44) * detInv;
-    te[3] = (n23 * n32 * n41 - n22 * n33 * n41 - n23 * n31 * n42 + n21 * n33 * n42 + n22 * n31 * n43 - n21 * n32 * n43) * detInv;
-    te[4] = t12 * detInv;
-    te[5] = (n13 * n34 * n41 - n14 * n33 * n41 + n14 * n31 * n43 - n11 * n34 * n43 - n13 * n31 * n44 + n11 * n33 * n44) * detInv;
-    te[6] = (n14 * n32 * n41 - n12 * n34 * n41 - n14 * n31 * n42 + n11 * n34 * n42 + n12 * n31 * n44 - n11 * n32 * n44) * detInv;
-    te[7] = (n12 * n33 * n41 - n13 * n32 * n41 + n13 * n31 * n42 - n11 * n33 * n42 - n12 * n31 * n43 + n11 * n32 * n43) * detInv;
-    te[8] = t13 * detInv;
-    te[9] = (n14 * n23 * n41 - n13 * n24 * n41 - n14 * n21 * n43 + n11 * n24 * n43 + n13 * n21 * n44 - n11 * n23 * n44) * detInv;
-    te[10] = (n12 * n24 * n41 - n14 * n22 * n41 + n14 * n21 * n42 - n11 * n24 * n42 - n12 * n21 * n44 + n11 * n22 * n44) * detInv;
-    te[11] = (n13 * n22 * n41 - n12 * n23 * n41 - n13 * n21 * n42 + n11 * n23 * n42 + n12 * n21 * n43 - n11 * n22 * n43) * detInv;
-    te[12] = t14 * detInv;
-    te[13] = (n13 * n24 * n31 - n14 * n23 * n31 + n14 * n21 * n33 - n11 * n24 * n33 - n13 * n21 * n34 + n11 * n23 * n34) * detInv;
-    te[14] = (n14 * n22 * n31 - n12 * n24 * n31 - n14 * n21 * n32 + n11 * n24 * n32 + n12 * n21 * n34 - n11 * n22 * n34) * detInv;
-    te[15] = (n12 * n23 * n31 - n13 * n22 * n31 + n13 * n21 * n32 - n11 * n23 * n32 - n12 * n21 * n33 + n11 * n22 * n33) * detInv;
+    te[0] = (n22 * t12 - n32 * t11 + n42 * t10) * detInv;
+    te[1] = (n31 * t11 - n21 * t12 - n41 * t10) * detInv;
+    te[2] = (n24 * t6 - n34 * t5 + n44 * t4) * detInv;
+    te[3] = (n33 * t5 - n23 * t6 - n43 * t4) * detInv;
+    te[4] = (n32 * t9 - n12 * t12 - n42 * t8) * detInv;
+    te[5] = (n11 * t12 - n31 * t9 + n41 * t8) * detInv;
+    te[6] = (n34 * t3 - n14 * t6 - n44 * t2) * detInv;
+    te[7] = (n13 * t6 - n33 * t3 + n43 * t2) * detInv;
+    te[8] = (n12 * t11 - n22 * t9 + n42 * t7) * detInv;
+    te[9] = (n21 * t9 - n11 * t11 - n41 * t7) * detInv;
+    te[10] = (n14 * t5 - n24 * t3 + n44 * t1) * detInv;
+    te[11] = (n23 * t3 - n13 * t5 - n43 * t1) * detInv;
+    te[12] = (n22 * t8 - n12 * t10 - n32 * t7) * detInv;
+    te[13] = (n11 * t10 - n21 * t8 + n31 * t7) * detInv;
+    te[14] = (n24 * t2 - n14 * t4 - n34 * t1) * detInv;
+    te[15] = (n13 * t4 - n23 * t2 + n33 * t1) * detInv;
     return this;
   }
   /**
@@ -6737,17 +5498,16 @@ class Matrix4 {
     position.x = te[12];
     position.y = te[13];
     position.z = te[14];
-    if (this.determinant() === 0) {
+    const det = this.determinant();
+    if (det === 0) {
       scale.set(1, 1, 1);
       quaternion.identity();
       return this;
     }
-    let sx = _v1$5.set(te[0], te[1], te[2]).length();
-    const sy = _v1$5.set(te[4], te[5], te[6]).length();
-    const sz = _v1$5.set(te[8], te[9], te[10]).length();
-    const det = this.determinant();
-    if (det < 0)
-      sx = -sx;
+    let sx = _v1$7.set(te[0], te[1], te[2]).length();
+    const sy = _v1$7.set(te[4], te[5], te[6]).length();
+    const sz = _v1$7.set(te[8], te[9], te[10]).length();
+    if (det < 0) sx = -sx;
     _m1$2.copy(this);
     const invSX = 1 / sx;
     const invSY = 1 / sy;
@@ -6883,8 +5643,7 @@ class Matrix4 {
     const te = this.elements;
     const me = matrix.elements;
     for (let i = 0; i < 16; i++) {
-      if (te[i] !== me[i])
-        return false;
+      if (te[i] !== me[i]) return false;
     }
     return true;
   }
@@ -6929,8 +5688,10 @@ class Matrix4 {
     array[offset + 15] = te[15];
     return array;
   }
-}
-const _v1$5 = /* @__PURE__ */ new Vector3();
+};
+_Matrix4.prototype.isMatrix4 = true;
+let Matrix4 = _Matrix4;
+const _v1$7 = /* @__PURE__ */ new Vector3();
 const _m1$2 = /* @__PURE__ */ new Matrix4();
 const _zero = /* @__PURE__ */ new Vector3(0, 0, 0);
 const _one = /* @__PURE__ */ new Vector3(1, 1, 1);
@@ -6938,7 +5699,7 @@ const _x = /* @__PURE__ */ new Vector3();
 const _y = /* @__PURE__ */ new Vector3();
 const _z = /* @__PURE__ */ new Vector3();
 const _matrix$2 = /* @__PURE__ */ new Matrix4();
-const _quaternion$3 = /* @__PURE__ */ new Quaternion();
+const _quaternion$4 = /* @__PURE__ */ new Quaternion();
 class Euler {
   /**
    * Constructs a new euler instance.
@@ -7124,8 +5885,7 @@ class Euler {
         warn("Euler: .setFromRotationMatrix() encountered an unknown order: " + order);
     }
     this._order = order;
-    if (update === true)
-      this._onChangeCallback();
+    if (update === true) this._onChangeCallback();
     return this;
   }
   /**
@@ -7161,8 +5921,8 @@ class Euler {
    * @return {Euler} A reference to this Euler instance.
    */
   reorder(newOrder) {
-    _quaternion$3.setFromEuler(this);
-    return this.setFromQuaternion(_quaternion$3, newOrder);
+    _quaternion$4.setFromEuler(this);
+    return this.setFromQuaternion(_quaternion$4, newOrder);
   }
   /**
    * Returns `true` if this Euler instance is equal with the given one.
@@ -7185,8 +5945,7 @@ class Euler {
     this._x = array[0];
     this._y = array[1];
     this._z = array[2];
-    if (array[3] !== void 0)
-      this._order = array[3];
+    if (array[3] !== void 0) this._order = array[3];
     this._onChangeCallback();
     return this;
   }
@@ -7292,13 +6051,13 @@ class Layers {
   }
 }
 let _object3DId = 0;
-const _v1$4 = /* @__PURE__ */ new Vector3();
+const _v1$6 = /* @__PURE__ */ new Vector3();
 const _q1 = /* @__PURE__ */ new Quaternion();
 const _m1$1 = /* @__PURE__ */ new Matrix4();
 const _target = /* @__PURE__ */ new Vector3();
-const _position$3 = /* @__PURE__ */ new Vector3();
-const _scale$2 = /* @__PURE__ */ new Vector3();
-const _quaternion$2 = /* @__PURE__ */ new Quaternion();
+const _position$4 = /* @__PURE__ */ new Vector3();
+const _scale$3 = /* @__PURE__ */ new Vector3();
+const _quaternion$3 = /* @__PURE__ */ new Quaternion();
 const _xAxis = /* @__PURE__ */ new Vector3(1, 0, 0);
 const _yAxis = /* @__PURE__ */ new Vector3(0, 1, 0);
 const _zAxis = /* @__PURE__ */ new Vector3(0, 0, 1);
@@ -7413,7 +6172,9 @@ class Object3D extends EventDispatcher {
     this.animations = [];
     this.customDepthMaterial = void 0;
     this.customDistanceMaterial = void 0;
+    this.static = false;
     this.userData = {};
+    this.pivot = null;
   }
   /**
    * A callback that is executed immediately before a 3D object is rendered to a shadow map.
@@ -7472,8 +6233,7 @@ class Object3D extends EventDispatcher {
    * @param {Matrix4} matrix - The transformation matrix.
    */
   applyMatrix4(matrix) {
-    if (this.matrixAutoUpdate)
-      this.updateMatrix();
+    if (this.matrixAutoUpdate) this.updateMatrix();
     this.matrix.premultiply(matrix);
     this.matrix.decompose(this.position, this.quaternion, this.scale);
   }
@@ -7580,8 +6340,8 @@ class Object3D extends EventDispatcher {
    * @return {Object3D} A reference to this instance.
    */
   translateOnAxis(axis, distance) {
-    _v1$4.copy(axis).applyQuaternion(this.quaternion);
-    this.position.add(_v1$4.multiplyScalar(distance));
+    _v1$6.copy(axis).applyQuaternion(this.quaternion);
+    this.position.add(_v1$6.multiplyScalar(distance));
     return this;
   }
   /**
@@ -7622,7 +6382,7 @@ class Object3D extends EventDispatcher {
     return vector.applyMatrix4(this.matrixWorld);
   }
   /**
-   * Converts the given vector from this 3D object's word space to local space.
+   * Converts the given vector from this 3D object's world space to local space.
    *
    * @param {Vector3} vector - The vector to convert.
    * @return {Vector3} The converted vector.
@@ -7648,11 +6408,11 @@ class Object3D extends EventDispatcher {
     }
     const parent = this.parent;
     this.updateWorldMatrix(true, false);
-    _position$3.setFromMatrixPosition(this.matrixWorld);
+    _position$4.setFromMatrixPosition(this.matrixWorld);
     if (this.isCamera || this.isLight) {
-      _m1$1.lookAt(_position$3, _target, this.up);
+      _m1$1.lookAt(_position$4, _target, this.up);
     } else {
-      _m1$1.lookAt(_target, _position$3, this.up);
+      _m1$1.lookAt(_target, _position$4, this.up);
     }
     this.quaternion.setFromRotationMatrix(_m1$1);
     if (parent) {
@@ -7802,8 +6562,7 @@ class Object3D extends EventDispatcher {
    * @return {Object3D|undefined} The found 3D object. Returns `undefined` if no 3D object has been found.
    */
   getObjectByProperty(name, value) {
-    if (this[name] === value)
-      return this;
+    if (this[name] === value) return this;
     for (let i = 0, l = this.children.length; i < l; i++) {
       const child = this.children[i];
       const object = child.getObjectByProperty(name, value);
@@ -7823,8 +6582,7 @@ class Object3D extends EventDispatcher {
    * @return {Array<Object3D>} The found 3D objects.
    */
   getObjectsByProperty(name, value, result = []) {
-    if (this[name] === value)
-      result.push(this);
+    if (this[name] === value) result.push(this);
     const children = this.children;
     for (let i = 0, l = children.length; i < l; i++) {
       children[i].getObjectsByProperty(name, value, result);
@@ -7849,7 +6607,7 @@ class Object3D extends EventDispatcher {
    */
   getWorldQuaternion(target) {
     this.updateWorldMatrix(true, false);
-    this.matrixWorld.decompose(_position$3, target, _scale$2);
+    this.matrixWorld.decompose(_position$4, target, _scale$3);
     return target;
   }
   /**
@@ -7860,7 +6618,7 @@ class Object3D extends EventDispatcher {
    */
   getWorldScale(target) {
     this.updateWorldMatrix(true, false);
-    this.matrixWorld.decompose(_position$3, _quaternion$2, target);
+    this.matrixWorld.decompose(_position$4, _quaternion$3, target);
     return target;
   }
   /**
@@ -7908,8 +6666,7 @@ class Object3D extends EventDispatcher {
    * @param {Function} callback - A callback function that allows to process the current 3D object.
    */
   traverseVisible(callback) {
-    if (this.visible === false)
-      return;
+    if (this.visible === false) return;
     callback(this);
     const children = this.children;
     for (let i = 0, l = children.length; i < l; i++) {
@@ -7936,6 +6693,14 @@ class Object3D extends EventDispatcher {
    */
   updateMatrix() {
     this.matrix.compose(this.position, this.quaternion, this.scale);
+    const pivot = this.pivot;
+    if (pivot !== null) {
+      const px = pivot.x, py = pivot.y, pz = pivot.z;
+      const te = this.matrix.elements;
+      te[12] += px - te[0] * px - te[4] * py - te[8] * pz;
+      te[13] += py - te[1] * px - te[5] * py - te[9] * pz;
+      te[14] += pz - te[2] * px - te[6] * py - te[10] * pz;
+    }
     this.matrixWorldNeedsUpdate = true;
   }
   /**
@@ -7947,11 +6712,10 @@ class Object3D extends EventDispatcher {
    * `true` by default.  Set these flags to `false` if you need more control over the update matrix process.
    *
    * @param {boolean} [force=false] - When set to `true`, a recomputation of world matrices is forced even
-   * when {@link Object3D#matrixWorldAutoUpdate} is set to `false`.
+   * when {@link Object3D#matrixWorldNeedsUpdate} is `false`.
    */
   updateMatrixWorld(force) {
-    if (this.matrixAutoUpdate)
-      this.updateMatrix();
+    if (this.matrixAutoUpdate) this.updateMatrix();
     if (this.matrixWorldNeedsUpdate || force) {
       if (this.matrixWorldAutoUpdate === true) {
         if (this.parent === null) {
@@ -7981,8 +6745,7 @@ class Object3D extends EventDispatcher {
     if (updateParents === true && parent !== null) {
       parent.updateWorldMatrix(true, false);
     }
-    if (this.matrixAutoUpdate)
-      this.updateMatrix();
+    if (this.matrixAutoUpdate) this.updateMatrix();
     if (this.matrixWorldAutoUpdate === true) {
       if (this.parent === null) {
         this.matrixWorld.copy(this.matrix);
@@ -8028,31 +6791,26 @@ class Object3D extends EventDispatcher {
     const object = {};
     object.uuid = this.uuid;
     object.type = this.type;
-    if (this.name !== "")
-      object.name = this.name;
-    if (this.castShadow === true)
-      object.castShadow = true;
-    if (this.receiveShadow === true)
-      object.receiveShadow = true;
-    if (this.visible === false)
-      object.visible = false;
-    if (this.frustumCulled === false)
-      object.frustumCulled = false;
-    if (this.renderOrder !== 0)
-      object.renderOrder = this.renderOrder;
-    if (Object.keys(this.userData).length > 0)
-      object.userData = this.userData;
+    if (this.name !== "") object.name = this.name;
+    if (this.castShadow === true) object.castShadow = true;
+    if (this.receiveShadow === true) object.receiveShadow = true;
+    if (this.visible === false) object.visible = false;
+    if (this.frustumCulled === false) object.frustumCulled = false;
+    if (this.renderOrder !== 0) object.renderOrder = this.renderOrder;
+    if (this.static !== false) object.static = this.static;
+    if (Object.keys(this.userData).length > 0) object.userData = this.userData;
     object.layers = this.layers.mask;
     object.matrix = this.matrix.toArray();
     object.up = this.up.toArray();
-    if (this.matrixAutoUpdate === false)
-      object.matrixAutoUpdate = false;
+    if (this.pivot !== null) object.pivot = this.pivot.toArray();
+    if (this.matrixAutoUpdate === false) object.matrixAutoUpdate = false;
+    if (this.morphTargetDictionary !== void 0) object.morphTargetDictionary = Object.assign({}, this.morphTargetDictionary);
+    if (this.morphTargetInfluences !== void 0) object.morphTargetInfluences = this.morphTargetInfluences.slice();
     if (this.isInstancedMesh) {
       object.type = "InstancedMesh";
       object.count = this.count;
       object.instanceMatrix = this.instanceMatrix.toJSON();
-      if (this.instanceColor !== null)
-        object.instanceColor = this.instanceColor.toJSON();
+      if (this.instanceColor !== null) object.instanceColor = this.instanceColor.toJSON();
     }
     if (this.isBatchedMesh) {
       object.type = "BatchedMesh";
@@ -8160,22 +6918,14 @@ class Object3D extends EventDispatcher {
       const skeletons = extractFromCache(meta.skeletons);
       const animations = extractFromCache(meta.animations);
       const nodes = extractFromCache(meta.nodes);
-      if (geometries.length > 0)
-        output.geometries = geometries;
-      if (materials.length > 0)
-        output.materials = materials;
-      if (textures.length > 0)
-        output.textures = textures;
-      if (images.length > 0)
-        output.images = images;
-      if (shapes.length > 0)
-        output.shapes = shapes;
-      if (skeletons.length > 0)
-        output.skeletons = skeletons;
-      if (animations.length > 0)
-        output.animations = animations;
-      if (nodes.length > 0)
-        output.nodes = nodes;
+      if (geometries.length > 0) output.geometries = geometries;
+      if (materials.length > 0) output.materials = materials;
+      if (textures.length > 0) output.textures = textures;
+      if (images.length > 0) output.images = images;
+      if (shapes.length > 0) output.shapes = shapes;
+      if (skeletons.length > 0) output.skeletons = skeletons;
+      if (animations.length > 0) output.animations = animations;
+      if (nodes.length > 0) output.nodes = nodes;
     }
     output.object = object;
     return output;
@@ -8212,6 +6962,7 @@ class Object3D extends EventDispatcher {
     this.rotation.order = source.rotation.order;
     this.quaternion.copy(source.quaternion);
     this.scale.copy(source.scale);
+    this.pivot = source.pivot !== null ? source.pivot.clone() : null;
     this.matrix.copy(source.matrix);
     this.matrixWorld.copy(source.matrixWorld);
     this.matrixAutoUpdate = source.matrixAutoUpdate;
@@ -8223,6 +6974,7 @@ class Object3D extends EventDispatcher {
     this.receiveShadow = source.receiveShadow;
     this.frustumCulled = source.frustumCulled;
     this.renderOrder = source.renderOrder;
+    this.static = source.static;
     this.animations = source.animations.slice();
     this.userData = JSON.parse(JSON.stringify(source.userData));
     if (recursive === true) {
@@ -8237,382 +6989,6 @@ class Object3D extends EventDispatcher {
 Object3D.DEFAULT_UP = /* @__PURE__ */ new Vector3(0, 1, 0);
 Object3D.DEFAULT_MATRIX_AUTO_UPDATE = true;
 Object3D.DEFAULT_MATRIX_WORLD_AUTO_UPDATE = true;
-const _v0$1 = /* @__PURE__ */ new Vector3();
-const _v1$3 = /* @__PURE__ */ new Vector3();
-const _v2$2 = /* @__PURE__ */ new Vector3();
-const _v3$2 = /* @__PURE__ */ new Vector3();
-const _vab = /* @__PURE__ */ new Vector3();
-const _vac = /* @__PURE__ */ new Vector3();
-const _vbc = /* @__PURE__ */ new Vector3();
-const _vap = /* @__PURE__ */ new Vector3();
-const _vbp = /* @__PURE__ */ new Vector3();
-const _vcp = /* @__PURE__ */ new Vector3();
-const _v40 = /* @__PURE__ */ new Vector4();
-const _v41 = /* @__PURE__ */ new Vector4();
-const _v42 = /* @__PURE__ */ new Vector4();
-class Triangle {
-  /**
-   * Constructs a new triangle.
-   *
-   * @param {Vector3} [a=(0,0,0)] - The first corner of the triangle.
-   * @param {Vector3} [b=(0,0,0)] - The second corner of the triangle.
-   * @param {Vector3} [c=(0,0,0)] - The third corner of the triangle.
-   */
-  constructor(a = new Vector3(), b = new Vector3(), c = new Vector3()) {
-    this.a = a;
-    this.b = b;
-    this.c = c;
-  }
-  /**
-   * Computes the normal vector of a triangle.
-   *
-   * @param {Vector3} a - The first corner of the triangle.
-   * @param {Vector3} b - The second corner of the triangle.
-   * @param {Vector3} c - The third corner of the triangle.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The triangle's normal.
-   */
-  static getNormal(a, b, c, target) {
-    target.subVectors(c, b);
-    _v0$1.subVectors(a, b);
-    target.cross(_v0$1);
-    const targetLengthSq = target.lengthSq();
-    if (targetLengthSq > 0) {
-      return target.multiplyScalar(1 / Math.sqrt(targetLengthSq));
-    }
-    return target.set(0, 0, 0);
-  }
-  /**
-   * Computes a barycentric coordinates from the given vector.
-   * Returns `null` if the triangle is degenerate.
-   *
-   * @param {Vector3} point - A point in 3D space.
-   * @param {Vector3} a - The first corner of the triangle.
-   * @param {Vector3} b - The second corner of the triangle.
-   * @param {Vector3} c - The third corner of the triangle.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The barycentric coordinates for the given point
-   */
-  static getBarycoord(point, a, b, c, target) {
-    _v0$1.subVectors(c, a);
-    _v1$3.subVectors(b, a);
-    _v2$2.subVectors(point, a);
-    const dot00 = _v0$1.dot(_v0$1);
-    const dot01 = _v0$1.dot(_v1$3);
-    const dot02 = _v0$1.dot(_v2$2);
-    const dot11 = _v1$3.dot(_v1$3);
-    const dot12 = _v1$3.dot(_v2$2);
-    const denom = dot00 * dot11 - dot01 * dot01;
-    if (denom === 0) {
-      target.set(0, 0, 0);
-      return null;
-    }
-    const invDenom = 1 / denom;
-    const u = (dot11 * dot02 - dot01 * dot12) * invDenom;
-    const v = (dot00 * dot12 - dot01 * dot02) * invDenom;
-    return target.set(1 - u - v, v, u);
-  }
-  /**
-   * Returns `true` if the given point, when projected onto the plane of the
-   * triangle, lies within the triangle.
-   *
-   * @param {Vector3} point - The point in 3D space to test.
-   * @param {Vector3} a - The first corner of the triangle.
-   * @param {Vector3} b - The second corner of the triangle.
-   * @param {Vector3} c - The third corner of the triangle.
-   * @return {boolean} Whether the given point, when projected onto the plane of the
-   * triangle, lies within the triangle or not.
-   */
-  static containsPoint(point, a, b, c) {
-    if (this.getBarycoord(point, a, b, c, _v3$2) === null) {
-      return false;
-    }
-    return _v3$2.x >= 0 && _v3$2.y >= 0 && _v3$2.x + _v3$2.y <= 1;
-  }
-  /**
-   * Computes the value barycentrically interpolated for the given point on the
-   * triangle. Returns `null` if the triangle is degenerate.
-   *
-   * @param {Vector3} point - Position of interpolated point.
-   * @param {Vector3} p1 - The first corner of the triangle.
-   * @param {Vector3} p2 - The second corner of the triangle.
-   * @param {Vector3} p3 - The third corner of the triangle.
-   * @param {Vector3} v1 - Value to interpolate of first vertex.
-   * @param {Vector3} v2 - Value to interpolate of second vertex.
-   * @param {Vector3} v3 - Value to interpolate of third vertex.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The interpolated value.
-   */
-  static getInterpolation(point, p1, p2, p3, v1, v2, v3, target) {
-    if (this.getBarycoord(point, p1, p2, p3, _v3$2) === null) {
-      target.x = 0;
-      target.y = 0;
-      if ("z" in target)
-        target.z = 0;
-      if ("w" in target)
-        target.w = 0;
-      return null;
-    }
-    target.setScalar(0);
-    target.addScaledVector(v1, _v3$2.x);
-    target.addScaledVector(v2, _v3$2.y);
-    target.addScaledVector(v3, _v3$2.z);
-    return target;
-  }
-  /**
-   * Computes the value barycentrically interpolated for the given attribute and indices.
-   *
-   * @param {BufferAttribute} attr - The attribute to interpolate.
-   * @param {number} i1 - Index of first vertex.
-   * @param {number} i2 - Index of second vertex.
-   * @param {number} i3 - Index of third vertex.
-   * @param {Vector3} barycoord - The barycoordinate value to use to interpolate.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The interpolated attribute value.
-   */
-  static getInterpolatedAttribute(attr, i1, i2, i3, barycoord, target) {
-    _v40.setScalar(0);
-    _v41.setScalar(0);
-    _v42.setScalar(0);
-    _v40.fromBufferAttribute(attr, i1);
-    _v41.fromBufferAttribute(attr, i2);
-    _v42.fromBufferAttribute(attr, i3);
-    target.setScalar(0);
-    target.addScaledVector(_v40, barycoord.x);
-    target.addScaledVector(_v41, barycoord.y);
-    target.addScaledVector(_v42, barycoord.z);
-    return target;
-  }
-  /**
-   * Returns `true` if the triangle is oriented towards the given direction.
-   *
-   * @param {Vector3} a - The first corner of the triangle.
-   * @param {Vector3} b - The second corner of the triangle.
-   * @param {Vector3} c - The third corner of the triangle.
-   * @param {Vector3} direction - The (normalized) direction vector.
-   * @return {boolean} Whether the triangle is oriented towards the given direction or not.
-   */
-  static isFrontFacing(a, b, c, direction) {
-    _v0$1.subVectors(c, b);
-    _v1$3.subVectors(a, b);
-    return _v0$1.cross(_v1$3).dot(direction) < 0 ? true : false;
-  }
-  /**
-   * Sets the triangle's vertices by copying the given values.
-   *
-   * @param {Vector3} a - The first corner of the triangle.
-   * @param {Vector3} b - The second corner of the triangle.
-   * @param {Vector3} c - The third corner of the triangle.
-   * @return {Triangle} A reference to this triangle.
-   */
-  set(a, b, c) {
-    this.a.copy(a);
-    this.b.copy(b);
-    this.c.copy(c);
-    return this;
-  }
-  /**
-   * Sets the triangle's vertices by copying the given array values.
-   *
-   * @param {Array<Vector3>} points - An array with 3D points.
-   * @param {number} i0 - The array index representing the first corner of the triangle.
-   * @param {number} i1 - The array index representing the second corner of the triangle.
-   * @param {number} i2 - The array index representing the third corner of the triangle.
-   * @return {Triangle} A reference to this triangle.
-   */
-  setFromPointsAndIndices(points, i0, i1, i2) {
-    this.a.copy(points[i0]);
-    this.b.copy(points[i1]);
-    this.c.copy(points[i2]);
-    return this;
-  }
-  /**
-   * Sets the triangle's vertices by copying the given attribute values.
-   *
-   * @param {BufferAttribute} attribute - A buffer attribute with 3D points data.
-   * @param {number} i0 - The attribute index representing the first corner of the triangle.
-   * @param {number} i1 - The attribute index representing the second corner of the triangle.
-   * @param {number} i2 - The attribute index representing the third corner of the triangle.
-   * @return {Triangle} A reference to this triangle.
-   */
-  setFromAttributeAndIndices(attribute, i0, i1, i2) {
-    this.a.fromBufferAttribute(attribute, i0);
-    this.b.fromBufferAttribute(attribute, i1);
-    this.c.fromBufferAttribute(attribute, i2);
-    return this;
-  }
-  /**
-   * Returns a new triangle with copied values from this instance.
-   *
-   * @return {Triangle} A clone of this instance.
-   */
-  clone() {
-    return new this.constructor().copy(this);
-  }
-  /**
-   * Copies the values of the given triangle to this instance.
-   *
-   * @param {Triangle} triangle - The triangle to copy.
-   * @return {Triangle} A reference to this triangle.
-   */
-  copy(triangle3) {
-    this.a.copy(triangle3.a);
-    this.b.copy(triangle3.b);
-    this.c.copy(triangle3.c);
-    return this;
-  }
-  /**
-   * Computes the area of the triangle.
-   *
-   * @return {number} The triangle's area.
-   */
-  getArea() {
-    _v0$1.subVectors(this.c, this.b);
-    _v1$3.subVectors(this.a, this.b);
-    return _v0$1.cross(_v1$3).length() * 0.5;
-  }
-  /**
-   * Computes the midpoint of the triangle.
-   *
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The triangle's midpoint.
-   */
-  getMidpoint(target) {
-    return target.addVectors(this.a, this.b).add(this.c).multiplyScalar(1 / 3);
-  }
-  /**
-   * Computes the normal of the triangle.
-   *
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The triangle's normal.
-   */
-  getNormal(target) {
-    return Triangle.getNormal(this.a, this.b, this.c, target);
-  }
-  /**
-   * Computes a plane the triangle lies within.
-   *
-   * @param {Plane} target - The target vector that is used to store the method's result.
-   * @return {Plane} The plane the triangle lies within.
-   */
-  getPlane(target) {
-    return target.setFromCoplanarPoints(this.a, this.b, this.c);
-  }
-  /**
-   * Computes a barycentric coordinates from the given vector.
-   * Returns `null` if the triangle is degenerate.
-   *
-   * @param {Vector3} point - A point in 3D space.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The barycentric coordinates for the given point
-   */
-  getBarycoord(point, target) {
-    return Triangle.getBarycoord(point, this.a, this.b, this.c, target);
-  }
-  /**
-   * Computes the value barycentrically interpolated for the given point on the
-   * triangle. Returns `null` if the triangle is degenerate.
-   *
-   * @param {Vector3} point - Position of interpolated point.
-   * @param {Vector3} v1 - Value to interpolate of first vertex.
-   * @param {Vector3} v2 - Value to interpolate of second vertex.
-   * @param {Vector3} v3 - Value to interpolate of third vertex.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The interpolated value.
-   */
-  getInterpolation(point, v1, v2, v3, target) {
-    return Triangle.getInterpolation(point, this.a, this.b, this.c, v1, v2, v3, target);
-  }
-  /**
-   * Returns `true` if the given point, when projected onto the plane of the
-   * triangle, lies within the triangle.
-   *
-   * @param {Vector3} point - The point in 3D space to test.
-   * @return {boolean} Whether the given point, when projected onto the plane of the
-   * triangle, lies within the triangle or not.
-   */
-  containsPoint(point) {
-    return Triangle.containsPoint(point, this.a, this.b, this.c);
-  }
-  /**
-   * Returns `true` if the triangle is oriented towards the given direction.
-   *
-   * @param {Vector3} direction - The (normalized) direction vector.
-   * @return {boolean} Whether the triangle is oriented towards the given direction or not.
-   */
-  isFrontFacing(direction) {
-    return Triangle.isFrontFacing(this.a, this.b, this.c, direction);
-  }
-  /**
-   * Returns `true` if this triangle intersects with the given box.
-   *
-   * @param {Box3} box - The box to intersect.
-   * @return {boolean} Whether this triangle intersects with the given box or not.
-   */
-  intersectsBox(box) {
-    return box.intersectsTriangle(this);
-  }
-  /**
-   * Returns the closest point on the triangle to the given point.
-   *
-   * @param {Vector3} p - The point to compute the closest point for.
-   * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {Vector3} The closest point on the triangle.
-   */
-  closestPointToPoint(p, target) {
-    const a = this.a, b = this.b, c = this.c;
-    let v, w;
-    _vab.subVectors(b, a);
-    _vac.subVectors(c, a);
-    _vap.subVectors(p, a);
-    const d1 = _vab.dot(_vap);
-    const d2 = _vac.dot(_vap);
-    if (d1 <= 0 && d2 <= 0) {
-      return target.copy(a);
-    }
-    _vbp.subVectors(p, b);
-    const d3 = _vab.dot(_vbp);
-    const d4 = _vac.dot(_vbp);
-    if (d3 >= 0 && d4 <= d3) {
-      return target.copy(b);
-    }
-    const vc = d1 * d4 - d3 * d2;
-    if (vc <= 0 && d1 >= 0 && d3 <= 0) {
-      v = d1 / (d1 - d3);
-      return target.copy(a).addScaledVector(_vab, v);
-    }
-    _vcp.subVectors(p, c);
-    const d5 = _vab.dot(_vcp);
-    const d6 = _vac.dot(_vcp);
-    if (d6 >= 0 && d5 <= d6) {
-      return target.copy(c);
-    }
-    const vb = d5 * d2 - d1 * d6;
-    if (vb <= 0 && d2 >= 0 && d6 <= 0) {
-      w = d2 / (d2 - d6);
-      return target.copy(a).addScaledVector(_vac, w);
-    }
-    const va = d3 * d6 - d5 * d4;
-    if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) {
-      _vbc.subVectors(c, b);
-      w = (d4 - d3) / (d4 - d3 + (d5 - d6));
-      return target.copy(b).addScaledVector(_vbc, w);
-    }
-    const denom = 1 / (va + vb + vc);
-    v = vb * denom;
-    w = vc * denom;
-    return target.copy(a).addScaledVector(_vab, v).addScaledVector(_vac, w);
-  }
-  /**
-   * Returns `true` if this triangle is equal with the given one.
-   *
-   * @param {Triangle} triangle - The triangle to test for equality.
-   * @return {boolean} Whether this triangle is equal with the given one.
-   */
-  equals(triangle3) {
-    return triangle3.a.equals(this.a) && triangle3.b.equals(this.b) && triangle3.c.equals(this.c);
-  }
-}
 const _colorKeywords = {
   "aliceblue": 15792383,
   "antiquewhite": 16444375,
@@ -8766,16 +7142,11 @@ const _colorKeywords = {
 const _hslA = { h: 0, s: 0, l: 0 };
 const _hslB = { h: 0, s: 0, l: 0 };
 function hue2rgb(p, q, t) {
-  if (t < 0)
-    t += 1;
-  if (t > 1)
-    t -= 1;
-  if (t < 1 / 6)
-    return p + (q - p) * 6 * t;
-  if (t < 1 / 2)
-    return q;
-  if (t < 2 / 3)
-    return p + (q - p) * 6 * (2 / 3 - t);
+  if (t < 0) t += 1;
+  if (t > 1) t -= 1;
+  if (t < 1 / 6) return p + (q - p) * 6 * t;
+  if (t < 1 / 2) return q;
+  if (t < 2 / 3) return p + (q - p) * 6 * (2 / 3 - t);
   return p;
 }
 class Color {
@@ -8901,8 +7272,7 @@ class Color {
    */
   setStyle(style, colorSpace = SRGBColorSpace) {
     function handleAlpha(string) {
-      if (string === void 0)
-        return;
+      if (string === void 0) return;
       if (parseFloat(string) < 1) {
         warn("Color: Alpha component of " + style + " will be ignored.");
       }
@@ -9371,585 +7741,924 @@ class Color {
 }
 const _color = /* @__PURE__ */ new Color();
 Color.NAMES = _colorKeywords;
-let _materialId = 0;
-let Material$1 = class Material extends EventDispatcher {
+const _v0$2 = /* @__PURE__ */ new Vector3();
+const _v1$5 = /* @__PURE__ */ new Vector3();
+const _v2$4 = /* @__PURE__ */ new Vector3();
+const _v3$2 = /* @__PURE__ */ new Vector3();
+const _vab = /* @__PURE__ */ new Vector3();
+const _vac = /* @__PURE__ */ new Vector3();
+const _vbc = /* @__PURE__ */ new Vector3();
+const _vap = /* @__PURE__ */ new Vector3();
+const _vbp = /* @__PURE__ */ new Vector3();
+const _vcp = /* @__PURE__ */ new Vector3();
+const _v40 = /* @__PURE__ */ new Vector4();
+const _v41 = /* @__PURE__ */ new Vector4();
+const _v42 = /* @__PURE__ */ new Vector4();
+class Triangle {
   /**
-   * Constructs a new material.
+   * Constructs a new triangle.
+   *
+   * @param {Vector3} [a=(0,0,0)] - The first corner of the triangle.
+   * @param {Vector3} [b=(0,0,0)] - The second corner of the triangle.
+   * @param {Vector3} [c=(0,0,0)] - The third corner of the triangle.
    */
-  constructor() {
-    super();
-    this.isMaterial = true;
-    Object.defineProperty(this, "id", { value: _materialId++ });
-    this.uuid = generateUUID();
-    this.name = "";
-    this.type = "Material";
-    this.blending = NormalBlending;
-    this.side = FrontSide;
-    this.vertexColors = false;
-    this.opacity = 1;
-    this.transparent = false;
-    this.alphaHash = false;
-    this.blendSrc = SrcAlphaFactor;
-    this.blendDst = OneMinusSrcAlphaFactor;
-    this.blendEquation = AddEquation;
-    this.blendSrcAlpha = null;
-    this.blendDstAlpha = null;
-    this.blendEquationAlpha = null;
-    this.blendColor = new Color(0, 0, 0);
-    this.blendAlpha = 0;
-    this.depthFunc = LessEqualDepth;
-    this.depthTest = true;
-    this.depthWrite = true;
-    this.stencilWriteMask = 255;
-    this.stencilFunc = AlwaysStencilFunc;
-    this.stencilRef = 0;
-    this.stencilFuncMask = 255;
-    this.stencilFail = KeepStencilOp;
-    this.stencilZFail = KeepStencilOp;
-    this.stencilZPass = KeepStencilOp;
-    this.stencilWrite = false;
-    this.clippingPlanes = null;
-    this.clipIntersection = false;
-    this.clipShadows = false;
-    this.shadowSide = null;
-    this.colorWrite = true;
-    this.precision = null;
-    this.polygonOffset = false;
-    this.polygonOffsetFactor = 0;
-    this.polygonOffsetUnits = 0;
-    this.dithering = false;
-    this.alphaToCoverage = false;
-    this.premultipliedAlpha = false;
-    this.forceSinglePass = false;
-    this.allowOverride = true;
-    this.visible = true;
-    this.toneMapped = true;
-    this.userData = {};
-    this.version = 0;
-    this._alphaTest = 0;
+  constructor(a = new Vector3(), b = new Vector3(), c = new Vector3()) {
+    this.a = a;
+    this.b = b;
+    this.c = c;
   }
   /**
-   * Sets the alpha value to be used when running an alpha test. The material
-   * will not be rendered if the opacity is lower than this value.
+   * Computes the normal vector of a triangle.
    *
-   * @type {number}
-   * @readonly
-   * @default 0
+   * @param {Vector3} a - The first corner of the triangle.
+   * @param {Vector3} b - The second corner of the triangle.
+   * @param {Vector3} c - The third corner of the triangle.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The triangle's normal.
    */
-  get alphaTest() {
-    return this._alphaTest;
-  }
-  set alphaTest(value) {
-    if (this._alphaTest > 0 !== value > 0) {
-      this.version++;
+  static getNormal(a, b, c, target) {
+    target.subVectors(c, b);
+    _v0$2.subVectors(a, b);
+    target.cross(_v0$2);
+    const targetLengthSq = target.lengthSq();
+    if (targetLengthSq > 0) {
+      return target.multiplyScalar(1 / Math.sqrt(targetLengthSq));
     }
-    this._alphaTest = value;
+    return target.set(0, 0, 0);
   }
   /**
-   * An optional callback that is executed immediately before the material is used to render a 3D object.
+   * Computes a barycentric coordinates from the given vector.
+   * Returns `null` if the triangle is degenerate.
    *
-   * This method can only be used when rendering with {@link WebGLRenderer}.
-   *
-   * @param {WebGLRenderer} renderer - The renderer.
-   * @param {Scene} scene - The scene.
-   * @param {Camera} camera - The camera that is used to render the scene.
-   * @param {BufferGeometry} geometry - The 3D object's geometry.
-   * @param {Object3D} object - The 3D object.
-   * @param {Object} group - The geometry group data.
+   * @param {Vector3} point - A point in 3D space.
+   * @param {Vector3} a - The first corner of the triangle.
+   * @param {Vector3} b - The second corner of the triangle.
+   * @param {Vector3} c - The third corner of the triangle.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The barycentric coordinates for the given point
    */
-  onBeforeRender() {
+  static getBarycoord(point, a, b, c, target) {
+    _v0$2.subVectors(c, a);
+    _v1$5.subVectors(b, a);
+    _v2$4.subVectors(point, a);
+    const dot00 = _v0$2.dot(_v0$2);
+    const dot01 = _v0$2.dot(_v1$5);
+    const dot02 = _v0$2.dot(_v2$4);
+    const dot11 = _v1$5.dot(_v1$5);
+    const dot12 = _v1$5.dot(_v2$4);
+    const denom = dot00 * dot11 - dot01 * dot01;
+    if (denom === 0) {
+      target.set(0, 0, 0);
+      return null;
+    }
+    const invDenom = 1 / denom;
+    const u = (dot11 * dot02 - dot01 * dot12) * invDenom;
+    const v = (dot00 * dot12 - dot01 * dot02) * invDenom;
+    return target.set(1 - u - v, v, u);
   }
   /**
-   * An optional callback that is executed immediately before the shader
-   * program is compiled. This function is called with the shader source code
-   * as a parameter. Useful for the modification of built-in materials.
+   * Returns `true` if the given point, when projected onto the plane of the
+   * triangle, lies within the triangle.
    *
-   * This method can only be used when rendering with {@link WebGLRenderer}. The
-   * recommended approach when customizing materials is to use `WebGPURenderer` with the new
-   * Node Material system and [TSL](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language).
-   *
-   * @param {{vertexShader:string,fragmentShader:string,uniforms:Object}} shaderobject - The object holds the uniforms and the vertex and fragment shader source.
-   * @param {WebGLRenderer} renderer - A reference to the renderer.
+   * @param {Vector3} point - The point in 3D space to test.
+   * @param {Vector3} a - The first corner of the triangle.
+   * @param {Vector3} b - The second corner of the triangle.
+   * @param {Vector3} c - The third corner of the triangle.
+   * @return {boolean} Whether the given point, when projected onto the plane of the
+   * triangle, lies within the triangle or not.
    */
-  onBeforeCompile() {
+  static containsPoint(point, a, b, c) {
+    if (this.getBarycoord(point, a, b, c, _v3$2) === null) {
+      return false;
+    }
+    return _v3$2.x >= 0 && _v3$2.y >= 0 && _v3$2.x + _v3$2.y <= 1;
   }
   /**
-   * In case {@link Material#onBeforeCompile} is used, this callback can be used to identify
-   * values of settings used in `onBeforeCompile()`, so three.js can reuse a cached
-   * shader or recompile the shader for this material as needed.
+   * Computes the value barycentrically interpolated for the given point on the
+   * triangle. Returns `null` if the triangle is degenerate.
    *
-   * This method can only be used when rendering with {@link WebGLRenderer}.
-   *
-   * @return {string} The custom program cache key.
+   * @param {Vector3} point - Position of interpolated point.
+   * @param {Vector3} p1 - The first corner of the triangle.
+   * @param {Vector3} p2 - The second corner of the triangle.
+   * @param {Vector3} p3 - The third corner of the triangle.
+   * @param {Vector3} v1 - Value to interpolate of first vertex.
+   * @param {Vector3} v2 - Value to interpolate of second vertex.
+   * @param {Vector3} v3 - Value to interpolate of third vertex.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The interpolated value.
    */
-  customProgramCacheKey() {
-    return this.onBeforeCompile.toString();
+  static getInterpolation(point, p1, p2, p3, v1, v2, v3, target) {
+    if (this.getBarycoord(point, p1, p2, p3, _v3$2) === null) {
+      target.x = 0;
+      target.y = 0;
+      if ("z" in target) target.z = 0;
+      if ("w" in target) target.w = 0;
+      return null;
+    }
+    target.setScalar(0);
+    target.addScaledVector(v1, _v3$2.x);
+    target.addScaledVector(v2, _v3$2.y);
+    target.addScaledVector(v3, _v3$2.z);
+    return target;
   }
   /**
-   * This method can be used to set default values from parameter objects.
-   * It is a generic implementation so it can be used with different types
-   * of materials.
+   * Computes the value barycentrically interpolated for the given attribute and indices.
    *
-   * @param {Object} [values] - The material values to set.
+   * @param {BufferAttribute} attr - The attribute to interpolate.
+   * @param {number} i1 - Index of first vertex.
+   * @param {number} i2 - Index of second vertex.
+   * @param {number} i3 - Index of third vertex.
+   * @param {Vector3} barycoord - The barycoordinate value to use to interpolate.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The interpolated attribute value.
    */
-  setValues(values) {
-    if (values === void 0)
-      return;
-    for (const key in values) {
-      const newValue = values[key];
-      if (newValue === void 0) {
-        warn(`Material: parameter '${key}' has value of undefined.`);
-        continue;
-      }
-      const currentValue = this[key];
-      if (currentValue === void 0) {
-        warn(`Material: '${key}' is not a property of THREE.${this.type}.`);
-        continue;
-      }
-      if (currentValue && currentValue.isColor) {
-        currentValue.set(newValue);
-      } else if (currentValue && currentValue.isVector3 && (newValue && newValue.isVector3)) {
-        currentValue.copy(newValue);
-      } else {
-        this[key] = newValue;
-      }
-    }
+  static getInterpolatedAttribute(attr, i1, i2, i3, barycoord, target) {
+    _v40.setScalar(0);
+    _v41.setScalar(0);
+    _v42.setScalar(0);
+    _v40.fromBufferAttribute(attr, i1);
+    _v41.fromBufferAttribute(attr, i2);
+    _v42.fromBufferAttribute(attr, i3);
+    target.setScalar(0);
+    target.addScaledVector(_v40, barycoord.x);
+    target.addScaledVector(_v41, barycoord.y);
+    target.addScaledVector(_v42, barycoord.z);
+    return target;
   }
   /**
-   * Serializes the material into JSON.
+   * Returns `true` if the triangle is oriented towards the given direction.
    *
-   * @param {?(Object|string)} meta - An optional value holding meta information about the serialization.
-   * @return {Object} A JSON object representing the serialized material.
-   * @see {@link ObjectLoader#parse}
+   * @param {Vector3} a - The first corner of the triangle.
+   * @param {Vector3} b - The second corner of the triangle.
+   * @param {Vector3} c - The third corner of the triangle.
+   * @param {Vector3} direction - The (normalized) direction vector.
+   * @return {boolean} Whether the triangle is oriented towards the given direction or not.
    */
-  toJSON(meta) {
-    const isRootObject = meta === void 0 || typeof meta === "string";
-    if (isRootObject) {
-      meta = {
-        textures: {},
-        images: {}
-      };
-    }
-    const data = {
-      metadata: {
-        version: 4.7,
-        type: "Material",
-        generator: "Material.toJSON"
-      }
-    };
-    data.uuid = this.uuid;
-    data.type = this.type;
-    if (this.name !== "")
-      data.name = this.name;
-    if (this.color && this.color.isColor)
-      data.color = this.color.getHex();
-    if (this.roughness !== void 0)
-      data.roughness = this.roughness;
-    if (this.metalness !== void 0)
-      data.metalness = this.metalness;
-    if (this.sheen !== void 0)
-      data.sheen = this.sheen;
-    if (this.sheenColor && this.sheenColor.isColor)
-      data.sheenColor = this.sheenColor.getHex();
-    if (this.sheenRoughness !== void 0)
-      data.sheenRoughness = this.sheenRoughness;
-    if (this.emissive && this.emissive.isColor)
-      data.emissive = this.emissive.getHex();
-    if (this.emissiveIntensity !== void 0 && this.emissiveIntensity !== 1)
-      data.emissiveIntensity = this.emissiveIntensity;
-    if (this.specular && this.specular.isColor)
-      data.specular = this.specular.getHex();
-    if (this.specularIntensity !== void 0)
-      data.specularIntensity = this.specularIntensity;
-    if (this.specularColor && this.specularColor.isColor)
-      data.specularColor = this.specularColor.getHex();
-    if (this.shininess !== void 0)
-      data.shininess = this.shininess;
-    if (this.clearcoat !== void 0)
-      data.clearcoat = this.clearcoat;
-    if (this.clearcoatRoughness !== void 0)
-      data.clearcoatRoughness = this.clearcoatRoughness;
-    if (this.clearcoatMap && this.clearcoatMap.isTexture) {
-      data.clearcoatMap = this.clearcoatMap.toJSON(meta).uuid;
-    }
-    if (this.clearcoatRoughnessMap && this.clearcoatRoughnessMap.isTexture) {
-      data.clearcoatRoughnessMap = this.clearcoatRoughnessMap.toJSON(meta).uuid;
-    }
-    if (this.clearcoatNormalMap && this.clearcoatNormalMap.isTexture) {
-      data.clearcoatNormalMap = this.clearcoatNormalMap.toJSON(meta).uuid;
-      data.clearcoatNormalScale = this.clearcoatNormalScale.toArray();
-    }
-    if (this.sheenColorMap && this.sheenColorMap.isTexture) {
-      data.sheenColorMap = this.sheenColorMap.toJSON(meta).uuid;
-    }
-    if (this.sheenRoughnessMap && this.sheenRoughnessMap.isTexture) {
-      data.sheenRoughnessMap = this.sheenRoughnessMap.toJSON(meta).uuid;
-    }
-    if (this.dispersion !== void 0)
-      data.dispersion = this.dispersion;
-    if (this.iridescence !== void 0)
-      data.iridescence = this.iridescence;
-    if (this.iridescenceIOR !== void 0)
-      data.iridescenceIOR = this.iridescenceIOR;
-    if (this.iridescenceThicknessRange !== void 0)
-      data.iridescenceThicknessRange = this.iridescenceThicknessRange;
-    if (this.iridescenceMap && this.iridescenceMap.isTexture) {
-      data.iridescenceMap = this.iridescenceMap.toJSON(meta).uuid;
-    }
-    if (this.iridescenceThicknessMap && this.iridescenceThicknessMap.isTexture) {
-      data.iridescenceThicknessMap = this.iridescenceThicknessMap.toJSON(meta).uuid;
-    }
-    if (this.anisotropy !== void 0)
-      data.anisotropy = this.anisotropy;
-    if (this.anisotropyRotation !== void 0)
-      data.anisotropyRotation = this.anisotropyRotation;
-    if (this.anisotropyMap && this.anisotropyMap.isTexture) {
-      data.anisotropyMap = this.anisotropyMap.toJSON(meta).uuid;
-    }
-    if (this.map && this.map.isTexture)
-      data.map = this.map.toJSON(meta).uuid;
-    if (this.matcap && this.matcap.isTexture)
-      data.matcap = this.matcap.toJSON(meta).uuid;
-    if (this.alphaMap && this.alphaMap.isTexture)
-      data.alphaMap = this.alphaMap.toJSON(meta).uuid;
-    if (this.lightMap && this.lightMap.isTexture) {
-      data.lightMap = this.lightMap.toJSON(meta).uuid;
-      data.lightMapIntensity = this.lightMapIntensity;
-    }
-    if (this.aoMap && this.aoMap.isTexture) {
-      data.aoMap = this.aoMap.toJSON(meta).uuid;
-      data.aoMapIntensity = this.aoMapIntensity;
-    }
-    if (this.bumpMap && this.bumpMap.isTexture) {
-      data.bumpMap = this.bumpMap.toJSON(meta).uuid;
-      data.bumpScale = this.bumpScale;
-    }
-    if (this.normalMap && this.normalMap.isTexture) {
-      data.normalMap = this.normalMap.toJSON(meta).uuid;
-      data.normalMapType = this.normalMapType;
-      data.normalScale = this.normalScale.toArray();
-    }
-    if (this.displacementMap && this.displacementMap.isTexture) {
-      data.displacementMap = this.displacementMap.toJSON(meta).uuid;
-      data.displacementScale = this.displacementScale;
-      data.displacementBias = this.displacementBias;
-    }
-    if (this.roughnessMap && this.roughnessMap.isTexture)
-      data.roughnessMap = this.roughnessMap.toJSON(meta).uuid;
-    if (this.metalnessMap && this.metalnessMap.isTexture)
-      data.metalnessMap = this.metalnessMap.toJSON(meta).uuid;
-    if (this.emissiveMap && this.emissiveMap.isTexture)
-      data.emissiveMap = this.emissiveMap.toJSON(meta).uuid;
-    if (this.specularMap && this.specularMap.isTexture)
-      data.specularMap = this.specularMap.toJSON(meta).uuid;
-    if (this.specularIntensityMap && this.specularIntensityMap.isTexture)
-      data.specularIntensityMap = this.specularIntensityMap.toJSON(meta).uuid;
-    if (this.specularColorMap && this.specularColorMap.isTexture)
-      data.specularColorMap = this.specularColorMap.toJSON(meta).uuid;
-    if (this.envMap && this.envMap.isTexture) {
-      data.envMap = this.envMap.toJSON(meta).uuid;
-      if (this.combine !== void 0)
-        data.combine = this.combine;
-    }
-    if (this.envMapRotation !== void 0)
-      data.envMapRotation = this.envMapRotation.toArray();
-    if (this.envMapIntensity !== void 0)
-      data.envMapIntensity = this.envMapIntensity;
-    if (this.reflectivity !== void 0)
-      data.reflectivity = this.reflectivity;
-    if (this.refractionRatio !== void 0)
-      data.refractionRatio = this.refractionRatio;
-    if (this.gradientMap && this.gradientMap.isTexture) {
-      data.gradientMap = this.gradientMap.toJSON(meta).uuid;
-    }
-    if (this.transmission !== void 0)
-      data.transmission = this.transmission;
-    if (this.transmissionMap && this.transmissionMap.isTexture)
-      data.transmissionMap = this.transmissionMap.toJSON(meta).uuid;
-    if (this.thickness !== void 0)
-      data.thickness = this.thickness;
-    if (this.thicknessMap && this.thicknessMap.isTexture)
-      data.thicknessMap = this.thicknessMap.toJSON(meta).uuid;
-    if (this.attenuationDistance !== void 0 && this.attenuationDistance !== Infinity)
-      data.attenuationDistance = this.attenuationDistance;
-    if (this.attenuationColor !== void 0)
-      data.attenuationColor = this.attenuationColor.getHex();
-    if (this.size !== void 0)
-      data.size = this.size;
-    if (this.shadowSide !== null)
-      data.shadowSide = this.shadowSide;
-    if (this.sizeAttenuation !== void 0)
-      data.sizeAttenuation = this.sizeAttenuation;
-    if (this.blending !== NormalBlending)
-      data.blending = this.blending;
-    if (this.side !== FrontSide)
-      data.side = this.side;
-    if (this.vertexColors === true)
-      data.vertexColors = true;
-    if (this.opacity < 1)
-      data.opacity = this.opacity;
-    if (this.transparent === true)
-      data.transparent = true;
-    if (this.blendSrc !== SrcAlphaFactor)
-      data.blendSrc = this.blendSrc;
-    if (this.blendDst !== OneMinusSrcAlphaFactor)
-      data.blendDst = this.blendDst;
-    if (this.blendEquation !== AddEquation)
-      data.blendEquation = this.blendEquation;
-    if (this.blendSrcAlpha !== null)
-      data.blendSrcAlpha = this.blendSrcAlpha;
-    if (this.blendDstAlpha !== null)
-      data.blendDstAlpha = this.blendDstAlpha;
-    if (this.blendEquationAlpha !== null)
-      data.blendEquationAlpha = this.blendEquationAlpha;
-    if (this.blendColor && this.blendColor.isColor)
-      data.blendColor = this.blendColor.getHex();
-    if (this.blendAlpha !== 0)
-      data.blendAlpha = this.blendAlpha;
-    if (this.depthFunc !== LessEqualDepth)
-      data.depthFunc = this.depthFunc;
-    if (this.depthTest === false)
-      data.depthTest = this.depthTest;
-    if (this.depthWrite === false)
-      data.depthWrite = this.depthWrite;
-    if (this.colorWrite === false)
-      data.colorWrite = this.colorWrite;
-    if (this.stencilWriteMask !== 255)
-      data.stencilWriteMask = this.stencilWriteMask;
-    if (this.stencilFunc !== AlwaysStencilFunc)
-      data.stencilFunc = this.stencilFunc;
-    if (this.stencilRef !== 0)
-      data.stencilRef = this.stencilRef;
-    if (this.stencilFuncMask !== 255)
-      data.stencilFuncMask = this.stencilFuncMask;
-    if (this.stencilFail !== KeepStencilOp)
-      data.stencilFail = this.stencilFail;
-    if (this.stencilZFail !== KeepStencilOp)
-      data.stencilZFail = this.stencilZFail;
-    if (this.stencilZPass !== KeepStencilOp)
-      data.stencilZPass = this.stencilZPass;
-    if (this.stencilWrite === true)
-      data.stencilWrite = this.stencilWrite;
-    if (this.rotation !== void 0 && this.rotation !== 0)
-      data.rotation = this.rotation;
-    if (this.polygonOffset === true)
-      data.polygonOffset = true;
-    if (this.polygonOffsetFactor !== 0)
-      data.polygonOffsetFactor = this.polygonOffsetFactor;
-    if (this.polygonOffsetUnits !== 0)
-      data.polygonOffsetUnits = this.polygonOffsetUnits;
-    if (this.linewidth !== void 0 && this.linewidth !== 1)
-      data.linewidth = this.linewidth;
-    if (this.dashSize !== void 0)
-      data.dashSize = this.dashSize;
-    if (this.gapSize !== void 0)
-      data.gapSize = this.gapSize;
-    if (this.scale !== void 0)
-      data.scale = this.scale;
-    if (this.dithering === true)
-      data.dithering = true;
-    if (this.alphaTest > 0)
-      data.alphaTest = this.alphaTest;
-    if (this.alphaHash === true)
-      data.alphaHash = true;
-    if (this.alphaToCoverage === true)
-      data.alphaToCoverage = true;
-    if (this.premultipliedAlpha === true)
-      data.premultipliedAlpha = true;
-    if (this.forceSinglePass === true)
-      data.forceSinglePass = true;
-    if (this.allowOverride === false)
-      data.allowOverride = false;
-    if (this.wireframe === true)
-      data.wireframe = true;
-    if (this.wireframeLinewidth > 1)
-      data.wireframeLinewidth = this.wireframeLinewidth;
-    if (this.wireframeLinecap !== "round")
-      data.wireframeLinecap = this.wireframeLinecap;
-    if (this.wireframeLinejoin !== "round")
-      data.wireframeLinejoin = this.wireframeLinejoin;
-    if (this.flatShading === true)
-      data.flatShading = true;
-    if (this.visible === false)
-      data.visible = false;
-    if (this.toneMapped === false)
-      data.toneMapped = false;
-    if (this.fog === false)
-      data.fog = false;
-    if (Object.keys(this.userData).length > 0)
-      data.userData = this.userData;
-    function extractFromCache(cache) {
-      const values = [];
-      for (const key in cache) {
-        const data2 = cache[key];
-        delete data2.metadata;
-        values.push(data2);
-      }
-      return values;
-    }
-    if (isRootObject) {
-      const textures = extractFromCache(meta.textures);
-      const images = extractFromCache(meta.images);
-      if (textures.length > 0)
-        data.textures = textures;
-      if (images.length > 0)
-        data.images = images;
-    }
-    return data;
+  static isFrontFacing(a, b, c, direction) {
+    _v0$2.subVectors(c, b);
+    _v1$5.subVectors(a, b);
+    return _v0$2.cross(_v1$5).dot(direction) < 0;
   }
   /**
-   * Returns a new material with copied values from this instance.
+   * Sets the triangle's vertices by copying the given values.
    *
-   * @return {Material} A clone of this instance.
+   * @param {Vector3} a - The first corner of the triangle.
+   * @param {Vector3} b - The second corner of the triangle.
+   * @param {Vector3} c - The third corner of the triangle.
+   * @return {Triangle} A reference to this triangle.
+   */
+  set(a, b, c) {
+    this.a.copy(a);
+    this.b.copy(b);
+    this.c.copy(c);
+    return this;
+  }
+  /**
+   * Sets the triangle's vertices by copying the given array values.
+   *
+   * @param {Array<Vector3>} points - An array with 3D points.
+   * @param {number} i0 - The array index representing the first corner of the triangle.
+   * @param {number} i1 - The array index representing the second corner of the triangle.
+   * @param {number} i2 - The array index representing the third corner of the triangle.
+   * @return {Triangle} A reference to this triangle.
+   */
+  setFromPointsAndIndices(points, i0, i1, i2) {
+    this.a.copy(points[i0]);
+    this.b.copy(points[i1]);
+    this.c.copy(points[i2]);
+    return this;
+  }
+  /**
+   * Sets the triangle's vertices by copying the given attribute values.
+   *
+   * @param {BufferAttribute} attribute - A buffer attribute with 3D points data.
+   * @param {number} i0 - The attribute index representing the first corner of the triangle.
+   * @param {number} i1 - The attribute index representing the second corner of the triangle.
+   * @param {number} i2 - The attribute index representing the third corner of the triangle.
+   * @return {Triangle} A reference to this triangle.
+   */
+  setFromAttributeAndIndices(attribute, i0, i1, i2) {
+    this.a.fromBufferAttribute(attribute, i0);
+    this.b.fromBufferAttribute(attribute, i1);
+    this.c.fromBufferAttribute(attribute, i2);
+    return this;
+  }
+  /**
+   * Returns a new triangle with copied values from this instance.
+   *
+   * @return {Triangle} A clone of this instance.
    */
   clone() {
     return new this.constructor().copy(this);
   }
   /**
-   * Copies the values of the given material to this instance.
+   * Copies the values of the given triangle to this instance.
    *
-   * @param {Material} source - The material to copy.
-   * @return {Material} A reference to this instance.
+   * @param {Triangle} triangle - The triangle to copy.
+   * @return {Triangle} A reference to this triangle.
    */
-  copy(source) {
-    this.name = source.name;
-    this.blending = source.blending;
-    this.side = source.side;
-    this.vertexColors = source.vertexColors;
-    this.opacity = source.opacity;
-    this.transparent = source.transparent;
-    this.blendSrc = source.blendSrc;
-    this.blendDst = source.blendDst;
-    this.blendEquation = source.blendEquation;
-    this.blendSrcAlpha = source.blendSrcAlpha;
-    this.blendDstAlpha = source.blendDstAlpha;
-    this.blendEquationAlpha = source.blendEquationAlpha;
-    this.blendColor.copy(source.blendColor);
-    this.blendAlpha = source.blendAlpha;
-    this.depthFunc = source.depthFunc;
-    this.depthTest = source.depthTest;
-    this.depthWrite = source.depthWrite;
-    this.stencilWriteMask = source.stencilWriteMask;
-    this.stencilFunc = source.stencilFunc;
-    this.stencilRef = source.stencilRef;
-    this.stencilFuncMask = source.stencilFuncMask;
-    this.stencilFail = source.stencilFail;
-    this.stencilZFail = source.stencilZFail;
-    this.stencilZPass = source.stencilZPass;
-    this.stencilWrite = source.stencilWrite;
-    const srcPlanes = source.clippingPlanes;
-    let dstPlanes = null;
-    if (srcPlanes !== null) {
-      const n = srcPlanes.length;
-      dstPlanes = new Array(n);
-      for (let i = 0; i !== n; ++i) {
-        dstPlanes[i] = srcPlanes[i].clone();
-      }
-    }
-    this.clippingPlanes = dstPlanes;
-    this.clipIntersection = source.clipIntersection;
-    this.clipShadows = source.clipShadows;
-    this.shadowSide = source.shadowSide;
-    this.colorWrite = source.colorWrite;
-    this.precision = source.precision;
-    this.polygonOffset = source.polygonOffset;
-    this.polygonOffsetFactor = source.polygonOffsetFactor;
-    this.polygonOffsetUnits = source.polygonOffsetUnits;
-    this.dithering = source.dithering;
-    this.alphaTest = source.alphaTest;
-    this.alphaHash = source.alphaHash;
-    this.alphaToCoverage = source.alphaToCoverage;
-    this.premultipliedAlpha = source.premultipliedAlpha;
-    this.forceSinglePass = source.forceSinglePass;
-    this.allowOverride = source.allowOverride;
-    this.visible = source.visible;
-    this.toneMapped = source.toneMapped;
-    this.userData = JSON.parse(JSON.stringify(source.userData));
+  copy(triangle3) {
+    this.a.copy(triangle3.a);
+    this.b.copy(triangle3.b);
+    this.c.copy(triangle3.c);
     return this;
   }
   /**
-   * Frees the GPU-related resources allocated by this instance. Call this
-   * method whenever this instance is no longer used in your app.
+   * Computes the area of the triangle.
    *
-   * @fires Material#dispose
+   * @return {number} The triangle's area.
    */
-  dispose() {
-    this.dispatchEvent({ type: "dispose" });
+  getArea() {
+    _v0$2.subVectors(this.c, this.b);
+    _v1$5.subVectors(this.a, this.b);
+    return _v0$2.cross(_v1$5).length() * 0.5;
   }
   /**
-   * Setting this property to `true` indicates the engine the material
-   * needs to be recompiled.
+   * Computes the midpoint of the triangle.
    *
-   * @type {boolean}
-   * @default false
-   * @param {boolean} value
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The triangle's midpoint.
    */
-  set needsUpdate(value) {
-    if (value === true)
-      this.version++;
+  getMidpoint(target) {
+    return target.addVectors(this.a, this.b).add(this.c).multiplyScalar(1 / 3);
   }
-};
-class MeshBasicMaterial extends Material$1 {
   /**
-   * Constructs a new mesh basic material.
+   * Computes the normal of the triangle.
    *
-   * @param {Object} [parameters] - An object with one or more properties
-   * defining the material's appearance. Any property of the material
-   * (including any property from inherited materials) can be passed
-   * in here. Color values can be passed any type of value accepted
-   * by {@link Color#set}.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The triangle's normal.
    */
-  constructor(parameters) {
-    super();
-    this.isMeshBasicMaterial = true;
-    this.type = "MeshBasicMaterial";
-    this.color = new Color(16777215);
-    this.map = null;
-    this.lightMap = null;
-    this.lightMapIntensity = 1;
-    this.aoMap = null;
-    this.aoMapIntensity = 1;
-    this.specularMap = null;
-    this.alphaMap = null;
-    this.envMap = null;
-    this.envMapRotation = new Euler();
-    this.combine = MultiplyOperation;
-    this.reflectivity = 1;
-    this.refractionRatio = 0.98;
-    this.wireframe = false;
-    this.wireframeLinewidth = 1;
-    this.wireframeLinecap = "round";
-    this.wireframeLinejoin = "round";
-    this.fog = true;
-    this.setValues(parameters);
+  getNormal(target) {
+    return Triangle.getNormal(this.a, this.b, this.c, target);
   }
-  copy(source) {
-    super.copy(source);
-    this.color.copy(source.color);
-    this.map = source.map;
-    this.lightMap = source.lightMap;
-    this.lightMapIntensity = source.lightMapIntensity;
-    this.aoMap = source.aoMap;
-    this.aoMapIntensity = source.aoMapIntensity;
-    this.specularMap = source.specularMap;
-    this.alphaMap = source.alphaMap;
-    this.envMap = source.envMap;
-    this.envMapRotation.copy(source.envMapRotation);
-    this.combine = source.combine;
-    this.reflectivity = source.reflectivity;
-    this.refractionRatio = source.refractionRatio;
-    this.wireframe = source.wireframe;
-    this.wireframeLinewidth = source.wireframeLinewidth;
-    this.wireframeLinecap = source.wireframeLinecap;
-    this.wireframeLinejoin = source.wireframeLinejoin;
-    this.fog = source.fog;
+  /**
+   * Computes a plane the triangle lies within.
+   *
+   * @param {Plane} target - The target vector that is used to store the method's result.
+   * @return {Plane} The plane the triangle lies within.
+   */
+  getPlane(target) {
+    return target.setFromCoplanarPoints(this.a, this.b, this.c);
+  }
+  /**
+   * Computes a barycentric coordinates from the given vector.
+   * Returns `null` if the triangle is degenerate.
+   *
+   * @param {Vector3} point - A point in 3D space.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The barycentric coordinates for the given point
+   */
+  getBarycoord(point, target) {
+    return Triangle.getBarycoord(point, this.a, this.b, this.c, target);
+  }
+  /**
+   * Computes the value barycentrically interpolated for the given point on the
+   * triangle. Returns `null` if the triangle is degenerate.
+   *
+   * @param {Vector3} point - Position of interpolated point.
+   * @param {Vector3} v1 - Value to interpolate of first vertex.
+   * @param {Vector3} v2 - Value to interpolate of second vertex.
+   * @param {Vector3} v3 - Value to interpolate of third vertex.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The interpolated value.
+   */
+  getInterpolation(point, v1, v2, v3, target) {
+    return Triangle.getInterpolation(point, this.a, this.b, this.c, v1, v2, v3, target);
+  }
+  /**
+   * Returns `true` if the given point, when projected onto the plane of the
+   * triangle, lies within the triangle.
+   *
+   * @param {Vector3} point - The point in 3D space to test.
+   * @return {boolean} Whether the given point, when projected onto the plane of the
+   * triangle, lies within the triangle or not.
+   */
+  containsPoint(point) {
+    return Triangle.containsPoint(point, this.a, this.b, this.c);
+  }
+  /**
+   * Returns `true` if the triangle is oriented towards the given direction.
+   *
+   * @param {Vector3} direction - The (normalized) direction vector.
+   * @return {boolean} Whether the triangle is oriented towards the given direction or not.
+   */
+  isFrontFacing(direction) {
+    return Triangle.isFrontFacing(this.a, this.b, this.c, direction);
+  }
+  /**
+   * Returns `true` if this triangle intersects with the given box.
+   *
+   * @param {Box3} box - The box to intersect.
+   * @return {boolean} Whether this triangle intersects with the given box or not.
+   */
+  intersectsBox(box) {
+    return box.intersectsTriangle(this);
+  }
+  /**
+   * Returns the closest point on the triangle to the given point.
+   *
+   * @param {Vector3} p - The point to compute the closest point for.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The closest point on the triangle.
+   */
+  closestPointToPoint(p, target) {
+    const a = this.a, b = this.b, c = this.c;
+    let v, w;
+    _vab.subVectors(b, a);
+    _vac.subVectors(c, a);
+    _vap.subVectors(p, a);
+    const d1 = _vab.dot(_vap);
+    const d2 = _vac.dot(_vap);
+    if (d1 <= 0 && d2 <= 0) {
+      return target.copy(a);
+    }
+    _vbp.subVectors(p, b);
+    const d3 = _vab.dot(_vbp);
+    const d4 = _vac.dot(_vbp);
+    if (d3 >= 0 && d4 <= d3) {
+      return target.copy(b);
+    }
+    const vc = d1 * d4 - d3 * d2;
+    if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+      v = d1 / (d1 - d3);
+      return target.copy(a).addScaledVector(_vab, v);
+    }
+    _vcp.subVectors(p, c);
+    const d5 = _vab.dot(_vcp);
+    const d6 = _vac.dot(_vcp);
+    if (d6 >= 0 && d5 <= d6) {
+      return target.copy(c);
+    }
+    const vb = d5 * d2 - d1 * d6;
+    if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+      w = d2 / (d2 - d6);
+      return target.copy(a).addScaledVector(_vac, w);
+    }
+    const va = d3 * d6 - d5 * d4;
+    if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) {
+      _vbc.subVectors(c, b);
+      w = (d4 - d3) / (d4 - d3 + (d5 - d6));
+      return target.copy(b).addScaledVector(_vbc, w);
+    }
+    const denom = 1 / (va + vb + vc);
+    v = vb * denom;
+    w = vc * denom;
+    return target.copy(a).addScaledVector(_vab, v).addScaledVector(_vac, w);
+  }
+  /**
+   * Returns `true` if this triangle is equal with the given one.
+   *
+   * @param {Triangle} triangle - The triangle to test for equality.
+   * @return {boolean} Whether this triangle is equal with the given one.
+   */
+  equals(triangle3) {
+    return triangle3.a.equals(this.a) && triangle3.b.equals(this.b) && triangle3.c.equals(this.c);
+  }
+}
+class Box3 {
+  /**
+   * Constructs a new bounding box.
+   *
+   * @param {Vector3} [min=(Infinity,Infinity,Infinity)] - A vector representing the lower boundary of the box.
+   * @param {Vector3} [max=(-Infinity,-Infinity,-Infinity)] - A vector representing the upper boundary of the box.
+   */
+  constructor(min = new Vector3(Infinity, Infinity, Infinity), max = new Vector3(-Infinity, -Infinity, -Infinity)) {
+    this.isBox3 = true;
+    this.min = min;
+    this.max = max;
+  }
+  /**
+   * Sets the lower and upper boundaries of this box.
+   * Please note that this method only copies the values from the given objects.
+   *
+   * @param {Vector3} min - The lower boundary of the box.
+   * @param {Vector3} max - The upper boundary of the box.
+   * @return {Box3} A reference to this bounding box.
+   */
+  set(min, max) {
+    this.min.copy(min);
+    this.max.copy(max);
+    return this;
+  }
+  /**
+   * Sets the upper and lower bounds of this box so it encloses the position data
+   * in the given array.
+   *
+   * @param {Array<number>} array - An array holding 3D position data.
+   * @return {Box3} A reference to this bounding box.
+   */
+  setFromArray(array) {
+    this.makeEmpty();
+    for (let i = 0, il = array.length; i < il; i += 3) {
+      this.expandByPoint(_vector$b.fromArray(array, i));
+    }
+    return this;
+  }
+  /**
+   * Sets the upper and lower bounds of this box so it encloses the position data
+   * in the given buffer attribute.
+   *
+   * @param {BufferAttribute} attribute - A buffer attribute holding 3D position data.
+   * @return {Box3} A reference to this bounding box.
+   */
+  setFromBufferAttribute(attribute) {
+    this.makeEmpty();
+    for (let i = 0, il = attribute.count; i < il; i++) {
+      this.expandByPoint(_vector$b.fromBufferAttribute(attribute, i));
+    }
+    return this;
+  }
+  /**
+   * Sets the upper and lower bounds of this box so it encloses the position data
+   * in the given array.
+   *
+   * @param {Array<Vector3>} points - An array holding 3D position data as instances of {@link Vector3}.
+   * @return {Box3} A reference to this bounding box.
+   */
+  setFromPoints(points) {
+    this.makeEmpty();
+    for (let i = 0, il = points.length; i < il; i++) {
+      this.expandByPoint(points[i]);
+    }
+    return this;
+  }
+  /**
+   * Centers this box on the given center vector and sets this box's width, height and
+   * depth to the given size values.
+   *
+   * @param {Vector3} center - The center of the box.
+   * @param {Vector3} size - The x, y and z dimensions of the box.
+   * @return {Box3} A reference to this bounding box.
+   */
+  setFromCenterAndSize(center, size) {
+    const halfSize = _vector$b.copy(size).multiplyScalar(0.5);
+    this.min.copy(center).sub(halfSize);
+    this.max.copy(center).add(halfSize);
+    return this;
+  }
+  /**
+   * Computes the world-axis-aligned bounding box for the given 3D object
+   * (including its children), accounting for the object's, and children's,
+   * world transforms. The function may result in a larger box than strictly necessary.
+   *
+   * @param {Object3D} object - The 3D object to compute the bounding box for.
+   * @param {boolean} [precise=false] - If set to `true`, the method computes the smallest
+   * world-axis-aligned bounding box at the expense of more computation.
+   * @return {Box3} A reference to this bounding box.
+   */
+  setFromObject(object, precise = false) {
+    this.makeEmpty();
+    return this.expandByObject(object, precise);
+  }
+  /**
+   * Returns a new box with copied values from this instance.
+   *
+   * @return {Box3} A clone of this instance.
+   */
+  clone() {
+    return new this.constructor().copy(this);
+  }
+  /**
+   * Copies the values of the given box to this instance.
+   *
+   * @param {Box3} box - The box to copy.
+   * @return {Box3} A reference to this bounding box.
+   */
+  copy(box) {
+    this.min.copy(box.min);
+    this.max.copy(box.max);
+    return this;
+  }
+  /**
+   * Makes this box empty which means in encloses a zero space in 3D.
+   *
+   * @return {Box3} A reference to this bounding box.
+   */
+  makeEmpty() {
+    this.min.x = this.min.y = this.min.z = Infinity;
+    this.max.x = this.max.y = this.max.z = -Infinity;
+    return this;
+  }
+  /**
+   * Returns true if this box includes zero points within its bounds.
+   * Note that a box with equal lower and upper bounds still includes one
+   * point, the one both bounds share.
+   *
+   * @return {boolean} Whether this box is empty or not.
+   */
+  isEmpty() {
+    return this.max.x < this.min.x || this.max.y < this.min.y || this.max.z < this.min.z;
+  }
+  /**
+   * Returns the center point of this box.
+   *
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The center point.
+   */
+  getCenter(target) {
+    return this.isEmpty() ? target.set(0, 0, 0) : target.addVectors(this.min, this.max).multiplyScalar(0.5);
+  }
+  /**
+   * Returns the dimensions of this box.
+   *
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The size.
+   */
+  getSize(target) {
+    return this.isEmpty() ? target.set(0, 0, 0) : target.subVectors(this.max, this.min);
+  }
+  /**
+   * Expands the boundaries of this box to include the given point.
+   *
+   * @param {Vector3} point - The point that should be included by the bounding box.
+   * @return {Box3} A reference to this bounding box.
+   */
+  expandByPoint(point) {
+    this.min.min(point);
+    this.max.max(point);
+    return this;
+  }
+  /**
+   * Expands this box equilaterally by the given vector. The width of this
+   * box will be expanded by the x component of the vector in both
+   * directions. The height of this box will be expanded by the y component of
+   * the vector in both directions. The depth of this box will be
+   * expanded by the z component of the vector in both directions.
+   *
+   * @param {Vector3} vector - The vector that should expand the bounding box.
+   * @return {Box3} A reference to this bounding box.
+   */
+  expandByVector(vector) {
+    this.min.sub(vector);
+    this.max.add(vector);
+    return this;
+  }
+  /**
+   * Expands each dimension of the box by the given scalar. If negative, the
+   * dimensions of the box will be contracted.
+   *
+   * @param {number} scalar - The scalar value that should expand the bounding box.
+   * @return {Box3} A reference to this bounding box.
+   */
+  expandByScalar(scalar) {
+    this.min.addScalar(-scalar);
+    this.max.addScalar(scalar);
+    return this;
+  }
+  /**
+   * Expands the boundaries of this box to include the given 3D object and
+   * its children, accounting for the object's, and children's, world
+   * transforms. The function may result in a larger box than strictly
+   * necessary (unless the precise parameter is set to true).
+   *
+   * @param {Object3D} object - The 3D object that should expand the bounding box.
+   * @param {boolean} precise - If set to `true`, the method expands the bounding box
+   * as little as necessary at the expense of more computation.
+   * @return {Box3} A reference to this bounding box.
+   */
+  expandByObject(object, precise = false) {
+    object.updateWorldMatrix(false, false);
+    const geometry = object.geometry;
+    if (geometry !== void 0) {
+      const positionAttribute = geometry.getAttribute("position");
+      if (precise === true && positionAttribute !== void 0 && object.isInstancedMesh !== true) {
+        for (let i = 0, l = positionAttribute.count; i < l; i++) {
+          if (object.isMesh === true) {
+            object.getVertexPosition(i, _vector$b);
+          } else {
+            _vector$b.fromBufferAttribute(positionAttribute, i);
+          }
+          _vector$b.applyMatrix4(object.matrixWorld);
+          this.expandByPoint(_vector$b);
+        }
+      } else {
+        if (object.boundingBox !== void 0) {
+          if (object.boundingBox === null) {
+            object.computeBoundingBox();
+          }
+          _box$4.copy(object.boundingBox);
+        } else {
+          if (geometry.boundingBox === null) {
+            geometry.computeBoundingBox();
+          }
+          _box$4.copy(geometry.boundingBox);
+        }
+        _box$4.applyMatrix4(object.matrixWorld);
+        this.union(_box$4);
+      }
+    }
+    const children = object.children;
+    for (let i = 0, l = children.length; i < l; i++) {
+      this.expandByObject(children[i], precise);
+    }
+    return this;
+  }
+  /**
+   * Returns `true` if the given point lies within or on the boundaries of this box.
+   *
+   * @param {Vector3} point - The point to test.
+   * @return {boolean} Whether the bounding box contains the given point or not.
+   */
+  containsPoint(point) {
+    return point.x >= this.min.x && point.x <= this.max.x && point.y >= this.min.y && point.y <= this.max.y && point.z >= this.min.z && point.z <= this.max.z;
+  }
+  /**
+   * Returns `true` if this bounding box includes the entirety of the given bounding box.
+   * If this box and the given one are identical, this function also returns `true`.
+   *
+   * @param {Box3} box - The bounding box to test.
+   * @return {boolean} Whether the bounding box contains the given bounding box or not.
+   */
+  containsBox(box) {
+    return this.min.x <= box.min.x && box.max.x <= this.max.x && this.min.y <= box.min.y && box.max.y <= this.max.y && this.min.z <= box.min.z && box.max.z <= this.max.z;
+  }
+  /**
+   * Returns a point as a proportion of this box's width, height and depth.
+   *
+   * @param {Vector3} point - A point in 3D space.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} A point as a proportion of this box's width, height and depth.
+   */
+  getParameter(point, target) {
+    return target.set(
+      (point.x - this.min.x) / (this.max.x - this.min.x),
+      (point.y - this.min.y) / (this.max.y - this.min.y),
+      (point.z - this.min.z) / (this.max.z - this.min.z)
+    );
+  }
+  /**
+   * Returns `true` if the given bounding box intersects with this bounding box.
+   *
+   * @param {Box3} box - The bounding box to test.
+   * @return {boolean} Whether the given bounding box intersects with this bounding box.
+   */
+  intersectsBox(box) {
+    return box.max.x >= this.min.x && box.min.x <= this.max.x && box.max.y >= this.min.y && box.min.y <= this.max.y && box.max.z >= this.min.z && box.min.z <= this.max.z;
+  }
+  /**
+   * Returns `true` if the given bounding sphere intersects with this bounding box.
+   *
+   * @param {Sphere} sphere - The bounding sphere to test.
+   * @return {boolean} Whether the given bounding sphere intersects with this bounding box.
+   */
+  intersectsSphere(sphere) {
+    this.clampPoint(sphere.center, _vector$b);
+    return _vector$b.distanceToSquared(sphere.center) <= sphere.radius * sphere.radius;
+  }
+  /**
+   * Returns `true` if the given plane intersects with this bounding box.
+   *
+   * @param {Plane} plane - The plane to test.
+   * @return {boolean} Whether the given plane intersects with this bounding box.
+   */
+  intersectsPlane(plane) {
+    let min, max;
+    if (plane.normal.x > 0) {
+      min = plane.normal.x * this.min.x;
+      max = plane.normal.x * this.max.x;
+    } else {
+      min = plane.normal.x * this.max.x;
+      max = plane.normal.x * this.min.x;
+    }
+    if (plane.normal.y > 0) {
+      min += plane.normal.y * this.min.y;
+      max += plane.normal.y * this.max.y;
+    } else {
+      min += plane.normal.y * this.max.y;
+      max += plane.normal.y * this.min.y;
+    }
+    if (plane.normal.z > 0) {
+      min += plane.normal.z * this.min.z;
+      max += plane.normal.z * this.max.z;
+    } else {
+      min += plane.normal.z * this.max.z;
+      max += plane.normal.z * this.min.z;
+    }
+    return min <= -plane.constant && max >= -plane.constant;
+  }
+  /**
+   * Returns `true` if the given triangle intersects with this bounding box.
+   *
+   * @param {Triangle} triangle - The triangle to test.
+   * @return {boolean} Whether the given triangle intersects with this bounding box.
+   */
+  intersectsTriangle(triangle3) {
+    if (this.isEmpty()) {
+      return false;
+    }
+    this.getCenter(_center);
+    _extents.subVectors(this.max, _center);
+    _v0$1.subVectors(triangle3.a, _center);
+    _v1$4.subVectors(triangle3.b, _center);
+    _v2$3.subVectors(triangle3.c, _center);
+    _f0.subVectors(_v1$4, _v0$1);
+    _f1.subVectors(_v2$3, _v1$4);
+    _f2.subVectors(_v0$1, _v2$3);
+    let axes = [
+      0,
+      -_f0.z,
+      _f0.y,
+      0,
+      -_f1.z,
+      _f1.y,
+      0,
+      -_f2.z,
+      _f2.y,
+      _f0.z,
+      0,
+      -_f0.x,
+      _f1.z,
+      0,
+      -_f1.x,
+      _f2.z,
+      0,
+      -_f2.x,
+      -_f0.y,
+      _f0.x,
+      0,
+      -_f1.y,
+      _f1.x,
+      0,
+      -_f2.y,
+      _f2.x,
+      0
+    ];
+    if (!satForAxes(axes, _v0$1, _v1$4, _v2$3, _extents)) {
+      return false;
+    }
+    axes = [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    if (!satForAxes(axes, _v0$1, _v1$4, _v2$3, _extents)) {
+      return false;
+    }
+    _triangleNormal.crossVectors(_f0, _f1);
+    axes = [_triangleNormal.x, _triangleNormal.y, _triangleNormal.z];
+    return satForAxes(axes, _v0$1, _v1$4, _v2$3, _extents);
+  }
+  /**
+   * Clamps the given point within the bounds of this box.
+   *
+   * @param {Vector3} point - The point to clamp.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The clamped point.
+   */
+  clampPoint(point, target) {
+    return target.copy(point).clamp(this.min, this.max);
+  }
+  /**
+   * Returns the euclidean distance from any edge of this box to the specified point. If
+   * the given point lies inside of this box, the distance will be `0`.
+   *
+   * @param {Vector3} point - The point to compute the distance to.
+   * @return {number} The euclidean distance.
+   */
+  distanceToPoint(point) {
+    return this.clampPoint(point, _vector$b).distanceTo(point);
+  }
+  /**
+   * Returns a bounding sphere that encloses this bounding box.
+   *
+   * @param {Sphere} target - The target sphere that is used to store the method's result.
+   * @return {Sphere} The bounding sphere that encloses this bounding box.
+   */
+  getBoundingSphere(target) {
+    if (this.isEmpty()) {
+      target.makeEmpty();
+    } else {
+      this.getCenter(target.center);
+      target.radius = this.getSize(_vector$b).length() * 0.5;
+    }
+    return target;
+  }
+  /**
+   * Computes the intersection of this bounding box and the given one, setting the upper
+   * bound of this box to the lesser of the two boxes' upper bounds and the
+   * lower bound of this box to the greater of the two boxes' lower bounds. If
+   * there's no overlap, makes this box empty.
+   *
+   * @param {Box3} box - The bounding box to intersect with.
+   * @return {Box3} A reference to this bounding box.
+   */
+  intersect(box) {
+    this.min.max(box.min);
+    this.max.min(box.max);
+    if (this.isEmpty()) this.makeEmpty();
+    return this;
+  }
+  /**
+   * Computes the union of this box and another and the given one, setting the upper
+   * bound of this box to the greater of the two boxes' upper bounds and the
+   * lower bound of this box to the lesser of the two boxes' lower bounds.
+   *
+   * @param {Box3} box - The bounding box that will be unioned with this instance.
+   * @return {Box3} A reference to this bounding box.
+   */
+  union(box) {
+    this.min.min(box.min);
+    this.max.max(box.max);
+    return this;
+  }
+  /**
+   * Transforms this bounding box by the given 4x4 transformation matrix.
+   *
+   * @param {Matrix4} matrix - The transformation matrix.
+   * @return {Box3} A reference to this bounding box.
+   */
+  applyMatrix4(matrix) {
+    if (this.isEmpty()) return this;
+    _points[0].set(this.min.x, this.min.y, this.min.z).applyMatrix4(matrix);
+    _points[1].set(this.min.x, this.min.y, this.max.z).applyMatrix4(matrix);
+    _points[2].set(this.min.x, this.max.y, this.min.z).applyMatrix4(matrix);
+    _points[3].set(this.min.x, this.max.y, this.max.z).applyMatrix4(matrix);
+    _points[4].set(this.max.x, this.min.y, this.min.z).applyMatrix4(matrix);
+    _points[5].set(this.max.x, this.min.y, this.max.z).applyMatrix4(matrix);
+    _points[6].set(this.max.x, this.max.y, this.min.z).applyMatrix4(matrix);
+    _points[7].set(this.max.x, this.max.y, this.max.z).applyMatrix4(matrix);
+    this.setFromPoints(_points);
+    return this;
+  }
+  /**
+   * Adds the given offset to both the upper and lower bounds of this bounding box,
+   * effectively moving it in 3D space.
+   *
+   * @param {Vector3} offset - The offset that should be used to translate the bounding box.
+   * @return {Box3} A reference to this bounding box.
+   */
+  translate(offset) {
+    this.min.add(offset);
+    this.max.add(offset);
+    return this;
+  }
+  /**
+   * Returns `true` if this bounding box is equal with the given one.
+   *
+   * @param {Box3} box - The box to test for equality.
+   * @return {boolean} Whether this bounding box is equal with the given one.
+   */
+  equals(box) {
+    return box.min.equals(this.min) && box.max.equals(this.max);
+  }
+  /**
+   * Returns a serialized structure of the bounding box.
+   *
+   * @return {Object} Serialized structure with fields representing the object state.
+   */
+  toJSON() {
+    return {
+      min: this.min.toArray(),
+      max: this.max.toArray()
+    };
+  }
+  /**
+   * Returns a serialized structure of the bounding box.
+   *
+   * @param {Object} json - The serialized json to set the box from.
+   * @return {Box3} A reference to this bounding box.
+   */
+  fromJSON(json) {
+    this.min.fromArray(json.min);
+    this.max.fromArray(json.max);
     return this;
   }
 }
-const _vector$9 = /* @__PURE__ */ new Vector3();
+const _points = [
+  /* @__PURE__ */ new Vector3(),
+  /* @__PURE__ */ new Vector3(),
+  /* @__PURE__ */ new Vector3(),
+  /* @__PURE__ */ new Vector3(),
+  /* @__PURE__ */ new Vector3(),
+  /* @__PURE__ */ new Vector3(),
+  /* @__PURE__ */ new Vector3(),
+  /* @__PURE__ */ new Vector3()
+];
+const _vector$b = /* @__PURE__ */ new Vector3();
+const _box$4 = /* @__PURE__ */ new Box3();
+const _v0$1 = /* @__PURE__ */ new Vector3();
+const _v1$4 = /* @__PURE__ */ new Vector3();
+const _v2$3 = /* @__PURE__ */ new Vector3();
+const _f0 = /* @__PURE__ */ new Vector3();
+const _f1 = /* @__PURE__ */ new Vector3();
+const _f2 = /* @__PURE__ */ new Vector3();
+const _center = /* @__PURE__ */ new Vector3();
+const _extents = /* @__PURE__ */ new Vector3();
+const _triangleNormal = /* @__PURE__ */ new Vector3();
+const _testAxis = /* @__PURE__ */ new Vector3();
+function satForAxes(axes, v0, v1, v2, extents) {
+  for (let i = 0, j = axes.length - 3; i <= j; i += 3) {
+    _testAxis.fromArray(axes, i);
+    const r = extents.x * Math.abs(_testAxis.x) + extents.y * Math.abs(_testAxis.y) + extents.z * Math.abs(_testAxis.z);
+    const p0 = v0.dot(_testAxis);
+    const p1 = v1.dot(_testAxis);
+    const p2 = v2.dot(_testAxis);
+    if (Math.max(-Math.max(p0, p1, p2), Math.min(p0, p1, p2)) > r) {
+      return false;
+    }
+  }
+  return true;
+}
+const _vector$a = /* @__PURE__ */ new Vector3();
 const _vector2$1 = /* @__PURE__ */ new Vector2();
 let _id$2 = 0;
-class BufferAttribute {
+class BufferAttribute extends EventDispatcher {
   /**
    * Constructs a new buffer attribute.
    *
@@ -9958,6 +8667,7 @@ class BufferAttribute {
    * @param {boolean} [normalized=false] - Whether the data are normalized or not.
    */
   constructor(array, itemSize, normalized = false) {
+    super();
     if (Array.isArray(array)) {
       throw new TypeError("THREE.BufferAttribute: array should be a Typed Array.");
     }
@@ -9988,8 +8698,7 @@ class BufferAttribute {
    * @param {boolean} value
    */
   set needsUpdate(value) {
-    if (value === true)
-      this.version++;
+    if (value === true) this.version++;
   }
   /**
    * Sets the usage of this buffer attribute.
@@ -10076,9 +8785,9 @@ class BufferAttribute {
       }
     } else if (this.itemSize === 3) {
       for (let i = 0, l = this.count; i < l; i++) {
-        _vector$9.fromBufferAttribute(this, i);
-        _vector$9.applyMatrix3(m);
-        this.setXYZ(i, _vector$9.x, _vector$9.y, _vector$9.z);
+        _vector$a.fromBufferAttribute(this, i);
+        _vector$a.applyMatrix3(m);
+        this.setXYZ(i, _vector$a.x, _vector$a.y, _vector$a.z);
       }
     }
     return this;
@@ -10092,9 +8801,9 @@ class BufferAttribute {
    */
   applyMatrix4(m) {
     for (let i = 0, l = this.count; i < l; i++) {
-      _vector$9.fromBufferAttribute(this, i);
-      _vector$9.applyMatrix4(m);
-      this.setXYZ(i, _vector$9.x, _vector$9.y, _vector$9.z);
+      _vector$a.fromBufferAttribute(this, i);
+      _vector$a.applyMatrix4(m);
+      this.setXYZ(i, _vector$a.x, _vector$a.y, _vector$a.z);
     }
     return this;
   }
@@ -10107,9 +8816,9 @@ class BufferAttribute {
    */
   applyNormalMatrix(m) {
     for (let i = 0, l = this.count; i < l; i++) {
-      _vector$9.fromBufferAttribute(this, i);
-      _vector$9.applyNormalMatrix(m);
-      this.setXYZ(i, _vector$9.x, _vector$9.y, _vector$9.z);
+      _vector$a.fromBufferAttribute(this, i);
+      _vector$a.applyNormalMatrix(m);
+      this.setXYZ(i, _vector$a.x, _vector$a.y, _vector$a.z);
     }
     return this;
   }
@@ -10122,9 +8831,9 @@ class BufferAttribute {
    */
   transformDirection(m) {
     for (let i = 0, l = this.count; i < l; i++) {
-      _vector$9.fromBufferAttribute(this, i);
-      _vector$9.transformDirection(m);
-      this.setXYZ(i, _vector$9.x, _vector$9.y, _vector$9.z);
+      _vector$a.fromBufferAttribute(this, i);
+      _vector$a.transformDirection(m);
+      this.setXYZ(i, _vector$a.x, _vector$a.y, _vector$a.z);
     }
     return this;
   }
@@ -10148,8 +8857,7 @@ class BufferAttribute {
    */
   getComponent(index, component) {
     let value = this.array[index * this.itemSize + component];
-    if (this.normalized)
-      value = denormalize(value, this.array);
+    if (this.normalized) value = denormalize(value, this.array);
     return value;
   }
   /**
@@ -10161,8 +8869,7 @@ class BufferAttribute {
    * @return {BufferAttribute} A reference to this instance.
    */
   setComponent(index, component, value) {
-    if (this.normalized)
-      value = normalize(value, this.array);
+    if (this.normalized) value = normalize(value, this.array);
     this.array[index * this.itemSize + component] = value;
     return this;
   }
@@ -10174,8 +8881,7 @@ class BufferAttribute {
    */
   getX(index) {
     let x = this.array[index * this.itemSize];
-    if (this.normalized)
-      x = denormalize(x, this.array);
+    if (this.normalized) x = denormalize(x, this.array);
     return x;
   }
   /**
@@ -10186,8 +8892,7 @@ class BufferAttribute {
    * @return {BufferAttribute} A reference to this instance.
    */
   setX(index, x) {
-    if (this.normalized)
-      x = normalize(x, this.array);
+    if (this.normalized) x = normalize(x, this.array);
     this.array[index * this.itemSize] = x;
     return this;
   }
@@ -10199,8 +8904,7 @@ class BufferAttribute {
    */
   getY(index) {
     let y = this.array[index * this.itemSize + 1];
-    if (this.normalized)
-      y = denormalize(y, this.array);
+    if (this.normalized) y = denormalize(y, this.array);
     return y;
   }
   /**
@@ -10211,8 +8915,7 @@ class BufferAttribute {
    * @return {BufferAttribute} A reference to this instance.
    */
   setY(index, y) {
-    if (this.normalized)
-      y = normalize(y, this.array);
+    if (this.normalized) y = normalize(y, this.array);
     this.array[index * this.itemSize + 1] = y;
     return this;
   }
@@ -10224,8 +8927,7 @@ class BufferAttribute {
    */
   getZ(index) {
     let z = this.array[index * this.itemSize + 2];
-    if (this.normalized)
-      z = denormalize(z, this.array);
+    if (this.normalized) z = denormalize(z, this.array);
     return z;
   }
   /**
@@ -10236,8 +8938,7 @@ class BufferAttribute {
    * @return {BufferAttribute} A reference to this instance.
    */
   setZ(index, z) {
-    if (this.normalized)
-      z = normalize(z, this.array);
+    if (this.normalized) z = normalize(z, this.array);
     this.array[index * this.itemSize + 2] = z;
     return this;
   }
@@ -10249,8 +8950,7 @@ class BufferAttribute {
    */
   getW(index) {
     let w = this.array[index * this.itemSize + 3];
-    if (this.normalized)
-      w = denormalize(w, this.array);
+    if (this.normalized) w = denormalize(w, this.array);
     return w;
   }
   /**
@@ -10261,8 +8961,7 @@ class BufferAttribute {
    * @return {BufferAttribute} A reference to this instance.
    */
   setW(index, w) {
-    if (this.normalized)
-      w = normalize(w, this.array);
+    if (this.normalized) w = normalize(w, this.array);
     this.array[index * this.itemSize + 3] = w;
     return this;
   }
@@ -10361,11 +9060,15 @@ class BufferAttribute {
       array: Array.from(this.array),
       normalized: this.normalized
     };
-    if (this.name !== "")
-      data.name = this.name;
-    if (this.usage !== StaticDrawUsage)
-      data.usage = this.usage;
+    if (this.name !== "") data.name = this.name;
+    if (this.usage !== StaticDrawUsage) data.usage = this.usage;
     return data;
+  }
+  /**
+   * Disposes of the buffer attribute. Available only in {@link WebGPURenderer}.
+   */
+  dispose() {
+    this.dispatchEvent({ type: "dispose" });
   }
 }
 class Uint16BufferAttribute extends BufferAttribute {
@@ -10404,13 +9107,284 @@ class Float32BufferAttribute extends BufferAttribute {
     super(new Float32Array(array), itemSize, normalized);
   }
 }
+const _box$3 = /* @__PURE__ */ new Box3();
+const _v1$3 = /* @__PURE__ */ new Vector3();
+const _v2$2 = /* @__PURE__ */ new Vector3();
+class Sphere {
+  /**
+   * Constructs a new sphere.
+   *
+   * @param {Vector3} [center=(0,0,0)] - The center of the sphere
+   * @param {number} [radius=-1] - The radius of the sphere.
+   */
+  constructor(center = new Vector3(), radius = -1) {
+    this.isSphere = true;
+    this.center = center;
+    this.radius = radius;
+  }
+  /**
+   * Sets the sphere's components by copying the given values.
+   *
+   * @param {Vector3} center - The center.
+   * @param {number} radius - The radius.
+   * @return {Sphere} A reference to this sphere.
+   */
+  set(center, radius) {
+    this.center.copy(center);
+    this.radius = radius;
+    return this;
+  }
+  /**
+   * Computes the minimum bounding sphere for list of points.
+   * If the optional center point is given, it is used as the sphere's
+   * center. Otherwise, the center of the axis-aligned bounding box
+   * encompassing the points is calculated.
+   *
+   * @param {Array<Vector3>} points - A list of points in 3D space.
+   * @param {Vector3} [optionalCenter] - The center of the sphere.
+   * @return {Sphere} A reference to this sphere.
+   */
+  setFromPoints(points, optionalCenter) {
+    const center = this.center;
+    if (optionalCenter !== void 0) {
+      center.copy(optionalCenter);
+    } else {
+      _box$3.setFromPoints(points).getCenter(center);
+    }
+    let maxRadiusSq = 0;
+    for (let i = 0, il = points.length; i < il; i++) {
+      maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(points[i]));
+    }
+    this.radius = Math.sqrt(maxRadiusSq);
+    return this;
+  }
+  /**
+   * Copies the values of the given sphere to this instance.
+   *
+   * @param {Sphere} sphere - The sphere to copy.
+   * @return {Sphere} A reference to this sphere.
+   */
+  copy(sphere) {
+    this.center.copy(sphere.center);
+    this.radius = sphere.radius;
+    return this;
+  }
+  /**
+   * Returns `true` if the sphere is empty (the radius set to a negative number).
+   *
+   * Spheres with a radius of `0` contain only their center point and are not
+   * considered to be empty.
+   *
+   * @return {boolean} Whether this sphere is empty or not.
+   */
+  isEmpty() {
+    return this.radius < 0;
+  }
+  /**
+   * Makes this sphere empty which means in encloses a zero space in 3D.
+   *
+   * @return {Sphere} A reference to this sphere.
+   */
+  makeEmpty() {
+    this.center.set(0, 0, 0);
+    this.radius = -1;
+    return this;
+  }
+  /**
+   * Returns `true` if this sphere contains the given point inclusive of
+   * the surface of the sphere.
+   *
+   * @param {Vector3} point - The point to check.
+   * @return {boolean} Whether this sphere contains the given point or not.
+   */
+  containsPoint(point) {
+    return point.distanceToSquared(this.center) <= this.radius * this.radius;
+  }
+  /**
+   * Returns the closest distance from the boundary of the sphere to the
+   * given point. If the sphere contains the point, the distance will
+   * be negative.
+   *
+   * @param {Vector3} point - The point to compute the distance to.
+   * @return {number} The distance to the point.
+   */
+  distanceToPoint(point) {
+    return point.distanceTo(this.center) - this.radius;
+  }
+  /**
+   * Returns `true` if this sphere intersects with the given one.
+   *
+   * @param {Sphere} sphere - The sphere to test.
+   * @return {boolean} Whether this sphere intersects with the given one or not.
+   */
+  intersectsSphere(sphere) {
+    const radiusSum = this.radius + sphere.radius;
+    return sphere.center.distanceToSquared(this.center) <= radiusSum * radiusSum;
+  }
+  /**
+   * Returns `true` if this sphere intersects with the given box.
+   *
+   * @param {Box3} box - The box to test.
+   * @return {boolean} Whether this sphere intersects with the given box or not.
+   */
+  intersectsBox(box) {
+    return box.intersectsSphere(this);
+  }
+  /**
+   * Returns `true` if this sphere intersects with the given plane.
+   *
+   * @param {Plane} plane - The plane to test.
+   * @return {boolean} Whether this sphere intersects with the given plane or not.
+   */
+  intersectsPlane(plane) {
+    return Math.abs(plane.distanceToPoint(this.center)) <= this.radius;
+  }
+  /**
+   * Clamps a point within the sphere. If the point is outside the sphere, it
+   * will clamp it to the closest point on the edge of the sphere. Points
+   * already inside the sphere will not be affected.
+   *
+   * @param {Vector3} point - The plane to clamp.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The clamped point.
+   */
+  clampPoint(point, target) {
+    const deltaLengthSq = this.center.distanceToSquared(point);
+    target.copy(point);
+    if (deltaLengthSq > this.radius * this.radius) {
+      target.sub(this.center).normalize();
+      target.multiplyScalar(this.radius).add(this.center);
+    }
+    return target;
+  }
+  /**
+   * Returns a bounding box that encloses this sphere.
+   *
+   * @param {Box3} target - The target box that is used to store the method's result.
+   * @return {Box3} The bounding box that encloses this sphere.
+   */
+  getBoundingBox(target) {
+    if (this.isEmpty()) {
+      target.makeEmpty();
+      return target;
+    }
+    target.set(this.center, this.center);
+    target.expandByScalar(this.radius);
+    return target;
+  }
+  /**
+   * Transforms this sphere with the given 4x4 transformation matrix.
+   *
+   * @param {Matrix4} matrix - The transformation matrix.
+   * @return {Sphere} A reference to this sphere.
+   */
+  applyMatrix4(matrix) {
+    this.center.applyMatrix4(matrix);
+    this.radius = this.radius * matrix.getMaxScaleOnAxis();
+    return this;
+  }
+  /**
+   * Translates the sphere's center by the given offset.
+   *
+   * @param {Vector3} offset - The offset.
+   * @return {Sphere} A reference to this sphere.
+   */
+  translate(offset) {
+    this.center.add(offset);
+    return this;
+  }
+  /**
+   * Expands the boundaries of this sphere to include the given point.
+   *
+   * @param {Vector3} point - The point to include.
+   * @return {Sphere} A reference to this sphere.
+   */
+  expandByPoint(point) {
+    if (this.isEmpty()) {
+      this.center.copy(point);
+      this.radius = 0;
+      return this;
+    }
+    _v1$3.subVectors(point, this.center);
+    const lengthSq = _v1$3.lengthSq();
+    if (lengthSq > this.radius * this.radius) {
+      const length = Math.sqrt(lengthSq);
+      const delta = (length - this.radius) * 0.5;
+      this.center.addScaledVector(_v1$3, delta / length);
+      this.radius += delta;
+    }
+    return this;
+  }
+  /**
+   * Expands this sphere to enclose both the original sphere and the given sphere.
+   *
+   * @param {Sphere} sphere - The sphere to include.
+   * @return {Sphere} A reference to this sphere.
+   */
+  union(sphere) {
+    if (sphere.isEmpty()) {
+      return this;
+    }
+    if (this.isEmpty()) {
+      this.copy(sphere);
+      return this;
+    }
+    if (this.center.equals(sphere.center) === true) {
+      this.radius = Math.max(this.radius, sphere.radius);
+    } else {
+      _v2$2.subVectors(sphere.center, this.center).setLength(sphere.radius);
+      this.expandByPoint(_v1$3.copy(sphere.center).add(_v2$2));
+      this.expandByPoint(_v1$3.copy(sphere.center).sub(_v2$2));
+    }
+    return this;
+  }
+  /**
+   * Returns `true` if this sphere is equal with the given one.
+   *
+   * @param {Sphere} sphere - The sphere to test for equality.
+   * @return {boolean} Whether this bounding sphere is equal with the given one.
+   */
+  equals(sphere) {
+    return sphere.center.equals(this.center) && sphere.radius === this.radius;
+  }
+  /**
+   * Returns a new sphere with copied values from this instance.
+   *
+   * @return {Sphere} A clone of this instance.
+   */
+  clone() {
+    return new this.constructor().copy(this);
+  }
+  /**
+   * Returns a serialized structure of the bounding sphere.
+   *
+   * @return {Object} Serialized structure with fields representing the object state.
+   */
+  toJSON() {
+    return {
+      radius: this.radius,
+      center: this.center.toArray()
+    };
+  }
+  /**
+   * Returns a serialized structure of the bounding sphere.
+   *
+   * @param {Object} json - The serialized json to set the sphere from.
+   * @return {Sphere} A reference to this bounding sphere.
+   */
+  fromJSON(json) {
+    this.radius = json.radius;
+    this.center.fromArray(json.center);
+    return this;
+  }
+}
 let _id$1 = 0;
 const _m1 = /* @__PURE__ */ new Matrix4();
 const _obj = /* @__PURE__ */ new Object3D();
 const _offset = /* @__PURE__ */ new Vector3();
 const _box$2 = /* @__PURE__ */ new Box3();
 const _boxMorphTargets = /* @__PURE__ */ new Box3();
-const _vector$8 = /* @__PURE__ */ new Vector3();
+const _vector$9 = /* @__PURE__ */ new Vector3();
 class BufferGeometry extends EventDispatcher {
   /**
    * Constructs a new geometry.
@@ -10743,10 +9717,10 @@ class BufferGeometry extends EventDispatcher {
           const morphAttribute = morphAttributesPosition[i];
           _box$2.setFromBufferAttribute(morphAttribute);
           if (this.morphTargetsRelative) {
-            _vector$8.addVectors(this.boundingBox.min, _box$2.min);
-            this.boundingBox.expandByPoint(_vector$8);
-            _vector$8.addVectors(this.boundingBox.max, _box$2.max);
-            this.boundingBox.expandByPoint(_vector$8);
+            _vector$9.addVectors(this.boundingBox.min, _box$2.min);
+            this.boundingBox.expandByPoint(_vector$9);
+            _vector$9.addVectors(this.boundingBox.max, _box$2.max);
+            this.boundingBox.expandByPoint(_vector$9);
           } else {
             this.boundingBox.expandByPoint(_box$2.min);
             this.boundingBox.expandByPoint(_box$2.max);
@@ -10784,10 +9758,10 @@ class BufferGeometry extends EventDispatcher {
           const morphAttribute = morphAttributesPosition[i];
           _boxMorphTargets.setFromBufferAttribute(morphAttribute);
           if (this.morphTargetsRelative) {
-            _vector$8.addVectors(_box$2.min, _boxMorphTargets.min);
-            _box$2.expandByPoint(_vector$8);
-            _vector$8.addVectors(_box$2.max, _boxMorphTargets.max);
-            _box$2.expandByPoint(_vector$8);
+            _vector$9.addVectors(_box$2.min, _boxMorphTargets.min);
+            _box$2.expandByPoint(_vector$9);
+            _vector$9.addVectors(_box$2.max, _boxMorphTargets.max);
+            _box$2.expandByPoint(_vector$9);
           } else {
             _box$2.expandByPoint(_boxMorphTargets.min);
             _box$2.expandByPoint(_boxMorphTargets.max);
@@ -10797,20 +9771,20 @@ class BufferGeometry extends EventDispatcher {
       _box$2.getCenter(center);
       let maxRadiusSq = 0;
       for (let i = 0, il = position.count; i < il; i++) {
-        _vector$8.fromBufferAttribute(position, i);
-        maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(_vector$8));
+        _vector$9.fromBufferAttribute(position, i);
+        maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(_vector$9));
       }
       if (morphAttributesPosition) {
         for (let i = 0, il = morphAttributesPosition.length; i < il; i++) {
           const morphAttribute = morphAttributesPosition[i];
           const morphTargetsRelative = this.morphTargetsRelative;
           for (let j = 0, jl = morphAttribute.count; j < jl; j++) {
-            _vector$8.fromBufferAttribute(morphAttribute, j);
+            _vector$9.fromBufferAttribute(morphAttribute, j);
             if (morphTargetsRelative) {
               _offset.fromBufferAttribute(position, j);
-              _vector$8.add(_offset);
+              _vector$9.add(_offset);
             }
-            maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(_vector$8));
+            maxRadiusSq = Math.max(maxRadiusSq, center.distanceToSquared(_vector$9));
           }
         }
       }
@@ -10859,8 +9833,7 @@ class BufferGeometry extends EventDispatcher {
       uvB.sub(uvA);
       uvC.sub(uvA);
       const r = 1 / (uvB.x * uvC.y - uvC.x * uvB.y);
-      if (!isFinite(r))
-        return;
+      if (!isFinite(r)) return;
       sdir.copy(vB).multiplyScalar(uvC.y).addScaledVector(vC, -uvB.y).multiplyScalar(r);
       tdir.copy(vC).multiplyScalar(uvB.x).addScaledVector(vB, -uvC.x).multiplyScalar(r);
       tan1[a].add(sdir);
@@ -10980,9 +9953,9 @@ class BufferGeometry extends EventDispatcher {
   normalizeNormals() {
     const normals = this.attributes.normal;
     for (let i = 0, il = normals.count; i < il; i++) {
-      _vector$8.fromBufferAttribute(normals, i);
-      _vector$8.normalize();
-      normals.setXYZ(i, _vector$8.x, _vector$8.y, _vector$8.z);
+      _vector$9.fromBufferAttribute(normals, i);
+      _vector$9.normalize();
+      normals.setXYZ(i, _vector$9.x, _vector$9.y, _vector$9.z);
     }
   }
   /**
@@ -11056,15 +10029,12 @@ class BufferGeometry extends EventDispatcher {
     };
     data.uuid = this.uuid;
     data.type = this.type;
-    if (this.name !== "")
-      data.name = this.name;
-    if (Object.keys(this.userData).length > 0)
-      data.userData = this.userData;
+    if (this.name !== "") data.name = this.name;
+    if (Object.keys(this.userData).length > 0) data.userData = this.userData;
     if (this.parameters !== void 0) {
       const parameters = this.parameters;
       for (const key in parameters) {
-        if (parameters[key] !== void 0)
-          data[key] = parameters[key];
+        if (parameters[key] !== void 0) data[key] = parameters[key];
       }
       return data;
     }
@@ -11179,6 +10149,867 @@ class BufferGeometry extends EventDispatcher {
     this.dispatchEvent({ type: "dispose" });
   }
 }
+let _materialId = 0;
+let Material$1 = class Material extends EventDispatcher {
+  /**
+   * Constructs a new material.
+   */
+  constructor() {
+    super();
+    this.isMaterial = true;
+    Object.defineProperty(this, "id", { value: _materialId++ });
+    this.uuid = generateUUID();
+    this.name = "";
+    this.type = "Material";
+    this.blending = NormalBlending;
+    this.side = FrontSide;
+    this.vertexColors = false;
+    this.opacity = 1;
+    this.transparent = false;
+    this.alphaHash = false;
+    this.blendSrc = SrcAlphaFactor;
+    this.blendDst = OneMinusSrcAlphaFactor;
+    this.blendEquation = AddEquation;
+    this.blendSrcAlpha = null;
+    this.blendDstAlpha = null;
+    this.blendEquationAlpha = null;
+    this.blendColor = new Color(0, 0, 0);
+    this.blendAlpha = 0;
+    this.depthFunc = LessEqualDepth;
+    this.depthTest = true;
+    this.depthWrite = true;
+    this.stencilWriteMask = 255;
+    this.stencilFunc = AlwaysStencilFunc;
+    this.stencilRef = 0;
+    this.stencilFuncMask = 255;
+    this.stencilFail = KeepStencilOp;
+    this.stencilZFail = KeepStencilOp;
+    this.stencilZPass = KeepStencilOp;
+    this.stencilWrite = false;
+    this.clippingPlanes = null;
+    this.clipIntersection = false;
+    this.clipShadows = false;
+    this.shadowSide = null;
+    this.colorWrite = true;
+    this.precision = null;
+    this.polygonOffset = false;
+    this.polygonOffsetFactor = 0;
+    this.polygonOffsetUnits = 0;
+    this.dithering = false;
+    this.alphaToCoverage = false;
+    this.premultipliedAlpha = false;
+    this.forceSinglePass = false;
+    this.allowOverride = true;
+    this.visible = true;
+    this.toneMapped = true;
+    this.userData = {};
+    this.version = 0;
+    this._alphaTest = 0;
+  }
+  /**
+   * Sets the alpha value to be used when running an alpha test. The material
+   * will not be rendered if the opacity is lower than this value.
+   *
+   * @type {number}
+   * @readonly
+   * @default 0
+   */
+  get alphaTest() {
+    return this._alphaTest;
+  }
+  set alphaTest(value) {
+    if (this._alphaTest > 0 !== value > 0) {
+      this.version++;
+    }
+    this._alphaTest = value;
+  }
+  /**
+   * An optional callback that is executed immediately before the material is used to render a 3D object.
+   *
+   * This method can only be used when rendering with {@link WebGLRenderer}.
+   *
+   * @param {WebGLRenderer} renderer - The renderer.
+   * @param {Scene} scene - The scene.
+   * @param {Camera} camera - The camera that is used to render the scene.
+   * @param {BufferGeometry} geometry - The 3D object's geometry.
+   * @param {Object3D} object - The 3D object.
+   * @param {Object} group - The geometry group data.
+   */
+  onBeforeRender() {
+  }
+  /**
+   * An optional callback that is executed immediately before the shader
+   * program is compiled. This function is called with the shader source code
+   * as a parameter. Useful for the modification of built-in materials.
+   *
+   * This method can only be used when rendering with {@link WebGLRenderer}. The
+   * recommended approach when customizing materials is to use `WebGPURenderer` with the new
+   * Node Material system and [TSL](https://github.com/mrdoob/three.js/wiki/Three.js-Shading-Language).
+   *
+   * @param {{vertexShader:string,fragmentShader:string,uniforms:Object}} shaderobject - The object holds the uniforms and the vertex and fragment shader source.
+   * @param {WebGLRenderer} renderer - A reference to the renderer.
+   */
+  onBeforeCompile() {
+  }
+  /**
+   * In case {@link Material#onBeforeCompile} is used, this callback can be used to identify
+   * values of settings used in `onBeforeCompile()`, so three.js can reuse a cached
+   * shader or recompile the shader for this material as needed.
+   *
+   * This method can only be used when rendering with {@link WebGLRenderer}.
+   *
+   * @return {string} The custom program cache key.
+   */
+  customProgramCacheKey() {
+    return this.onBeforeCompile.toString();
+  }
+  /**
+   * This method can be used to set default values from parameter objects.
+   * It is a generic implementation so it can be used with different types
+   * of materials.
+   *
+   * @param {Object} [values] - The material values to set.
+   */
+  setValues(values) {
+    if (values === void 0) return;
+    for (const key in values) {
+      const newValue = values[key];
+      if (newValue === void 0) {
+        warn(`Material: parameter '${key}' has value of undefined.`);
+        continue;
+      }
+      const currentValue = this[key];
+      if (currentValue === void 0) {
+        warn(`Material: '${key}' is not a property of THREE.${this.type}.`);
+        continue;
+      }
+      if (currentValue && currentValue.isColor) {
+        currentValue.set(newValue);
+      } else if (currentValue && currentValue.isVector3 && (newValue && newValue.isVector3)) {
+        currentValue.copy(newValue);
+      } else {
+        this[key] = newValue;
+      }
+    }
+  }
+  /**
+   * Serializes the material into JSON.
+   *
+   * @param {?(Object|string)} meta - An optional value holding meta information about the serialization.
+   * @return {Object} A JSON object representing the serialized material.
+   * @see {@link ObjectLoader#parse}
+   */
+  toJSON(meta) {
+    const isRootObject = meta === void 0 || typeof meta === "string";
+    if (isRootObject) {
+      meta = {
+        textures: {},
+        images: {}
+      };
+    }
+    const data = {
+      metadata: {
+        version: 4.7,
+        type: "Material",
+        generator: "Material.toJSON"
+      }
+    };
+    data.uuid = this.uuid;
+    data.type = this.type;
+    if (this.name !== "") data.name = this.name;
+    if (this.color && this.color.isColor) data.color = this.color.getHex();
+    if (this.roughness !== void 0) data.roughness = this.roughness;
+    if (this.metalness !== void 0) data.metalness = this.metalness;
+    if (this.sheen !== void 0) data.sheen = this.sheen;
+    if (this.sheenColor && this.sheenColor.isColor) data.sheenColor = this.sheenColor.getHex();
+    if (this.sheenRoughness !== void 0) data.sheenRoughness = this.sheenRoughness;
+    if (this.emissive && this.emissive.isColor) data.emissive = this.emissive.getHex();
+    if (this.emissiveIntensity !== void 0 && this.emissiveIntensity !== 1) data.emissiveIntensity = this.emissiveIntensity;
+    if (this.specular && this.specular.isColor) data.specular = this.specular.getHex();
+    if (this.specularIntensity !== void 0) data.specularIntensity = this.specularIntensity;
+    if (this.specularColor && this.specularColor.isColor) data.specularColor = this.specularColor.getHex();
+    if (this.shininess !== void 0) data.shininess = this.shininess;
+    if (this.clearcoat !== void 0) data.clearcoat = this.clearcoat;
+    if (this.clearcoatRoughness !== void 0) data.clearcoatRoughness = this.clearcoatRoughness;
+    if (this.clearcoatMap && this.clearcoatMap.isTexture) {
+      data.clearcoatMap = this.clearcoatMap.toJSON(meta).uuid;
+    }
+    if (this.clearcoatRoughnessMap && this.clearcoatRoughnessMap.isTexture) {
+      data.clearcoatRoughnessMap = this.clearcoatRoughnessMap.toJSON(meta).uuid;
+    }
+    if (this.clearcoatNormalMap && this.clearcoatNormalMap.isTexture) {
+      data.clearcoatNormalMap = this.clearcoatNormalMap.toJSON(meta).uuid;
+      data.clearcoatNormalScale = this.clearcoatNormalScale.toArray();
+    }
+    if (this.sheenColorMap && this.sheenColorMap.isTexture) {
+      data.sheenColorMap = this.sheenColorMap.toJSON(meta).uuid;
+    }
+    if (this.sheenRoughnessMap && this.sheenRoughnessMap.isTexture) {
+      data.sheenRoughnessMap = this.sheenRoughnessMap.toJSON(meta).uuid;
+    }
+    if (this.dispersion !== void 0) data.dispersion = this.dispersion;
+    if (this.iridescence !== void 0) data.iridescence = this.iridescence;
+    if (this.iridescenceIOR !== void 0) data.iridescenceIOR = this.iridescenceIOR;
+    if (this.iridescenceThicknessRange !== void 0) data.iridescenceThicknessRange = this.iridescenceThicknessRange;
+    if (this.iridescenceMap && this.iridescenceMap.isTexture) {
+      data.iridescenceMap = this.iridescenceMap.toJSON(meta).uuid;
+    }
+    if (this.iridescenceThicknessMap && this.iridescenceThicknessMap.isTexture) {
+      data.iridescenceThicknessMap = this.iridescenceThicknessMap.toJSON(meta).uuid;
+    }
+    if (this.anisotropy !== void 0) data.anisotropy = this.anisotropy;
+    if (this.anisotropyRotation !== void 0) data.anisotropyRotation = this.anisotropyRotation;
+    if (this.anisotropyMap && this.anisotropyMap.isTexture) {
+      data.anisotropyMap = this.anisotropyMap.toJSON(meta).uuid;
+    }
+    if (this.map && this.map.isTexture) data.map = this.map.toJSON(meta).uuid;
+    if (this.matcap && this.matcap.isTexture) data.matcap = this.matcap.toJSON(meta).uuid;
+    if (this.alphaMap && this.alphaMap.isTexture) data.alphaMap = this.alphaMap.toJSON(meta).uuid;
+    if (this.lightMap && this.lightMap.isTexture) {
+      data.lightMap = this.lightMap.toJSON(meta).uuid;
+      data.lightMapIntensity = this.lightMapIntensity;
+    }
+    if (this.aoMap && this.aoMap.isTexture) {
+      data.aoMap = this.aoMap.toJSON(meta).uuid;
+      data.aoMapIntensity = this.aoMapIntensity;
+    }
+    if (this.bumpMap && this.bumpMap.isTexture) {
+      data.bumpMap = this.bumpMap.toJSON(meta).uuid;
+      data.bumpScale = this.bumpScale;
+    }
+    if (this.normalMap && this.normalMap.isTexture) {
+      data.normalMap = this.normalMap.toJSON(meta).uuid;
+      data.normalMapType = this.normalMapType;
+      data.normalScale = this.normalScale.toArray();
+    }
+    if (this.displacementMap && this.displacementMap.isTexture) {
+      data.displacementMap = this.displacementMap.toJSON(meta).uuid;
+      data.displacementScale = this.displacementScale;
+      data.displacementBias = this.displacementBias;
+    }
+    if (this.roughnessMap && this.roughnessMap.isTexture) data.roughnessMap = this.roughnessMap.toJSON(meta).uuid;
+    if (this.metalnessMap && this.metalnessMap.isTexture) data.metalnessMap = this.metalnessMap.toJSON(meta).uuid;
+    if (this.emissiveMap && this.emissiveMap.isTexture) data.emissiveMap = this.emissiveMap.toJSON(meta).uuid;
+    if (this.specularMap && this.specularMap.isTexture) data.specularMap = this.specularMap.toJSON(meta).uuid;
+    if (this.specularIntensityMap && this.specularIntensityMap.isTexture) data.specularIntensityMap = this.specularIntensityMap.toJSON(meta).uuid;
+    if (this.specularColorMap && this.specularColorMap.isTexture) data.specularColorMap = this.specularColorMap.toJSON(meta).uuid;
+    if (this.envMap && this.envMap.isTexture) {
+      data.envMap = this.envMap.toJSON(meta).uuid;
+      if (this.combine !== void 0) data.combine = this.combine;
+    }
+    if (this.envMapRotation !== void 0) data.envMapRotation = this.envMapRotation.toArray();
+    if (this.envMapIntensity !== void 0) data.envMapIntensity = this.envMapIntensity;
+    if (this.reflectivity !== void 0) data.reflectivity = this.reflectivity;
+    if (this.refractionRatio !== void 0) data.refractionRatio = this.refractionRatio;
+    if (this.gradientMap && this.gradientMap.isTexture) {
+      data.gradientMap = this.gradientMap.toJSON(meta).uuid;
+    }
+    if (this.transmission !== void 0) data.transmission = this.transmission;
+    if (this.transmissionMap && this.transmissionMap.isTexture) data.transmissionMap = this.transmissionMap.toJSON(meta).uuid;
+    if (this.thickness !== void 0) data.thickness = this.thickness;
+    if (this.thicknessMap && this.thicknessMap.isTexture) data.thicknessMap = this.thicknessMap.toJSON(meta).uuid;
+    if (this.attenuationDistance !== void 0 && this.attenuationDistance !== Infinity) data.attenuationDistance = this.attenuationDistance;
+    if (this.attenuationColor !== void 0) data.attenuationColor = this.attenuationColor.getHex();
+    if (this.size !== void 0) data.size = this.size;
+    if (this.shadowSide !== null) data.shadowSide = this.shadowSide;
+    if (this.sizeAttenuation !== void 0) data.sizeAttenuation = this.sizeAttenuation;
+    if (this.blending !== NormalBlending) data.blending = this.blending;
+    if (this.side !== FrontSide) data.side = this.side;
+    if (this.vertexColors === true) data.vertexColors = true;
+    if (this.opacity < 1) data.opacity = this.opacity;
+    if (this.transparent === true) data.transparent = true;
+    if (this.blendSrc !== SrcAlphaFactor) data.blendSrc = this.blendSrc;
+    if (this.blendDst !== OneMinusSrcAlphaFactor) data.blendDst = this.blendDst;
+    if (this.blendEquation !== AddEquation) data.blendEquation = this.blendEquation;
+    if (this.blendSrcAlpha !== null) data.blendSrcAlpha = this.blendSrcAlpha;
+    if (this.blendDstAlpha !== null) data.blendDstAlpha = this.blendDstAlpha;
+    if (this.blendEquationAlpha !== null) data.blendEquationAlpha = this.blendEquationAlpha;
+    if (this.blendColor && this.blendColor.isColor) data.blendColor = this.blendColor.getHex();
+    if (this.blendAlpha !== 0) data.blendAlpha = this.blendAlpha;
+    if (this.depthFunc !== LessEqualDepth) data.depthFunc = this.depthFunc;
+    if (this.depthTest === false) data.depthTest = this.depthTest;
+    if (this.depthWrite === false) data.depthWrite = this.depthWrite;
+    if (this.colorWrite === false) data.colorWrite = this.colorWrite;
+    if (this.stencilWriteMask !== 255) data.stencilWriteMask = this.stencilWriteMask;
+    if (this.stencilFunc !== AlwaysStencilFunc) data.stencilFunc = this.stencilFunc;
+    if (this.stencilRef !== 0) data.stencilRef = this.stencilRef;
+    if (this.stencilFuncMask !== 255) data.stencilFuncMask = this.stencilFuncMask;
+    if (this.stencilFail !== KeepStencilOp) data.stencilFail = this.stencilFail;
+    if (this.stencilZFail !== KeepStencilOp) data.stencilZFail = this.stencilZFail;
+    if (this.stencilZPass !== KeepStencilOp) data.stencilZPass = this.stencilZPass;
+    if (this.stencilWrite === true) data.stencilWrite = this.stencilWrite;
+    if (this.rotation !== void 0 && this.rotation !== 0) data.rotation = this.rotation;
+    if (this.polygonOffset === true) data.polygonOffset = true;
+    if (this.polygonOffsetFactor !== 0) data.polygonOffsetFactor = this.polygonOffsetFactor;
+    if (this.polygonOffsetUnits !== 0) data.polygonOffsetUnits = this.polygonOffsetUnits;
+    if (this.linewidth !== void 0 && this.linewidth !== 1) data.linewidth = this.linewidth;
+    if (this.dashSize !== void 0) data.dashSize = this.dashSize;
+    if (this.gapSize !== void 0) data.gapSize = this.gapSize;
+    if (this.scale !== void 0) data.scale = this.scale;
+    if (this.dithering === true) data.dithering = true;
+    if (this.alphaTest > 0) data.alphaTest = this.alphaTest;
+    if (this.alphaHash === true) data.alphaHash = true;
+    if (this.alphaToCoverage === true) data.alphaToCoverage = true;
+    if (this.premultipliedAlpha === true) data.premultipliedAlpha = true;
+    if (this.forceSinglePass === true) data.forceSinglePass = true;
+    if (this.allowOverride === false) data.allowOverride = false;
+    if (this.wireframe === true) data.wireframe = true;
+    if (this.wireframeLinewidth > 1) data.wireframeLinewidth = this.wireframeLinewidth;
+    if (this.wireframeLinecap !== "round") data.wireframeLinecap = this.wireframeLinecap;
+    if (this.wireframeLinejoin !== "round") data.wireframeLinejoin = this.wireframeLinejoin;
+    if (this.flatShading === true) data.flatShading = true;
+    if (this.visible === false) data.visible = false;
+    if (this.toneMapped === false) data.toneMapped = false;
+    if (this.fog === false) data.fog = false;
+    if (Object.keys(this.userData).length > 0) data.userData = this.userData;
+    function extractFromCache(cache) {
+      const values = [];
+      for (const key in cache) {
+        const data2 = cache[key];
+        delete data2.metadata;
+        values.push(data2);
+      }
+      return values;
+    }
+    if (isRootObject) {
+      const textures = extractFromCache(meta.textures);
+      const images = extractFromCache(meta.images);
+      if (textures.length > 0) data.textures = textures;
+      if (images.length > 0) data.images = images;
+    }
+    return data;
+  }
+  /**
+   * Returns a new material with copied values from this instance.
+   *
+   * @return {Material} A clone of this instance.
+   */
+  clone() {
+    return new this.constructor().copy(this);
+  }
+  /**
+   * Copies the values of the given material to this instance.
+   *
+   * @param {Material} source - The material to copy.
+   * @return {Material} A reference to this instance.
+   */
+  copy(source) {
+    this.name = source.name;
+    this.blending = source.blending;
+    this.side = source.side;
+    this.vertexColors = source.vertexColors;
+    this.opacity = source.opacity;
+    this.transparent = source.transparent;
+    this.blendSrc = source.blendSrc;
+    this.blendDst = source.blendDst;
+    this.blendEquation = source.blendEquation;
+    this.blendSrcAlpha = source.blendSrcAlpha;
+    this.blendDstAlpha = source.blendDstAlpha;
+    this.blendEquationAlpha = source.blendEquationAlpha;
+    this.blendColor.copy(source.blendColor);
+    this.blendAlpha = source.blendAlpha;
+    this.depthFunc = source.depthFunc;
+    this.depthTest = source.depthTest;
+    this.depthWrite = source.depthWrite;
+    this.stencilWriteMask = source.stencilWriteMask;
+    this.stencilFunc = source.stencilFunc;
+    this.stencilRef = source.stencilRef;
+    this.stencilFuncMask = source.stencilFuncMask;
+    this.stencilFail = source.stencilFail;
+    this.stencilZFail = source.stencilZFail;
+    this.stencilZPass = source.stencilZPass;
+    this.stencilWrite = source.stencilWrite;
+    const srcPlanes = source.clippingPlanes;
+    let dstPlanes = null;
+    if (srcPlanes !== null) {
+      const n = srcPlanes.length;
+      dstPlanes = new Array(n);
+      for (let i = 0; i !== n; ++i) {
+        dstPlanes[i] = srcPlanes[i].clone();
+      }
+    }
+    this.clippingPlanes = dstPlanes;
+    this.clipIntersection = source.clipIntersection;
+    this.clipShadows = source.clipShadows;
+    this.shadowSide = source.shadowSide;
+    this.colorWrite = source.colorWrite;
+    this.precision = source.precision;
+    this.polygonOffset = source.polygonOffset;
+    this.polygonOffsetFactor = source.polygonOffsetFactor;
+    this.polygonOffsetUnits = source.polygonOffsetUnits;
+    this.dithering = source.dithering;
+    this.alphaTest = source.alphaTest;
+    this.alphaHash = source.alphaHash;
+    this.alphaToCoverage = source.alphaToCoverage;
+    this.premultipliedAlpha = source.premultipliedAlpha;
+    this.forceSinglePass = source.forceSinglePass;
+    this.allowOverride = source.allowOverride;
+    this.visible = source.visible;
+    this.toneMapped = source.toneMapped;
+    this.userData = JSON.parse(JSON.stringify(source.userData));
+    return this;
+  }
+  /**
+   * Frees the GPU-related resources allocated by this instance. Call this
+   * method whenever this instance is no longer used in your app.
+   *
+   * @fires Material#dispose
+   */
+  dispose() {
+    this.dispatchEvent({ type: "dispose" });
+  }
+  /**
+   * Setting this property to `true` indicates the engine the material
+   * needs to be recompiled.
+   *
+   * @type {boolean}
+   * @default false
+   * @param {boolean} value
+   */
+  set needsUpdate(value) {
+    if (value === true) this.version++;
+  }
+};
+const _vector$7 = /* @__PURE__ */ new Vector3();
+const _segCenter = /* @__PURE__ */ new Vector3();
+const _segDir = /* @__PURE__ */ new Vector3();
+const _diff = /* @__PURE__ */ new Vector3();
+const _edge1 = /* @__PURE__ */ new Vector3();
+const _edge2 = /* @__PURE__ */ new Vector3();
+const _normal$1 = /* @__PURE__ */ new Vector3();
+class Ray {
+  /**
+   * Constructs a new ray.
+   *
+   * @param {Vector3} [origin=(0,0,0)] - The origin of the ray.
+   * @param {Vector3} [direction=(0,0,-1)] - The (normalized) direction of the ray.
+   */
+  constructor(origin = new Vector3(), direction = new Vector3(0, 0, -1)) {
+    this.origin = origin;
+    this.direction = direction;
+  }
+  /**
+   * Sets the ray's components by copying the given values.
+   *
+   * @param {Vector3} origin - The origin.
+   * @param {Vector3} direction - The direction.
+   * @return {Ray} A reference to this ray.
+   */
+  set(origin, direction) {
+    this.origin.copy(origin);
+    this.direction.copy(direction);
+    return this;
+  }
+  /**
+   * Copies the values of the given ray to this instance.
+   *
+   * @param {Ray} ray - The ray to copy.
+   * @return {Ray} A reference to this ray.
+   */
+  copy(ray) {
+    this.origin.copy(ray.origin);
+    this.direction.copy(ray.direction);
+    return this;
+  }
+  /**
+   * Returns a vector that is located at a given distance along this ray.
+   *
+   * @param {number} t - The distance along the ray to retrieve a position for.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} A position on the ray.
+   */
+  at(t, target) {
+    return target.copy(this.origin).addScaledVector(this.direction, t);
+  }
+  /**
+   * Adjusts the direction of the ray to point at the given vector in world space.
+   *
+   * @param {Vector3} v - The target position.
+   * @return {Ray} A reference to this ray.
+   */
+  lookAt(v) {
+    this.direction.copy(v).sub(this.origin).normalize();
+    return this;
+  }
+  /**
+   * Shift the origin of this ray along its direction by the given distance.
+   *
+   * @param {number} t - The distance along the ray to interpolate.
+   * @return {Ray} A reference to this ray.
+   */
+  recast(t) {
+    this.origin.copy(this.at(t, _vector$7));
+    return this;
+  }
+  /**
+   * Returns the point along this ray that is closest to the given point.
+   *
+   * @param {Vector3} point - A point in 3D space to get the closet location on the ray for.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {Vector3} The closest point on this ray.
+   */
+  closestPointToPoint(point, target) {
+    target.subVectors(point, this.origin);
+    const directionDistance = target.dot(this.direction);
+    if (directionDistance < 0) {
+      return target.copy(this.origin);
+    }
+    return target.copy(this.origin).addScaledVector(this.direction, directionDistance);
+  }
+  /**
+   * Returns the distance of the closest approach between this ray and the given point.
+   *
+   * @param {Vector3} point - A point in 3D space to compute the distance to.
+   * @return {number} The distance.
+   */
+  distanceToPoint(point) {
+    return Math.sqrt(this.distanceSqToPoint(point));
+  }
+  /**
+   * Returns the squared distance of the closest approach between this ray and the given point.
+   *
+   * @param {Vector3} point - A point in 3D space to compute the distance to.
+   * @return {number} The squared distance.
+   */
+  distanceSqToPoint(point) {
+    const directionDistance = _vector$7.subVectors(point, this.origin).dot(this.direction);
+    if (directionDistance < 0) {
+      return this.origin.distanceToSquared(point);
+    }
+    _vector$7.copy(this.origin).addScaledVector(this.direction, directionDistance);
+    return _vector$7.distanceToSquared(point);
+  }
+  /**
+   * Returns the squared distance between this ray and the given line segment.
+   *
+   * @param {Vector3} v0 - The start point of the line segment.
+   * @param {Vector3} v1 - The end point of the line segment.
+   * @param {Vector3} [optionalPointOnRay] - When provided, it receives the point on this ray that is closest to the segment.
+   * @param {Vector3} [optionalPointOnSegment] - When provided, it receives the point on the line segment that is closest to this ray.
+   * @return {number} The squared distance.
+   */
+  distanceSqToSegment(v0, v1, optionalPointOnRay, optionalPointOnSegment) {
+    _segCenter.copy(v0).add(v1).multiplyScalar(0.5);
+    _segDir.copy(v1).sub(v0).normalize();
+    _diff.copy(this.origin).sub(_segCenter);
+    const segExtent = v0.distanceTo(v1) * 0.5;
+    const a01 = -this.direction.dot(_segDir);
+    const b0 = _diff.dot(this.direction);
+    const b1 = -_diff.dot(_segDir);
+    const c = _diff.lengthSq();
+    const det = Math.abs(1 - a01 * a01);
+    let s0, s1, sqrDist, extDet;
+    if (det > 0) {
+      s0 = a01 * b1 - b0;
+      s1 = a01 * b0 - b1;
+      extDet = segExtent * det;
+      if (s0 >= 0) {
+        if (s1 >= -extDet) {
+          if (s1 <= extDet) {
+            const invDet = 1 / det;
+            s0 *= invDet;
+            s1 *= invDet;
+            sqrDist = s0 * (s0 + a01 * s1 + 2 * b0) + s1 * (a01 * s0 + s1 + 2 * b1) + c;
+          } else {
+            s1 = segExtent;
+            s0 = Math.max(0, -(a01 * s1 + b0));
+            sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
+          }
+        } else {
+          s1 = -segExtent;
+          s0 = Math.max(0, -(a01 * s1 + b0));
+          sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
+        }
+      } else {
+        if (s1 <= -extDet) {
+          s0 = Math.max(0, -(-a01 * segExtent + b0));
+          s1 = s0 > 0 ? -segExtent : Math.min(Math.max(-segExtent, -b1), segExtent);
+          sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
+        } else if (s1 <= extDet) {
+          s0 = 0;
+          s1 = Math.min(Math.max(-segExtent, -b1), segExtent);
+          sqrDist = s1 * (s1 + 2 * b1) + c;
+        } else {
+          s0 = Math.max(0, -(a01 * segExtent + b0));
+          s1 = s0 > 0 ? segExtent : Math.min(Math.max(-segExtent, -b1), segExtent);
+          sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
+        }
+      }
+    } else {
+      s1 = a01 > 0 ? -segExtent : segExtent;
+      s0 = Math.max(0, -(a01 * s1 + b0));
+      sqrDist = -s0 * s0 + s1 * (s1 + 2 * b1) + c;
+    }
+    if (optionalPointOnRay) {
+      optionalPointOnRay.copy(this.origin).addScaledVector(this.direction, s0);
+    }
+    if (optionalPointOnSegment) {
+      optionalPointOnSegment.copy(_segCenter).addScaledVector(_segDir, s1);
+    }
+    return sqrDist;
+  }
+  /**
+   * Intersects this ray with the given sphere, returning the intersection
+   * point or `null` if there is no intersection.
+   *
+   * @param {Sphere} sphere - The sphere to intersect.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The intersection point.
+   */
+  intersectSphere(sphere, target) {
+    _vector$7.subVectors(sphere.center, this.origin);
+    const tca = _vector$7.dot(this.direction);
+    const d2 = _vector$7.dot(_vector$7) - tca * tca;
+    const radius2 = sphere.radius * sphere.radius;
+    if (d2 > radius2) return null;
+    const thc = Math.sqrt(radius2 - d2);
+    const t0 = tca - thc;
+    const t1 = tca + thc;
+    if (t1 < 0) return null;
+    if (t0 < 0) return this.at(t1, target);
+    return this.at(t0, target);
+  }
+  /**
+   * Returns `true` if this ray intersects with the given sphere.
+   *
+   * @param {Sphere} sphere - The sphere to intersect.
+   * @return {boolean} Whether this ray intersects with the given sphere or not.
+   */
+  intersectsSphere(sphere) {
+    if (sphere.radius < 0) return false;
+    return this.distanceSqToPoint(sphere.center) <= sphere.radius * sphere.radius;
+  }
+  /**
+   * Computes the distance from the ray's origin to the given plane. Returns `null` if the ray
+   * does not intersect with the plane.
+   *
+   * @param {Plane} plane - The plane to compute the distance to.
+   * @return {?number} Whether this ray intersects with the given sphere or not.
+   */
+  distanceToPlane(plane) {
+    const denominator = plane.normal.dot(this.direction);
+    if (denominator === 0) {
+      if (plane.distanceToPoint(this.origin) === 0) {
+        return 0;
+      }
+      return null;
+    }
+    const t = -(this.origin.dot(plane.normal) + plane.constant) / denominator;
+    return t >= 0 ? t : null;
+  }
+  /**
+   * Intersects this ray with the given plane, returning the intersection
+   * point or `null` if there is no intersection.
+   *
+   * @param {Plane} plane - The plane to intersect.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The intersection point.
+   */
+  intersectPlane(plane, target) {
+    const t = this.distanceToPlane(plane);
+    if (t === null) {
+      return null;
+    }
+    return this.at(t, target);
+  }
+  /**
+   * Returns `true` if this ray intersects with the given plane.
+   *
+   * @param {Plane} plane - The plane to intersect.
+   * @return {boolean} Whether this ray intersects with the given plane or not.
+   */
+  intersectsPlane(plane) {
+    const distToPoint = plane.distanceToPoint(this.origin);
+    if (distToPoint === 0) {
+      return true;
+    }
+    const denominator = plane.normal.dot(this.direction);
+    if (denominator * distToPoint < 0) {
+      return true;
+    }
+    return false;
+  }
+  /**
+   * Intersects this ray with the given bounding box, returning the intersection
+   * point or `null` if there is no intersection.
+   *
+   * @param {Box3} box - The box to intersect.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The intersection point.
+   */
+  intersectBox(box, target) {
+    let tmin, tmax, tymin, tymax, tzmin, tzmax;
+    const invdirx = 1 / this.direction.x, invdiry = 1 / this.direction.y, invdirz = 1 / this.direction.z;
+    const origin = this.origin;
+    if (invdirx >= 0) {
+      tmin = (box.min.x - origin.x) * invdirx;
+      tmax = (box.max.x - origin.x) * invdirx;
+    } else {
+      tmin = (box.max.x - origin.x) * invdirx;
+      tmax = (box.min.x - origin.x) * invdirx;
+    }
+    if (invdiry >= 0) {
+      tymin = (box.min.y - origin.y) * invdiry;
+      tymax = (box.max.y - origin.y) * invdiry;
+    } else {
+      tymin = (box.max.y - origin.y) * invdiry;
+      tymax = (box.min.y - origin.y) * invdiry;
+    }
+    if (tmin > tymax || tymin > tmax) return null;
+    if (tymin > tmin || isNaN(tmin)) tmin = tymin;
+    if (tymax < tmax || isNaN(tmax)) tmax = tymax;
+    if (invdirz >= 0) {
+      tzmin = (box.min.z - origin.z) * invdirz;
+      tzmax = (box.max.z - origin.z) * invdirz;
+    } else {
+      tzmin = (box.max.z - origin.z) * invdirz;
+      tzmax = (box.min.z - origin.z) * invdirz;
+    }
+    if (tmin > tzmax || tzmin > tmax) return null;
+    if (tzmin > tmin || tmin !== tmin) tmin = tzmin;
+    if (tzmax < tmax || tmax !== tmax) tmax = tzmax;
+    if (tmax < 0) return null;
+    return this.at(tmin >= 0 ? tmin : tmax, target);
+  }
+  /**
+   * Returns `true` if this ray intersects with the given box.
+   *
+   * @param {Box3} box - The box to intersect.
+   * @return {boolean} Whether this ray intersects with the given box or not.
+   */
+  intersectsBox(box) {
+    return this.intersectBox(box, _vector$7) !== null;
+  }
+  /**
+   * Intersects this ray with the given triangle, returning the intersection
+   * point or `null` if there is no intersection.
+   *
+   * @param {Vector3} a - The first vertex of the triangle.
+   * @param {Vector3} b - The second vertex of the triangle.
+   * @param {Vector3} c - The third vertex of the triangle.
+   * @param {boolean} backfaceCulling - Whether to use backface culling or not.
+   * @param {Vector3} target - The target vector that is used to store the method's result.
+   * @return {?Vector3} The intersection point.
+   */
+  intersectTriangle(a, b, c, backfaceCulling, target) {
+    _edge1.subVectors(b, a);
+    _edge2.subVectors(c, a);
+    _normal$1.crossVectors(_edge1, _edge2);
+    let DdN = this.direction.dot(_normal$1);
+    let sign2;
+    if (DdN > 0) {
+      if (backfaceCulling) return null;
+      sign2 = 1;
+    } else if (DdN < 0) {
+      sign2 = -1;
+      DdN = -DdN;
+    } else {
+      return null;
+    }
+    _diff.subVectors(this.origin, a);
+    const DdQxE2 = sign2 * this.direction.dot(_edge2.crossVectors(_diff, _edge2));
+    if (DdQxE2 < 0) {
+      return null;
+    }
+    const DdE1xQ = sign2 * this.direction.dot(_edge1.cross(_diff));
+    if (DdE1xQ < 0) {
+      return null;
+    }
+    if (DdQxE2 + DdE1xQ > DdN) {
+      return null;
+    }
+    const QdN = -sign2 * _diff.dot(_normal$1);
+    if (QdN < 0) {
+      return null;
+    }
+    return this.at(QdN / DdN, target);
+  }
+  /**
+   * Transforms this ray with the given 4x4 transformation matrix.
+   *
+   * @param {Matrix4} matrix4 - The transformation matrix.
+   * @return {Ray} A reference to this ray.
+   */
+  applyMatrix4(matrix4) {
+    this.origin.applyMatrix4(matrix4);
+    this.direction.transformDirection(matrix4);
+    return this;
+  }
+  /**
+   * Returns `true` if this ray is equal with the given one.
+   *
+   * @param {Ray} ray - The ray to test for equality.
+   * @return {boolean} Whether this ray is equal with the given one.
+   */
+  equals(ray) {
+    return ray.origin.equals(this.origin) && ray.direction.equals(this.direction);
+  }
+  /**
+   * Returns a new ray with copied values from this instance.
+   *
+   * @return {Ray} A clone of this instance.
+   */
+  clone() {
+    return new this.constructor().copy(this);
+  }
+}
+class MeshBasicMaterial extends Material$1 {
+  /**
+   * Constructs a new mesh basic material.
+   *
+   * @param {Object} [parameters] - An object with one or more properties
+   * defining the material's appearance. Any property of the material
+   * (including any property from inherited materials) can be passed
+   * in here. Color values can be passed any type of value accepted
+   * by {@link Color#set}.
+   */
+  constructor(parameters) {
+    super();
+    this.isMeshBasicMaterial = true;
+    this.type = "MeshBasicMaterial";
+    this.color = new Color(16777215);
+    this.map = null;
+    this.lightMap = null;
+    this.lightMapIntensity = 1;
+    this.aoMap = null;
+    this.aoMapIntensity = 1;
+    this.specularMap = null;
+    this.alphaMap = null;
+    this.envMap = null;
+    this.envMapRotation = new Euler();
+    this.combine = MultiplyOperation;
+    this.reflectivity = 1;
+    this.refractionRatio = 0.98;
+    this.wireframe = false;
+    this.wireframeLinewidth = 1;
+    this.wireframeLinecap = "round";
+    this.wireframeLinejoin = "round";
+    this.fog = true;
+    this.setValues(parameters);
+  }
+  copy(source) {
+    super.copy(source);
+    this.color.copy(source.color);
+    this.map = source.map;
+    this.lightMap = source.lightMap;
+    this.lightMapIntensity = source.lightMapIntensity;
+    this.aoMap = source.aoMap;
+    this.aoMapIntensity = source.aoMapIntensity;
+    this.specularMap = source.specularMap;
+    this.alphaMap = source.alphaMap;
+    this.envMap = source.envMap;
+    this.envMapRotation.copy(source.envMapRotation);
+    this.combine = source.combine;
+    this.reflectivity = source.reflectivity;
+    this.refractionRatio = source.refractionRatio;
+    this.wireframe = source.wireframe;
+    this.wireframeLinewidth = source.wireframeLinewidth;
+    this.wireframeLinecap = source.wireframeLinecap;
+    this.wireframeLinejoin = source.wireframeLinejoin;
+    this.fog = source.fog;
+    return this;
+  }
+}
 const _inverseMatrix$3 = /* @__PURE__ */ new Matrix4();
 const _ray$3 = /* @__PURE__ */ new Ray();
 const _sphere$6 = /* @__PURE__ */ new Sphere();
@@ -11261,8 +11092,7 @@ class Mesh extends Object3D {
       for (let i = 0, il = morphPosition.length; i < il; i++) {
         const influence = morphInfluences[i];
         const morphAttribute = morphPosition[i];
-        if (influence === 0)
-          continue;
+        if (influence === 0) continue;
         _tempA.fromBufferAttribute(morphAttribute, index);
         if (morphTargetsRelative) {
           _morphA.addScaledVector(_tempA, influence);
@@ -11284,24 +11114,19 @@ class Mesh extends Object3D {
     const geometry = this.geometry;
     const material = this.material;
     const matrixWorld = this.matrixWorld;
-    if (material === void 0)
-      return;
-    if (geometry.boundingSphere === null)
-      geometry.computeBoundingSphere();
+    if (material === void 0) return;
+    if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
     _sphere$6.copy(geometry.boundingSphere);
     _sphere$6.applyMatrix4(matrixWorld);
     _ray$3.copy(raycaster.ray).recast(raycaster.near);
     if (_sphere$6.containsPoint(_ray$3.origin) === false) {
-      if (_ray$3.intersectSphere(_sphere$6, _sphereHitAt) === null)
-        return;
-      if (_ray$3.origin.distanceToSquared(_sphereHitAt) > (raycaster.far - raycaster.near) ** 2)
-        return;
+      if (_ray$3.intersectSphere(_sphere$6, _sphereHitAt) === null) return;
+      if (_ray$3.origin.distanceToSquared(_sphereHitAt) > (raycaster.far - raycaster.near) ** 2) return;
     }
     _inverseMatrix$3.copy(matrixWorld).invert();
     _ray$3.copy(raycaster.ray).applyMatrix4(_inverseMatrix$3);
     if (geometry.boundingBox !== null) {
-      if (_ray$3.intersectsBox(geometry.boundingBox) === false)
-        return;
+      if (_ray$3.intersectsBox(geometry.boundingBox) === false) return;
     }
     this._computeIntersections(raycaster, intersects2, _ray$3);
   }
@@ -11392,13 +11217,11 @@ function checkIntersection$1(object, material, raycaster, ray, pA, pB, pC, point
   } else {
     intersect = ray.intersectTriangle(pA, pB, pC, material.side === FrontSide, point);
   }
-  if (intersect === null)
-    return null;
+  if (intersect === null) return null;
   _intersectionPointWorld.copy(point);
   _intersectionPointWorld.applyMatrix4(object.matrixWorld);
   const distance = raycaster.ray.origin.distanceTo(_intersectionPointWorld);
-  if (distance < raycaster.near || distance > raycaster.far)
-    return null;
+  if (distance < raycaster.near || distance > raycaster.far) return null;
   return {
     distance,
     point: _intersectionPointWorld.clone(),
@@ -11509,6 +11332,7 @@ class InstancedMesh extends Mesh {
     super(geometry, material);
     this.isInstancedMesh = true;
     this.instanceMatrix = new InstancedBufferAttribute(new Float32Array(count * 16), 16);
+    this.previousInstanceMatrix = null;
     this.instanceColor = null;
     this.morphTexture = null;
     this.count = count;
@@ -11563,15 +11387,12 @@ class InstancedMesh extends Mesh {
   copy(source, recursive) {
     super.copy(source, recursive);
     this.instanceMatrix.copy(source.instanceMatrix);
-    if (source.morphTexture !== null)
-      this.morphTexture = source.morphTexture.clone();
-    if (source.instanceColor !== null)
-      this.instanceColor = source.instanceColor.clone();
+    if (source.previousInstanceMatrix !== null) this.previousInstanceMatrix = source.previousInstanceMatrix.clone();
+    if (source.morphTexture !== null) this.morphTexture = source.morphTexture.clone();
+    if (source.instanceColor !== null) this.instanceColor = source.instanceColor.clone();
     this.count = source.count;
-    if (source.boundingBox !== null)
-      this.boundingBox = source.boundingBox.clone();
-    if (source.boundingSphere !== null)
-      this.boundingSphere = source.boundingSphere.clone();
+    if (source.boundingBox !== null) this.boundingBox = source.boundingBox.clone();
+    if (source.boundingSphere !== null) this.boundingSphere = source.boundingSphere.clone();
     return this;
   }
   /**
@@ -11579,18 +11400,24 @@ class InstancedMesh extends Mesh {
    *
    * @param {number} index - The instance index.
    * @param {Color} color - The target object that is used to store the method's result.
+   * @return {Color} A reference to the target color.
    */
   getColorAt(index, color) {
-    color.fromArray(this.instanceColor.array, index * 3);
+    if (this.instanceColor === null) {
+      return color.setRGB(1, 1, 1);
+    } else {
+      return color.fromArray(this.instanceColor.array, index * 3);
+    }
   }
   /**
    * Gets the local transformation matrix of the defined instance.
    *
    * @param {number} index - The instance index.
    * @param {Matrix4} matrix - The target object that is used to store the method's result.
+   * @return {Matrix4} A reference to the target matrix.
    */
   getMatrixAt(index, matrix) {
-    matrix.fromArray(this.instanceMatrix.array, index * 16);
+    return matrix.fromArray(this.instanceMatrix.array, index * 16);
   }
   /**
    * Gets the morph target weights of the defined instance.
@@ -11612,14 +11439,11 @@ class InstancedMesh extends Mesh {
     const raycastTimes = this.count;
     _mesh$1.geometry = this.geometry;
     _mesh$1.material = this.material;
-    if (_mesh$1.material === void 0)
-      return;
-    if (this.boundingSphere === null)
-      this.computeBoundingSphere();
+    if (_mesh$1.material === void 0) return;
+    if (this.boundingSphere === null) this.computeBoundingSphere();
     _sphere$4.copy(this.boundingSphere);
     _sphere$4.applyMatrix4(matrixWorld);
-    if (raycaster.ray.intersectsSphere(_sphere$4) === false)
-      return;
+    if (raycaster.ray.intersectsSphere(_sphere$4) === false) return;
     for (let instanceId = 0; instanceId < raycastTimes; instanceId++) {
       this.getMatrixAt(instanceId, _instanceLocalMatrix);
       _instanceWorldMatrix.multiplyMatrices(matrixWorld, _instanceLocalMatrix);
@@ -11640,22 +11464,26 @@ class InstancedMesh extends Mesh {
    *
    * @param {number} index - The instance index.
    * @param {Color} color - The instance color.
+   * @return {InstancedMesh} A reference to this instanced mesh.
    */
   setColorAt(index, color) {
     if (this.instanceColor === null) {
       this.instanceColor = new InstancedBufferAttribute(new Float32Array(this.instanceMatrix.count * 3).fill(1), 3);
     }
     color.toArray(this.instanceColor.array, index * 3);
+    return this;
   }
   /**
    * Sets the given local transformation matrix to the defined instance. Make sure you set the `needsUpdate` flag of
-   * {@link InstancedMesh#instanceMatrix} to `true` after updating all the colors.
+   * {@link InstancedMesh#instanceMatrix} to `true` after updating all the matrices.
    *
    * @param {number} index - The instance index.
    * @param {Matrix4} matrix - The local transformation.
+   * @return {InstancedMesh} A reference to this instanced mesh.
    */
   setMatrixAt(index, matrix) {
     matrix.toArray(this.instanceMatrix.array, index * 16);
+    return this;
   }
   /**
    * Sets the morph target weights to the defined instance. Make sure you set the `needsUpdate` flag of
@@ -11664,6 +11492,7 @@ class InstancedMesh extends Mesh {
    * @param {number} index - The instance index.
    * @param {Mesh} object -  A mesh which `morphTargetInfluences` property containing the morph target weights
    * of a single instance.
+   * @return {InstancedMesh} A reference to this instanced mesh.
    */
   setMorphAt(index, object) {
     const objectInfluences = object.morphTargetInfluences;
@@ -11680,6 +11509,7 @@ class InstancedMesh extends Mesh {
     const dataIndex = len * index;
     array[dataIndex] = morphBaseInfluence;
     array.set(objectInfluences, dataIndex + 1);
+    return this;
   }
   updateMorphTargets() {
   }
@@ -11832,9 +11662,10 @@ class Plane {
    *
    * @param {Line3} line - The line to compute the intersection for.
    * @param {Vector3} target - The target vector that is used to store the method's result.
-   * @return {?Vector3} The intersection point.
+   * @param {boolean} [clampToLine=true] - Whether to clamp the intersection to the line segment.
+   * @return {?Vector3} The intersection point. Returns `null` if no intersection is detected.
    */
-  intersectLine(line, target) {
+  intersectLine(line, target, clampToLine = true) {
     const direction = line.delta(_vector1);
     const denominator = this.normal.dot(direction);
     if (denominator === 0) {
@@ -11844,7 +11675,7 @@ class Plane {
       return null;
     }
     const t = -(line.start.dot(this.normal) + this.constant) / denominator;
-    if (t < 0 || t > 1) {
+    if (clampToLine === true && (t < 0 || t > 1)) {
       return null;
     }
     return target.copy(line.start).addScaledVector(direction, t);
@@ -12031,13 +11862,11 @@ class Frustum {
    */
   intersectsObject(object) {
     if (object.boundingSphere !== void 0) {
-      if (object.boundingSphere === null)
-        object.computeBoundingSphere();
+      if (object.boundingSphere === null) object.computeBoundingSphere();
       _sphere$3.copy(object.boundingSphere).applyMatrix4(object.matrixWorld);
     } else {
       const geometry = object.geometry;
-      if (geometry.boundingSphere === null)
-        geometry.computeBoundingSphere();
+      if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
       _sphere$3.copy(geometry.boundingSphere).applyMatrix4(object.matrixWorld);
     }
     return this.intersectsSphere(_sphere$3);
@@ -12388,7 +12217,6 @@ class BatchedMesh extends Mesh {
     this._multiDrawCounts = new Int32Array(maxInstanceCount);
     this._multiDrawStarts = new Int32Array(maxInstanceCount);
     this._multiDrawCount = 0;
-    this._multiDrawInstances = null;
     this._matricesTexture = null;
     this._indirectTexture = null;
     this._colorsTexture = null;
@@ -12536,8 +12364,7 @@ class BatchedMesh extends Mesh {
     const instanceInfo = this._instanceInfo;
     boundingBox2.makeEmpty();
     for (let i = 0, l = instanceInfo.length; i < l; i++) {
-      if (instanceInfo[i].active === false)
-        continue;
+      if (instanceInfo[i].active === false) continue;
       const geometryId = instanceInfo[i].geometryIndex;
       this.getMatrixAt(i, _matrix$1);
       this.getBoundingBoxAt(geometryId, _box$1).applyMatrix4(_matrix$1);
@@ -12557,8 +12384,7 @@ class BatchedMesh extends Mesh {
     const instanceInfo = this._instanceInfo;
     boundingSphere.makeEmpty();
     for (let i = 0, l = instanceInfo.length; i < l; i++) {
-      if (instanceInfo[i].active === false)
-        continue;
+      if (instanceInfo[i].active === false) continue;
       const geometryId = instanceInfo[i].geometryIndex;
       this.getMatrixAt(i, _matrix$1);
       this.getBoundingSphereAt(geometryId, _sphere$2).applyMatrix4(_matrix$1);
@@ -12814,9 +12640,9 @@ class BatchedMesh extends Mesh {
       }
       nextVertexStart += geometryInfo.reservedVertexCount;
       geometryInfo.start = geometry.index ? geometryInfo.indexStart : geometryInfo.vertexStart;
-      this._nextIndexStart = geometry.index ? geometryInfo.indexStart + geometryInfo.reservedIndexCount : 0;
-      this._nextVertexStart = geometryInfo.vertexStart + geometryInfo.reservedVertexCount;
     }
+    this._nextIndexStart = nextIndexStart;
+    this._nextVertexStart = nextVertexStart;
     this._visibilityChanged = true;
     return this;
   }
@@ -12914,7 +12740,7 @@ class BatchedMesh extends Mesh {
    * Sets the given color to the defined instance.
    *
    * @param {number} instanceId - The ID of an instance to set the color of.
-   * @param {Color} color - The color to set the instance to.
+   * @param {Color|Vector4} color - The color to set the instance to. Use a `Vector4` to also define alpha.
    * @return {BatchedMesh} A reference to this batched mesh.
    */
   setColorAt(instanceId, color) {
@@ -12930,12 +12756,20 @@ class BatchedMesh extends Mesh {
    * Returns the color of the defined instance.
    *
    * @param {number} instanceId - The ID of an instance to get the color of.
-   * @param {Color} color - The target object that is used to store the method's result.
-   * @return {Color} The instance's color.
+   * @param {Color|Vector4} color - The target object that is used to store the method's result.
+   * @return {Color|Vector4} The instance's color.  Use a `Vector4` to also retrieve alpha.
    */
   getColorAt(instanceId, color) {
     this.validateInstanceId(instanceId);
-    return color.fromArray(this._colorsTexture.image.data, instanceId * 4);
+    if (this._colorsTexture === null) {
+      if (color.isVector4) {
+        return color.set(1, 1, 1, 1);
+      } else {
+        return color.setRGB(1, 1, 1);
+      }
+    } else {
+      return color.fromArray(this._colorsTexture.image.data, instanceId * 4);
+    }
   }
   /**
    * Sets the visibility of the instance.
@@ -13180,7 +13014,12 @@ class BatchedMesh extends Mesh {
       return;
     }
     const index = geometry.getIndex();
-    const bytesPerElement = index === null ? 1 : index.array.BYTES_PER_ELEMENT;
+    let bytesPerElement = index === null ? 1 : index.array.BYTES_PER_ELEMENT;
+    let multiDrawMultiplier = 1;
+    if (material.wireframe) {
+      multiDrawMultiplier = 2;
+      bytesPerElement = geometry.attributes.position.count > 65535 ? 4 : 2;
+    }
     const instanceInfo = this._instanceInfo;
     const multiDrawStarts = this._multiDrawStarts;
     const multiDrawCounts = this._multiDrawCounts;
@@ -13227,8 +13066,8 @@ class BatchedMesh extends Mesh {
       }
       for (let i = 0, l = list.length; i < l; i++) {
         const item = list[i];
-        multiDrawStarts[multiDrawCount] = item.start * bytesPerElement;
-        multiDrawCounts[multiDrawCount] = item.count;
+        multiDrawStarts[multiDrawCount] = item.start * bytesPerElement * multiDrawMultiplier;
+        multiDrawCounts[multiDrawCount] = item.count * multiDrawMultiplier;
         indirectArray[multiDrawCount] = item.index;
         multiDrawCount++;
       }
@@ -13245,8 +13084,8 @@ class BatchedMesh extends Mesh {
           }
           if (!culled) {
             const geometryInfo = geometryInfoList[geometryId];
-            multiDrawStarts[multiDrawCount] = geometryInfo.start * bytesPerElement;
-            multiDrawCounts[multiDrawCount] = geometryInfo.count;
+            multiDrawStarts[multiDrawCount] = geometryInfo.start * bytesPerElement * multiDrawMultiplier;
+            multiDrawCounts[multiDrawCount] = geometryInfo.count * multiDrawMultiplier;
             indirectArray[multiDrawCount] = i;
             multiDrawCount++;
           }
@@ -13359,13 +13198,11 @@ class Line extends Object3D {
     const matrixWorld = this.matrixWorld;
     const threshold = raycaster.params.Line.threshold;
     const drawRange = geometry.drawRange;
-    if (geometry.boundingSphere === null)
-      geometry.computeBoundingSphere();
+    if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
     _sphere$1.copy(geometry.boundingSphere);
     _sphere$1.applyMatrix4(matrixWorld);
     _sphere$1.radius += threshold;
-    if (raycaster.ray.intersectsSphere(_sphere$1) === false)
-      return;
+    if (raycaster.ray.intersectsSphere(_sphere$1) === false) return;
     _inverseMatrix$1.copy(matrixWorld).invert();
     _ray$1.copy(raycaster.ray).applyMatrix4(_inverseMatrix$1);
     const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
@@ -13437,12 +13274,10 @@ function checkIntersection$2(object, raycaster, ray, thresholdSq, a, b, i) {
   _vStart.fromBufferAttribute(positionAttribute, a);
   _vEnd.fromBufferAttribute(positionAttribute, b);
   const distSq = ray.distanceSqToSegment(_vStart, _vEnd, _intersectPointOnRay, _intersectPointOnSegment);
-  if (distSq > thresholdSq)
-    return;
+  if (distSq > thresholdSq) return;
   _intersectPointOnRay.applyMatrix4(object.matrixWorld);
   const distance = raycaster.ray.origin.distanceTo(_intersectPointOnRay);
-  if (distance < raycaster.near || distance > raycaster.far)
-    return;
+  if (distance < raycaster.near || distance > raycaster.far) return;
   return {
     distance,
     // What do we want? intersection point on the ray or on the segment??
@@ -13536,7 +13371,7 @@ class PointsMaterial extends Material$1 {
 const _inverseMatrix$2 = /* @__PURE__ */ new Matrix4();
 const _ray$2 = /* @__PURE__ */ new Ray();
 const _sphere = /* @__PURE__ */ new Sphere();
-const _position$2 = /* @__PURE__ */ new Vector3();
+const _position$3 = /* @__PURE__ */ new Vector3();
 class Points extends Object3D {
   /**
    * Constructs a new point cloud.
@@ -13571,13 +13406,11 @@ class Points extends Object3D {
     const matrixWorld = this.matrixWorld;
     const threshold = raycaster.params.Points.threshold;
     const drawRange = geometry.drawRange;
-    if (geometry.boundingSphere === null)
-      geometry.computeBoundingSphere();
+    if (geometry.boundingSphere === null) geometry.computeBoundingSphere();
     _sphere.copy(geometry.boundingSphere);
     _sphere.applyMatrix4(matrixWorld);
     _sphere.radius += threshold;
-    if (raycaster.ray.intersectsSphere(_sphere) === false)
-      return;
+    if (raycaster.ray.intersectsSphere(_sphere) === false) return;
     _inverseMatrix$2.copy(matrixWorld).invert();
     _ray$2.copy(raycaster.ray).applyMatrix4(_inverseMatrix$2);
     const localThreshold = threshold / ((this.scale.x + this.scale.y + this.scale.z) / 3);
@@ -13590,15 +13423,15 @@ class Points extends Object3D {
       const end = Math.min(index.count, drawRange.start + drawRange.count);
       for (let i = start, il = end; i < il; i++) {
         const a = index.getX(i);
-        _position$2.fromBufferAttribute(positionAttribute, a);
-        testPoint(_position$2, a, localThresholdSq, matrixWorld, raycaster, intersects2, this);
+        _position$3.fromBufferAttribute(positionAttribute, a);
+        testPoint(_position$3, a, localThresholdSq, matrixWorld, raycaster, intersects2, this);
       }
     } else {
       const start = Math.max(0, drawRange.start);
       const end = Math.min(positionAttribute.count, drawRange.start + drawRange.count);
       for (let i = start, l = end; i < l; i++) {
-        _position$2.fromBufferAttribute(positionAttribute, i);
-        testPoint(_position$2, i, localThresholdSq, matrixWorld, raycaster, intersects2, this);
+        _position$3.fromBufferAttribute(positionAttribute, i);
+        testPoint(_position$3, i, localThresholdSq, matrixWorld, raycaster, intersects2, this);
       }
     }
   }
@@ -13631,8 +13464,7 @@ function testPoint(point, index, localThresholdSq, matrixWorld, raycaster, inter
     _ray$2.closestPointToPoint(point, intersectPoint);
     intersectPoint.applyMatrix4(matrixWorld);
     const distance = raycaster.ray.origin.distanceTo(intersectPoint);
-    if (distance < raycaster.near || distance > raycaster.far)
-      return;
+    if (distance < raycaster.near || distance > raycaster.far) return;
     intersects2.push({
       distance,
       distanceToRay: Math.sqrt(rayPointDistanceSq),
@@ -13645,6 +13477,76 @@ function testPoint(point, index, localThresholdSq, matrixWorld, raycaster, inter
     });
   }
 }
+const _Matrix2 = class _Matrix2 {
+  /**
+   * Constructs a new 2x2 matrix. The arguments are supposed to be
+   * in row-major order. If no arguments are provided, the constructor
+   * initializes the matrix as an identity matrix.
+   *
+   * @param {number} [n11] - 1-1 matrix element.
+   * @param {number} [n12] - 1-2 matrix element.
+   * @param {number} [n21] - 2-1 matrix element.
+   * @param {number} [n22] - 2-2 matrix element.
+   */
+  constructor(n11, n12, n21, n22) {
+    this.elements = [
+      1,
+      0,
+      0,
+      1
+    ];
+    if (n11 !== void 0) {
+      this.set(n11, n12, n21, n22);
+    }
+  }
+  /**
+   * Sets this matrix to the 2x2 identity matrix.
+   *
+   * @return {Matrix2} A reference to this matrix.
+   */
+  identity() {
+    this.set(
+      1,
+      0,
+      0,
+      1
+    );
+    return this;
+  }
+  /**
+   * Sets the elements of the matrix from the given array.
+   *
+   * @param {Array<number>} array - The matrix elements in column-major order.
+   * @param {number} [offset=0] - Index of the first element in the array.
+   * @return {Matrix2} A reference to this matrix.
+   */
+  fromArray(array, offset = 0) {
+    for (let i = 0; i < 4; i++) {
+      this.elements[i] = array[i + offset];
+    }
+    return this;
+  }
+  /**
+   * Sets the elements of the matrix.The arguments are supposed to be
+   * in row-major order.
+   *
+   * @param {number} n11 - 1-1 matrix element.
+   * @param {number} n12 - 1-2 matrix element.
+   * @param {number} n21 - 2-1 matrix element.
+   * @param {number} n22 - 2-2 matrix element.
+   * @return {Matrix2} A reference to this matrix.
+   */
+  set(n11, n12, n21, n22) {
+    const te = this.elements;
+    te[0] = n11;
+    te[2] = n12;
+    te[1] = n21;
+    te[3] = n22;
+    return this;
+  }
+};
+_Matrix2.prototype.isMatrix2 = true;
+let Matrix2 = _Matrix2;
 const _startP = /* @__PURE__ */ new Vector3();
 const _startEnd = /* @__PURE__ */ new Vector3();
 const _d1 = /* @__PURE__ */ new Vector3();
@@ -13741,6 +13643,7 @@ class Line3 {
     _startP.subVectors(point, this.start);
     _startEnd.subVectors(this.end, this.start);
     const startEnd2 = _startEnd.dot(_startEnd);
+    if (startEnd2 === 0) return 0;
     const startEnd_startP = _startEnd.dot(_startP);
     let t = startEnd_startP / startEnd2;
     if (clampToLine) {
@@ -13814,10 +13717,9 @@ class Line3 {
         }
       }
     }
-    c1.copy(p1).add(_d1.multiplyScalar(s));
-    c2.copy(p2).add(_d2.multiplyScalar(t));
-    c1.sub(c2);
-    return c1.dot(c1);
+    c1.copy(p1).addScaledVector(_d1, s);
+    c2.copy(p2).addScaledVector(_d2, t);
+    return c1.distanceToSquared(c2);
   }
   /**
    * Applies a 4x4 transformation matrix to this line segment.
@@ -13860,6 +13762,15 @@ if (typeof window !== "undefined") {
     window.__THREE__ = REVISION;
   }
 }
+/**
+ * @license
+ * Copyright 2010-2026 Three.js Authors
+ * SPDX-License-Identifier: MIT
+ */
+const _m$1 = /* @__PURE__ */ new Matrix3();
+_m$1.set(-1, 0, 0, 0, 1, 0, 0, 0, 1);
+const _m = /* @__PURE__ */ new Matrix3();
+_m.set(-1, 0, 0, 0, 1, 0, 0, 0, 1);
 const limitOf2Bytes = 65536;
 var ObjectClass = /* @__PURE__ */ ((ObjectClass2) => {
   ObjectClass2[ObjectClass2["LINE"] = 0] = "LINE";
@@ -14082,8 +13993,7 @@ const _MultithreadingHelper = class _MultithreadingHelper {
     this.addRequestTileData(request, content, "highlightData", extras);
   }
   static addRequestContent(id, request, content) {
-    if (!request[id])
-      return;
+    if (!request[id]) return;
     const buffer = request[id].buffer;
     content.push(buffer);
   }
@@ -16317,10 +16227,8 @@ Deflate$1.prototype.push = function(data, flush_mode) {
   if (this.ended) {
     return false;
   }
-  if (flush_mode === ~~flush_mode)
-    _flush_mode = flush_mode;
-  else
-    _flush_mode = flush_mode === true ? Z_FINISH$2 : Z_NO_FLUSH$1;
+  if (flush_mode === ~~flush_mode) _flush_mode = flush_mode;
+  else _flush_mode = flush_mode === true ? Z_FINISH$2 : Z_NO_FLUSH$1;
   if (typeof data === "string") {
     strm.input = strings.string2buf(data);
   } else if (toString$1.call(data) === "[object ArrayBuffer]") {
@@ -16360,8 +16268,7 @@ Deflate$1.prototype.push = function(data, flush_mode) {
       strm.avail_out = 0;
       continue;
     }
-    if (strm.avail_in === 0)
-      break;
+    if (strm.avail_in === 0) break;
   }
   return true;
 };
@@ -16398,11 +16305,13 @@ var Deflate_1$1 = Deflate$1;
 var deflate_2 = deflate$1;
 var deflateRaw_1$1 = deflateRaw$1;
 var gzip_1$1 = gzip$1;
+var constants$1 = constants$2;
 var deflate_1$1 = {
   Deflate: Deflate_1$1,
   deflate: deflate_2,
   deflateRaw: deflateRaw_1$1,
-  gzip: gzip_1$1
+  gzip: gzip_1$1,
+  constants: constants$1
 };
 const BAD$1 = 16209;
 const TYPE$1 = 16191;
@@ -18066,8 +17975,7 @@ const inflate$2 = (strm, flush) => {
   state.hold = hold;
   state.bits = bits;
   if (state.wsize || _out !== strm.avail_out && state.mode < BAD && (state.mode < CHECK || flush !== Z_FINISH$1)) {
-    if (updatewindow(strm, strm.output, strm.next_out, _out - strm.avail_out))
-      ;
+    if (updatewindow(strm, strm.output, strm.next_out, _out - strm.avail_out)) ;
   }
   _in -= strm.avail_in;
   _out -= strm.avail_out;
@@ -18235,12 +18143,9 @@ Inflate$1.prototype.push = function(data, flush_mode) {
   const chunkSize = this.options.chunkSize;
   const dictionary = this.options.dictionary;
   let status, _flush_mode, last_avail_out;
-  if (this.ended)
-    return false;
-  if (flush_mode === ~~flush_mode)
-    _flush_mode = flush_mode;
-  else
-    _flush_mode = flush_mode === true ? Z_FINISH : Z_NO_FLUSH;
+  if (this.ended) return false;
+  if (flush_mode === ~~flush_mode) _flush_mode = flush_mode;
+  else _flush_mode = flush_mode === true ? Z_FINISH : Z_NO_FLUSH;
   if (toString.call(data) === "[object ArrayBuffer]") {
     strm.input = new Uint8Array(data);
   } else {
@@ -18285,24 +18190,21 @@ Inflate$1.prototype.push = function(data, flush_mode) {
           let utf8str = strings.buf2string(strm.output, next_out_utf8);
           strm.next_out = tail;
           strm.avail_out = chunkSize - tail;
-          if (tail)
-            strm.output.set(strm.output.subarray(next_out_utf8, next_out_utf8 + tail), 0);
+          if (tail) strm.output.set(strm.output.subarray(next_out_utf8, next_out_utf8 + tail), 0);
           this.onData(utf8str);
         } else {
           this.onData(strm.output.length === strm.next_out ? strm.output : strm.output.subarray(0, strm.next_out));
         }
       }
     }
-    if (status === Z_OK && last_avail_out === 0)
-      continue;
+    if (status === Z_OK && last_avail_out === 0) continue;
     if (status === Z_STREAM_END) {
       status = inflate_1$2.inflateEnd(this.strm);
       this.onEnd(status);
       this.ended = true;
       return true;
     }
-    if (strm.avail_in === 0)
-      break;
+    if (strm.avail_in === 0) break;
   }
   return true;
 };
@@ -18324,8 +18226,7 @@ Inflate$1.prototype.onEnd = function(status) {
 function inflate$1(input, options) {
   const inflator = new Inflate$1(options);
   inflator.push(input);
-  if (inflator.err)
-    throw inflator.msg || messages[inflator.err];
+  if (inflator.err) throw inflator.msg || messages[inflator.err];
   return inflator.result;
 }
 function inflateRaw$1(input, options) {
@@ -18337,11 +18238,13 @@ var Inflate_1$1 = Inflate$1;
 var inflate_2 = inflate$1;
 var inflateRaw_1$1 = inflateRaw$1;
 var ungzip$1 = inflate$1;
+var constants = constants$2;
 var inflate_1$1 = {
   Inflate: Inflate_1$1,
   inflate: inflate_2,
   inflateRaw: inflateRaw_1$1,
-  ungzip: ungzip$1
+  ungzip: ungzip$1,
+  constants
 };
 const { Deflate, deflate, deflateRaw, gzip } = deflate_1$1;
 const { Inflate, inflate, inflateRaw, ungzip } = inflate_1$1;
@@ -18939,19 +18842,18 @@ class Builder {
     this.addInt16(len);
     let existing_vtable = 0;
     const vt1 = this.space;
-    outer_loop:
-      for (i = 0; i < this.vtables.length; i++) {
-        const vt2 = this.bb.capacity() - this.vtables[i];
-        if (len == this.bb.readInt16(vt2)) {
-          for (let j = SIZEOF_SHORT; j < len; j += SIZEOF_SHORT) {
-            if (this.bb.readInt16(vt1 + j) != this.bb.readInt16(vt2 + j)) {
-              continue outer_loop;
-            }
+    outer_loop: for (i = 0; i < this.vtables.length; i++) {
+      const vt2 = this.bb.capacity() - this.vtables[i];
+      if (len == this.bb.readInt16(vt2)) {
+        for (let j = SIZEOF_SHORT; j < len; j += SIZEOF_SHORT) {
+          if (this.bb.readInt16(vt1 + j) != this.bb.readInt16(vt2 + j)) {
+            continue outer_loop;
           }
-          existing_vtable = this.vtables[i];
-          break;
         }
+        existing_vtable = this.vtables[i];
+        break;
       }
+    }
     if (existing_vtable) {
       this.space = this.bb.capacity() - vtableloc;
       this.bb.writeInt32(this.space, existing_vtable - vtableloc);
@@ -19245,38 +19147,26 @@ function getBounds(primitiveBounds, offset, count, target, centroidTarget) {
     const hx = primitiveBounds[i + 1];
     const lx = cx - hx;
     const rx = cx + hx;
-    if (lx < minx)
-      minx = lx;
-    if (rx > maxx)
-      maxx = rx;
-    if (cx < cminx)
-      cminx = cx;
-    if (cx > cmaxx)
-      cmaxx = cx;
+    if (lx < minx) minx = lx;
+    if (rx > maxx) maxx = rx;
+    if (cx < cminx) cminx = cx;
+    if (cx > cmaxx) cmaxx = cx;
     const cy = primitiveBounds[i + 2];
     const hy = primitiveBounds[i + 3];
     const ly = cy - hy;
     const ry = cy + hy;
-    if (ly < miny)
-      miny = ly;
-    if (ry > maxy)
-      maxy = ry;
-    if (cy < cminy)
-      cminy = cy;
-    if (cy > cmaxy)
-      cmaxy = cy;
+    if (ly < miny) miny = ly;
+    if (ry > maxy) maxy = ry;
+    if (cy < cminy) cminy = cy;
+    if (cy > cmaxy) cmaxy = cy;
     const cz = primitiveBounds[i + 4];
     const hz = primitiveBounds[i + 5];
     const lz = cz - hz;
     const rz = cz + hz;
-    if (lz < minz)
-      minz = lz;
-    if (rz > maxz)
-      maxz = rz;
-    if (cz < cminz)
-      cminz = cz;
-    if (cz > cmaxz)
-      cmaxz = cz;
+    if (lz < minz) minz = lz;
+    if (rz > maxz) maxz = rz;
+    if (cz < cminz) cminz = cz;
+    if (cz > cmaxz) cmaxz = cz;
   }
   target[0] = minx;
   target[1] = miny;
@@ -19407,8 +19297,7 @@ function getOptimalSplit(nodeBoundingData, centroidBoundingData, primitiveBounds
           const triCenter = primitiveBounds[c + 2 * a];
           const relativeCenter = triCenter - axisLeft;
           let binIndex = ~~(relativeCenter / binWidth);
-          if (binIndex >= BIN_COUNT)
-            binIndex = BIN_COUNT - 1;
+          if (binIndex >= BIN_COUNT) binIndex = BIN_COUNT - 1;
           const bin = sahBins[binIndex];
           bin.count++;
           expandByPrimitiveBounds(c, primitiveBounds, bin.bounds);
@@ -19775,8 +19664,7 @@ function shapecastTraverse(nodeIndex32, geometry, intersectsBoundsFunc, intersec
         depth + 1
       );
     }
-    if (c1StopTraversal)
-      return true;
+    if (c1StopTraversal) return true;
     box2 = _box2;
     arrayToBox(BOUNDING_DATA_INDEX(c2), float32Array2, box2);
     const isC2Leaf = IS_LEAF(c2 * 2, uint16Array2);
@@ -19798,8 +19686,7 @@ function shapecastTraverse(nodeIndex32, geometry, intersectsBoundsFunc, intersec
         depth + 1
       );
     }
-    if (c2StopTraversal)
-      return true;
+    if (c2StopTraversal) return true;
     return false;
   }
 }
@@ -20107,18 +19994,12 @@ class BVH {
     for (let i = offset, end = offset + count; i < end; i++) {
       this.writePrimitiveBounds(i, _tempBuffer, 0);
       const [lx, ly, lz, rx, ry, rz] = _tempBuffer;
-      if (lx < minX)
-        minX = lx;
-      if (rx > maxX)
-        maxX = rx;
-      if (ly < minY)
-        minY = ly;
-      if (ry > maxY)
-        maxY = ry;
-      if (lz < minZ)
-        minZ = lz;
-      if (rz > maxZ)
-        maxZ = rz;
+      if (lx < minX) minX = lx;
+      if (rx > maxX) maxX = rx;
+      if (ly < minY) minY = ly;
+      if (ry > maxY) maxY = ry;
+      if (lz < minZ) minZ = lz;
+      if (rz > maxZ) maxZ = rz;
     }
     targetBuffer[baseIndex + 0] = minX;
     targetBuffer[baseIndex + 1] = minY;
@@ -20610,25 +20491,21 @@ const sphereIntersectTriangle = /* @__PURE__ */ function() {
     lineTemp.start = a;
     lineTemp.end = b;
     const closestPoint1 = lineTemp.closestPointToPoint(center, true, closestPointTemp);
-    if (closestPoint1.distanceTo(center) <= radius)
-      return true;
+    if (closestPoint1.distanceTo(center) <= radius) return true;
     lineTemp.start = a;
     lineTemp.end = c;
     const closestPoint2 = lineTemp.closestPointToPoint(center, true, closestPointTemp);
-    if (closestPoint2.distanceTo(center) <= radius)
-      return true;
+    if (closestPoint2.distanceTo(center) <= radius) return true;
     lineTemp.start = b;
     lineTemp.end = c;
     const closestPoint3 = lineTemp.closestPointToPoint(center, true, closestPointTemp);
-    if (closestPoint3.distanceTo(center) <= radius)
-      return true;
+    if (closestPoint3.distanceTo(center) <= radius) return true;
     const plane = triangle3.getPlane(planeTemp);
     const dp = Math.abs(plane.distanceToPoint(center));
     if (dp <= radius) {
       const pp = plane.projectPoint(center, projectedPointTemp);
       const cp = triangle3.containsPoint(pp);
-      if (cp)
-        return true;
+      if (cp) return true;
     }
     return false;
   };
@@ -20725,29 +20602,23 @@ ExtendedTriangle.prototype.closestPointToSegment = /* @__PURE__ */ function() {
       distSq = point1.distanceToSquared(point2);
       if (distSq < closestDistanceSq) {
         closestDistanceSq = distSq;
-        if (target1)
-          target1.copy(point1);
-        if (target2)
-          target2.copy(point2);
+        if (target1) target1.copy(point1);
+        if (target2) target2.copy(point2);
       }
     }
     this.closestPointToPoint(start, point1);
     distSq = start.distanceToSquared(point1);
     if (distSq < closestDistanceSq) {
       closestDistanceSq = distSq;
-      if (target1)
-        target1.copy(point1);
-      if (target2)
-        target2.copy(start);
+      if (target1) target1.copy(point1);
+      if (target2) target2.copy(start);
     }
     this.closestPointToPoint(end, point1);
     distSq = end.distanceToSquared(point1);
     if (distSq < closestDistanceSq) {
       closestDistanceSq = distSq;
-      if (target1)
-        target1.copy(point1);
-      if (target2)
-        target2.copy(end);
+      if (target1) target1.copy(point1);
+      if (target2) target2.copy(end);
     }
     return Math.sqrt(closestDistanceSq);
   };
@@ -20778,13 +20649,11 @@ ExtendedTriangle.prototype.intersectsTriangle = /* @__PURE__ */ function() {
       const sb = satBounds1[i];
       const sa = satAxes1[i];
       cachedSatBounds.setFromPoints(sa, other.points);
-      if (sb.isSeparated(cachedSatBounds))
-        return false;
+      if (sb.isSeparated(cachedSatBounds)) return false;
       tempDir.copy(planeNormal).cross(sa);
       cachedSatBounds.setFromPoints(tempDir, self.points);
       cachedSatBounds2.setFromPoints(tempDir, other.points);
-      if (cachedSatBounds.isSeparated(cachedSatBounds2))
-        return false;
+      if (cachedSatBounds.isSeparated(cachedSatBounds2)) return false;
     }
     const satBounds2 = other.satBounds;
     const satAxes2 = other.satAxes;
@@ -20792,13 +20661,11 @@ ExtendedTriangle.prototype.intersectsTriangle = /* @__PURE__ */ function() {
       const sb = satBounds2[i];
       const sa = satAxes2[i];
       cachedSatBounds.setFromPoints(sa, self.points);
-      if (sb.isSeparated(cachedSatBounds))
-        return false;
+      if (sb.isSeparated(cachedSatBounds)) return false;
       tempDir.crossVectors(planeNormal, sa);
       cachedSatBounds.setFromPoints(tempDir, self.points);
       cachedSatBounds2.setFromPoints(tempDir, other.points);
-      if (cachedSatBounds.isSeparated(cachedSatBounds2))
-        return false;
+      if (cachedSatBounds.isSeparated(cachedSatBounds2)) return false;
     }
     if (target) {
       if (!suppressLog) {
@@ -21073,10 +20940,8 @@ ExtendedTriangle.prototype.distanceToTriangle = /* @__PURE__ */ function() {
     const lineTarget = target1 || target2 ? line1 : null;
     if (this.intersectsTriangle(other, lineTarget)) {
       if (target1 || target2) {
-        if (target1)
-          lineTarget.getCenter(target1);
-        if (target2)
-          lineTarget.getCenter(target2);
+        if (target1) lineTarget.getCenter(target1);
+        if (target2) lineTarget.getCenter(target2);
       }
       return 0;
     }
@@ -21089,20 +20954,16 @@ ExtendedTriangle.prototype.distanceToTriangle = /* @__PURE__ */ function() {
       dist = otherVec.distanceToSquared(point);
       if (dist < closestDistanceSq) {
         closestDistanceSq = dist;
-        if (target1)
-          target1.copy(point);
-        if (target2)
-          target2.copy(otherVec);
+        if (target1) target1.copy(point);
+        if (target2) target2.copy(otherVec);
       }
       const thisVec = this[field];
       other.closestPointToPoint(thisVec, point);
       dist = thisVec.distanceToSquared(point);
       if (dist < closestDistanceSq) {
         closestDistanceSq = dist;
-        if (target1)
-          target1.copy(thisVec);
-        if (target2)
-          target2.copy(point);
+        if (target1) target1.copy(thisVec);
+        if (target2) target2.copy(point);
       }
     }
     for (let i = 0; i < 3; i++) {
@@ -21117,10 +20978,8 @@ ExtendedTriangle.prototype.distanceToTriangle = /* @__PURE__ */ function() {
         const dist = point.distanceToSquared(point2);
         if (dist < closestDistanceSq) {
           closestDistanceSq = dist;
-          if (target1)
-            target1.copy(point);
-          if (target2)
-            target2.copy(point2);
+          if (target1) target1.copy(point);
+          if (target2) target2.copy(point2);
         }
       }
     }
@@ -21139,12 +20998,9 @@ class OrientedBox {
     this.satBounds = new Array(3).fill().map(() => new SeparatingAxisBounds());
     this.alignedSatBounds = new Array(3).fill().map(() => new SeparatingAxisBounds());
     this.needsUpdate = false;
-    if (min)
-      this.min.copy(min);
-    if (max)
-      this.max.copy(max);
-    if (matrix)
-      this.matrix.copy(matrix);
+    if (min) this.min.copy(min);
+    if (max) this.max.copy(max);
+    if (matrix) this.matrix.copy(matrix);
   }
   set(min, max, matrix) {
     this.min.copy(min);
@@ -21209,22 +21065,18 @@ OrientedBox.prototype.intersectsBox = /* @__PURE__ */ function() {
     const alignedSatBounds = this.alignedSatBounds;
     aabbBounds.min = min.x;
     aabbBounds.max = max.x;
-    if (alignedSatBounds[0].isSeparated(aabbBounds))
-      return false;
+    if (alignedSatBounds[0].isSeparated(aabbBounds)) return false;
     aabbBounds.min = min.y;
     aabbBounds.max = max.y;
-    if (alignedSatBounds[1].isSeparated(aabbBounds))
-      return false;
+    if (alignedSatBounds[1].isSeparated(aabbBounds)) return false;
     aabbBounds.min = min.z;
     aabbBounds.max = max.z;
-    if (alignedSatBounds[2].isSeparated(aabbBounds))
-      return false;
+    if (alignedSatBounds[2].isSeparated(aabbBounds)) return false;
     for (let i = 0; i < 3; i++) {
       const axis = satAxes[i];
       const sb = satBounds[i];
       aabbBounds.setFromBox(axis, box);
-      if (sb.isSeparated(aabbBounds))
-        return false;
+      if (sb.isSeparated(aabbBounds)) return false;
     }
     return true;
   };
@@ -21255,8 +21107,7 @@ OrientedBox.prototype.intersectsTriangle = /* @__PURE__ */ function() {
       const sb = satBounds[i];
       const sa = satAxes[i];
       cachedSatBounds.setFromPoints(sa, pointsArr);
-      if (sb.isSeparated(cachedSatBounds))
-        return false;
+      if (sb.isSeparated(cachedSatBounds)) return false;
     }
     const triSatBounds = triangle3.satBounds;
     const triSatAxes = triangle3.satAxes;
@@ -21265,8 +21116,7 @@ OrientedBox.prototype.intersectsTriangle = /* @__PURE__ */ function() {
       const sb = triSatBounds[i];
       const sa = triSatAxes[i];
       cachedSatBounds.setFromPoints(sa, points);
-      if (sb.isSeparated(cachedSatBounds))
-        return false;
+      if (sb.isSeparated(cachedSatBounds)) return false;
     }
     for (let i = 0; i < 3; i++) {
       const sa1 = satAxes[i];
@@ -21275,8 +21125,7 @@ OrientedBox.prototype.intersectsTriangle = /* @__PURE__ */ function() {
         cachedAxis.crossVectors(sa1, sa2);
         cachedSatBounds.setFromPoints(cachedAxis, pointsArr);
         cachedSatBounds2.setFromPoints(cachedAxis, points);
-        if (cachedSatBounds.isSeparated(cachedSatBounds2))
-          return false;
+        if (cachedSatBounds.isSeparated(cachedSatBounds2)) return false;
       }
     }
     return true;
@@ -21313,10 +21162,8 @@ OrientedBox.prototype.distanceToBox = /* @__PURE__ */ function() {
         box.getCenter(point2);
         this.closestPointToPoint(point2, point1);
         box.closestPointToPoint(point1, point2);
-        if (target1)
-          target1.copy(point1);
-        if (target2)
-          target2.copy(point2);
+        if (target1) target1.copy(point1);
+        if (target2) target2.copy(point2);
       }
       return 0;
     }
@@ -21331,12 +21178,9 @@ OrientedBox.prototype.distanceToBox = /* @__PURE__ */ function() {
       const dist = p.distanceToSquared(point2);
       if (dist < closestDistanceSq) {
         closestDistanceSq = dist;
-        if (target1)
-          target1.copy(p);
-        if (target2)
-          target2.copy(point2);
-        if (dist < threshold2)
-          return Math.sqrt(dist);
+        if (target1) target1.copy(p);
+        if (target2) target2.copy(point2);
+        if (dist < threshold2) return Math.sqrt(dist);
       }
     }
     let count = 0;
@@ -21377,12 +21221,9 @@ OrientedBox.prototype.distanceToBox = /* @__PURE__ */ function() {
           const dist = point2.distanceToSquared(point1);
           if (dist < closestDistanceSq) {
             closestDistanceSq = dist;
-            if (target1)
-              target1.copy(point1);
-            if (target2)
-              target2.copy(point2);
-            if (dist < threshold2)
-              return Math.sqrt(dist);
+            if (target1) target1.copy(point1);
+            if (target2) target2.copy(point2);
+            if (dist < threshold2) return Math.sqrt(dist);
           }
         }
       }
@@ -21395,12 +21236,9 @@ OrientedBox.prototype.distanceToBox = /* @__PURE__ */ function() {
         const dist = point1.distanceToSquared(point2);
         if (dist < closestDistanceSq) {
           closestDistanceSq = dist;
-          if (target1)
-            target1.copy(point1);
-          if (target2)
-            target2.copy(point2);
-          if (dist < threshold2)
-            return Math.sqrt(dist);
+          if (target1) target1.copy(point1);
+          if (target2) target2.copy(point2);
+          if (dist < threshold2) return Math.sqrt(dist);
         }
       }
     }
@@ -21445,13 +21283,10 @@ function closestPointToPoint(bvh, point, target = {}, minThreshold = 0, maxThres
       }
     }
   );
-  if (closestDistanceSq === Infinity)
-    return null;
+  if (closestDistanceSq === Infinity) return null;
   const closestDistance = Math.sqrt(closestDistanceSq);
-  if (!target.point)
-    target.point = temp1$2.clone();
-  else
-    target.point.copy(temp1$2);
+  if (!target.point) target.point = temp1$2.clone();
+  else target.point.copy(temp1$2);
   target.distance = closestDistance, target.faceIndex = closestDistanceTriIndex;
   return target;
 }
@@ -21474,11 +21309,9 @@ function checkIntersection(ray, pA, pB, pC, point, side, near, far) {
   } else {
     intersect = ray.intersectTriangle(pA, pB, pC, side !== DoubleSide, point);
   }
-  if (intersect === null)
-    return null;
+  if (intersect === null) return null;
   const distance = ray.origin.distanceTo(point);
-  if (distance < near || distance > far)
-    return null;
+  if (distance < near || distance > far) return null;
   return {
     distance,
     point: point.clone()
@@ -21683,18 +21516,12 @@ function refit(bvh, nodeIndices = null) {
         const x = posAttr.getX(index);
         const y = posAttr.getY(index);
         const z = posAttr.getZ(index);
-        if (x < minx)
-          minx = x;
-        if (x > maxx)
-          maxx = x;
-        if (y < miny)
-          miny = y;
-        if (y > maxy)
-          maxy = y;
-        if (z < minz)
-          minz = z;
-        if (z > maxz)
-          maxz = z;
+        if (x < minx) minx = x;
+        if (x > maxx) maxx = x;
+        if (y < miny) miny = y;
+        if (y > maxy) maxy = y;
+        if (z < minz) minz = z;
+        if (z > maxz) maxz = z;
       }
       if (float32Array2[nodeIndex32 + 0] !== minx || float32Array2[nodeIndex32 + 1] !== miny || float32Array2[nodeIndex32 + 2] !== minz || float32Array2[nodeIndex32 + 3] !== maxx || float32Array2[nodeIndex32 + 4] !== maxy || float32Array2[nodeIndex32 + 5] !== maxz) {
         float32Array2[nodeIndex32 + 0] = minx;
@@ -21778,12 +21605,9 @@ function intersectRay(nodeIndex32, array, ray, near, far) {
     tymin = (maxy - oy) * invdiry;
     tymax = (miny - oy) * invdiry;
   }
-  if (tmin > tymax || tymin > tmax)
-    return false;
-  if (tymin > tmin || isNaN(tmin))
-    tmin = tymin;
-  if (tymax < tmax || isNaN(tmax))
-    tmax = tymax;
+  if (tmin > tymax || tymin > tmax) return false;
+  if (tymin > tmin || isNaN(tmin)) tmin = tymin;
+  if (tymax < tmax || isNaN(tmax)) tmax = tymax;
   if (invdirz >= 0) {
     tzmin = (minz - oz) * invdirz;
     tzmax = (maxz - oz) * invdirz;
@@ -21791,12 +21615,9 @@ function intersectRay(nodeIndex32, array, ray, near, far) {
     tzmin = (maxz - oz) * invdirz;
     tzmax = (minz - oz) * invdirz;
   }
-  if (tmin > tzmax || tzmin > tmax)
-    return false;
-  if (tzmin > tmin || tmin !== tmin)
-    tmin = tzmin;
-  if (tzmax < tmax || tmax !== tmax)
-    tmax = tzmax;
+  if (tmin > tzmax || tzmin > tmax) return false;
+  if (tzmin > tmin || tmin !== tmin) tmin = tzmin;
+  if (tzmax < tmax || tmax !== tmax) tmax = tzmax;
   return tmin <= far && tmax >= near;
 }
 function intersectTris_indirect(bvh, materialOrSide, ray, offset, count, intersections, near, far) {
@@ -21984,12 +21805,10 @@ function _intersectsGeometry$1(nodeIndex32, bvh, otherGeometry, geometryToBvh, c
     const right = RIGHT_NODE(nodeIndex32, uint32Array2);
     arrayToBox(BOUNDING_DATA_INDEX(left), float32Array2, boundingBox$1);
     const leftIntersection = cachedObb.intersectsBox(boundingBox$1) && _intersectsGeometry$1(left, bvh, otherGeometry, geometryToBvh, cachedObb);
-    if (leftIntersection)
-      return true;
+    if (leftIntersection) return true;
     arrayToBox(BOUNDING_DATA_INDEX(right), float32Array2, boundingBox$1);
     const rightIntersection = cachedObb.intersectsBox(boundingBox$1) && _intersectsGeometry$1(right, bvh, otherGeometry, geometryToBvh, cachedObb);
-    if (rightIntersection)
-      return true;
+    if (rightIntersection) return true;
     return false;
   }
 }
@@ -22121,10 +21940,8 @@ function closestPointToGeometry(bvh, otherGeometry, geometryToBvh, target1 = {},
   }
   target1.distance = closestDistance, target1.faceIndex = closestDistanceTriIndex;
   if (target2) {
-    if (!target2.point)
-      target2.point = tempTargetDest2.clone();
-    else
-      target2.point.copy(tempTargetDest2);
+    if (!target2.point) target2.point = tempTargetDest2.clone();
+    else target2.point.copy(tempTargetDest2);
     target2.point.applyMatrix4(tempMatrix$1);
     tempTargetDest1.applyMatrix4(tempMatrix$1);
     target2.distance = tempTargetDest1.sub(target2.point).length();
@@ -22169,18 +21986,12 @@ function refit_indirect(bvh, nodeIndices = null) {
           const x = posAttr.getX(index);
           const y = posAttr.getY(index);
           const z = posAttr.getZ(index);
-          if (x < minx)
-            minx = x;
-          if (x > maxx)
-            maxx = x;
-          if (y < miny)
-            miny = y;
-          if (y > maxy)
-            maxy = y;
-          if (z < minz)
-            minz = z;
-          if (z > maxz)
-            maxz = z;
+          if (x < minx) minx = x;
+          if (x > maxx) maxx = x;
+          if (y < miny) miny = y;
+          if (y > maxy) maxy = y;
+          if (z < minz) minz = z;
+          if (z > maxz) maxz = z;
         }
       }
       if (float32Array2[nodeIndex32 + 0] !== minx || float32Array2[nodeIndex32 + 1] !== miny || float32Array2[nodeIndex32 + 2] !== minz || float32Array2[nodeIndex32 + 3] !== maxx || float32Array2[nodeIndex32 + 4] !== maxy || float32Array2[nodeIndex32 + 5] !== maxz) {
@@ -22389,12 +22200,10 @@ function _intersectsGeometry(nodeIndex32, bvh, otherGeometry, geometryToBvh, cac
     const right = RIGHT_NODE(nodeIndex32, uint32Array2);
     arrayToBox(BOUNDING_DATA_INDEX(left), float32Array2, boundingBox);
     const leftIntersection = cachedObb.intersectsBox(boundingBox) && _intersectsGeometry(left, bvh, otherGeometry, geometryToBvh, cachedObb);
-    if (leftIntersection)
-      return true;
+    if (leftIntersection) return true;
     arrayToBox(BOUNDING_DATA_INDEX(right), float32Array2, boundingBox);
     const rightIntersection = cachedObb.intersectsBox(boundingBox) && _intersectsGeometry(right, bvh, otherGeometry, geometryToBvh, cachedObb);
-    if (rightIntersection)
-      return true;
+    if (rightIntersection) return true;
     return false;
   }
 }
@@ -22529,10 +22338,8 @@ function closestPointToGeometry_indirect(bvh, otherGeometry, geometryToBvh, targ
   }
   target1.distance = closestDistance, target1.faceIndex = closestDistanceTriIndex;
   if (target2) {
-    if (!target2.point)
-      target2.point = tempTargetDest2.clone();
-    else
-      target2.point.copy(tempTargetDest2);
+    if (!target2.point) target2.point = tempTargetDest2.clone();
+    else target2.point.copy(tempTargetDest2);
     target2.point.applyMatrix4(tempMatrix);
     tempTargetDest1.applyMatrix4(tempMatrix);
     target2.distance = tempTargetDest1.sub(target2.point).length();
@@ -22665,15 +22472,11 @@ class MeshBVH extends GeometryBVH {
       const b = posAttr[_getters[el]](bi);
       const c = posAttr[_getters[el]](ci);
       let min = a;
-      if (b < min)
-        min = b;
-      if (c < min)
-        min = c;
+      if (b < min) min = b;
+      if (c < min) min = c;
       let max = a;
-      if (b > max)
-        max = b;
-      if (c > max)
-        max = c;
+      if (b > max) max = b;
+      if (c > max) max = c;
       targetBuffer[baseIndex + el] = min;
       targetBuffer[baseIndex + el + 3] = max;
     }
@@ -22729,15 +22532,11 @@ class MeshBVH extends GeometryBVH {
           c = posArr[ci + el];
         }
         let min = a;
-        if (b < min)
-          min = b;
-        if (c < min)
-          min = c;
+        if (b < min) min = b;
+        if (c < min) min = c;
         let max = a;
-        if (b > max)
-          max = b;
-        if (c > max)
-          max = c;
+        if (b > max) max = b;
+        if (c > max) max = c;
         const halfExtents = (max - min) / 2;
         const el2 = el * 2;
         targetBuffer[boundsIndexOffset + el2 + 0] = min + halfExtents;
@@ -23071,11 +22870,9 @@ function earcut$1(data, holeIndices, dim = 2) {
   const outerLen = hasHoles ? holeIndices[0] * dim : data.length;
   let outerNode = linkedList$1(data, 0, outerLen, dim, true);
   const triangles = [];
-  if (!outerNode || outerNode.next === outerNode.prev)
-    return triangles;
+  if (!outerNode || outerNode.next === outerNode.prev) return triangles;
   let minX, minY, invSize;
-  if (hasHoles)
-    outerNode = eliminateHoles$1(data, holeIndices, outerNode, dim);
+  if (hasHoles) outerNode = eliminateHoles$1(data, holeIndices, outerNode, dim);
   if (data.length > 80 * dim) {
     minX = Infinity;
     minY = Infinity;
@@ -23084,14 +22881,10 @@ function earcut$1(data, holeIndices, dim = 2) {
     for (let i = dim; i < outerLen; i += dim) {
       const x = data[i];
       const y = data[i + 1];
-      if (x < minX)
-        minX = x;
-      if (y < minY)
-        minY = y;
-      if (x > maxX)
-        maxX = x;
-      if (y > maxY)
-        maxY = y;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
     }
     invSize = Math.max(maxX - minX, maxY - minY);
     invSize = invSize !== 0 ? 32767 / invSize : 0;
@@ -23102,11 +22895,9 @@ function earcut$1(data, holeIndices, dim = 2) {
 function linkedList$1(data, start, end, dim, clockwise) {
   let last;
   if (clockwise === signedArea$1(data, start, end, dim) > 0) {
-    for (let i = start; i < end; i += dim)
-      last = insertNode$1(i / dim | 0, data[i], data[i + 1], last);
+    for (let i = start; i < end; i += dim) last = insertNode$1(i / dim | 0, data[i], data[i + 1], last);
   } else {
-    for (let i = end - dim; i >= start; i -= dim)
-      last = insertNode$1(i / dim | 0, data[i], data[i + 1], last);
+    for (let i = end - dim; i >= start; i -= dim) last = insertNode$1(i / dim | 0, data[i], data[i + 1], last);
   }
   if (last && equals$1(last, last.next)) {
     removeNode$1(last);
@@ -23115,18 +22906,15 @@ function linkedList$1(data, start, end, dim, clockwise) {
   return last;
 }
 function filterPoints$1(start, end) {
-  if (!start)
-    return start;
-  if (!end)
-    end = start;
+  if (!start) return start;
+  if (!end) end = start;
   let p = start, again;
   do {
     again = false;
     if (!p.steiner && (equals$1(p, p.next) || area$1(p.prev, p, p.next) === 0)) {
       removeNode$1(p);
       p = end = p.prev;
-      if (p === p.next)
-        break;
+      if (p === p.next) break;
       again = true;
     } else {
       p = p.next;
@@ -23135,10 +22923,8 @@ function filterPoints$1(start, end) {
   return end;
 }
 function earcutLinked$1(ear, triangles, dim, minX, minY, invSize, pass) {
-  if (!ear)
-    return;
-  if (!pass && invSize)
-    indexCurve$1(ear, minX, minY, invSize);
+  if (!ear) return;
+  if (!pass && invSize) indexCurve$1(ear, minX, minY, invSize);
   let stop = ear;
   while (ear.prev !== ear.next) {
     const prev = ear.prev;
@@ -23166,42 +22952,35 @@ function earcutLinked$1(ear, triangles, dim, minX, minY, invSize, pass) {
 }
 function isEar$1(ear) {
   const a = ear.prev, b = ear, c = ear.next;
-  if (area$1(a, b, c) >= 0)
-    return false;
+  if (area$1(a, b, c) >= 0) return false;
   const ax = a.x, bx = b.x, cx = c.x, ay = a.y, by = b.y, cy = c.y;
   const x0 = Math.min(ax, bx, cx), y0 = Math.min(ay, by, cy), x1 = Math.max(ax, bx, cx), y1 = Math.max(ay, by, cy);
   let p = c.next;
   while (p !== a) {
-    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area$1(p.prev, p, p.next) >= 0)
-      return false;
+    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area$1(p.prev, p, p.next) >= 0) return false;
     p = p.next;
   }
   return true;
 }
 function isEarHashed$1(ear, minX, minY, invSize) {
   const a = ear.prev, b = ear, c = ear.next;
-  if (area$1(a, b, c) >= 0)
-    return false;
+  if (area$1(a, b, c) >= 0) return false;
   const ax = a.x, bx = b.x, cx = c.x, ay = a.y, by = b.y, cy = c.y;
   const x0 = Math.min(ax, bx, cx), y0 = Math.min(ay, by, cy), x1 = Math.max(ax, bx, cx), y1 = Math.max(ay, by, cy);
   const minZ = zOrder$1(x0, y0, minX, minY, invSize), maxZ = zOrder$1(x1, y1, minX, minY, invSize);
   let p = ear.prevZ, n = ear.nextZ;
   while (p && p.z >= minZ && n && n.z <= maxZ) {
-    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area$1(p.prev, p, p.next) >= 0)
-      return false;
+    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area$1(p.prev, p, p.next) >= 0) return false;
     p = p.prevZ;
-    if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1 && n !== a && n !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, n.x, n.y) && area$1(n.prev, n, n.next) >= 0)
-      return false;
+    if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1 && n !== a && n !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, n.x, n.y) && area$1(n.prev, n, n.next) >= 0) return false;
     n = n.nextZ;
   }
   while (p && p.z >= minZ) {
-    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area$1(p.prev, p, p.next) >= 0)
-      return false;
+    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p !== a && p !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, p.x, p.y) && area$1(p.prev, p, p.next) >= 0) return false;
     p = p.prevZ;
   }
   while (n && n.z <= maxZ) {
-    if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1 && n !== a && n !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, n.x, n.y) && area$1(n.prev, n, n.next) >= 0)
-      return false;
+    if (n.x >= x0 && n.x <= x1 && n.y >= y0 && n.y <= y1 && n !== a && n !== c && pointInTriangleExceptFirst(ax, ay, bx, by, cx, cy, n.x, n.y) && area$1(n.prev, n, n.next) >= 0) return false;
     n = n.nextZ;
   }
   return true;
@@ -23244,8 +23023,7 @@ function eliminateHoles$1(data, holeIndices, outerNode, dim) {
     const start = holeIndices[i] * dim;
     const end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
     const list = linkedList$1(data, start, end, dim, false);
-    if (list === list.next)
-      list.steiner = true;
+    if (list === list.next) list.steiner = true;
     queue.push(getLeftmost$1(list));
   }
   queue.sort(compareXYSlope);
@@ -23281,24 +23059,20 @@ function findHoleBridge$1(hole, outerNode) {
   const hy = hole.y;
   let qx = -Infinity;
   let m;
-  if (equals$1(hole, p))
-    return p;
+  if (equals$1(hole, p)) return p;
   do {
-    if (equals$1(hole, p.next))
-      return p.next;
+    if (equals$1(hole, p.next)) return p.next;
     else if (hy <= p.y && hy >= p.next.y && p.next.y !== p.y) {
       const x = p.x + (hy - p.y) * (p.next.x - p.x) / (p.next.y - p.y);
       if (x <= hx && x > qx) {
         qx = x;
         m = p.x < p.next.x ? p : p.next;
-        if (x === hx)
-          return m;
+        if (x === hx) return m;
       }
     }
     p = p.next;
   } while (p !== outerNode);
-  if (!m)
-    return null;
+  if (!m) return null;
   const stop = m;
   const mx = m.x;
   const my = m.y;
@@ -23322,8 +23096,7 @@ function sectorContainsSector$1(m, p) {
 function indexCurve$1(start, minX, minY, invSize) {
   let p = start;
   do {
-    if (p.z === 0)
-      p.z = zOrder$1(p.x, p.y, minX, minY, invSize);
+    if (p.z === 0) p.z = zOrder$1(p.x, p.y, minX, minY, invSize);
     p.prevZ = p.prev;
     p.nextZ = p.next;
     p = p.next;
@@ -23348,8 +23121,7 @@ function sortLinked$1(list) {
       for (let i = 0; i < inSize; i++) {
         pSize++;
         q = q.nextZ;
-        if (!q)
-          break;
+        if (!q) break;
       }
       let qSize = inSize;
       while (pSize > 0 || qSize > 0 && q) {
@@ -23362,10 +23134,8 @@ function sortLinked$1(list) {
           q = q.nextZ;
           qSize--;
         }
-        if (tail)
-          tail.nextZ = e;
-        else
-          list = e;
+        if (tail) tail.nextZ = e;
+        else list = e;
         e.prevZ = tail;
         tail = e;
       }
@@ -23392,8 +23162,7 @@ function zOrder$1(x, y, minX, minY, invSize) {
 function getLeftmost$1(start) {
   let p = start, leftmost = start;
   do {
-    if (p.x < leftmost.x || p.x === leftmost.x && p.y < leftmost.y)
-      leftmost = p;
+    if (p.x < leftmost.x || p.x === leftmost.x && p.y < leftmost.y) leftmost = p;
     p = p.next;
   } while (p !== start);
   return leftmost;
@@ -23421,16 +23190,11 @@ function intersects$1(p1, q1, p2, q2) {
   const o2 = sign$1(area$1(p1, q1, q2));
   const o3 = sign$1(area$1(p2, q2, p1));
   const o4 = sign$1(area$1(p2, q2, q1));
-  if (o1 !== o2 && o3 !== o4)
-    return true;
-  if (o1 === 0 && onSegment$1(p1, p2, q1))
-    return true;
-  if (o2 === 0 && onSegment$1(p1, q2, q1))
-    return true;
-  if (o3 === 0 && onSegment$1(p2, p1, q2))
-    return true;
-  if (o4 === 0 && onSegment$1(p2, q1, q2))
-    return true;
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSegment$1(p1, p2, q1)) return true;
+  if (o2 === 0 && onSegment$1(p1, q2, q1)) return true;
+  if (o3 === 0 && onSegment$1(p2, p1, q2)) return true;
+  if (o4 === 0 && onSegment$1(p2, q1, q2)) return true;
   return false;
 }
 function onSegment$1(p, q, r) {
@@ -23442,8 +23206,7 @@ function sign$1(num) {
 function intersectsPolygon$1(a, b) {
   let p = a;
   do {
-    if (p.i !== a.i && p.next.i !== a.i && p.i !== b.i && p.next.i !== b.i && intersects$1(p, p.next, a, b))
-      return true;
+    if (p.i !== a.i && p.next.i !== a.i && p.i !== b.i && p.next.i !== b.i && intersects$1(p, p.next, a, b)) return true;
     p = p.next;
   } while (p !== a);
   return false;
@@ -23491,10 +23254,8 @@ function insertNode$1(i, x, y, last) {
 function removeNode$1(p) {
   p.next.prev = p.prev;
   p.prev.next = p.next;
-  if (p.prevZ)
-    p.prevZ.nextZ = p.nextZ;
-  if (p.nextZ)
-    p.nextZ.prevZ = p.prevZ;
+  if (p.prevZ) p.prevZ.nextZ = p.nextZ;
+  if (p.nextZ) p.nextZ.prevZ = p.prevZ;
 }
 function createNode$1(i, x, y) {
   return {
@@ -26042,7 +25803,7 @@ const _CRC = class _CRC {
   constructor() {
     __publicField(this, "_core", new CRCData());
     __publicField(this, "_handlers");
-    __publicField(this, "_result", -1);
+    __publicField(this, "_result", ~0);
     __publicField(this, "handleObject", (input) => {
       const keys = Object.keys(input);
       for (const key of keys) {
@@ -26107,7 +25868,7 @@ const _CRC = class _CRC {
     return this;
   }
   reset() {
-    this._result = -1;
+    this._result = ~0;
     return this;
   }
   getHandler(input) {
@@ -26650,7 +26411,7 @@ class FaceUtils {
     const xDim = 0;
     const yDim = 1;
     const zDim = 2;
-    const isMostlyHorizontal = absZ > absX && absZ > absY;
+    const isMostlyHorizontal = absZ >= absX && absZ >= absY;
     if (isMostlyHorizontal) {
       const lookingUp = normal.z > 0;
       if (lookingUp) {
@@ -26658,7 +26419,7 @@ class FaceUtils {
       }
       return [yDim, xDim];
     }
-    const isMostlyLookingToY = absY > absX && absY > absZ;
+    const isMostlyLookingToY = absY >= absX && absY >= absZ;
     if (isMostlyLookingToY) {
       const isLookingYPositive = normal.y > 0;
       if (isLookingYPositive) {
@@ -26828,8 +26589,7 @@ const _ShellUtils = class _ShellUtils {
       const normal = faceNormals[id];
       const dot = profileNormal.dot(normal);
       const isValid = dot > this._faceThreshold;
-      if (!isValid)
-        continue;
+      if (!isValid) continue;
       this._tempNormal.add(normal);
     }
   }
@@ -26999,8 +26759,7 @@ class ShellTemplateConstructor {
     for (let i = 0; i < count; i++) {
       ShellUtils.getHole(shell, i, hole);
       const profileId = hole.profileId();
-      if (profileId !== id)
-        continue;
+      if (profileId !== id) continue;
       this.updateBuffers(shell, shellHolesExist);
       shellHolesExist = true;
     }
@@ -27104,8 +26863,7 @@ function earcut(data, holeIndices, dim, a, b, createGeometry) {
   const hasHoles = holeIndices && holeIndices.length;
   const outerLen = hasHoles ? holeIndices[0] * dim : data.length;
   let outerNode = linkedList(data, 0, outerLen, dim, true, a, b);
-  if (!outerNode || outerNode.next === outerNode.prev)
-    return;
+  if (!outerNode || outerNode.next === outerNode.prev) return;
   let minX;
   let minY;
   let invSize;
@@ -27119,14 +26877,10 @@ function earcut(data, holeIndices, dim, a, b, createGeometry) {
     for (let i = dim; i < outerLen; i += dim) {
       const x = data[i + a];
       const y = data[i + b];
-      if (x < minX)
-        minX = x;
-      if (y < minY)
-        minY = y;
-      if (x > maxX)
-        maxX = x;
-      if (y > maxY)
-        maxY = y;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
     }
     invSize = Math.max(maxX - minX, maxY - minY);
     invSize = invSize !== 0 ? 1 / invSize : 0;
@@ -27162,10 +26916,8 @@ function linkedList(data, start, end, dim, clockwise, a, b) {
   return finish;
 }
 function filterPoints(start, end) {
-  if (!start)
-    return start;
-  if (!end)
-    end = start;
+  if (!start) return start;
+  if (!end) end = start;
   let p = start;
   let again;
   let past;
@@ -27175,8 +26927,7 @@ function filterPoints(start, end) {
       past = p.prev;
       removeNode(p);
       p = end = past;
-      if (p === p.next)
-        break;
+      if (p === p.next) break;
       again = true;
     } else {
       p = p.next;
@@ -27185,8 +26936,7 @@ function filterPoints(start, end) {
   return end;
 }
 function earcutLinked(ear, createGeometry, dim, minX, minY, invSize, pass) {
-  if (!pass && invSize)
-    indexCurve(ear, minX, minY, invSize);
+  if (!pass && invSize) indexCurve(ear, minX, minY, invSize);
   let stop = ear;
   while (ear.prev !== ear.next) {
     const prev = ear.prev;
@@ -27224,8 +26974,7 @@ function isEar(ear) {
   const a = ear.prev;
   const b = ear;
   const c = ear.next;
-  if (area(a, b, c) >= 0)
-    return false;
+  if (area(a, b, c) >= 0) return false;
   let p = ear.next.next;
   while (p !== ear.prev) {
     if (pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) && area(p.prev, p, p.next) >= 0)
@@ -27238,8 +26987,7 @@ function isEarHashed(ear, minX, minY, invSize) {
   const a = ear.prev;
   const b = ear;
   const c = ear.next;
-  if (area(a, b, c) >= 0)
-    return false;
+  if (area(a, b, c) >= 0) return false;
   const x0 = Math.min(a.x, b.x, c.x);
   const y0 = Math.min(a.y, b.y, c.y);
   const x1 = Math.max(a.x, b.x, c.x);
@@ -27307,8 +27055,7 @@ function eliminateHoles(data, holeIndices, outerNode, dim, a, b) {
     const start = holeIndices[i] * dim;
     const end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
     const list = linkedList(data, start, end, dim, false, a, b);
-    if (list === list.next)
-      list.steiner = true;
+    if (list === list.next) list.steiner = true;
     queue.push(getLeftmost(list));
   }
   queue.sort(xDifference);
@@ -27346,20 +27093,16 @@ function findHoleBridge(hole, outerNode) {
       if (x <= hx && x > qx) {
         qx = x;
         if (x === hx) {
-          if (hy === p.y)
-            return p;
-          if (hy === p.next.y)
-            return p.next;
+          if (hy === p.y) return p;
+          if (hy === p.next.y) return p.next;
         }
         m = p.x < p.next.x ? p : p.next;
       }
     }
     p = p.next;
   } while (p !== outerNode);
-  if (!m)
-    return null;
-  if (hx === qx)
-    return m;
+  if (!m) return null;
+  if (hx === qx) return m;
   const stop = m;
   const mx = m.x;
   const my = m.y;
@@ -27392,8 +27135,7 @@ function sectorContainsSector(m, p) {
 function indexCurve(start, minX, minY, invSize) {
   let p = start;
   do {
-    if (p.z === null)
-      p.z = zOrder(p.x, p.y, minX, minY, invSize);
+    if (p.z === null) p.z = zOrder(p.x, p.y, minX, minY, invSize);
     p.prevZ = p.prev;
     p.nextZ = p.next;
     p = p.next;
@@ -27418,8 +27160,7 @@ function sortLinked(list) {
       for (let i = 0; i < inSize; i++) {
         pSize++;
         q = q.nextZ;
-        if (!q)
-          break;
+        if (!q) break;
       }
       let qSize = inSize;
       while (pSize > 0 || qSize > 0 && q) {
@@ -27432,10 +27173,8 @@ function sortLinked(list) {
           q = q.nextZ;
           qSize--;
         }
-        if (tail)
-          tail.nextZ = e;
-        else
-          list = e;
+        if (tail) tail.nextZ = e;
+        else list = e;
         e.prevZ = tail;
         tail = e;
       }
@@ -27489,16 +27228,11 @@ function intersects(p1, q1, p2, q2) {
   const o2 = sign(area(p1, q1, q2));
   const o3 = sign(area(p2, q2, p1));
   const o4 = sign(area(p2, q2, q1));
-  if (o1 !== o2 && o3 !== o4)
-    return true;
-  if (o1 === 0 && onSegment(p1, p2, q1))
-    return true;
-  if (o2 === 0 && onSegment(p1, q2, q1))
-    return true;
-  if (o3 === 0 && onSegment(p2, p1, q2))
-    return true;
-  if (o4 === 0 && onSegment(p2, q1, q2))
-    return true;
+  if (o1 !== o2 && o3 !== o4) return true;
+  if (o1 === 0 && onSegment(p1, p2, q1)) return true;
+  if (o2 === 0 && onSegment(p1, q2, q1)) return true;
+  if (o3 === 0 && onSegment(p2, p1, q2)) return true;
+  if (o4 === 0 && onSegment(p2, q1, q2)) return true;
   return false;
 }
 function onSegment(p, q, r) {
@@ -27562,10 +27296,8 @@ function insertNode(i, x, y, last) {
 function removeNode(p) {
   p.next.prev = p.prev;
   p.prev.next = p.next;
-  if (p.prevZ)
-    p.prevZ.nextZ = p.nextZ;
-  if (p.nextZ)
-    p.nextZ.prevZ = p.prevZ;
+  if (p.prevZ) p.prevZ.nextZ = p.nextZ;
+  if (p.nextZ) p.nextZ.prevZ = p.prevZ;
   p.next = p;
   p.prev = p;
 }
@@ -27932,8 +27664,7 @@ class ShellConstructor {
   }
   computeNormalsAvg(shell, indices, id) {
     const isShell = this.isShell(shell);
-    if (!isShell)
-      return;
+    if (!isShell) return;
     const n = this._normals;
     const ppp = this._pointsPerProfile;
     this._normalsAvg = ShellUtils.computeNormalsAvg(indices, id, n, ppp);
@@ -27943,8 +27674,7 @@ class ShellConstructor {
   }
   getPointsPerWire(shell) {
     const isShell = this.isShell(shell);
-    if (!isShell)
-      return;
+    if (!isShell) return;
     ShellUtils.getNormalsOfShellProfile(shell, this._normals);
     this._pointsPerProfile = ShellUtils.getPointsShell(shell);
   }
@@ -27986,8 +27716,7 @@ class ShellConstructor {
     const hole = this.getTempHole(shell);
     const count = hole.indicesLength();
     const isShell = this.isShell(shell);
-    if (!isShell)
-      return;
+    if (!isShell) return;
     for (let id = 0; id < count; id++) {
       this.getIntProfilePoints(id, shell, intProfile);
       this.getIntProfileNormals(intProfile, id);
@@ -28308,8 +28037,7 @@ class ShellFaceRaycaster {
   }
   processCollision(shell, profileId, buffer, indices) {
     const contains = this.polygonContains(buffer, indices);
-    if (!contains)
-      return;
+    if (!contains) return;
     const point = this.b.clone();
     const normal = this.tempPlane.normal.clone();
     const faceBuffer = this.getFaceBuffer(shell, profileId, buffer);
@@ -28520,10 +28248,8 @@ class ShellLineRaycaster {
     const profile2 = this._pointsByProfile.get(secondIndex);
     const result = [];
     for (const index of profile1) {
-      if (profile2.indexOf(index) === -1)
-        continue;
-      if (index === id)
-        continue;
+      if (profile2.indexOf(index) === -1) continue;
+      if (index === id) continue;
       result.push(index);
     }
     return result;
@@ -28589,8 +28315,7 @@ class ShellPointRaycaster {
     for (let id = 0; id < count; id++) {
       ShellUtils.point(shell, id, this._tempVec);
       const pointFound = frustum.containsPoint(this._tempVec);
-      if (!pointFound)
-        continue;
+      if (!pointFound) continue;
       const point = this._tempVec.clone();
       points.push({ point });
     }
@@ -28651,8 +28376,7 @@ class VirtualShellManager extends VirtualMeshManager {
   }
   constructMesh(mesh, evenVoid, meshId) {
     const isVoid = this.isVoidMesh(mesh);
-    if (!isVoid || !evenVoid)
-      return;
+    if (!isVoid || !evenVoid) return;
     const shell = ShellUtils.getShell(this.meshes, meshId);
     this._constructor.construct(shell, mesh);
     this.saveMesh(meshId, mesh, CurrentLod.GEOMETRY);
@@ -28823,8 +28547,7 @@ class VceCasterUtils {
   }
   static computeCircleExtrusionRaycastPoints(factor, size, radius) {
     const clashes = this.checkIfCircleExtrusionClashes(factor, size, radius);
-    if (!clashes)
-      return;
+    if (!clashes) return;
     this._ceRaycastPoint.applyMatrix4(this._ceTransform);
     const point = this._ceRaycastPoint.clone();
     this._ceRaycastPoints.push({ point });
@@ -29523,8 +29246,7 @@ class VceConstructor {
       const limit = selected + size;
       this.findLinkedVertex(selected, limit, mesh, size, i);
       const closerFound = this._total < this._closest;
-      if (!closerFound)
-        continue;
+      if (!closerFound) continue;
       this._closest = this._total;
       this._result = selected - size + i + 1;
     }
@@ -29590,8 +29312,7 @@ class VceRaycaster {
       const second = mids[0];
       this.castCurveExtrusion(first, second, ray, radius);
       for (let i = 0; i < mids.length; i++) {
-        if (i === 0)
-          continue;
+        if (i === 0) continue;
         const first2 = mids[i - 1];
         const second2 = mids[i];
         this.castCurveExtrusion(first2, second2, ray, radius);
@@ -29656,8 +29377,7 @@ class VceLineRaycaster {
   }
   processCircleCurveBody(body, ray, radius) {
     for (let i = 0; i < body.length; i++) {
-      if (i === 0)
-        continue;
+      if (i === 0) continue;
       const mid = body[i];
       const past = body[i - 1];
       this.cylinderRaycast(past, mid, ray, radius);
@@ -29693,8 +29413,7 @@ class VceLineRaycaster {
     const u = VceCasterUtils;
     const results = u.raycastCircleExtr(first, last, ray, radius);
     for (const result of results) {
-      if (!result.point)
-        continue;
+      if (!result.point) continue;
       this.fetchCylinderRaycastResult(ray, first, last);
     }
   }
@@ -30028,8 +29747,7 @@ class VirtualCircleExtrusionManager extends VirtualMeshManager {
   }
   generateLodIfNeeded(meshId, evenVoid, mesh) {
     const isVoid = !mesh.positionBuffer;
-    if (!isVoid || !evenVoid)
-      return;
+    if (!isVoid || !evenVoid) return;
     this.meshes.circleExtrusions(meshId, VceUtils.temp.circleExtrusion);
     this._lodConstructor.construct(VceUtils.temp.circleExtrusion, mesh);
     this.saveMesh(meshId, mesh, CurrentLod.WIRES);
@@ -30179,9 +29897,185 @@ class RaycastController {
     if (!lookup) {
       return [];
     }
-    const itemIds = lookup.collideFrustum(planes, frustum, fullyInside);
-    const raycastedItemIds = this.filterVisible(itemIds);
+    const itemIds = lookup.collideFrustum(planes, frustum, false);
+    let raycastedItemIds = this.filterVisible(itemIds);
+    if (raycastedItemIds.length) {
+      raycastedItemIds = this.narrowPhaseFrustum(
+        raycastedItemIds,
+        frustum,
+        planes,
+        fullyInside
+      );
+    }
     return this.localIdsFromItemIds(raycastedItemIds);
+  }
+  // Filters broad-phase sample candidates by testing their real geometry
+  // against the selection frustum (+ clipping planes). Mirrors the section/clip
+  // generator: builds a transient BVH per representation (cached for this call)
+  // and shapecasts it; the frustum is moved into each sample's local space so
+  // instanced items that share one local geometry are handled by transform.
+  // fullyInside === true keeps only items whose geometry is entirely inside;
+  // false keeps items whose geometry touches the selection.
+  narrowPhaseFrustum(sampleIds, frustum, clipPlanes, fullyInside) {
+    var _a2;
+    const worldPlanes = clipPlanes && clipPlanes.length ? [...frustum.planes, ...clipPlanes] : frustum.planes;
+    const geomCache = /* @__PURE__ */ new Map();
+    const result = [];
+    const start = performance.now();
+    let exceeded = false;
+    for (const sampleId of sampleIds) {
+      if (exceeded) {
+        result.push(sampleId);
+        continue;
+      }
+      const box = this._boxes.get(sampleId);
+      if (CameraUtils.isIncluded(box, worldPlanes)) {
+        result.push(sampleId);
+        continue;
+      }
+      if (this.sampleMatchesFrustum(
+        sampleId,
+        frustum,
+        clipPlanes,
+        fullyInside,
+        geomCache
+      )) {
+        result.push(sampleId);
+      }
+      exceeded = this.isTimeExceeded(start);
+    }
+    for (const [, geometries] of geomCache) {
+      for (const geometry of geometries) {
+        (_a2 = geometry.disposeBoundsTree) == null ? void 0 : _a2.call(geometry);
+        geometry.dispose();
+      }
+    }
+    return result;
+  }
+  sampleMatchesFrustum(sampleId, frustum, clipPlanes, fullyInside, geomCache) {
+    const sample = this._meshes.samples(sampleId, this._temp.sample);
+    if (!sample) return !fullyInside;
+    const reprId = sample.representation();
+    TransformHelper.get(this._temp.sample, this._meshes, this._temp.m1);
+    this._temp.m2.copy(this._temp.m1).invert();
+    let geometries = geomCache.get(reprId);
+    if (!geometries) {
+      geometries = this.buildSampleGeometries(sampleId);
+      geomCache.set(reprId, geometries);
+    }
+    if (geometries.length === 0) return !fullyInside;
+    const localPlanes = this.toLocalPlanes(frustum, clipPlanes, this._temp.m2);
+    if (fullyInside) {
+      for (const geometry of geometries) {
+        if (!this.geometryFullyInside(geometry, localPlanes)) {
+          return false;
+        }
+      }
+      return true;
+    }
+    for (const geometry of geometries) {
+      if (this.geometryIntersectsPlanes(geometry, localPlanes)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  // True only if every vertex of the geometry is inside every plane.
+  geometryFullyInside(geometry, planes) {
+    const position = geometry.getAttribute("position");
+    const array = position.array;
+    const vertex = this._temp.v1;
+    for (let i = 0; i < array.length; i += 3) {
+      vertex.set(array[i], array[i + 1], array[i + 2]);
+      for (const plane of planes) {
+        if (plane.distanceToPoint(vertex) < 0) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+  buildSampleGeometries(sampleId) {
+    const geometries = [];
+    const sampleGeom = this._tiles.fetchSample(sampleId, CurrentLod.GEOMETRY);
+    MiscHelper.forEach(sampleGeom.geometries, (geometryData) => {
+      if (!geometryData.indexBuffer || !geometryData.positionBuffer) {
+        return;
+      }
+      const geometry = new BufferGeometry();
+      geometry.setIndex(Array.from(geometryData.indexBuffer));
+      geometry.setAttribute(
+        "position",
+        new BufferAttribute(geometryData.positionBuffer, 3)
+      );
+      geometry.computeBoundsTree();
+      geometries.push(geometry);
+    });
+    return geometries;
+  }
+  toLocalPlanes(frustum, clipPlanes, toLocal) {
+    const local = [];
+    this.pushLocalPlanes(frustum.planes, toLocal, local);
+    if (clipPlanes) {
+      this.pushLocalPlanes(clipPlanes, toLocal, local);
+    }
+    return local;
+  }
+  pushLocalPlanes(planes, toLocal, out) {
+    for (const plane of planes) {
+      if (!Number.isFinite(plane.constant)) {
+        continue;
+      }
+      out.push(new Plane().copy(plane).applyMatrix4(toLocal));
+    }
+  }
+  geometryIntersectsPlanes(geometry, planes) {
+    let hit = false;
+    geometry.boundsTree.shapecast({
+      intersectsBounds: (box) => CameraUtils.collides(box, planes),
+      intersectsTriangle: (tri) => {
+        if (this.triangleIntersectsFrustum(tri, planes)) {
+          hit = true;
+          return true;
+        }
+        return false;
+      }
+    });
+    return hit;
+  }
+  // Exact triangle-vs-frustum test by clipping. The frustum is the intersection
+  // of its plane half-spaces, so clipping the triangle polygon against every
+  // plane (Sutherland-Hodgman) yields exactly triangle ∩ frustum. Non-empty
+  // result means they really intersect. This avoids the false positives a
+  // "not fully outside any single plane" test gives on large triangles.
+  triangleIntersectsFrustum(tri, planes) {
+    let poly = [tri.a, tri.b, tri.c];
+    for (const plane of planes) {
+      poly = this.clipPolygonByPlane(poly, plane);
+      if (poly.length === 0) {
+        return false;
+      }
+    }
+    return poly.length > 0;
+  }
+  // Clips a convex polygon to the inside (distance >= 0) half-space of a plane.
+  clipPolygonByPlane(poly, plane) {
+    const out = [];
+    const count = poly.length;
+    for (let i = 0; i < count; i++) {
+      const current = poly[i];
+      const next = poly[(i + 1) % count];
+      const dCurrent = plane.distanceToPoint(current);
+      const dNext = plane.distanceToPoint(next);
+      if (dCurrent >= 0) {
+        out.push(current);
+      }
+      if (dCurrent >= 0 !== dNext >= 0) {
+        const t = dCurrent / (dCurrent - dNext);
+        out.push(new Vector3().lerpVectors(current, next, t));
+      }
+    }
+    return out;
   }
   snapCastEdges(data, snaps) {
     const results = [];
@@ -30288,11 +30182,9 @@ class RaycastController {
       this._meshes.samples(id, this._temp.sample);
       const itemId = this._temp.sample.item();
       const localIdIndex = this._meshes.meshesItems(itemId);
-      if (localIdIndex === null)
-        continue;
+      if (localIdIndex === null) continue;
       const localId = this._model.localIds(localIdIndex);
-      if (localId === null)
-        continue;
+      if (localId === null) continue;
       localIds.add(localId);
     }
     return Array.from(localIds);
@@ -30375,16 +30267,19 @@ class RaycastController {
       if ("facePoints" in result) {
         const sample = this._meshes.samples(id, this._temp.sample);
         TransformHelper.get(sample, this._meshes, this._temp.m3);
-        for (let i = 0; i < result.facePoints.length; i += 3) {
-          const x = result.facePoints[i];
-          const y = result.facePoints[i + 1];
-          const z = result.facePoints[i + 2];
+        const sourceFacePoints = result.facePoints;
+        const transformedFacePoints = new Float64Array(sourceFacePoints.length);
+        for (let i = 0; i < sourceFacePoints.length; i += 3) {
+          const x = sourceFacePoints[i];
+          const y = sourceFacePoints[i + 1];
+          const z = sourceFacePoints[i + 2];
           this._temp.v1.set(x, y, z);
           this._temp.v1.applyMatrix4(this._temp.m3);
-          result.facePoints[i] = this._temp.v1.x;
-          result.facePoints[i + 1] = this._temp.v1.y;
-          result.facePoints[i + 2] = this._temp.v1.z;
+          transformedFacePoints[i] = this._temp.v1.x;
+          transformedFacePoints[i + 1] = this._temp.v1.y;
+          transformedFacePoints[i + 2] = this._temp.v1.z;
         }
+        result.facePoints = transformedFacePoints;
       }
       result.sampleId = id;
       result.itemId = this._temp.sample.item();
@@ -30618,26 +30513,15 @@ __privateAdd(_Stack, _constructing, false);
 let Stack = _Stack;
 const _LRUCache = class _LRUCache {
   constructor(options) {
-    __privateAdd(this, _initializeTTLTracking);
-    __privateAdd(this, _initializeSizeTracking);
-    __privateAdd(this, _indexes);
-    __privateAdd(this, _rindexes);
-    __privateAdd(this, _isValidIndex);
-    __privateAdd(this, _evict);
-    __privateAdd(this, _backgroundFetch);
-    __privateAdd(this, _isBackgroundFetch);
-    __privateAdd(this, _connect);
-    __privateAdd(this, _moveToTail);
-    __privateAdd(this, _delete);
-    __privateAdd(this, _clear);
+    __privateAdd(this, _LRUCache_instances);
     // options that cannot be changed without disaster
-    __privateAdd(this, _max, void 0);
-    __privateAdd(this, _maxSize, void 0);
-    __privateAdd(this, _dispose, void 0);
-    __privateAdd(this, _onInsert, void 0);
-    __privateAdd(this, _disposeAfter, void 0);
-    __privateAdd(this, _fetchMethod, void 0);
-    __privateAdd(this, _memoMethod, void 0);
+    __privateAdd(this, _max);
+    __privateAdd(this, _maxSize);
+    __privateAdd(this, _dispose);
+    __privateAdd(this, _onInsert);
+    __privateAdd(this, _disposeAfter);
+    __privateAdd(this, _fetchMethod);
+    __privateAdd(this, _memoMethod);
     /**
      * {@link LRUCache.OptionsBase.ttl}
      */
@@ -30699,24 +30583,24 @@ const _LRUCache = class _LRUCache {
      */
     __publicField(this, "ignoreFetchAbort");
     // computed properties
-    __privateAdd(this, _size, void 0);
-    __privateAdd(this, _calculatedSize, void 0);
-    __privateAdd(this, _keyMap, void 0);
-    __privateAdd(this, _keyList, void 0);
-    __privateAdd(this, _valList, void 0);
-    __privateAdd(this, _next, void 0);
-    __privateAdd(this, _prev, void 0);
-    __privateAdd(this, _head, void 0);
-    __privateAdd(this, _tail, void 0);
-    __privateAdd(this, _free, void 0);
-    __privateAdd(this, _disposed, void 0);
-    __privateAdd(this, _sizes, void 0);
-    __privateAdd(this, _starts, void 0);
-    __privateAdd(this, _ttls, void 0);
-    __privateAdd(this, _hasDispose, void 0);
-    __privateAdd(this, _hasFetchMethod, void 0);
-    __privateAdd(this, _hasDisposeAfter, void 0);
-    __privateAdd(this, _hasOnInsert, void 0);
+    __privateAdd(this, _size);
+    __privateAdd(this, _calculatedSize);
+    __privateAdd(this, _keyMap);
+    __privateAdd(this, _keyList);
+    __privateAdd(this, _valList);
+    __privateAdd(this, _next);
+    __privateAdd(this, _prev);
+    __privateAdd(this, _head);
+    __privateAdd(this, _tail);
+    __privateAdd(this, _free);
+    __privateAdd(this, _disposed);
+    __privateAdd(this, _sizes);
+    __privateAdd(this, _starts);
+    __privateAdd(this, _ttls);
+    __privateAdd(this, _hasDispose);
+    __privateAdd(this, _hasFetchMethod);
+    __privateAdd(this, _hasDisposeAfter);
+    __privateAdd(this, _hasOnInsert);
     // conditionally set private methods related to TTL
     __privateAdd(this, _updateItemAge, () => {
     });
@@ -30812,7 +30696,7 @@ const _LRUCache = class _LRUCache {
       if (!isPosInt(this.maxEntrySize)) {
         throw new TypeError("maxEntrySize must be a positive integer if specified");
       }
-      __privateMethod(this, _initializeSizeTracking, initializeSizeTracking_fn).call(this);
+      __privateMethod(this, _LRUCache_instances, initializeSizeTracking_fn).call(this);
     }
     this.allowStale = !!allowStale;
     this.noDeleteOnStaleGet = !!noDeleteOnStaleGet;
@@ -30825,7 +30709,7 @@ const _LRUCache = class _LRUCache {
       if (!isPosInt(this.ttl)) {
         throw new TypeError("ttl must be a positive integer if specified");
       }
-      __privateMethod(this, _initializeTTLTracking, initializeTTLTracking_fn).call(this);
+      __privateMethod(this, _LRUCache_instances, initializeTTLTracking_fn).call(this);
     }
     if (__privateGet(this, _max) === 0 && this.ttl === 0 && __privateGet(this, _maxSize) === 0) {
       throw new TypeError("At least one of max, maxSize, or ttl is required");
@@ -30869,23 +30753,23 @@ const _LRUCache = class _LRUCache {
       // methods
       isBackgroundFetch: (p) => {
         var _a2;
-        return __privateMethod(_a2 = c, _isBackgroundFetch, isBackgroundFetch_fn).call(_a2, p);
+        return __privateMethod(_a2 = c, _LRUCache_instances, isBackgroundFetch_fn).call(_a2, p);
       },
       backgroundFetch: (k, index, options, context) => {
         var _a2;
-        return __privateMethod(_a2 = c, _backgroundFetch, backgroundFetch_fn).call(_a2, k, index, options, context);
+        return __privateMethod(_a2 = c, _LRUCache_instances, backgroundFetch_fn).call(_a2, k, index, options, context);
       },
       moveToTail: (index) => {
         var _a2;
-        return __privateMethod(_a2 = c, _moveToTail, moveToTail_fn).call(_a2, index);
+        return __privateMethod(_a2 = c, _LRUCache_instances, moveToTail_fn).call(_a2, index);
       },
       indexes: (options) => {
         var _a2;
-        return __privateMethod(_a2 = c, _indexes, indexes_fn).call(_a2, options);
+        return __privateMethod(_a2 = c, _LRUCache_instances, indexes_fn).call(_a2, options);
       },
       rindexes: (options) => {
         var _a2;
-        return __privateMethod(_a2 = c, _rindexes, rindexes_fn).call(_a2, options);
+        return __privateMethod(_a2 = c, _LRUCache_instances, rindexes_fn).call(_a2, options);
       },
       isStale: (index) => {
         var _a2;
@@ -30957,8 +30841,8 @@ const _LRUCache = class _LRUCache {
    * in order from most recently used to least recently used.
    */
   *entries() {
-    for (const i of __privateMethod(this, _indexes, indexes_fn).call(this)) {
-      if (__privateGet(this, _valList)[i] !== void 0 && __privateGet(this, _keyList)[i] !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+    for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
+      if (__privateGet(this, _valList)[i] !== void 0 && __privateGet(this, _keyList)[i] !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
         yield [__privateGet(this, _keyList)[i], __privateGet(this, _valList)[i]];
       }
     }
@@ -30970,8 +30854,8 @@ const _LRUCache = class _LRUCache {
    * in order from least recently used to most recently used.
    */
   *rentries() {
-    for (const i of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
-      if (__privateGet(this, _valList)[i] !== void 0 && __privateGet(this, _keyList)[i] !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+    for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
+      if (__privateGet(this, _valList)[i] !== void 0 && __privateGet(this, _keyList)[i] !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
         yield [__privateGet(this, _keyList)[i], __privateGet(this, _valList)[i]];
       }
     }
@@ -30981,9 +30865,9 @@ const _LRUCache = class _LRUCache {
    * in order from most recently used to least recently used.
    */
   *keys() {
-    for (const i of __privateMethod(this, _indexes, indexes_fn).call(this)) {
+    for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
       const k = __privateGet(this, _keyList)[i];
-      if (k !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+      if (k !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
         yield k;
       }
     }
@@ -30995,9 +30879,9 @@ const _LRUCache = class _LRUCache {
    * in order from least recently used to most recently used.
    */
   *rkeys() {
-    for (const i of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
+    for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
       const k = __privateGet(this, _keyList)[i];
-      if (k !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+      if (k !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
         yield k;
       }
     }
@@ -31007,9 +30891,9 @@ const _LRUCache = class _LRUCache {
    * in order from most recently used to least recently used.
    */
   *values() {
-    for (const i of __privateMethod(this, _indexes, indexes_fn).call(this)) {
+    for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
       const v = __privateGet(this, _valList)[i];
-      if (v !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+      if (v !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
         yield __privateGet(this, _valList)[i];
       }
     }
@@ -31021,9 +30905,9 @@ const _LRUCache = class _LRUCache {
    * in order from least recently used to most recently used.
    */
   *rvalues() {
-    for (const i of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
+    for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
       const v = __privateGet(this, _valList)[i];
-      if (v !== void 0 && !__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
+      if (v !== void 0 && !__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, __privateGet(this, _valList)[i])) {
         yield __privateGet(this, _valList)[i];
       }
     }
@@ -31032,7 +30916,7 @@ const _LRUCache = class _LRUCache {
    * Iterating over the cache itself yields the same results as
    * {@link LRUCache.entries}
    */
-  [Symbol.iterator]() {
+  [(_c = Symbol.iterator, _b = Symbol.toStringTag, _c)]() {
     return this.entries();
   }
   /**
@@ -31040,9 +30924,9 @@ const _LRUCache = class _LRUCache {
    * similar to `Array.find()`. fn is called as `fn(value, key, cache)`.
    */
   find(fn, getOptions = {}) {
-    for (const i of __privateMethod(this, _indexes, indexes_fn).call(this)) {
+    for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
       const v = __privateGet(this, _valList)[i];
-      const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+      const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
       if (value === void 0)
         continue;
       if (fn(value, __privateGet(this, _keyList)[i], this)) {
@@ -31062,9 +30946,9 @@ const _LRUCache = class _LRUCache {
    * Does not update age or recenty of use, or iterate over stale values.
    */
   forEach(fn, thisp = this) {
-    for (const i of __privateMethod(this, _indexes, indexes_fn).call(this)) {
+    for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this)) {
       const v = __privateGet(this, _valList)[i];
-      const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+      const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
       if (value === void 0)
         continue;
       fn.call(thisp, value, __privateGet(this, _keyList)[i], this);
@@ -31075,9 +30959,9 @@ const _LRUCache = class _LRUCache {
    * reverse order.  (ie, less recently used items are iterated over first.)
    */
   rforEach(fn, thisp = this) {
-    for (const i of __privateMethod(this, _rindexes, rindexes_fn).call(this)) {
+    for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this)) {
       const v = __privateGet(this, _valList)[i];
-      const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+      const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
       if (value === void 0)
         continue;
       fn.call(thisp, value, __privateGet(this, _keyList)[i], this);
@@ -31089,9 +30973,9 @@ const _LRUCache = class _LRUCache {
    */
   purgeStale() {
     let deleted = false;
-    for (const i of __privateMethod(this, _rindexes, rindexes_fn).call(this, { allowStale: true })) {
+    for (const i of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this, { allowStale: true })) {
       if (__privateGet(this, _isStale).call(this, i)) {
-        __privateMethod(this, _delete, delete_fn).call(this, __privateGet(this, _keyList)[i], "expire");
+        __privateMethod(this, _LRUCache_instances, delete_fn).call(this, __privateGet(this, _keyList)[i], "expire");
         deleted = true;
       }
     }
@@ -31114,7 +30998,7 @@ const _LRUCache = class _LRUCache {
     if (i === void 0)
       return void 0;
     const v = __privateGet(this, _valList)[i];
-    const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+    const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
     if (value === void 0)
       return void 0;
     const entry = { value };
@@ -31147,10 +31031,10 @@ const _LRUCache = class _LRUCache {
    */
   dump() {
     const arr = [];
-    for (const i of __privateMethod(this, _indexes, indexes_fn).call(this, { allowStale: true })) {
+    for (const i of __privateMethod(this, _LRUCache_instances, indexes_fn).call(this, { allowStale: true })) {
       const key = __privateGet(this, _keyList)[i];
       const v = __privateGet(this, _valList)[i];
-      const value = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+      const value = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
       if (value === void 0 || key === void 0)
         continue;
       const entry = { value };
@@ -31216,7 +31100,7 @@ const _LRUCache = class _LRUCache {
    * `cache.delete(key)`. `undefined` is never stored in the cache.
    */
   set(k, v, setOptions = {}) {
-    var _a2, _b2, _c3, _d, _e, _f, _g;
+    var _a2, _b2, _c3, _d3, _e, _f, _g;
     if (v === void 0) {
       this.delete(k);
       return this;
@@ -31229,12 +31113,12 @@ const _LRUCache = class _LRUCache {
         status.set = "miss";
         status.maxEntrySizeExceeded = true;
       }
-      __privateMethod(this, _delete, delete_fn).call(this, k, "set");
+      __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "set");
       return this;
     }
     let index = __privateGet(this, _size) === 0 ? void 0 : __privateGet(this, _keyMap).get(k);
     if (index === void 0) {
-      index = __privateGet(this, _size) === 0 ? __privateGet(this, _tail) : __privateGet(this, _free).length !== 0 ? __privateGet(this, _free).pop() : __privateGet(this, _size) === __privateGet(this, _max) ? __privateMethod(this, _evict, evict_fn).call(this, false) : __privateGet(this, _size);
+      index = __privateGet(this, _size) === 0 ? __privateGet(this, _tail) : __privateGet(this, _free).length !== 0 ? __privateGet(this, _free).pop() : __privateGet(this, _size) === __privateGet(this, _max) ? __privateMethod(this, _LRUCache_instances, evict_fn).call(this, false) : __privateGet(this, _size);
       __privateGet(this, _keyList)[index] = k;
       __privateGet(this, _valList)[index] = v;
       __privateGet(this, _keyMap).set(k, index);
@@ -31250,10 +31134,10 @@ const _LRUCache = class _LRUCache {
         (_a2 = __privateGet(this, _onInsert)) == null ? void 0 : _a2.call(this, v, k, "add");
       }
     } else {
-      __privateMethod(this, _moveToTail, moveToTail_fn).call(this, index);
+      __privateMethod(this, _LRUCache_instances, moveToTail_fn).call(this, index);
       const oldVal = __privateGet(this, _valList)[index];
       if (v !== oldVal) {
-        if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, oldVal)) {
+        if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, oldVal)) {
           oldVal.__abortController.abort(new Error("replaced"));
           const { __staleWhileFetching: s } = oldVal;
           if (s !== void 0 && !noDisposeOnSet) {
@@ -31266,7 +31150,7 @@ const _LRUCache = class _LRUCache {
           }
         } else if (!noDisposeOnSet) {
           if (__privateGet(this, _hasDispose)) {
-            (_d = __privateGet(this, _dispose)) == null ? void 0 : _d.call(this, oldVal, k, "set");
+            (_d3 = __privateGet(this, _dispose)) == null ? void 0 : _d3.call(this, oldVal, k, "set");
           }
           if (__privateGet(this, _hasDisposeAfter)) {
             (_e = __privateGet(this, _disposed)) == null ? void 0 : _e.push([oldVal, k, "set"]);
@@ -31277,7 +31161,7 @@ const _LRUCache = class _LRUCache {
         __privateGet(this, _valList)[index] = v;
         if (status) {
           status.set = "replace";
-          const oldValue = oldVal && __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, oldVal) ? oldVal.__staleWhileFetching : oldVal;
+          const oldValue = oldVal && __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, oldVal) ? oldVal.__staleWhileFetching : oldVal;
           if (oldValue !== void 0)
             status.oldValue = oldValue;
         }
@@ -31289,7 +31173,7 @@ const _LRUCache = class _LRUCache {
       }
     }
     if (ttl !== 0 && !__privateGet(this, _ttls)) {
-      __privateMethod(this, _initializeTTLTracking, initializeTTLTracking_fn).call(this);
+      __privateMethod(this, _LRUCache_instances, initializeTTLTracking_fn).call(this);
     }
     if (__privateGet(this, _ttls)) {
       if (!noUpdateTTL) {
@@ -31316,8 +31200,8 @@ const _LRUCache = class _LRUCache {
     try {
       while (__privateGet(this, _size)) {
         const val = __privateGet(this, _valList)[__privateGet(this, _head)];
-        __privateMethod(this, _evict, evict_fn).call(this, true);
-        if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, val)) {
+        __privateMethod(this, _LRUCache_instances, evict_fn).call(this, true);
+        if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, val)) {
           if (val.__staleWhileFetching) {
             return val.__staleWhileFetching;
           }
@@ -31356,7 +31240,7 @@ const _LRUCache = class _LRUCache {
     const index = __privateGet(this, _keyMap).get(k);
     if (index !== void 0) {
       const v = __privateGet(this, _valList)[index];
-      if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) && v.__staleWhileFetching === void 0) {
+      if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) && v.__staleWhileFetching === void 0) {
         return false;
       }
       if (!__privateGet(this, _isStale).call(this, index)) {
@@ -31391,7 +31275,7 @@ const _LRUCache = class _LRUCache {
       return;
     }
     const v = __privateGet(this, _valList)[index];
-    return __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
+    return __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v) ? v.__staleWhileFetching : v;
   }
   async fetch(k, fetchOptions = {}) {
     const {
@@ -31445,11 +31329,11 @@ const _LRUCache = class _LRUCache {
     if (index === void 0) {
       if (status)
         status.fetch = "miss";
-      const p = __privateMethod(this, _backgroundFetch, backgroundFetch_fn).call(this, k, index, options, context);
+      const p = __privateMethod(this, _LRUCache_instances, backgroundFetch_fn).call(this, k, index, options, context);
       return p.__returned = p;
     } else {
       const v = __privateGet(this, _valList)[index];
-      if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
+      if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
         const stale = allowStale && v.__staleWhileFetching !== void 0;
         if (status) {
           status.fetch = "inflight";
@@ -31462,7 +31346,7 @@ const _LRUCache = class _LRUCache {
       if (!forceRefresh && !isStale) {
         if (status)
           status.fetch = "hit";
-        __privateMethod(this, _moveToTail, moveToTail_fn).call(this, index);
+        __privateMethod(this, _LRUCache_instances, moveToTail_fn).call(this, index);
         if (updateAgeOnGet) {
           __privateGet(this, _updateItemAge).call(this, index);
         }
@@ -31470,7 +31354,7 @@ const _LRUCache = class _LRUCache {
           __privateGet(this, _statusTTL).call(this, status, index);
         return v;
       }
-      const p = __privateMethod(this, _backgroundFetch, backgroundFetch_fn).call(this, k, index, options, context);
+      const p = __privateMethod(this, _LRUCache_instances, backgroundFetch_fn).call(this, k, index, options, context);
       const hasStale = p.__staleWhileFetching !== void 0;
       const staleVal = hasStale && allowStale;
       if (status) {
@@ -31514,7 +31398,7 @@ const _LRUCache = class _LRUCache {
     const index = __privateGet(this, _keyMap).get(k);
     if (index !== void 0) {
       const value = __privateGet(this, _valList)[index];
-      const fetching = __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, value);
+      const fetching = __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, value);
       if (status)
         __privateGet(this, _statusTTL).call(this, status, index);
       if (__privateGet(this, _isStale).call(this, index)) {
@@ -31522,7 +31406,7 @@ const _LRUCache = class _LRUCache {
           status.get = "stale";
         if (!fetching) {
           if (!noDeleteOnStaleGet) {
-            __privateMethod(this, _delete, delete_fn).call(this, k, "expire");
+            __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "expire");
           }
           if (status && allowStale)
             status.returnedStale = true;
@@ -31539,7 +31423,7 @@ const _LRUCache = class _LRUCache {
         if (fetching) {
           return value.__staleWhileFetching;
         }
-        __privateMethod(this, _moveToTail, moveToTail_fn).call(this, index);
+        __privateMethod(this, _LRUCache_instances, moveToTail_fn).call(this, index);
         if (updateAgeOnGet) {
           __privateGet(this, _updateItemAge).call(this, index);
         }
@@ -31555,16 +31439,15 @@ const _LRUCache = class _LRUCache {
    * Returns true if the key was deleted, false otherwise.
    */
   delete(k) {
-    return __privateMethod(this, _delete, delete_fn).call(this, k, "delete");
+    return __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "delete");
   }
   /**
    * Clear the cache entirely, throwing away all values.
    */
   clear() {
-    return __privateMethod(this, _clear, clear_fn).call(this, "delete");
+    return __privateMethod(this, _LRUCache_instances, clear_fn).call(this, "delete");
   }
 };
-_b = Symbol.toStringTag;
 _max = new WeakMap();
 _maxSize = new WeakMap();
 _dispose = new WeakMap();
@@ -31590,7 +31473,7 @@ _hasDispose = new WeakMap();
 _hasFetchMethod = new WeakMap();
 _hasDisposeAfter = new WeakMap();
 _hasOnInsert = new WeakMap();
-_initializeTTLTracking = new WeakSet();
+_LRUCache_instances = new WeakSet();
 initializeTTLTracking_fn = function() {
   const ttls = new ZeroArray(__privateGet(this, _max));
   const starts = new ZeroArray(__privateGet(this, _max));
@@ -31602,7 +31485,7 @@ initializeTTLTracking_fn = function() {
     if (ttl !== 0 && this.ttlAutopurge) {
       const t = setTimeout(() => {
         if (__privateGet(this, _isStale).call(this, index)) {
-          __privateMethod(this, _delete, delete_fn).call(this, __privateGet(this, _keyList)[index], "expire");
+          __privateMethod(this, _LRUCache_instances, delete_fn).call(this, __privateGet(this, _keyList)[index], "expire");
         }
       }, ttl + 1);
       if (t.unref) {
@@ -31661,7 +31544,6 @@ _updateItemAge = new WeakMap();
 _statusTTL = new WeakMap();
 _setItemTTL = new WeakMap();
 _isStale = new WeakMap();
-_initializeSizeTracking = new WeakSet();
 initializeSizeTracking_fn = function() {
   const sizes = new ZeroArray(__privateGet(this, _max));
   __privateSet(this, _calculatedSize, 0);
@@ -31671,7 +31553,7 @@ initializeSizeTracking_fn = function() {
     sizes[index] = 0;
   });
   __privateSet(this, _requireSize, (k, v, size, sizeCalculation) => {
-    if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
+    if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
       return 0;
     }
     if (!isPosInt(size)) {
@@ -31694,7 +31576,7 @@ initializeSizeTracking_fn = function() {
     if (__privateGet(this, _maxSize)) {
       const maxSize = __privateGet(this, _maxSize) - sizes[index];
       while (__privateGet(this, _calculatedSize) > maxSize) {
-        __privateMethod(this, _evict, evict_fn).call(this, true);
+        __privateMethod(this, _LRUCache_instances, evict_fn).call(this, true);
       }
     }
     __privateSet(this, _calculatedSize, __privateGet(this, _calculatedSize) + sizes[index]);
@@ -31707,11 +31589,10 @@ initializeSizeTracking_fn = function() {
 _removeItemSize = new WeakMap();
 _addItemSize = new WeakMap();
 _requireSize = new WeakMap();
-_indexes = new WeakSet();
 indexes_fn = function* ({ allowStale = this.allowStale } = {}) {
   if (__privateGet(this, _size)) {
     for (let i = __privateGet(this, _tail); true; ) {
-      if (!__privateMethod(this, _isValidIndex, isValidIndex_fn).call(this, i)) {
+      if (!__privateMethod(this, _LRUCache_instances, isValidIndex_fn).call(this, i)) {
         break;
       }
       if (allowStale || !__privateGet(this, _isStale).call(this, i)) {
@@ -31725,11 +31606,10 @@ indexes_fn = function* ({ allowStale = this.allowStale } = {}) {
     }
   }
 };
-_rindexes = new WeakSet();
 rindexes_fn = function* ({ allowStale = this.allowStale } = {}) {
   if (__privateGet(this, _size)) {
     for (let i = __privateGet(this, _head); true; ) {
-      if (!__privateMethod(this, _isValidIndex, isValidIndex_fn).call(this, i)) {
+      if (!__privateMethod(this, _LRUCache_instances, isValidIndex_fn).call(this, i)) {
         break;
       }
       if (allowStale || !__privateGet(this, _isStale).call(this, i)) {
@@ -31743,17 +31623,15 @@ rindexes_fn = function* ({ allowStale = this.allowStale } = {}) {
     }
   }
 };
-_isValidIndex = new WeakSet();
 isValidIndex_fn = function(index) {
   return index !== void 0 && __privateGet(this, _keyMap).get(__privateGet(this, _keyList)[index]) === index;
 };
-_evict = new WeakSet();
 evict_fn = function(free) {
   var _a2, _b2;
   const head = __privateGet(this, _head);
   const k = __privateGet(this, _keyList)[head];
   const v = __privateGet(this, _valList)[head];
-  if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
+  if (__privateGet(this, _hasFetchMethod) && __privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
     v.__abortController.abort(new Error("evicted"));
   } else if (__privateGet(this, _hasDispose) || __privateGet(this, _hasDisposeAfter)) {
     if (__privateGet(this, _hasDispose)) {
@@ -31779,10 +31657,9 @@ evict_fn = function(free) {
   __privateWrapper(this, _size)._--;
   return head;
 };
-_backgroundFetch = new WeakSet();
 backgroundFetch_fn = function(k, index, options, context) {
   const v = index === void 0 ? void 0 : __privateGet(this, _valList)[index];
-  if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
+  if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
     return v;
   }
   const ac = new AC();
@@ -31817,7 +31694,7 @@ backgroundFetch_fn = function(k, index, options, context) {
         if (bf2.__staleWhileFetching) {
           __privateGet(this, _valList)[index] = bf2.__staleWhileFetching;
         } else {
-          __privateMethod(this, _delete, delete_fn).call(this, k, "fetch");
+          __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "fetch");
         }
       } else {
         if (options.status)
@@ -31843,7 +31720,7 @@ backgroundFetch_fn = function(k, index, options, context) {
     if (__privateGet(this, _valList)[index] === p) {
       const del = !noDelete || bf2.__staleWhileFetching === void 0;
       if (del) {
-        __privateMethod(this, _delete, delete_fn).call(this, k, "fetch");
+        __privateMethod(this, _LRUCache_instances, delete_fn).call(this, k, "fetch");
       } else if (!allowStaleAborted) {
         __privateGet(this, _valList)[index] = bf2.__staleWhileFetching;
       }
@@ -31888,44 +31765,40 @@ backgroundFetch_fn = function(k, index, options, context) {
   }
   return bf;
 };
-_isBackgroundFetch = new WeakSet();
 isBackgroundFetch_fn = function(p) {
   if (!__privateGet(this, _hasFetchMethod))
     return false;
   const b = p;
   return !!b && b instanceof Promise && b.hasOwnProperty("__staleWhileFetching") && b.__abortController instanceof AC;
 };
-_connect = new WeakSet();
 connect_fn = function(p, n) {
   __privateGet(this, _prev)[n] = p;
   __privateGet(this, _next)[p] = n;
 };
-_moveToTail = new WeakSet();
 moveToTail_fn = function(index) {
   if (index !== __privateGet(this, _tail)) {
     if (index === __privateGet(this, _head)) {
       __privateSet(this, _head, __privateGet(this, _next)[index]);
     } else {
-      __privateMethod(this, _connect, connect_fn).call(this, __privateGet(this, _prev)[index], __privateGet(this, _next)[index]);
+      __privateMethod(this, _LRUCache_instances, connect_fn).call(this, __privateGet(this, _prev)[index], __privateGet(this, _next)[index]);
     }
-    __privateMethod(this, _connect, connect_fn).call(this, __privateGet(this, _tail), index);
+    __privateMethod(this, _LRUCache_instances, connect_fn).call(this, __privateGet(this, _tail), index);
     __privateSet(this, _tail, index);
   }
 };
-_delete = new WeakSet();
 delete_fn = function(k, reason) {
-  var _a2, _b2, _c3, _d;
+  var _a2, _b2, _c3, _d3;
   let deleted = false;
   if (__privateGet(this, _size) !== 0) {
     const index = __privateGet(this, _keyMap).get(k);
     if (index !== void 0) {
       deleted = true;
       if (__privateGet(this, _size) === 1) {
-        __privateMethod(this, _clear, clear_fn).call(this, reason);
+        __privateMethod(this, _LRUCache_instances, clear_fn).call(this, reason);
       } else {
         __privateGet(this, _removeItemSize).call(this, index);
         const v = __privateGet(this, _valList)[index];
-        if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
+        if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
           v.__abortController.abort(new Error("deleted"));
         } else if (__privateGet(this, _hasDispose) || __privateGet(this, _hasDisposeAfter)) {
           if (__privateGet(this, _hasDispose)) {
@@ -31957,17 +31830,16 @@ delete_fn = function(k, reason) {
     const dt = __privateGet(this, _disposed);
     let task;
     while (task = dt == null ? void 0 : dt.shift()) {
-      (_d = __privateGet(this, _disposeAfter)) == null ? void 0 : _d.call(this, ...task);
+      (_d3 = __privateGet(this, _disposeAfter)) == null ? void 0 : _d3.call(this, ...task);
     }
   }
   return deleted;
 };
-_clear = new WeakSet();
 clear_fn = function(reason) {
   var _a2, _b2, _c3;
-  for (const index of __privateMethod(this, _rindexes, rindexes_fn).call(this, { allowStale: true })) {
+  for (const index of __privateMethod(this, _LRUCache_instances, rindexes_fn).call(this, { allowStale: true })) {
     const v = __privateGet(this, _valList)[index];
-    if (__privateMethod(this, _isBackgroundFetch, isBackgroundFetch_fn).call(this, v)) {
+    if (__privateMethod(this, _LRUCache_instances, isBackgroundFetch_fn).call(this, v)) {
       v.__abortController.abort(new Error("deleted"));
     } else {
       const k = __privateGet(this, _keyList)[index];
@@ -32019,8 +31891,7 @@ const _VirtualMemoryController = class _VirtualMemoryController {
     }
   }
   static setCapacity(value) {
-    if (value === this._capacity)
-      return;
+    if (value === this._capacity) return;
     this._meshes.clear();
     this._meshes = this.setupMeshes(value);
     this._capacity = value;
@@ -32246,14 +32117,11 @@ const _VirtualTilesController = class _VirtualTilesController {
    */
   getDrawChunksForItems(itemIds) {
     const result = [];
-    if (itemIds.size === 0)
-      return result;
+    if (itemIds.size === 0) return result;
     for (const [tileId, tile] of this._tiles) {
-      if (!tile.notVirtual)
-        continue;
+      if (!tile.notVirtual) continue;
       const totalIndices = tile.indexCount ?? 0;
-      if (!totalIndices)
-        continue;
+      if (!totalIndices) continue;
       const positions = [];
       const sizes = [];
       let runStart = -1;
@@ -32261,8 +32129,7 @@ const _VirtualTilesController = class _VirtualTilesController {
       for (const [sample] of tile.sampleLocation) {
         const inSet = itemIds.has(this.itemId(sample));
         if (inSet) {
-          if (runStart < 0)
-            runStart = location;
+          if (runStart < 0) runStart = location;
         } else if (runStart >= 0) {
           const startIdx = tile.indexLocation[runStart];
           const endIdx = tile.indexLocation[location];
@@ -32277,8 +32144,7 @@ const _VirtualTilesController = class _VirtualTilesController {
         positions.push(startIdx);
         sizes.push(totalIndices - startIdx);
       }
-      if (positions.length === 0)
-        continue;
+      if (positions.length === 0) continue;
       result.push({
         tileId,
         position: new Uint32Array(positions),
@@ -32677,8 +32543,7 @@ const _VirtualTilesController = class _VirtualTilesController {
     this._samples.setVisible(id, vis);
     this._samples.setHighlight(id, high);
     const tileIds = this.getTileIds(id, lod);
-    if (tileIds === void 0)
-      return;
+    if (tileIds === void 0) return;
     MiscHelper.forEach(tileIds, (tileId) => {
       this.updateTile(tileId, id, high, high === 0);
     });
@@ -32915,8 +32780,7 @@ const _VirtualTilesController = class _VirtualTilesController {
     if (tileIds === void 0) {
       tileIds = tileId;
     } else if (typeof tileIds === "number") {
-      if (tileIds !== tileId)
-        tileIds = [tileIds, tileId];
+      if (tileIds !== tileId) tileIds = [tileIds, tileId];
     } else if (!tileIds.includes(tileId)) {
       tileIds.push(tileId);
     }
@@ -33228,13 +33092,11 @@ class VirtualMaterialController {
   getItemsMaterialDefinition(model, indices, localIds) {
     const result = [];
     const meshes = model.meshes();
-    if (!meshes)
-      return [];
+    if (!meshes) return [];
     const map = /* @__PURE__ */ new Map();
     for (const [index, itemIndex] of indices.entries()) {
       const sample = meshes.samples(itemIndex);
-      if (!sample)
-        continue;
+      if (!sample) continue;
       const materialIndex = sample.material();
       let materialItems = map.get(materialIndex);
       if (!materialItems) {
@@ -33245,8 +33107,7 @@ class VirtualMaterialController {
     }
     for (const [materialIndex, localIds2] of map.entries()) {
       const material = meshes.materials(materialIndex);
-      if (!material)
-        continue;
+      if (!material) continue;
       const definition = ParserHelper.parseMaterial(material);
       result.push({ localIds: [...localIds2], definition });
     }
@@ -33719,15 +33580,13 @@ function createCircleExtrusion(builder, circleExtrusion) {
   return ceOffset;
 }
 function copySpatialStructure(builder, spatialStructure) {
-  if (!spatialStructure)
-    return null;
+  if (!spatialStructure) return null;
   const childrenLength = spatialStructure.childrenLength();
   const childrenOffsets = [];
   for (let i = 0; i < childrenLength; i++) {
     const current = spatialStructure.children(i);
     const childOffset = copySpatialStructure(builder, current);
-    if (childOffset === null)
-      continue;
+    if (childOffset === null) continue;
     childrenOffsets.push(childOffset);
   }
   const childrenOffset = SpatialStructure.createChildrenVector(
@@ -33758,8 +33617,7 @@ function createSpatialStructure(builder, spatialStructure) {
   for (let i = 0; i < childrenLength; i++) {
     const current = children[i];
     const childOffset = createSpatialStructure(builder, current);
-    if (childOffset === null)
-      continue;
+    if (childOffset === null) continue;
     childrenOffsets.push(childOffset);
   }
   const childrenOffset = SpatialStructure.createChildrenVector(
@@ -33826,10 +33684,8 @@ function buildIndex(builder, data) {
       ModelIndex.addNumberValues(builder, valuesOffset);
     }
   }
-  if (endOffset !== null)
-    ModelIndex.addEnd(builder, endOffset);
-  if (startOffset !== null)
-    ModelIndex.addStart(builder, startOffset);
+  if (endOffset !== null) ModelIndex.addEnd(builder, endOffset);
+  if (startOffset !== null) ModelIndex.addStart(builder, startOffset);
   return ModelIndex.endModelIndex(builder);
 }
 function copyIndex(builder, src) {
@@ -33846,8 +33702,7 @@ function readIndex(src) {
   let keys;
   if (stringKeysLen > 0) {
     const arr = new Array(stringKeysLen);
-    for (let i = 0; i < stringKeysLen; i++)
-      arr[i] = src.stringKeys(i) ?? "";
+    for (let i = 0; i < stringKeysLen; i++) arr[i] = src.stringKeys(i) ?? "";
     keys = arr;
   } else {
     const numberKeys = src.numberKeysArray();
@@ -34063,8 +33918,7 @@ function getIdsDelta(model, requests) {
   }
   const deletedReprs = EditUtils.getRepresentations(model, deletedRepsIds);
   for (const [id, repr] of deletedReprs) {
-    if (prevRepresentations.has(id))
-      continue;
+    if (prevRepresentations.has(id)) continue;
     if (repr.representationClass === RepresentationClass.SHELL) {
       detaDeletedShellsCount++;
     } else if (repr.representationClass === RepresentationClass.CIRCLE_EXTRUSION) {
@@ -34525,6 +34379,96 @@ function edit(model, requests, config) {
       continue;
     }
     if (request.type === EditRequestType.CREATE_INDEX || request.type === EditRequestType.UPDATE_INDEX) {
+      const { keys, values, end, start } = request.data;
+      const validateNumbers = (items, key) => {
+        if (!items || items.length === 0 || typeof items[0] !== "number") {
+          return;
+        }
+        const numberErrors = [];
+        for (let index = 0; index < items.length; index++) {
+          const value = items[index];
+          if (!Number.isInteger(value) || value < 0 || value > 4294967295) {
+            numberErrors.push({ index, value });
+          }
+        }
+        if (numberErrors.length) {
+          throw new Error(
+            `Invalid index request: ${key} must be non-negative 32-bit integers`,
+            {
+              cause: {
+                type: "invalid-number",
+                key,
+                errors: numberErrors
+              }
+            }
+          );
+        }
+      };
+      validateNumbers(keys, "keys");
+      validateNumbers(values, "values");
+      if (values && !end) {
+        if (values.length !== keys.length) {
+          throw new Error(
+            "Invalid index request: unexpected values vector length",
+            {
+              cause: {
+                type: "invalid-length",
+                key: "values",
+                expected: keys.length,
+                actual: values.length
+              }
+            }
+          );
+        }
+      }
+      if (values && end) {
+        if (end.length !== keys.length) {
+          throw new Error(
+            "Invalid index request: unexpected end vector length",
+            {
+              cause: {
+                type: "invalid-length",
+                key: "end",
+                expected: keys.length,
+                actual: end.length
+              }
+            }
+          );
+        }
+        if (start && start.length !== keys.length) {
+          throw new Error(
+            "Invalid index request: unexpected start vector length",
+            {
+              cause: {
+                type: "invalid-length",
+                key: "start",
+                expected: keys.length,
+                actual: start.length
+              }
+            }
+          );
+        }
+        const errors = [];
+        for (let index = 0; index < keys.length; index++) {
+          const valuesStart = (start == null ? void 0 : start[index]) ?? end[index - 1] ?? 0;
+          const valuesEnd = end[index];
+          if (valuesStart < 0 || valuesEnd > values.length || valuesStart > valuesEnd) {
+            errors.push({
+              index,
+              start: valuesStart,
+              end: valuesEnd
+            });
+          }
+        }
+        if (errors.length) {
+          throw new Error("Invalid index request: out of bounds value slices", {
+            cause: {
+              type: "invalid-bounds",
+              errors
+            }
+          });
+        }
+      }
       indexesToUpsert.set(request.data.name, request.data);
       indexesToDelete.delete(request.data.name);
       continue;
@@ -35286,8 +35230,7 @@ function edit(model, requests, config) {
     for (const name in relationData.data) {
       const ids = relationData.data[name];
       const filteredIds = ids.filter((id) => !itemsToDelete.has(id));
-      if (!filteredIds.length)
-        continue;
+      if (!filteredIds.length) continue;
       const dataOffset2 = builder.createSharedString(
         JSON.stringify([name, ...filteredIds])
       );
@@ -35353,15 +35296,11 @@ function edit(model, requests, config) {
   const upsertNames = new Set(indexesToUpsert.keys());
   for (let i = 0; i < model.indexesLength(); i++) {
     const existing = model.indexes(i);
-    if (!existing)
-      continue;
+    if (!existing) continue;
     const name = existing.name();
-    if (!name)
-      continue;
-    if (indexesToDelete.has(name))
-      continue;
-    if (upsertNames.has(name))
-      continue;
+    if (!name) continue;
+    if (indexesToDelete.has(name)) continue;
+    if (upsertNames.has(name)) continue;
     indexOffsets.push(copyIndex(builder, existing));
   }
   for (const data of indexesToUpsert.values()) {
@@ -35747,8 +35686,7 @@ function getGlobalTransforms(model, ids) {
     const localId = meshes.globalTransformIds(i);
     const idIndex = meshes.meshesItems(i);
     const itemId = model.localIds(idIndex);
-    if (!source.has(localId))
-      continue;
+    if (!source.has(localId)) continue;
     const gtData = getTransformData(tempTransform);
     globalTransforms.set(localId, { ...gtData, itemId });
   }
@@ -35894,8 +35832,7 @@ function getItemSnapData(vModel, itemId) {
   const model = vModel.data;
   const meshes = model.meshes();
   const sampleIndices = vModel.boxes.sampleOf(itemId);
-  if (!sampleIndices || sampleIndices.length === 0)
-    return null;
+  if (!sampleIndices || sampleIndices.length === 0) return null;
   const result = {
     samples: {},
     localTransforms: {},
@@ -35929,8 +35866,7 @@ function getItemSnapData(vModel, itemId) {
     };
     meshes.localTransforms(ltIndex, tempTransform);
     result.localTransforms[ltId] = getTransformData(tempTransform);
-    if (result.representations[reprId])
-      continue;
+    if (result.representations[reprId]) continue;
     meshes.representations(representationIndex, tempRepresentation);
     const repr = getRepresentationData(tempRepresentation);
     if (repr.representationClass === RepresentationClass.SHELL) {
@@ -35976,8 +35912,7 @@ function solveIds(requests, nextId) {
   const tempIds = /* @__PURE__ */ new Map();
   const result = [];
   for (const request of requests) {
-    if (isIndexRequest(request))
-      continue;
+    if (isIndexRequest(request)) continue;
     if (request.localId !== void 0) {
       continue;
     }
@@ -35989,8 +35924,7 @@ function solveIds(requests, nextId) {
     result.push(newId);
   }
   for (const request of requests) {
-    if (isIndexRequest(request))
-      continue;
+    if (isIndexRequest(request)) continue;
     if (request.type === EditRequestType.UPDATE_SAMPLE || request.type === EditRequestType.CREATE_SAMPLE) {
       const sample = request.data;
       solveSampleTempId(sample, "item", tempIds);
@@ -36097,15 +36031,13 @@ var Handle = class {
   constructor(value, schema = 2, tapeItem) {
     this.value = value;
     this.type = 5;
-    if (tapeItem && (tapeItem == null ? void 0 : tapeItem.type) === 2)
-      return TypeInitialiser(schema, tapeItem);
+    if (tapeItem && (tapeItem == null ? void 0 : tapeItem.type) === 2) return TypeInitialiser(schema, tapeItem);
   }
 };
 var NumberHandle = class {
   constructor(v, type) {
     this.type = 4;
-    if (type)
-      this.type = type;
+    if (type) this.type = type;
     this.value = v;
   }
   get internalValue() {
@@ -36124,14 +36056,668 @@ var IfcLineObject = class {
     this.type = 0;
   }
 };
+var Constructors = {};
 var TypeInitialisers = {};
 function TypeInitialiser(schema, tapeItem) {
-  if (Array.isArray(tapeItem))
-    tapeItem.map((p) => TypeInitialiser(schema, p));
-  if (tapeItem.typecode)
-    return TypeInitialisers[schema][tapeItem.typecode](tapeItem.value);
+  if (Array.isArray(tapeItem)) tapeItem.map((p) => TypeInitialiser(schema, p));
+  if (tapeItem.typecode) return TypeInitialisers[schema][tapeItem.typecode](tapeItem.value);
   return tapeItem.value;
 }
+Constructors[1] = {
+  3630933823: (a) => new IFC2X3.IfcActorRole(a[0], a[1], a[2]),
+  618182010: (a) => new IFC2X3.IfcAddress(a[0], a[1], a[2]),
+  639542469: (a) => new IFC2X3.IfcApplication(a[0], a[1], a[2], a[3]),
+  411424972: (a) => new IFC2X3.IfcAppliedValue(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1110488051: (a) => new IFC2X3.IfcAppliedValueRelationship(a[0], a[1], a[2], a[3], a[4]),
+  130549933: (a) => new IFC2X3.IfcApproval(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2080292479: (a) => new IFC2X3.IfcApprovalActorRelationship(a[0], a[1], a[2]),
+  390851274: (a) => new IFC2X3.IfcApprovalPropertyRelationship(a[0], a[1]),
+  3869604511: (a) => new IFC2X3.IfcApprovalRelationship(a[0], a[1], a[2], a[3]),
+  4037036970: (a) => new IFC2X3.IfcBoundaryCondition(a[0]),
+  1560379544: (a) => new IFC2X3.IfcBoundaryEdgeCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3367102660: (a) => new IFC2X3.IfcBoundaryFaceCondition(a[0], a[1], a[2], a[3]),
+  1387855156: (a) => new IFC2X3.IfcBoundaryNodeCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2069777674: (a) => new IFC2X3.IfcBoundaryNodeConditionWarping(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  622194075: (a) => new IFC2X3.IfcCalendarDate(a[0], a[1], a[2]),
+  747523909: (a) => new IFC2X3.IfcClassification(a[0], a[1], a[2], a[3]),
+  1767535486: (a) => new IFC2X3.IfcClassificationItem(a[0], a[1], a[2]),
+  1098599126: (a) => new IFC2X3.IfcClassificationItemRelationship(a[0], a[1]),
+  938368621: (a) => new IFC2X3.IfcClassificationNotation(a[0]),
+  3639012971: (a) => new IFC2X3.IfcClassificationNotationFacet(a[0]),
+  3264961684: (a) => new IFC2X3.IfcColourSpecification(a[0]),
+  2859738748: (_) => new IFC2X3.IfcConnectionGeometry(),
+  2614616156: (a) => new IFC2X3.IfcConnectionPointGeometry(a[0], a[1]),
+  4257277454: (a) => new IFC2X3.IfcConnectionPortGeometry(a[0], a[1], a[2]),
+  2732653382: (a) => new IFC2X3.IfcConnectionSurfaceGeometry(a[0], a[1]),
+  1959218052: (a) => new IFC2X3.IfcConstraint(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1658513725: (a) => new IFC2X3.IfcConstraintAggregationRelationship(a[0], a[1], a[2], a[3], a[4]),
+  613356794: (a) => new IFC2X3.IfcConstraintClassificationRelationship(a[0], a[1]),
+  347226245: (a) => new IFC2X3.IfcConstraintRelationship(a[0], a[1], a[2], a[3]),
+  1065062679: (a) => new IFC2X3.IfcCoordinatedUniversalTimeOffset(a[0], a[1], a[2]),
+  602808272: (a) => new IFC2X3.IfcCostValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  539742890: (a) => new IFC2X3.IfcCurrencyRelationship(a[0], a[1], a[2], a[3], a[4]),
+  1105321065: (a) => new IFC2X3.IfcCurveStyleFont(a[0], a[1]),
+  2367409068: (a) => new IFC2X3.IfcCurveStyleFontAndScaling(a[0], a[1], a[2]),
+  3510044353: (a) => new IFC2X3.IfcCurveStyleFontPattern(a[0], a[1]),
+  1072939445: (a) => new IFC2X3.IfcDateAndTime(a[0], a[1]),
+  1765591967: (a) => new IFC2X3.IfcDerivedUnit(a[0], a[1], a[2]),
+  1045800335: (a) => new IFC2X3.IfcDerivedUnitElement(a[0], a[1]),
+  2949456006: (a) => new IFC2X3.IfcDimensionalExponents(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1376555844: (a) => new IFC2X3.IfcDocumentElectronicFormat(a[0], a[1], a[2]),
+  1154170062: (a) => new IFC2X3.IfcDocumentInformation(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  770865208: (a) => new IFC2X3.IfcDocumentInformationRelationship(a[0], a[1], a[2]),
+  3796139169: (a) => new IFC2X3.IfcDraughtingCalloutRelationship(a[0], a[1], a[2], a[3]),
+  1648886627: (a) => new IFC2X3.IfcEnvironmentalImpactValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3200245327: (a) => new IFC2X3.IfcExternalReference(a[0], a[1], a[2]),
+  2242383968: (a) => new IFC2X3.IfcExternallyDefinedHatchStyle(a[0], a[1], a[2]),
+  1040185647: (a) => new IFC2X3.IfcExternallyDefinedSurfaceStyle(a[0], a[1], a[2]),
+  3207319532: (a) => new IFC2X3.IfcExternallyDefinedSymbol(a[0], a[1], a[2]),
+  3548104201: (a) => new IFC2X3.IfcExternallyDefinedTextFont(a[0], a[1], a[2]),
+  852622518: (a) => new IFC2X3.IfcGridAxis(a[0], a[1], a[2]),
+  3020489413: (a) => new IFC2X3.IfcIrregularTimeSeriesValue(a[0], a[1]),
+  2655187982: (a) => new IFC2X3.IfcLibraryInformation(a[0], a[1], a[2], a[3], a[4]),
+  3452421091: (a) => new IFC2X3.IfcLibraryReference(a[0], a[1], a[2]),
+  4162380809: (a) => new IFC2X3.IfcLightDistributionData(a[0], a[1], a[2]),
+  1566485204: (a) => new IFC2X3.IfcLightIntensityDistribution(a[0], a[1]),
+  30780891: (a) => new IFC2X3.IfcLocalTime(a[0], a[1], a[2], a[3], a[4]),
+  1838606355: (a) => new IFC2X3.IfcMaterial(a[0]),
+  1847130766: (a) => new IFC2X3.IfcMaterialClassificationRelationship(a[0], a[1]),
+  248100487: (a) => new IFC2X3.IfcMaterialLayer(a[0], a[1], a[2]),
+  3303938423: (a) => new IFC2X3.IfcMaterialLayerSet(a[0], a[1]),
+  1303795690: (a) => new IFC2X3.IfcMaterialLayerSetUsage(a[0], a[1], a[2], a[3]),
+  2199411900: (a) => new IFC2X3.IfcMaterialList(a[0]),
+  3265635763: (a) => new IFC2X3.IfcMaterialProperties(a[0]),
+  2597039031: (a) => new IFC2X3.IfcMeasureWithUnit(a[0], a[1]),
+  4256014907: (a) => new IFC2X3.IfcMechanicalMaterialProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  677618848: (a) => new IFC2X3.IfcMechanicalSteelMaterialProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  3368373690: (a) => new IFC2X3.IfcMetric(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2706619895: (a) => new IFC2X3.IfcMonetaryUnit(a[0]),
+  1918398963: (a) => new IFC2X3.IfcNamedUnit(a[0], a[1]),
+  3701648758: (_) => new IFC2X3.IfcObjectPlacement(),
+  2251480897: (a) => new IFC2X3.IfcObjective(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1227763645: (a) => new IFC2X3.IfcOpticalMaterialProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4251960020: (a) => new IFC2X3.IfcOrganization(a[0], a[1], a[2], a[3], a[4]),
+  1411181986: (a) => new IFC2X3.IfcOrganizationRelationship(a[0], a[1], a[2], a[3]),
+  1207048766: (a) => new IFC2X3.IfcOwnerHistory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2077209135: (a) => new IFC2X3.IfcPerson(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  101040310: (a) => new IFC2X3.IfcPersonAndOrganization(a[0], a[1], a[2]),
+  2483315170: (a) => new IFC2X3.IfcPhysicalQuantity(a[0], a[1]),
+  2226359599: (a) => new IFC2X3.IfcPhysicalSimpleQuantity(a[0], a[1], a[2]),
+  3355820592: (a) => new IFC2X3.IfcPostalAddress(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3727388367: (a) => new IFC2X3.IfcPreDefinedItem(a[0]),
+  990879717: (a) => new IFC2X3.IfcPreDefinedSymbol(a[0]),
+  3213052703: (a) => new IFC2X3.IfcPreDefinedTerminatorSymbol(a[0]),
+  1775413392: (a) => new IFC2X3.IfcPreDefinedTextFont(a[0]),
+  2022622350: (a) => new IFC2X3.IfcPresentationLayerAssignment(a[0], a[1], a[2], a[3]),
+  1304840413: (a) => new IFC2X3.IfcPresentationLayerWithStyle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3119450353: (a) => new IFC2X3.IfcPresentationStyle(a[0]),
+  2417041796: (a) => new IFC2X3.IfcPresentationStyleAssignment(a[0]),
+  2095639259: (a) => new IFC2X3.IfcProductRepresentation(a[0], a[1], a[2]),
+  2267347899: (a) => new IFC2X3.IfcProductsOfCombustionProperties(a[0], a[1], a[2], a[3], a[4]),
+  3958567839: (a) => new IFC2X3.IfcProfileDef(a[0], a[1]),
+  2802850158: (a) => new IFC2X3.IfcProfileProperties(a[0], a[1]),
+  2598011224: (a) => new IFC2X3.IfcProperty(a[0], a[1]),
+  3896028662: (a) => new IFC2X3.IfcPropertyConstraintRelationship(a[0], a[1], a[2], a[3]),
+  148025276: (a) => new IFC2X3.IfcPropertyDependencyRelationship(a[0], a[1], a[2], a[3], a[4]),
+  3710013099: (a) => new IFC2X3.IfcPropertyEnumeration(a[0], a[1], a[2]),
+  2044713172: (a) => new IFC2X3.IfcQuantityArea(a[0], a[1], a[2], a[3]),
+  2093928680: (a) => new IFC2X3.IfcQuantityCount(a[0], a[1], a[2], a[3]),
+  931644368: (a) => new IFC2X3.IfcQuantityLength(a[0], a[1], a[2], a[3]),
+  3252649465: (a) => new IFC2X3.IfcQuantityTime(a[0], a[1], a[2], a[3]),
+  2405470396: (a) => new IFC2X3.IfcQuantityVolume(a[0], a[1], a[2], a[3]),
+  825690147: (a) => new IFC2X3.IfcQuantityWeight(a[0], a[1], a[2], a[3]),
+  2692823254: (a) => new IFC2X3.IfcReferencesValueDocument(a[0], a[1], a[2], a[3]),
+  1580146022: (a) => new IFC2X3.IfcReinforcementBarProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1222501353: (a) => new IFC2X3.IfcRelaxation(a[0], a[1]),
+  1076942058: (a) => new IFC2X3.IfcRepresentation(a[0], a[1], a[2], a[3]),
+  3377609919: (a) => new IFC2X3.IfcRepresentationContext(a[0], a[1]),
+  3008791417: (_) => new IFC2X3.IfcRepresentationItem(),
+  1660063152: (a) => new IFC2X3.IfcRepresentationMap(a[0], a[1]),
+  3679540991: (a) => new IFC2X3.IfcRibPlateProfileProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2341007311: (a) => new IFC2X3.IfcRoot(a[0], a[1], a[2], a[3]),
+  448429030: (a) => new IFC2X3.IfcSIUnit(a[0], a[1], a[2]),
+  2042790032: (a) => new IFC2X3.IfcSectionProperties(a[0], a[1], a[2]),
+  4165799628: (a) => new IFC2X3.IfcSectionReinforcementProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  867548509: (a) => new IFC2X3.IfcShapeAspect(a[0], a[1], a[2], a[3], a[4]),
+  3982875396: (a) => new IFC2X3.IfcShapeModel(a[0], a[1], a[2], a[3]),
+  4240577450: (a) => new IFC2X3.IfcShapeRepresentation(a[0], a[1], a[2], a[3]),
+  3692461612: (a) => new IFC2X3.IfcSimpleProperty(a[0], a[1]),
+  2273995522: (a) => new IFC2X3.IfcStructuralConnectionCondition(a[0]),
+  2162789131: (a) => new IFC2X3.IfcStructuralLoad(a[0]),
+  2525727697: (a) => new IFC2X3.IfcStructuralLoadStatic(a[0]),
+  3408363356: (a) => new IFC2X3.IfcStructuralLoadTemperature(a[0], a[1], a[2], a[3]),
+  2830218821: (a) => new IFC2X3.IfcStyleModel(a[0], a[1], a[2], a[3]),
+  3958052878: (a) => new IFC2X3.IfcStyledItem(a[0], a[1], a[2]),
+  3049322572: (a) => new IFC2X3.IfcStyledRepresentation(a[0], a[1], a[2], a[3]),
+  1300840506: (a) => new IFC2X3.IfcSurfaceStyle(a[0], a[1], a[2]),
+  3303107099: (a) => new IFC2X3.IfcSurfaceStyleLighting(a[0], a[1], a[2], a[3]),
+  1607154358: (a) => new IFC2X3.IfcSurfaceStyleRefraction(a[0], a[1]),
+  846575682: (a) => new IFC2X3.IfcSurfaceStyleShading(a[0]),
+  1351298697: (a) => new IFC2X3.IfcSurfaceStyleWithTextures(a[0]),
+  626085974: (a) => new IFC2X3.IfcSurfaceTexture(a[0], a[1], a[2], a[3]),
+  1290481447: (a) => new IFC2X3.IfcSymbolStyle(a[0], a[1]),
+  985171141: (a) => new IFC2X3.IfcTable(a[0], a[1]),
+  531007025: (a) => new IFC2X3.IfcTableRow(a[0], a[1]),
+  912023232: (a) => new IFC2X3.IfcTelecomAddress(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1447204868: (a) => new IFC2X3.IfcTextStyle(a[0], a[1], a[2], a[3]),
+  1983826977: (a) => new IFC2X3.IfcTextStyleFontModel(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2636378356: (a) => new IFC2X3.IfcTextStyleForDefinedFont(a[0], a[1]),
+  1640371178: (a) => new IFC2X3.IfcTextStyleTextModel(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1484833681: (a) => new IFC2X3.IfcTextStyleWithBoxCharacteristics(a[0], a[1], a[2], a[3], a[4]),
+  280115917: (_) => new IFC2X3.IfcTextureCoordinate(),
+  1742049831: (a) => new IFC2X3.IfcTextureCoordinateGenerator(a[0], a[1]),
+  2552916305: (a) => new IFC2X3.IfcTextureMap(a[0]),
+  1210645708: (a) => new IFC2X3.IfcTextureVertex(a[0]),
+  3317419933: (a) => new IFC2X3.IfcThermalMaterialProperties(a[0], a[1], a[2], a[3], a[4]),
+  3101149627: (a) => new IFC2X3.IfcTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1718945513: (a) => new IFC2X3.IfcTimeSeriesReferenceRelationship(a[0], a[1]),
+  581633288: (a) => new IFC2X3.IfcTimeSeriesValue(a[0]),
+  1377556343: (_) => new IFC2X3.IfcTopologicalRepresentationItem(),
+  1735638870: (a) => new IFC2X3.IfcTopologyRepresentation(a[0], a[1], a[2], a[3]),
+  180925521: (a) => new IFC2X3.IfcUnitAssignment(a[0]),
+  2799835756: (_) => new IFC2X3.IfcVertex(),
+  3304826586: (a) => new IFC2X3.IfcVertexBasedTextureMap(a[0], a[1]),
+  1907098498: (a) => new IFC2X3.IfcVertexPoint(a[0]),
+  891718957: (a) => new IFC2X3.IfcVirtualGridIntersection(a[0], a[1]),
+  1065908215: (a) => new IFC2X3.IfcWaterProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2442683028: (a) => new IFC2X3.IfcAnnotationOccurrence(a[0], a[1], a[2]),
+  962685235: (a) => new IFC2X3.IfcAnnotationSurfaceOccurrence(a[0], a[1], a[2]),
+  3612888222: (a) => new IFC2X3.IfcAnnotationSymbolOccurrence(a[0], a[1], a[2]),
+  2297822566: (a) => new IFC2X3.IfcAnnotationTextOccurrence(a[0], a[1], a[2]),
+  3798115385: (a) => new IFC2X3.IfcArbitraryClosedProfileDef(a[0], a[1], a[2]),
+  1310608509: (a) => new IFC2X3.IfcArbitraryOpenProfileDef(a[0], a[1], a[2]),
+  2705031697: (a) => new IFC2X3.IfcArbitraryProfileDefWithVoids(a[0], a[1], a[2], a[3]),
+  616511568: (a) => new IFC2X3.IfcBlobTexture(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3150382593: (a) => new IFC2X3.IfcCenterLineProfileDef(a[0], a[1], a[2], a[3]),
+  647927063: (a) => new IFC2X3.IfcClassificationReference(a[0], a[1], a[2], a[3]),
+  776857604: (a) => new IFC2X3.IfcColourRgb(a[0], a[1], a[2], a[3]),
+  2542286263: (a) => new IFC2X3.IfcComplexProperty(a[0], a[1], a[2], a[3]),
+  1485152156: (a) => new IFC2X3.IfcCompositeProfileDef(a[0], a[1], a[2], a[3]),
+  370225590: (a) => new IFC2X3.IfcConnectedFaceSet(a[0]),
+  1981873012: (a) => new IFC2X3.IfcConnectionCurveGeometry(a[0], a[1]),
+  45288368: (a) => new IFC2X3.IfcConnectionPointEccentricity(a[0], a[1], a[2], a[3], a[4]),
+  3050246964: (a) => new IFC2X3.IfcContextDependentUnit(a[0], a[1], a[2]),
+  2889183280: (a) => new IFC2X3.IfcConversionBasedUnit(a[0], a[1], a[2], a[3]),
+  3800577675: (a) => new IFC2X3.IfcCurveStyle(a[0], a[1], a[2], a[3]),
+  3632507154: (a) => new IFC2X3.IfcDerivedProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  2273265877: (a) => new IFC2X3.IfcDimensionCalloutRelationship(a[0], a[1], a[2], a[3]),
+  1694125774: (a) => new IFC2X3.IfcDimensionPair(a[0], a[1], a[2], a[3]),
+  3732053477: (a) => new IFC2X3.IfcDocumentReference(a[0], a[1], a[2]),
+  4170525392: (a) => new IFC2X3.IfcDraughtingPreDefinedTextFont(a[0]),
+  3900360178: (a) => new IFC2X3.IfcEdge(a[0], a[1]),
+  476780140: (a) => new IFC2X3.IfcEdgeCurve(a[0], a[1], a[2], a[3]),
+  1860660968: (a) => new IFC2X3.IfcExtendedMaterialProperties(a[0], a[1], a[2], a[3]),
+  2556980723: (a) => new IFC2X3.IfcFace(a[0]),
+  1809719519: (a) => new IFC2X3.IfcFaceBound(a[0], a[1]),
+  803316827: (a) => new IFC2X3.IfcFaceOuterBound(a[0], a[1]),
+  3008276851: (a) => new IFC2X3.IfcFaceSurface(a[0], a[1], a[2]),
+  4219587988: (a) => new IFC2X3.IfcFailureConnectionCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  738692330: (a) => new IFC2X3.IfcFillAreaStyle(a[0], a[1]),
+  3857492461: (a) => new IFC2X3.IfcFuelProperties(a[0], a[1], a[2], a[3], a[4]),
+  803998398: (a) => new IFC2X3.IfcGeneralMaterialProperties(a[0], a[1], a[2], a[3]),
+  1446786286: (a) => new IFC2X3.IfcGeneralProfileProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3448662350: (a) => new IFC2X3.IfcGeometricRepresentationContext(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2453401579: (_) => new IFC2X3.IfcGeometricRepresentationItem(),
+  4142052618: (a) => new IFC2X3.IfcGeometricRepresentationSubContext(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3590301190: (a) => new IFC2X3.IfcGeometricSet(a[0]),
+  178086475: (a) => new IFC2X3.IfcGridPlacement(a[0], a[1]),
+  812098782: (a) => new IFC2X3.IfcHalfSpaceSolid(a[0], a[1]),
+  2445078500: (a) => new IFC2X3.IfcHygroscopicMaterialProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3905492369: (a) => new IFC2X3.IfcImageTexture(a[0], a[1], a[2], a[3], a[4]),
+  3741457305: (a) => new IFC2X3.IfcIrregularTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1402838566: (a) => new IFC2X3.IfcLightSource(a[0], a[1], a[2], a[3]),
+  125510826: (a) => new IFC2X3.IfcLightSourceAmbient(a[0], a[1], a[2], a[3]),
+  2604431987: (a) => new IFC2X3.IfcLightSourceDirectional(a[0], a[1], a[2], a[3], a[4]),
+  4266656042: (a) => new IFC2X3.IfcLightSourceGoniometric(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1520743889: (a) => new IFC2X3.IfcLightSourcePositional(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3422422726: (a) => new IFC2X3.IfcLightSourceSpot(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  2624227202: (a) => new IFC2X3.IfcLocalPlacement(a[0], a[1]),
+  1008929658: (_) => new IFC2X3.IfcLoop(),
+  2347385850: (a) => new IFC2X3.IfcMappedItem(a[0], a[1]),
+  2022407955: (a) => new IFC2X3.IfcMaterialDefinitionRepresentation(a[0], a[1], a[2], a[3]),
+  1430189142: (a) => new IFC2X3.IfcMechanicalConcreteMaterialProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  219451334: (a) => new IFC2X3.IfcObjectDefinition(a[0], a[1], a[2], a[3]),
+  2833995503: (a) => new IFC2X3.IfcOneDirectionRepeatFactor(a[0]),
+  2665983363: (a) => new IFC2X3.IfcOpenShell(a[0]),
+  1029017970: (a) => new IFC2X3.IfcOrientedEdge(a[0], a[1]),
+  2529465313: (a) => new IFC2X3.IfcParameterizedProfileDef(a[0], a[1], a[2]),
+  2519244187: (a) => new IFC2X3.IfcPath(a[0]),
+  3021840470: (a) => new IFC2X3.IfcPhysicalComplexQuantity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  597895409: (a) => new IFC2X3.IfcPixelTexture(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2004835150: (a) => new IFC2X3.IfcPlacement(a[0]),
+  1663979128: (a) => new IFC2X3.IfcPlanarExtent(a[0], a[1]),
+  2067069095: (_) => new IFC2X3.IfcPoint(),
+  4022376103: (a) => new IFC2X3.IfcPointOnCurve(a[0], a[1]),
+  1423911732: (a) => new IFC2X3.IfcPointOnSurface(a[0], a[1], a[2]),
+  2924175390: (a) => new IFC2X3.IfcPolyLoop(a[0]),
+  2775532180: (a) => new IFC2X3.IfcPolygonalBoundedHalfSpace(a[0], a[1], a[2], a[3]),
+  759155922: (a) => new IFC2X3.IfcPreDefinedColour(a[0]),
+  2559016684: (a) => new IFC2X3.IfcPreDefinedCurveFont(a[0]),
+  433424934: (a) => new IFC2X3.IfcPreDefinedDimensionSymbol(a[0]),
+  179317114: (a) => new IFC2X3.IfcPreDefinedPointMarkerSymbol(a[0]),
+  673634403: (a) => new IFC2X3.IfcProductDefinitionShape(a[0], a[1], a[2]),
+  871118103: (a) => new IFC2X3.IfcPropertyBoundedValue(a[0], a[1], a[2], a[3], a[4]),
+  1680319473: (a) => new IFC2X3.IfcPropertyDefinition(a[0], a[1], a[2], a[3]),
+  4166981789: (a) => new IFC2X3.IfcPropertyEnumeratedValue(a[0], a[1], a[2], a[3]),
+  2752243245: (a) => new IFC2X3.IfcPropertyListValue(a[0], a[1], a[2], a[3]),
+  941946838: (a) => new IFC2X3.IfcPropertyReferenceValue(a[0], a[1], a[2], a[3]),
+  3357820518: (a) => new IFC2X3.IfcPropertySetDefinition(a[0], a[1], a[2], a[3]),
+  3650150729: (a) => new IFC2X3.IfcPropertySingleValue(a[0], a[1], a[2], a[3]),
+  110355661: (a) => new IFC2X3.IfcPropertyTableValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3615266464: (a) => new IFC2X3.IfcRectangleProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  3413951693: (a) => new IFC2X3.IfcRegularTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3765753017: (a) => new IFC2X3.IfcReinforcementDefinitionProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  478536968: (a) => new IFC2X3.IfcRelationship(a[0], a[1], a[2], a[3]),
+  2778083089: (a) => new IFC2X3.IfcRoundedRectangleProfileDef(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1509187699: (a) => new IFC2X3.IfcSectionedSpine(a[0], a[1], a[2]),
+  2411513650: (a) => new IFC2X3.IfcServiceLifeFactor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4124623270: (a) => new IFC2X3.IfcShellBasedSurfaceModel(a[0]),
+  2609359061: (a) => new IFC2X3.IfcSlippageConnectionCondition(a[0], a[1], a[2], a[3]),
+  723233188: (_) => new IFC2X3.IfcSolidModel(),
+  2485662743: (a) => new IFC2X3.IfcSoundProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1202362311: (a) => new IFC2X3.IfcSoundValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  390701378: (a) => new IFC2X3.IfcSpaceThermalLoadProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1595516126: (a) => new IFC2X3.IfcStructuralLoadLinearForce(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2668620305: (a) => new IFC2X3.IfcStructuralLoadPlanarForce(a[0], a[1], a[2], a[3]),
+  2473145415: (a) => new IFC2X3.IfcStructuralLoadSingleDisplacement(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1973038258: (a) => new IFC2X3.IfcStructuralLoadSingleDisplacementDistortion(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1597423693: (a) => new IFC2X3.IfcStructuralLoadSingleForce(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1190533807: (a) => new IFC2X3.IfcStructuralLoadSingleForceWarping(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3843319758: (a) => new IFC2X3.IfcStructuralProfileProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19], a[20], a[21], a[22]),
+  3653947884: (a) => new IFC2X3.IfcStructuralSteelProfileProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19], a[20], a[21], a[22], a[23], a[24], a[25], a[26]),
+  2233826070: (a) => new IFC2X3.IfcSubedge(a[0], a[1], a[2]),
+  2513912981: (_) => new IFC2X3.IfcSurface(),
+  1878645084: (a) => new IFC2X3.IfcSurfaceStyleRendering(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2247615214: (a) => new IFC2X3.IfcSweptAreaSolid(a[0], a[1]),
+  1260650574: (a) => new IFC2X3.IfcSweptDiskSolid(a[0], a[1], a[2], a[3], a[4]),
+  230924584: (a) => new IFC2X3.IfcSweptSurface(a[0], a[1]),
+  3071757647: (a) => new IFC2X3.IfcTShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  3028897424: (a) => new IFC2X3.IfcTerminatorSymbol(a[0], a[1], a[2], a[3]),
+  4282788508: (a) => new IFC2X3.IfcTextLiteral(a[0], a[1], a[2]),
+  3124975700: (a) => new IFC2X3.IfcTextLiteralWithExtent(a[0], a[1], a[2], a[3], a[4]),
+  2715220739: (a) => new IFC2X3.IfcTrapeziumProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1345879162: (a) => new IFC2X3.IfcTwoDirectionRepeatFactor(a[0], a[1]),
+  1628702193: (a) => new IFC2X3.IfcTypeObject(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2347495698: (a) => new IFC2X3.IfcTypeProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  427810014: (a) => new IFC2X3.IfcUShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1417489154: (a) => new IFC2X3.IfcVector(a[0], a[1]),
+  2759199220: (a) => new IFC2X3.IfcVertexLoop(a[0]),
+  336235671: (a) => new IFC2X3.IfcWindowLiningProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  512836454: (a) => new IFC2X3.IfcWindowPanelProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1299126871: (a) => new IFC2X3.IfcWindowStyle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2543172580: (a) => new IFC2X3.IfcZShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3288037868: (a) => new IFC2X3.IfcAnnotationCurveOccurrence(a[0], a[1], a[2]),
+  669184980: (a) => new IFC2X3.IfcAnnotationFillArea(a[0], a[1]),
+  2265737646: (a) => new IFC2X3.IfcAnnotationFillAreaOccurrence(a[0], a[1], a[2], a[3], a[4]),
+  1302238472: (a) => new IFC2X3.IfcAnnotationSurface(a[0], a[1]),
+  4261334040: (a) => new IFC2X3.IfcAxis1Placement(a[0], a[1]),
+  3125803723: (a) => new IFC2X3.IfcAxis2Placement2D(a[0], a[1]),
+  2740243338: (a) => new IFC2X3.IfcAxis2Placement3D(a[0], a[1], a[2]),
+  2736907675: (a) => new IFC2X3.IfcBooleanResult(a[0], a[1], a[2]),
+  4182860854: (_) => new IFC2X3.IfcBoundedSurface(),
+  2581212453: (a) => new IFC2X3.IfcBoundingBox(a[0], a[1], a[2], a[3]),
+  2713105998: (a) => new IFC2X3.IfcBoxedHalfSpace(a[0], a[1], a[2]),
+  2898889636: (a) => new IFC2X3.IfcCShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1123145078: (a) => new IFC2X3.IfcCartesianPoint(a[0]),
+  59481748: (a) => new IFC2X3.IfcCartesianTransformationOperator(a[0], a[1], a[2], a[3]),
+  3749851601: (a) => new IFC2X3.IfcCartesianTransformationOperator2D(a[0], a[1], a[2], a[3]),
+  3486308946: (a) => new IFC2X3.IfcCartesianTransformationOperator2DnonUniform(a[0], a[1], a[2], a[3], a[4]),
+  3331915920: (a) => new IFC2X3.IfcCartesianTransformationOperator3D(a[0], a[1], a[2], a[3], a[4]),
+  1416205885: (a) => new IFC2X3.IfcCartesianTransformationOperator3DnonUniform(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1383045692: (a) => new IFC2X3.IfcCircleProfileDef(a[0], a[1], a[2], a[3]),
+  2205249479: (a) => new IFC2X3.IfcClosedShell(a[0]),
+  2485617015: (a) => new IFC2X3.IfcCompositeCurveSegment(a[0], a[1], a[2]),
+  4133800736: (a) => new IFC2X3.IfcCraneRailAShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]),
+  194851669: (a) => new IFC2X3.IfcCraneRailFShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2506170314: (a) => new IFC2X3.IfcCsgPrimitive3D(a[0]),
+  2147822146: (a) => new IFC2X3.IfcCsgSolid(a[0]),
+  2601014836: (_) => new IFC2X3.IfcCurve(),
+  2827736869: (a) => new IFC2X3.IfcCurveBoundedPlane(a[0], a[1], a[2]),
+  693772133: (a) => new IFC2X3.IfcDefinedSymbol(a[0], a[1]),
+  606661476: (a) => new IFC2X3.IfcDimensionCurve(a[0], a[1], a[2]),
+  4054601972: (a) => new IFC2X3.IfcDimensionCurveTerminator(a[0], a[1], a[2], a[3], a[4]),
+  32440307: (a) => new IFC2X3.IfcDirection(a[0]),
+  2963535650: (a) => new IFC2X3.IfcDoorLiningProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]),
+  1714330368: (a) => new IFC2X3.IfcDoorPanelProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  526551008: (a) => new IFC2X3.IfcDoorStyle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  3073041342: (a) => new IFC2X3.IfcDraughtingCallout(a[0]),
+  445594917: (a) => new IFC2X3.IfcDraughtingPreDefinedColour(a[0]),
+  4006246654: (a) => new IFC2X3.IfcDraughtingPreDefinedCurveFont(a[0]),
+  1472233963: (a) => new IFC2X3.IfcEdgeLoop(a[0]),
+  1883228015: (a) => new IFC2X3.IfcElementQuantity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  339256511: (a) => new IFC2X3.IfcElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2777663545: (a) => new IFC2X3.IfcElementarySurface(a[0]),
+  2835456948: (a) => new IFC2X3.IfcEllipseProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  80994333: (a) => new IFC2X3.IfcEnergyProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  477187591: (a) => new IFC2X3.IfcExtrudedAreaSolid(a[0], a[1], a[2], a[3]),
+  2047409740: (a) => new IFC2X3.IfcFaceBasedSurfaceModel(a[0]),
+  374418227: (a) => new IFC2X3.IfcFillAreaStyleHatching(a[0], a[1], a[2], a[3], a[4]),
+  4203026998: (a) => new IFC2X3.IfcFillAreaStyleTileSymbolWithStyle(a[0]),
+  315944413: (a) => new IFC2X3.IfcFillAreaStyleTiles(a[0], a[1], a[2]),
+  3455213021: (a) => new IFC2X3.IfcFluidFlowProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18]),
+  4238390223: (a) => new IFC2X3.IfcFurnishingElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1268542332: (a) => new IFC2X3.IfcFurnitureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  987898635: (a) => new IFC2X3.IfcGeometricCurveSet(a[0]),
+  1484403080: (a) => new IFC2X3.IfcIShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  572779678: (a) => new IFC2X3.IfcLShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1281925730: (a) => new IFC2X3.IfcLine(a[0], a[1]),
+  1425443689: (a) => new IFC2X3.IfcManifoldSolidBrep(a[0]),
+  3888040117: (a) => new IFC2X3.IfcObject(a[0], a[1], a[2], a[3], a[4]),
+  3388369263: (a) => new IFC2X3.IfcOffsetCurve2D(a[0], a[1], a[2]),
+  3505215534: (a) => new IFC2X3.IfcOffsetCurve3D(a[0], a[1], a[2], a[3]),
+  3566463478: (a) => new IFC2X3.IfcPermeableCoveringProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  603570806: (a) => new IFC2X3.IfcPlanarBox(a[0], a[1], a[2]),
+  220341763: (a) => new IFC2X3.IfcPlane(a[0]),
+  2945172077: (a) => new IFC2X3.IfcProcess(a[0], a[1], a[2], a[3], a[4]),
+  4208778838: (a) => new IFC2X3.IfcProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  103090709: (a) => new IFC2X3.IfcProject(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4194566429: (a) => new IFC2X3.IfcProjectionCurve(a[0], a[1], a[2]),
+  1451395588: (a) => new IFC2X3.IfcPropertySet(a[0], a[1], a[2], a[3], a[4]),
+  3219374653: (a) => new IFC2X3.IfcProxy(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2770003689: (a) => new IFC2X3.IfcRectangleHollowProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2798486643: (a) => new IFC2X3.IfcRectangularPyramid(a[0], a[1], a[2], a[3]),
+  3454111270: (a) => new IFC2X3.IfcRectangularTrimmedSurface(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3939117080: (a) => new IFC2X3.IfcRelAssigns(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1683148259: (a) => new IFC2X3.IfcRelAssignsToActor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2495723537: (a) => new IFC2X3.IfcRelAssignsToControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1307041759: (a) => new IFC2X3.IfcRelAssignsToGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  4278684876: (a) => new IFC2X3.IfcRelAssignsToProcess(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2857406711: (a) => new IFC2X3.IfcRelAssignsToProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3372526763: (a) => new IFC2X3.IfcRelAssignsToProjectOrder(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  205026976: (a) => new IFC2X3.IfcRelAssignsToResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1865459582: (a) => new IFC2X3.IfcRelAssociates(a[0], a[1], a[2], a[3], a[4]),
+  1327628568: (a) => new IFC2X3.IfcRelAssociatesAppliedValue(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4095574036: (a) => new IFC2X3.IfcRelAssociatesApproval(a[0], a[1], a[2], a[3], a[4], a[5]),
+  919958153: (a) => new IFC2X3.IfcRelAssociatesClassification(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2728634034: (a) => new IFC2X3.IfcRelAssociatesConstraint(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  982818633: (a) => new IFC2X3.IfcRelAssociatesDocument(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3840914261: (a) => new IFC2X3.IfcRelAssociatesLibrary(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2655215786: (a) => new IFC2X3.IfcRelAssociatesMaterial(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2851387026: (a) => new IFC2X3.IfcRelAssociatesProfileProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  826625072: (a) => new IFC2X3.IfcRelConnects(a[0], a[1], a[2], a[3]),
+  1204542856: (a) => new IFC2X3.IfcRelConnectsElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3945020480: (a) => new IFC2X3.IfcRelConnectsPathElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4201705270: (a) => new IFC2X3.IfcRelConnectsPortToElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3190031847: (a) => new IFC2X3.IfcRelConnectsPorts(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2127690289: (a) => new IFC2X3.IfcRelConnectsStructuralActivity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3912681535: (a) => new IFC2X3.IfcRelConnectsStructuralElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1638771189: (a) => new IFC2X3.IfcRelConnectsStructuralMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  504942748: (a) => new IFC2X3.IfcRelConnectsWithEccentricity(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3678494232: (a) => new IFC2X3.IfcRelConnectsWithRealizingElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3242617779: (a) => new IFC2X3.IfcRelContainedInSpatialStructure(a[0], a[1], a[2], a[3], a[4], a[5]),
+  886880790: (a) => new IFC2X3.IfcRelCoversBldgElements(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2802773753: (a) => new IFC2X3.IfcRelCoversSpaces(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2551354335: (a) => new IFC2X3.IfcRelDecomposes(a[0], a[1], a[2], a[3], a[4], a[5]),
+  693640335: (a) => new IFC2X3.IfcRelDefines(a[0], a[1], a[2], a[3], a[4]),
+  4186316022: (a) => new IFC2X3.IfcRelDefinesByProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  781010003: (a) => new IFC2X3.IfcRelDefinesByType(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3940055652: (a) => new IFC2X3.IfcRelFillsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  279856033: (a) => new IFC2X3.IfcRelFlowControlElements(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4189434867: (a) => new IFC2X3.IfcRelInteractionRequirements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3268803585: (a) => new IFC2X3.IfcRelNests(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2051452291: (a) => new IFC2X3.IfcRelOccupiesSpaces(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  202636808: (a) => new IFC2X3.IfcRelOverridesProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  750771296: (a) => new IFC2X3.IfcRelProjectsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1245217292: (a) => new IFC2X3.IfcRelReferencedInSpatialStructure(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1058617721: (a) => new IFC2X3.IfcRelSchedulesCostItems(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  4122056220: (a) => new IFC2X3.IfcRelSequence(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  366585022: (a) => new IFC2X3.IfcRelServicesBuildings(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3451746338: (a) => new IFC2X3.IfcRelSpaceBoundary(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1401173127: (a) => new IFC2X3.IfcRelVoidsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2914609552: (a) => new IFC2X3.IfcResource(a[0], a[1], a[2], a[3], a[4]),
+  1856042241: (a) => new IFC2X3.IfcRevolvedAreaSolid(a[0], a[1], a[2], a[3]),
+  4158566097: (a) => new IFC2X3.IfcRightCircularCone(a[0], a[1], a[2]),
+  3626867408: (a) => new IFC2X3.IfcRightCircularCylinder(a[0], a[1], a[2]),
+  2706606064: (a) => new IFC2X3.IfcSpatialStructureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3893378262: (a) => new IFC2X3.IfcSpatialStructureElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  451544542: (a) => new IFC2X3.IfcSphere(a[0], a[1]),
+  3544373492: (a) => new IFC2X3.IfcStructuralActivity(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3136571912: (a) => new IFC2X3.IfcStructuralItem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  530289379: (a) => new IFC2X3.IfcStructuralMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3689010777: (a) => new IFC2X3.IfcStructuralReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3979015343: (a) => new IFC2X3.IfcStructuralSurfaceMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2218152070: (a) => new IFC2X3.IfcStructuralSurfaceMemberVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4070609034: (a) => new IFC2X3.IfcStructuredDimensionCallout(a[0]),
+  2028607225: (a) => new IFC2X3.IfcSurfaceCurveSweptAreaSolid(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2809605785: (a) => new IFC2X3.IfcSurfaceOfLinearExtrusion(a[0], a[1], a[2], a[3]),
+  4124788165: (a) => new IFC2X3.IfcSurfaceOfRevolution(a[0], a[1], a[2]),
+  1580310250: (a) => new IFC2X3.IfcSystemFurnitureElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3473067441: (a) => new IFC2X3.IfcTask(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2097647324: (a) => new IFC2X3.IfcTransportElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2296667514: (a) => new IFC2X3.IfcActor(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1674181508: (a) => new IFC2X3.IfcAnnotation(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3207858831: (a) => new IFC2X3.IfcAsymmetricIShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1334484129: (a) => new IFC2X3.IfcBlock(a[0], a[1], a[2], a[3]),
+  3649129432: (a) => new IFC2X3.IfcBooleanClippingResult(a[0], a[1], a[2]),
+  1260505505: (_) => new IFC2X3.IfcBoundedCurve(),
+  4031249490: (a) => new IFC2X3.IfcBuilding(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1950629157: (a) => new IFC2X3.IfcBuildingElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3124254112: (a) => new IFC2X3.IfcBuildingStorey(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2937912522: (a) => new IFC2X3.IfcCircleHollowProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  300633059: (a) => new IFC2X3.IfcColumnType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3732776249: (a) => new IFC2X3.IfcCompositeCurve(a[0], a[1]),
+  2510884976: (a) => new IFC2X3.IfcConic(a[0]),
+  2559216714: (a) => new IFC2X3.IfcConstructionResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3293443760: (a) => new IFC2X3.IfcControl(a[0], a[1], a[2], a[3], a[4]),
+  3895139033: (a) => new IFC2X3.IfcCostItem(a[0], a[1], a[2], a[3], a[4]),
+  1419761937: (a) => new IFC2X3.IfcCostSchedule(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  1916426348: (a) => new IFC2X3.IfcCoveringType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3295246426: (a) => new IFC2X3.IfcCrewResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1457835157: (a) => new IFC2X3.IfcCurtainWallType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  681481545: (a) => new IFC2X3.IfcDimensionCurveDirectedCallout(a[0]),
+  3256556792: (a) => new IFC2X3.IfcDistributionElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3849074793: (a) => new IFC2X3.IfcDistributionFlowElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  360485395: (a) => new IFC2X3.IfcElectricalBaseProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1758889154: (a) => new IFC2X3.IfcElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4123344466: (a) => new IFC2X3.IfcElementAssembly(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1623761950: (a) => new IFC2X3.IfcElementComponent(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2590856083: (a) => new IFC2X3.IfcElementComponentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1704287377: (a) => new IFC2X3.IfcEllipse(a[0], a[1], a[2]),
+  2107101300: (a) => new IFC2X3.IfcEnergyConversionDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1962604670: (a) => new IFC2X3.IfcEquipmentElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3272907226: (a) => new IFC2X3.IfcEquipmentStandard(a[0], a[1], a[2], a[3], a[4]),
+  3174744832: (a) => new IFC2X3.IfcEvaporativeCoolerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3390157468: (a) => new IFC2X3.IfcEvaporatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  807026263: (a) => new IFC2X3.IfcFacetedBrep(a[0]),
+  3737207727: (a) => new IFC2X3.IfcFacetedBrepWithVoids(a[0], a[1]),
+  647756555: (a) => new IFC2X3.IfcFastener(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2489546625: (a) => new IFC2X3.IfcFastenerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2827207264: (a) => new IFC2X3.IfcFeatureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2143335405: (a) => new IFC2X3.IfcFeatureElementAddition(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1287392070: (a) => new IFC2X3.IfcFeatureElementSubtraction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3907093117: (a) => new IFC2X3.IfcFlowControllerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3198132628: (a) => new IFC2X3.IfcFlowFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3815607619: (a) => new IFC2X3.IfcFlowMeterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1482959167: (a) => new IFC2X3.IfcFlowMovingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1834744321: (a) => new IFC2X3.IfcFlowSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1339347760: (a) => new IFC2X3.IfcFlowStorageDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2297155007: (a) => new IFC2X3.IfcFlowTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3009222698: (a) => new IFC2X3.IfcFlowTreatmentDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  263784265: (a) => new IFC2X3.IfcFurnishingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  814719939: (a) => new IFC2X3.IfcFurnitureStandard(a[0], a[1], a[2], a[3], a[4]),
+  200128114: (a) => new IFC2X3.IfcGasTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3009204131: (a) => new IFC2X3.IfcGrid(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2706460486: (a) => new IFC2X3.IfcGroup(a[0], a[1], a[2], a[3], a[4]),
+  1251058090: (a) => new IFC2X3.IfcHeatExchangerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1806887404: (a) => new IFC2X3.IfcHumidifierType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2391368822: (a) => new IFC2X3.IfcInventory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4288270099: (a) => new IFC2X3.IfcJunctionBoxType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3827777499: (a) => new IFC2X3.IfcLaborResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1051575348: (a) => new IFC2X3.IfcLampType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1161773419: (a) => new IFC2X3.IfcLightFixtureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2506943328: (a) => new IFC2X3.IfcLinearDimension(a[0]),
+  377706215: (a) => new IFC2X3.IfcMechanicalFastener(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2108223431: (a) => new IFC2X3.IfcMechanicalFastenerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3181161470: (a) => new IFC2X3.IfcMemberType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  977012517: (a) => new IFC2X3.IfcMotorConnectionType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1916936684: (a) => new IFC2X3.IfcMove(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  4143007308: (a) => new IFC2X3.IfcOccupant(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3588315303: (a) => new IFC2X3.IfcOpeningElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3425660407: (a) => new IFC2X3.IfcOrderAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2837617999: (a) => new IFC2X3.IfcOutletType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2382730787: (a) => new IFC2X3.IfcPerformanceHistory(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3327091369: (a) => new IFC2X3.IfcPermit(a[0], a[1], a[2], a[3], a[4], a[5]),
+  804291784: (a) => new IFC2X3.IfcPipeFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4231323485: (a) => new IFC2X3.IfcPipeSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4017108033: (a) => new IFC2X3.IfcPlateType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3724593414: (a) => new IFC2X3.IfcPolyline(a[0]),
+  3740093272: (a) => new IFC2X3.IfcPort(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2744685151: (a) => new IFC2X3.IfcProcedure(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2904328755: (a) => new IFC2X3.IfcProjectOrder(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3642467123: (a) => new IFC2X3.IfcProjectOrderRecord(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3651124850: (a) => new IFC2X3.IfcProjectionElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1842657554: (a) => new IFC2X3.IfcProtectiveDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2250791053: (a) => new IFC2X3.IfcPumpType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3248260540: (a) => new IFC2X3.IfcRadiusDimension(a[0]),
+  2893384427: (a) => new IFC2X3.IfcRailingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2324767716: (a) => new IFC2X3.IfcRampFlightType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  160246688: (a) => new IFC2X3.IfcRelAggregates(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2863920197: (a) => new IFC2X3.IfcRelAssignsTasks(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1768891740: (a) => new IFC2X3.IfcSanitaryTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3517283431: (a) => new IFC2X3.IfcScheduleTimeControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19], a[20], a[21], a[22]),
+  4105383287: (a) => new IFC2X3.IfcServiceLife(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  4097777520: (a) => new IFC2X3.IfcSite(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  2533589738: (a) => new IFC2X3.IfcSlabType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3856911033: (a) => new IFC2X3.IfcSpace(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1305183839: (a) => new IFC2X3.IfcSpaceHeaterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  652456506: (a) => new IFC2X3.IfcSpaceProgram(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3812236995: (a) => new IFC2X3.IfcSpaceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3112655638: (a) => new IFC2X3.IfcStackTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1039846685: (a) => new IFC2X3.IfcStairFlightType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  682877961: (a) => new IFC2X3.IfcStructuralAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1179482911: (a) => new IFC2X3.IfcStructuralConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4243806635: (a) => new IFC2X3.IfcStructuralCurveConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  214636428: (a) => new IFC2X3.IfcStructuralCurveMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2445595289: (a) => new IFC2X3.IfcStructuralCurveMemberVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1807405624: (a) => new IFC2X3.IfcStructuralLinearAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1721250024: (a) => new IFC2X3.IfcStructuralLinearActionVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1252848954: (a) => new IFC2X3.IfcStructuralLoadGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1621171031: (a) => new IFC2X3.IfcStructuralPlanarAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  3987759626: (a) => new IFC2X3.IfcStructuralPlanarActionVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  2082059205: (a) => new IFC2X3.IfcStructuralPointAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  734778138: (a) => new IFC2X3.IfcStructuralPointConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1235345126: (a) => new IFC2X3.IfcStructuralPointReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2986769608: (a) => new IFC2X3.IfcStructuralResultGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1975003073: (a) => new IFC2X3.IfcStructuralSurfaceConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  148013059: (a) => new IFC2X3.IfcSubContractResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2315554128: (a) => new IFC2X3.IfcSwitchingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2254336722: (a) => new IFC2X3.IfcSystem(a[0], a[1], a[2], a[3], a[4]),
+  5716631: (a) => new IFC2X3.IfcTankType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1637806684: (a) => new IFC2X3.IfcTimeSeriesSchedule(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1692211062: (a) => new IFC2X3.IfcTransformerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1620046519: (a) => new IFC2X3.IfcTransportElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3593883385: (a) => new IFC2X3.IfcTrimmedCurve(a[0], a[1], a[2], a[3], a[4]),
+  1600972822: (a) => new IFC2X3.IfcTubeBundleType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1911125066: (a) => new IFC2X3.IfcUnitaryEquipmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  728799441: (a) => new IFC2X3.IfcValveType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2769231204: (a) => new IFC2X3.IfcVirtualElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1898987631: (a) => new IFC2X3.IfcWallType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1133259667: (a) => new IFC2X3.IfcWasteTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1028945134: (a) => new IFC2X3.IfcWorkControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]),
+  4218914973: (a) => new IFC2X3.IfcWorkPlan(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]),
+  3342526732: (a) => new IFC2X3.IfcWorkSchedule(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]),
+  1033361043: (a) => new IFC2X3.IfcZone(a[0], a[1], a[2], a[3], a[4]),
+  1213861670: (a) => new IFC2X3.Ifc2DCompositeCurve(a[0], a[1]),
+  3821786052: (a) => new IFC2X3.IfcActionRequest(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1411407467: (a) => new IFC2X3.IfcAirTerminalBoxType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3352864051: (a) => new IFC2X3.IfcAirTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1871374353: (a) => new IFC2X3.IfcAirToAirHeatRecoveryType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2470393545: (a) => new IFC2X3.IfcAngularDimension(a[0]),
+  3460190687: (a) => new IFC2X3.IfcAsset(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1967976161: (a) => new IFC2X3.IfcBSplineCurve(a[0], a[1], a[2], a[3], a[4]),
+  819618141: (a) => new IFC2X3.IfcBeamType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1916977116: (a) => new IFC2X3.IfcBezierCurve(a[0], a[1], a[2], a[3], a[4]),
+  231477066: (a) => new IFC2X3.IfcBoilerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3299480353: (a) => new IFC2X3.IfcBuildingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  52481810: (a) => new IFC2X3.IfcBuildingElementComponent(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2979338954: (a) => new IFC2X3.IfcBuildingElementPart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1095909175: (a) => new IFC2X3.IfcBuildingElementProxy(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1909888760: (a) => new IFC2X3.IfcBuildingElementProxyType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  395041908: (a) => new IFC2X3.IfcCableCarrierFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3293546465: (a) => new IFC2X3.IfcCableCarrierSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1285652485: (a) => new IFC2X3.IfcCableSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2951183804: (a) => new IFC2X3.IfcChillerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2611217952: (a) => new IFC2X3.IfcCircle(a[0], a[1]),
+  2301859152: (a) => new IFC2X3.IfcCoilType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  843113511: (a) => new IFC2X3.IfcColumn(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3850581409: (a) => new IFC2X3.IfcCompressorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2816379211: (a) => new IFC2X3.IfcCondenserType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2188551683: (a) => new IFC2X3.IfcCondition(a[0], a[1], a[2], a[3], a[4]),
+  1163958913: (a) => new IFC2X3.IfcConditionCriterion(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3898045240: (a) => new IFC2X3.IfcConstructionEquipmentResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1060000209: (a) => new IFC2X3.IfcConstructionMaterialResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  488727124: (a) => new IFC2X3.IfcConstructionProductResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  335055490: (a) => new IFC2X3.IfcCooledBeamType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2954562838: (a) => new IFC2X3.IfcCoolingTowerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1973544240: (a) => new IFC2X3.IfcCovering(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3495092785: (a) => new IFC2X3.IfcCurtainWall(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3961806047: (a) => new IFC2X3.IfcDamperType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4147604152: (a) => new IFC2X3.IfcDiameterDimension(a[0]),
+  1335981549: (a) => new IFC2X3.IfcDiscreteAccessory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2635815018: (a) => new IFC2X3.IfcDiscreteAccessoryType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1599208980: (a) => new IFC2X3.IfcDistributionChamberElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2063403501: (a) => new IFC2X3.IfcDistributionControlElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1945004755: (a) => new IFC2X3.IfcDistributionElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3040386961: (a) => new IFC2X3.IfcDistributionFlowElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3041715199: (a) => new IFC2X3.IfcDistributionPort(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  395920057: (a) => new IFC2X3.IfcDoor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  869906466: (a) => new IFC2X3.IfcDuctFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3760055223: (a) => new IFC2X3.IfcDuctSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2030761528: (a) => new IFC2X3.IfcDuctSilencerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  855621170: (a) => new IFC2X3.IfcEdgeFeature(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  663422040: (a) => new IFC2X3.IfcElectricApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3277789161: (a) => new IFC2X3.IfcElectricFlowStorageDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1534661035: (a) => new IFC2X3.IfcElectricGeneratorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1365060375: (a) => new IFC2X3.IfcElectricHeaterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1217240411: (a) => new IFC2X3.IfcElectricMotorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  712377611: (a) => new IFC2X3.IfcElectricTimeControlType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1634875225: (a) => new IFC2X3.IfcElectricalCircuit(a[0], a[1], a[2], a[3], a[4]),
+  857184966: (a) => new IFC2X3.IfcElectricalElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1658829314: (a) => new IFC2X3.IfcEnergyConversionDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  346874300: (a) => new IFC2X3.IfcFanType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1810631287: (a) => new IFC2X3.IfcFilterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4222183408: (a) => new IFC2X3.IfcFireSuppressionTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2058353004: (a) => new IFC2X3.IfcFlowController(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4278956645: (a) => new IFC2X3.IfcFlowFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4037862832: (a) => new IFC2X3.IfcFlowInstrumentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3132237377: (a) => new IFC2X3.IfcFlowMovingDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  987401354: (a) => new IFC2X3.IfcFlowSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  707683696: (a) => new IFC2X3.IfcFlowStorageDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2223149337: (a) => new IFC2X3.IfcFlowTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3508470533: (a) => new IFC2X3.IfcFlowTreatmentDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  900683007: (a) => new IFC2X3.IfcFooting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1073191201: (a) => new IFC2X3.IfcMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1687234759: (a) => new IFC2X3.IfcPile(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3171933400: (a) => new IFC2X3.IfcPlate(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2262370178: (a) => new IFC2X3.IfcRailing(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3024970846: (a) => new IFC2X3.IfcRamp(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3283111854: (a) => new IFC2X3.IfcRampFlight(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3055160366: (a) => new IFC2X3.IfcRationalBezierCurve(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3027567501: (a) => new IFC2X3.IfcReinforcingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2320036040: (a) => new IFC2X3.IfcReinforcingMesh(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  2016517767: (a) => new IFC2X3.IfcRoof(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1376911519: (a) => new IFC2X3.IfcRoundedEdgeFeature(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1783015770: (a) => new IFC2X3.IfcSensorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1529196076: (a) => new IFC2X3.IfcSlab(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  331165859: (a) => new IFC2X3.IfcStair(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4252922144: (a) => new IFC2X3.IfcStairFlight(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2515109513: (a) => new IFC2X3.IfcStructuralAnalysisModel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3824725483: (a) => new IFC2X3.IfcTendon(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  2347447852: (a) => new IFC2X3.IfcTendonAnchor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3313531582: (a) => new IFC2X3.IfcVibrationIsolatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2391406946: (a) => new IFC2X3.IfcWall(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3512223829: (a) => new IFC2X3.IfcWallStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3304561284: (a) => new IFC2X3.IfcWindow(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2874132201: (a) => new IFC2X3.IfcActuatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3001207471: (a) => new IFC2X3.IfcAlarmType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  753842376: (a) => new IFC2X3.IfcBeam(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2454782716: (a) => new IFC2X3.IfcChamferEdgeFeature(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  578613899: (a) => new IFC2X3.IfcControllerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1052013943: (a) => new IFC2X3.IfcDistributionChamberElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1062813311: (a) => new IFC2X3.IfcDistributionControlElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3700593921: (a) => new IFC2X3.IfcElectricDistributionPoint(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  979691226: (a) => new IFC2X3.IfcReinforcingBar(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13])
+};
 TypeInitialisers[1] = {
   3699917729: (v) => new IFC2X3.IfcAbsorbedDoseMeasure(v),
   4182062534: (v) => new IFC2X3.IfcAccelerationMeasure(v),
@@ -47732,6 +48318,784 @@ var IFC2X3;
   }
   IFC2X32.IfcReinforcingBar = IfcReinforcingBar;
 })(IFC2X3 || (IFC2X3 = {}));
+Constructors[2] = {
+  3630933823: (a) => new IFC4.IfcActorRole(a[0], a[1], a[2]),
+  618182010: (a) => new IFC4.IfcAddress(a[0], a[1], a[2]),
+  639542469: (a) => new IFC4.IfcApplication(a[0], a[1], a[2], a[3]),
+  411424972: (a) => new IFC4.IfcAppliedValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  130549933: (a) => new IFC4.IfcApproval(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4037036970: (a) => new IFC4.IfcBoundaryCondition(a[0]),
+  1560379544: (a) => new IFC4.IfcBoundaryEdgeCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3367102660: (a) => new IFC4.IfcBoundaryFaceCondition(a[0], a[1], a[2], a[3]),
+  1387855156: (a) => new IFC4.IfcBoundaryNodeCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2069777674: (a) => new IFC4.IfcBoundaryNodeConditionWarping(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2859738748: (_) => new IFC4.IfcConnectionGeometry(),
+  2614616156: (a) => new IFC4.IfcConnectionPointGeometry(a[0], a[1]),
+  2732653382: (a) => new IFC4.IfcConnectionSurfaceGeometry(a[0], a[1]),
+  775493141: (a) => new IFC4.IfcConnectionVolumeGeometry(a[0], a[1]),
+  1959218052: (a) => new IFC4.IfcConstraint(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1785450214: (a) => new IFC4.IfcCoordinateOperation(a[0], a[1]),
+  1466758467: (a) => new IFC4.IfcCoordinateReferenceSystem(a[0], a[1], a[2], a[3]),
+  602808272: (a) => new IFC4.IfcCostValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1765591967: (a) => new IFC4.IfcDerivedUnit(a[0], a[1], a[2]),
+  1045800335: (a) => new IFC4.IfcDerivedUnitElement(a[0], a[1]),
+  2949456006: (a) => new IFC4.IfcDimensionalExponents(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  4294318154: (_) => new IFC4.IfcExternalInformation(),
+  3200245327: (a) => new IFC4.IfcExternalReference(a[0], a[1], a[2]),
+  2242383968: (a) => new IFC4.IfcExternallyDefinedHatchStyle(a[0], a[1], a[2]),
+  1040185647: (a) => new IFC4.IfcExternallyDefinedSurfaceStyle(a[0], a[1], a[2]),
+  3548104201: (a) => new IFC4.IfcExternallyDefinedTextFont(a[0], a[1], a[2]),
+  852622518: (a) => new IFC4.IfcGridAxis(a[0], a[1], a[2]),
+  3020489413: (a) => new IFC4.IfcIrregularTimeSeriesValue(a[0], a[1]),
+  2655187982: (a) => new IFC4.IfcLibraryInformation(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3452421091: (a) => new IFC4.IfcLibraryReference(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4162380809: (a) => new IFC4.IfcLightDistributionData(a[0], a[1], a[2]),
+  1566485204: (a) => new IFC4.IfcLightIntensityDistribution(a[0], a[1]),
+  3057273783: (a) => new IFC4.IfcMapConversion(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1847130766: (a) => new IFC4.IfcMaterialClassificationRelationship(a[0], a[1]),
+  760658860: (_) => new IFC4.IfcMaterialDefinition(),
+  248100487: (a) => new IFC4.IfcMaterialLayer(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3303938423: (a) => new IFC4.IfcMaterialLayerSet(a[0], a[1], a[2]),
+  1847252529: (a) => new IFC4.IfcMaterialLayerWithOffsets(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2199411900: (a) => new IFC4.IfcMaterialList(a[0]),
+  2235152071: (a) => new IFC4.IfcMaterialProfile(a[0], a[1], a[2], a[3], a[4], a[5]),
+  164193824: (a) => new IFC4.IfcMaterialProfileSet(a[0], a[1], a[2], a[3]),
+  552965576: (a) => new IFC4.IfcMaterialProfileWithOffsets(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1507914824: (_) => new IFC4.IfcMaterialUsageDefinition(),
+  2597039031: (a) => new IFC4.IfcMeasureWithUnit(a[0], a[1]),
+  3368373690: (a) => new IFC4.IfcMetric(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2706619895: (a) => new IFC4.IfcMonetaryUnit(a[0]),
+  1918398963: (a) => new IFC4.IfcNamedUnit(a[0], a[1]),
+  3701648758: (_) => new IFC4.IfcObjectPlacement(),
+  2251480897: (a) => new IFC4.IfcObjective(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4251960020: (a) => new IFC4.IfcOrganization(a[0], a[1], a[2], a[3], a[4]),
+  1207048766: (a) => new IFC4.IfcOwnerHistory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2077209135: (a) => new IFC4.IfcPerson(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  101040310: (a) => new IFC4.IfcPersonAndOrganization(a[0], a[1], a[2]),
+  2483315170: (a) => new IFC4.IfcPhysicalQuantity(a[0], a[1]),
+  2226359599: (a) => new IFC4.IfcPhysicalSimpleQuantity(a[0], a[1], a[2]),
+  3355820592: (a) => new IFC4.IfcPostalAddress(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  677532197: (_) => new IFC4.IfcPresentationItem(),
+  2022622350: (a) => new IFC4.IfcPresentationLayerAssignment(a[0], a[1], a[2], a[3]),
+  1304840413: (a) => new IFC4.IfcPresentationLayerWithStyle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3119450353: (a) => new IFC4.IfcPresentationStyle(a[0]),
+  2417041796: (a) => new IFC4.IfcPresentationStyleAssignment(a[0]),
+  2095639259: (a) => new IFC4.IfcProductRepresentation(a[0], a[1], a[2]),
+  3958567839: (a) => new IFC4.IfcProfileDef(a[0], a[1]),
+  3843373140: (a) => new IFC4.IfcProjectedCRS(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  986844984: (_) => new IFC4.IfcPropertyAbstraction(),
+  3710013099: (a) => new IFC4.IfcPropertyEnumeration(a[0], a[1], a[2]),
+  2044713172: (a) => new IFC4.IfcQuantityArea(a[0], a[1], a[2], a[3], a[4]),
+  2093928680: (a) => new IFC4.IfcQuantityCount(a[0], a[1], a[2], a[3], a[4]),
+  931644368: (a) => new IFC4.IfcQuantityLength(a[0], a[1], a[2], a[3], a[4]),
+  3252649465: (a) => new IFC4.IfcQuantityTime(a[0], a[1], a[2], a[3], a[4]),
+  2405470396: (a) => new IFC4.IfcQuantityVolume(a[0], a[1], a[2], a[3], a[4]),
+  825690147: (a) => new IFC4.IfcQuantityWeight(a[0], a[1], a[2], a[3], a[4]),
+  3915482550: (a) => new IFC4.IfcRecurrencePattern(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2433181523: (a) => new IFC4.IfcReference(a[0], a[1], a[2], a[3], a[4]),
+  1076942058: (a) => new IFC4.IfcRepresentation(a[0], a[1], a[2], a[3]),
+  3377609919: (a) => new IFC4.IfcRepresentationContext(a[0], a[1]),
+  3008791417: (_) => new IFC4.IfcRepresentationItem(),
+  1660063152: (a) => new IFC4.IfcRepresentationMap(a[0], a[1]),
+  2439245199: (a) => new IFC4.IfcResourceLevelRelationship(a[0], a[1]),
+  2341007311: (a) => new IFC4.IfcRoot(a[0], a[1], a[2], a[3]),
+  448429030: (a) => new IFC4.IfcSIUnit(a[0], a[1], a[2]),
+  1054537805: (a) => new IFC4.IfcSchedulingTime(a[0], a[1], a[2]),
+  867548509: (a) => new IFC4.IfcShapeAspect(a[0], a[1], a[2], a[3], a[4]),
+  3982875396: (a) => new IFC4.IfcShapeModel(a[0], a[1], a[2], a[3]),
+  4240577450: (a) => new IFC4.IfcShapeRepresentation(a[0], a[1], a[2], a[3]),
+  2273995522: (a) => new IFC4.IfcStructuralConnectionCondition(a[0]),
+  2162789131: (a) => new IFC4.IfcStructuralLoad(a[0]),
+  3478079324: (a) => new IFC4.IfcStructuralLoadConfiguration(a[0], a[1], a[2]),
+  609421318: (a) => new IFC4.IfcStructuralLoadOrResult(a[0]),
+  2525727697: (a) => new IFC4.IfcStructuralLoadStatic(a[0]),
+  3408363356: (a) => new IFC4.IfcStructuralLoadTemperature(a[0], a[1], a[2], a[3]),
+  2830218821: (a) => new IFC4.IfcStyleModel(a[0], a[1], a[2], a[3]),
+  3958052878: (a) => new IFC4.IfcStyledItem(a[0], a[1], a[2]),
+  3049322572: (a) => new IFC4.IfcStyledRepresentation(a[0], a[1], a[2], a[3]),
+  2934153892: (a) => new IFC4.IfcSurfaceReinforcementArea(a[0], a[1], a[2], a[3]),
+  1300840506: (a) => new IFC4.IfcSurfaceStyle(a[0], a[1], a[2]),
+  3303107099: (a) => new IFC4.IfcSurfaceStyleLighting(a[0], a[1], a[2], a[3]),
+  1607154358: (a) => new IFC4.IfcSurfaceStyleRefraction(a[0], a[1]),
+  846575682: (a) => new IFC4.IfcSurfaceStyleShading(a[0], a[1]),
+  1351298697: (a) => new IFC4.IfcSurfaceStyleWithTextures(a[0]),
+  626085974: (a) => new IFC4.IfcSurfaceTexture(a[0], a[1], a[2], a[3], a[4]),
+  985171141: (a) => new IFC4.IfcTable(a[0], a[1], a[2]),
+  2043862942: (a) => new IFC4.IfcTableColumn(a[0], a[1], a[2], a[3], a[4]),
+  531007025: (a) => new IFC4.IfcTableRow(a[0], a[1]),
+  1549132990: (a) => new IFC4.IfcTaskTime(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19]),
+  2771591690: (a) => new IFC4.IfcTaskTimeRecurring(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19], a[20]),
+  912023232: (a) => new IFC4.IfcTelecomAddress(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1447204868: (a) => new IFC4.IfcTextStyle(a[0], a[1], a[2], a[3], a[4]),
+  2636378356: (a) => new IFC4.IfcTextStyleForDefinedFont(a[0], a[1]),
+  1640371178: (a) => new IFC4.IfcTextStyleTextModel(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  280115917: (a) => new IFC4.IfcTextureCoordinate(a[0]),
+  1742049831: (a) => new IFC4.IfcTextureCoordinateGenerator(a[0], a[1], a[2]),
+  2552916305: (a) => new IFC4.IfcTextureMap(a[0], a[1], a[2]),
+  1210645708: (a) => new IFC4.IfcTextureVertex(a[0]),
+  3611470254: (a) => new IFC4.IfcTextureVertexList(a[0]),
+  1199560280: (a) => new IFC4.IfcTimePeriod(a[0], a[1]),
+  3101149627: (a) => new IFC4.IfcTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  581633288: (a) => new IFC4.IfcTimeSeriesValue(a[0]),
+  1377556343: (_) => new IFC4.IfcTopologicalRepresentationItem(),
+  1735638870: (a) => new IFC4.IfcTopologyRepresentation(a[0], a[1], a[2], a[3]),
+  180925521: (a) => new IFC4.IfcUnitAssignment(a[0]),
+  2799835756: (_) => new IFC4.IfcVertex(),
+  1907098498: (a) => new IFC4.IfcVertexPoint(a[0]),
+  891718957: (a) => new IFC4.IfcVirtualGridIntersection(a[0], a[1]),
+  1236880293: (a) => new IFC4.IfcWorkTime(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3869604511: (a) => new IFC4.IfcApprovalRelationship(a[0], a[1], a[2], a[3]),
+  3798115385: (a) => new IFC4.IfcArbitraryClosedProfileDef(a[0], a[1], a[2]),
+  1310608509: (a) => new IFC4.IfcArbitraryOpenProfileDef(a[0], a[1], a[2]),
+  2705031697: (a) => new IFC4.IfcArbitraryProfileDefWithVoids(a[0], a[1], a[2], a[3]),
+  616511568: (a) => new IFC4.IfcBlobTexture(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3150382593: (a) => new IFC4.IfcCenterLineProfileDef(a[0], a[1], a[2], a[3]),
+  747523909: (a) => new IFC4.IfcClassification(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  647927063: (a) => new IFC4.IfcClassificationReference(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3285139300: (a) => new IFC4.IfcColourRgbList(a[0]),
+  3264961684: (a) => new IFC4.IfcColourSpecification(a[0]),
+  1485152156: (a) => new IFC4.IfcCompositeProfileDef(a[0], a[1], a[2], a[3]),
+  370225590: (a) => new IFC4.IfcConnectedFaceSet(a[0]),
+  1981873012: (a) => new IFC4.IfcConnectionCurveGeometry(a[0], a[1]),
+  45288368: (a) => new IFC4.IfcConnectionPointEccentricity(a[0], a[1], a[2], a[3], a[4]),
+  3050246964: (a) => new IFC4.IfcContextDependentUnit(a[0], a[1], a[2]),
+  2889183280: (a) => new IFC4.IfcConversionBasedUnit(a[0], a[1], a[2], a[3]),
+  2713554722: (a) => new IFC4.IfcConversionBasedUnitWithOffset(a[0], a[1], a[2], a[3], a[4]),
+  539742890: (a) => new IFC4.IfcCurrencyRelationship(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3800577675: (a) => new IFC4.IfcCurveStyle(a[0], a[1], a[2], a[3], a[4]),
+  1105321065: (a) => new IFC4.IfcCurveStyleFont(a[0], a[1]),
+  2367409068: (a) => new IFC4.IfcCurveStyleFontAndScaling(a[0], a[1], a[2]),
+  3510044353: (a) => new IFC4.IfcCurveStyleFontPattern(a[0], a[1]),
+  3632507154: (a) => new IFC4.IfcDerivedProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  1154170062: (a) => new IFC4.IfcDocumentInformation(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  770865208: (a) => new IFC4.IfcDocumentInformationRelationship(a[0], a[1], a[2], a[3], a[4]),
+  3732053477: (a) => new IFC4.IfcDocumentReference(a[0], a[1], a[2], a[3], a[4]),
+  3900360178: (a) => new IFC4.IfcEdge(a[0], a[1]),
+  476780140: (a) => new IFC4.IfcEdgeCurve(a[0], a[1], a[2], a[3]),
+  211053100: (a) => new IFC4.IfcEventTime(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  297599258: (a) => new IFC4.IfcExtendedProperties(a[0], a[1], a[2]),
+  1437805879: (a) => new IFC4.IfcExternalReferenceRelationship(a[0], a[1], a[2], a[3]),
+  2556980723: (a) => new IFC4.IfcFace(a[0]),
+  1809719519: (a) => new IFC4.IfcFaceBound(a[0], a[1]),
+  803316827: (a) => new IFC4.IfcFaceOuterBound(a[0], a[1]),
+  3008276851: (a) => new IFC4.IfcFaceSurface(a[0], a[1], a[2]),
+  4219587988: (a) => new IFC4.IfcFailureConnectionCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  738692330: (a) => new IFC4.IfcFillAreaStyle(a[0], a[1], a[2]),
+  3448662350: (a) => new IFC4.IfcGeometricRepresentationContext(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2453401579: (_) => new IFC4.IfcGeometricRepresentationItem(),
+  4142052618: (a) => new IFC4.IfcGeometricRepresentationSubContext(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3590301190: (a) => new IFC4.IfcGeometricSet(a[0]),
+  178086475: (a) => new IFC4.IfcGridPlacement(a[0], a[1]),
+  812098782: (a) => new IFC4.IfcHalfSpaceSolid(a[0], a[1]),
+  3905492369: (a) => new IFC4.IfcImageTexture(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3570813810: (a) => new IFC4.IfcIndexedColourMap(a[0], a[1], a[2], a[3]),
+  1437953363: (a) => new IFC4.IfcIndexedTextureMap(a[0], a[1], a[2]),
+  2133299955: (a) => new IFC4.IfcIndexedTriangleTextureMap(a[0], a[1], a[2], a[3]),
+  3741457305: (a) => new IFC4.IfcIrregularTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1585845231: (a) => new IFC4.IfcLagTime(a[0], a[1], a[2], a[3], a[4]),
+  1402838566: (a) => new IFC4.IfcLightSource(a[0], a[1], a[2], a[3]),
+  125510826: (a) => new IFC4.IfcLightSourceAmbient(a[0], a[1], a[2], a[3]),
+  2604431987: (a) => new IFC4.IfcLightSourceDirectional(a[0], a[1], a[2], a[3], a[4]),
+  4266656042: (a) => new IFC4.IfcLightSourceGoniometric(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1520743889: (a) => new IFC4.IfcLightSourcePositional(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3422422726: (a) => new IFC4.IfcLightSourceSpot(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  2624227202: (a) => new IFC4.IfcLocalPlacement(a[0], a[1]),
+  1008929658: (_) => new IFC4.IfcLoop(),
+  2347385850: (a) => new IFC4.IfcMappedItem(a[0], a[1]),
+  1838606355: (a) => new IFC4.IfcMaterial(a[0], a[1], a[2]),
+  3708119e3: (a) => new IFC4.IfcMaterialConstituent(a[0], a[1], a[2], a[3], a[4]),
+  2852063980: (a) => new IFC4.IfcMaterialConstituentSet(a[0], a[1], a[2]),
+  2022407955: (a) => new IFC4.IfcMaterialDefinitionRepresentation(a[0], a[1], a[2], a[3]),
+  1303795690: (a) => new IFC4.IfcMaterialLayerSetUsage(a[0], a[1], a[2], a[3], a[4]),
+  3079605661: (a) => new IFC4.IfcMaterialProfileSetUsage(a[0], a[1], a[2]),
+  3404854881: (a) => new IFC4.IfcMaterialProfileSetUsageTapering(a[0], a[1], a[2], a[3], a[4]),
+  3265635763: (a) => new IFC4.IfcMaterialProperties(a[0], a[1], a[2], a[3]),
+  853536259: (a) => new IFC4.IfcMaterialRelationship(a[0], a[1], a[2], a[3], a[4]),
+  2998442950: (a) => new IFC4.IfcMirroredProfileDef(a[0], a[1], a[2], a[3]),
+  219451334: (a) => new IFC4.IfcObjectDefinition(a[0], a[1], a[2], a[3]),
+  2665983363: (a) => new IFC4.IfcOpenShell(a[0]),
+  1411181986: (a) => new IFC4.IfcOrganizationRelationship(a[0], a[1], a[2], a[3]),
+  1029017970: (a) => new IFC4.IfcOrientedEdge(a[0], a[1]),
+  2529465313: (a) => new IFC4.IfcParameterizedProfileDef(a[0], a[1], a[2]),
+  2519244187: (a) => new IFC4.IfcPath(a[0]),
+  3021840470: (a) => new IFC4.IfcPhysicalComplexQuantity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  597895409: (a) => new IFC4.IfcPixelTexture(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2004835150: (a) => new IFC4.IfcPlacement(a[0]),
+  1663979128: (a) => new IFC4.IfcPlanarExtent(a[0], a[1]),
+  2067069095: (_) => new IFC4.IfcPoint(),
+  4022376103: (a) => new IFC4.IfcPointOnCurve(a[0], a[1]),
+  1423911732: (a) => new IFC4.IfcPointOnSurface(a[0], a[1], a[2]),
+  2924175390: (a) => new IFC4.IfcPolyLoop(a[0]),
+  2775532180: (a) => new IFC4.IfcPolygonalBoundedHalfSpace(a[0], a[1], a[2], a[3]),
+  3727388367: (a) => new IFC4.IfcPreDefinedItem(a[0]),
+  3778827333: (_) => new IFC4.IfcPreDefinedProperties(),
+  1775413392: (a) => new IFC4.IfcPreDefinedTextFont(a[0]),
+  673634403: (a) => new IFC4.IfcProductDefinitionShape(a[0], a[1], a[2]),
+  2802850158: (a) => new IFC4.IfcProfileProperties(a[0], a[1], a[2], a[3]),
+  2598011224: (a) => new IFC4.IfcProperty(a[0], a[1]),
+  1680319473: (a) => new IFC4.IfcPropertyDefinition(a[0], a[1], a[2], a[3]),
+  148025276: (a) => new IFC4.IfcPropertyDependencyRelationship(a[0], a[1], a[2], a[3], a[4]),
+  3357820518: (a) => new IFC4.IfcPropertySetDefinition(a[0], a[1], a[2], a[3]),
+  1482703590: (a) => new IFC4.IfcPropertyTemplateDefinition(a[0], a[1], a[2], a[3]),
+  2090586900: (a) => new IFC4.IfcQuantitySet(a[0], a[1], a[2], a[3]),
+  3615266464: (a) => new IFC4.IfcRectangleProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  3413951693: (a) => new IFC4.IfcRegularTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1580146022: (a) => new IFC4.IfcReinforcementBarProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  478536968: (a) => new IFC4.IfcRelationship(a[0], a[1], a[2], a[3]),
+  2943643501: (a) => new IFC4.IfcResourceApprovalRelationship(a[0], a[1], a[2], a[3]),
+  1608871552: (a) => new IFC4.IfcResourceConstraintRelationship(a[0], a[1], a[2], a[3]),
+  1042787934: (a) => new IFC4.IfcResourceTime(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17]),
+  2778083089: (a) => new IFC4.IfcRoundedRectangleProfileDef(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2042790032: (a) => new IFC4.IfcSectionProperties(a[0], a[1], a[2]),
+  4165799628: (a) => new IFC4.IfcSectionReinforcementProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1509187699: (a) => new IFC4.IfcSectionedSpine(a[0], a[1], a[2]),
+  4124623270: (a) => new IFC4.IfcShellBasedSurfaceModel(a[0]),
+  3692461612: (a) => new IFC4.IfcSimpleProperty(a[0], a[1]),
+  2609359061: (a) => new IFC4.IfcSlippageConnectionCondition(a[0], a[1], a[2], a[3]),
+  723233188: (_) => new IFC4.IfcSolidModel(),
+  1595516126: (a) => new IFC4.IfcStructuralLoadLinearForce(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2668620305: (a) => new IFC4.IfcStructuralLoadPlanarForce(a[0], a[1], a[2], a[3]),
+  2473145415: (a) => new IFC4.IfcStructuralLoadSingleDisplacement(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1973038258: (a) => new IFC4.IfcStructuralLoadSingleDisplacementDistortion(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1597423693: (a) => new IFC4.IfcStructuralLoadSingleForce(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1190533807: (a) => new IFC4.IfcStructuralLoadSingleForceWarping(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2233826070: (a) => new IFC4.IfcSubedge(a[0], a[1], a[2]),
+  2513912981: (_) => new IFC4.IfcSurface(),
+  1878645084: (a) => new IFC4.IfcSurfaceStyleRendering(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2247615214: (a) => new IFC4.IfcSweptAreaSolid(a[0], a[1]),
+  1260650574: (a) => new IFC4.IfcSweptDiskSolid(a[0], a[1], a[2], a[3], a[4]),
+  1096409881: (a) => new IFC4.IfcSweptDiskSolidPolygonal(a[0], a[1], a[2], a[3], a[4], a[5]),
+  230924584: (a) => new IFC4.IfcSweptSurface(a[0], a[1]),
+  3071757647: (a) => new IFC4.IfcTShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  901063453: (_) => new IFC4.IfcTessellatedItem(),
+  4282788508: (a) => new IFC4.IfcTextLiteral(a[0], a[1], a[2]),
+  3124975700: (a) => new IFC4.IfcTextLiteralWithExtent(a[0], a[1], a[2], a[3], a[4]),
+  1983826977: (a) => new IFC4.IfcTextStyleFontModel(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2715220739: (a) => new IFC4.IfcTrapeziumProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1628702193: (a) => new IFC4.IfcTypeObject(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3736923433: (a) => new IFC4.IfcTypeProcess(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2347495698: (a) => new IFC4.IfcTypeProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3698973494: (a) => new IFC4.IfcTypeResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  427810014: (a) => new IFC4.IfcUShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1417489154: (a) => new IFC4.IfcVector(a[0], a[1]),
+  2759199220: (a) => new IFC4.IfcVertexLoop(a[0]),
+  1299126871: (a) => new IFC4.IfcWindowStyle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2543172580: (a) => new IFC4.IfcZShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3406155212: (a) => new IFC4.IfcAdvancedFace(a[0], a[1], a[2]),
+  669184980: (a) => new IFC4.IfcAnnotationFillArea(a[0], a[1]),
+  3207858831: (a) => new IFC4.IfcAsymmetricIShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]),
+  4261334040: (a) => new IFC4.IfcAxis1Placement(a[0], a[1]),
+  3125803723: (a) => new IFC4.IfcAxis2Placement2D(a[0], a[1]),
+  2740243338: (a) => new IFC4.IfcAxis2Placement3D(a[0], a[1], a[2]),
+  2736907675: (a) => new IFC4.IfcBooleanResult(a[0], a[1], a[2]),
+  4182860854: (_) => new IFC4.IfcBoundedSurface(),
+  2581212453: (a) => new IFC4.IfcBoundingBox(a[0], a[1], a[2], a[3]),
+  2713105998: (a) => new IFC4.IfcBoxedHalfSpace(a[0], a[1], a[2]),
+  2898889636: (a) => new IFC4.IfcCShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1123145078: (a) => new IFC4.IfcCartesianPoint(a[0]),
+  574549367: (_) => new IFC4.IfcCartesianPointList(),
+  1675464909: (a) => new IFC4.IfcCartesianPointList2D(a[0]),
+  2059837836: (a) => new IFC4.IfcCartesianPointList3D(a[0]),
+  59481748: (a) => new IFC4.IfcCartesianTransformationOperator(a[0], a[1], a[2], a[3]),
+  3749851601: (a) => new IFC4.IfcCartesianTransformationOperator2D(a[0], a[1], a[2], a[3]),
+  3486308946: (a) => new IFC4.IfcCartesianTransformationOperator2DnonUniform(a[0], a[1], a[2], a[3], a[4]),
+  3331915920: (a) => new IFC4.IfcCartesianTransformationOperator3D(a[0], a[1], a[2], a[3], a[4]),
+  1416205885: (a) => new IFC4.IfcCartesianTransformationOperator3DnonUniform(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1383045692: (a) => new IFC4.IfcCircleProfileDef(a[0], a[1], a[2], a[3]),
+  2205249479: (a) => new IFC4.IfcClosedShell(a[0]),
+  776857604: (a) => new IFC4.IfcColourRgb(a[0], a[1], a[2], a[3]),
+  2542286263: (a) => new IFC4.IfcComplexProperty(a[0], a[1], a[2], a[3]),
+  2485617015: (a) => new IFC4.IfcCompositeCurveSegment(a[0], a[1], a[2]),
+  2574617495: (a) => new IFC4.IfcConstructionResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3419103109: (a) => new IFC4.IfcContext(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1815067380: (a) => new IFC4.IfcCrewResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2506170314: (a) => new IFC4.IfcCsgPrimitive3D(a[0]),
+  2147822146: (a) => new IFC4.IfcCsgSolid(a[0]),
+  2601014836: (_) => new IFC4.IfcCurve(),
+  2827736869: (a) => new IFC4.IfcCurveBoundedPlane(a[0], a[1], a[2]),
+  2629017746: (a) => new IFC4.IfcCurveBoundedSurface(a[0], a[1], a[2]),
+  32440307: (a) => new IFC4.IfcDirection(a[0]),
+  526551008: (a) => new IFC4.IfcDoorStyle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1472233963: (a) => new IFC4.IfcEdgeLoop(a[0]),
+  1883228015: (a) => new IFC4.IfcElementQuantity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  339256511: (a) => new IFC4.IfcElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2777663545: (a) => new IFC4.IfcElementarySurface(a[0]),
+  2835456948: (a) => new IFC4.IfcEllipseProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  4024345920: (a) => new IFC4.IfcEventType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  477187591: (a) => new IFC4.IfcExtrudedAreaSolid(a[0], a[1], a[2], a[3]),
+  2804161546: (a) => new IFC4.IfcExtrudedAreaSolidTapered(a[0], a[1], a[2], a[3], a[4]),
+  2047409740: (a) => new IFC4.IfcFaceBasedSurfaceModel(a[0]),
+  374418227: (a) => new IFC4.IfcFillAreaStyleHatching(a[0], a[1], a[2], a[3], a[4]),
+  315944413: (a) => new IFC4.IfcFillAreaStyleTiles(a[0], a[1], a[2]),
+  2652556860: (a) => new IFC4.IfcFixedReferenceSweptAreaSolid(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4238390223: (a) => new IFC4.IfcFurnishingElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1268542332: (a) => new IFC4.IfcFurnitureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4095422895: (a) => new IFC4.IfcGeographicElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  987898635: (a) => new IFC4.IfcGeometricCurveSet(a[0]),
+  1484403080: (a) => new IFC4.IfcIShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  178912537: (a) => new IFC4.IfcIndexedPolygonalFace(a[0]),
+  2294589976: (a) => new IFC4.IfcIndexedPolygonalFaceWithVoids(a[0], a[1]),
+  572779678: (a) => new IFC4.IfcLShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  428585644: (a) => new IFC4.IfcLaborResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1281925730: (a) => new IFC4.IfcLine(a[0], a[1]),
+  1425443689: (a) => new IFC4.IfcManifoldSolidBrep(a[0]),
+  3888040117: (a) => new IFC4.IfcObject(a[0], a[1], a[2], a[3], a[4]),
+  3388369263: (a) => new IFC4.IfcOffsetCurve2D(a[0], a[1], a[2]),
+  3505215534: (a) => new IFC4.IfcOffsetCurve3D(a[0], a[1], a[2], a[3]),
+  1682466193: (a) => new IFC4.IfcPcurve(a[0], a[1]),
+  603570806: (a) => new IFC4.IfcPlanarBox(a[0], a[1], a[2]),
+  220341763: (a) => new IFC4.IfcPlane(a[0]),
+  759155922: (a) => new IFC4.IfcPreDefinedColour(a[0]),
+  2559016684: (a) => new IFC4.IfcPreDefinedCurveFont(a[0]),
+  3967405729: (a) => new IFC4.IfcPreDefinedPropertySet(a[0], a[1], a[2], a[3]),
+  569719735: (a) => new IFC4.IfcProcedureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2945172077: (a) => new IFC4.IfcProcess(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  4208778838: (a) => new IFC4.IfcProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  103090709: (a) => new IFC4.IfcProject(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  653396225: (a) => new IFC4.IfcProjectLibrary(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  871118103: (a) => new IFC4.IfcPropertyBoundedValue(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4166981789: (a) => new IFC4.IfcPropertyEnumeratedValue(a[0], a[1], a[2], a[3]),
+  2752243245: (a) => new IFC4.IfcPropertyListValue(a[0], a[1], a[2], a[3]),
+  941946838: (a) => new IFC4.IfcPropertyReferenceValue(a[0], a[1], a[2], a[3]),
+  1451395588: (a) => new IFC4.IfcPropertySet(a[0], a[1], a[2], a[3], a[4]),
+  492091185: (a) => new IFC4.IfcPropertySetTemplate(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3650150729: (a) => new IFC4.IfcPropertySingleValue(a[0], a[1], a[2], a[3]),
+  110355661: (a) => new IFC4.IfcPropertyTableValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3521284610: (a) => new IFC4.IfcPropertyTemplate(a[0], a[1], a[2], a[3]),
+  3219374653: (a) => new IFC4.IfcProxy(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2770003689: (a) => new IFC4.IfcRectangleHollowProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2798486643: (a) => new IFC4.IfcRectangularPyramid(a[0], a[1], a[2], a[3]),
+  3454111270: (a) => new IFC4.IfcRectangularTrimmedSurface(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3765753017: (a) => new IFC4.IfcReinforcementDefinitionProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3939117080: (a) => new IFC4.IfcRelAssigns(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1683148259: (a) => new IFC4.IfcRelAssignsToActor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2495723537: (a) => new IFC4.IfcRelAssignsToControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1307041759: (a) => new IFC4.IfcRelAssignsToGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1027710054: (a) => new IFC4.IfcRelAssignsToGroupByFactor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4278684876: (a) => new IFC4.IfcRelAssignsToProcess(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2857406711: (a) => new IFC4.IfcRelAssignsToProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  205026976: (a) => new IFC4.IfcRelAssignsToResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1865459582: (a) => new IFC4.IfcRelAssociates(a[0], a[1], a[2], a[3], a[4]),
+  4095574036: (a) => new IFC4.IfcRelAssociatesApproval(a[0], a[1], a[2], a[3], a[4], a[5]),
+  919958153: (a) => new IFC4.IfcRelAssociatesClassification(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2728634034: (a) => new IFC4.IfcRelAssociatesConstraint(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  982818633: (a) => new IFC4.IfcRelAssociatesDocument(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3840914261: (a) => new IFC4.IfcRelAssociatesLibrary(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2655215786: (a) => new IFC4.IfcRelAssociatesMaterial(a[0], a[1], a[2], a[3], a[4], a[5]),
+  826625072: (a) => new IFC4.IfcRelConnects(a[0], a[1], a[2], a[3]),
+  1204542856: (a) => new IFC4.IfcRelConnectsElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3945020480: (a) => new IFC4.IfcRelConnectsPathElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4201705270: (a) => new IFC4.IfcRelConnectsPortToElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3190031847: (a) => new IFC4.IfcRelConnectsPorts(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2127690289: (a) => new IFC4.IfcRelConnectsStructuralActivity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1638771189: (a) => new IFC4.IfcRelConnectsStructuralMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  504942748: (a) => new IFC4.IfcRelConnectsWithEccentricity(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3678494232: (a) => new IFC4.IfcRelConnectsWithRealizingElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3242617779: (a) => new IFC4.IfcRelContainedInSpatialStructure(a[0], a[1], a[2], a[3], a[4], a[5]),
+  886880790: (a) => new IFC4.IfcRelCoversBldgElements(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2802773753: (a) => new IFC4.IfcRelCoversSpaces(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2565941209: (a) => new IFC4.IfcRelDeclares(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2551354335: (a) => new IFC4.IfcRelDecomposes(a[0], a[1], a[2], a[3]),
+  693640335: (a) => new IFC4.IfcRelDefines(a[0], a[1], a[2], a[3]),
+  1462361463: (a) => new IFC4.IfcRelDefinesByObject(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4186316022: (a) => new IFC4.IfcRelDefinesByProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  307848117: (a) => new IFC4.IfcRelDefinesByTemplate(a[0], a[1], a[2], a[3], a[4], a[5]),
+  781010003: (a) => new IFC4.IfcRelDefinesByType(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3940055652: (a) => new IFC4.IfcRelFillsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  279856033: (a) => new IFC4.IfcRelFlowControlElements(a[0], a[1], a[2], a[3], a[4], a[5]),
+  427948657: (a) => new IFC4.IfcRelInterferesElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3268803585: (a) => new IFC4.IfcRelNests(a[0], a[1], a[2], a[3], a[4], a[5]),
+  750771296: (a) => new IFC4.IfcRelProjectsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1245217292: (a) => new IFC4.IfcRelReferencedInSpatialStructure(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4122056220: (a) => new IFC4.IfcRelSequence(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  366585022: (a) => new IFC4.IfcRelServicesBuildings(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3451746338: (a) => new IFC4.IfcRelSpaceBoundary(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3523091289: (a) => new IFC4.IfcRelSpaceBoundary1stLevel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1521410863: (a) => new IFC4.IfcRelSpaceBoundary2ndLevel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1401173127: (a) => new IFC4.IfcRelVoidsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  816062949: (a) => new IFC4.IfcReparametrisedCompositeCurveSegment(a[0], a[1], a[2], a[3]),
+  2914609552: (a) => new IFC4.IfcResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1856042241: (a) => new IFC4.IfcRevolvedAreaSolid(a[0], a[1], a[2], a[3]),
+  3243963512: (a) => new IFC4.IfcRevolvedAreaSolidTapered(a[0], a[1], a[2], a[3], a[4]),
+  4158566097: (a) => new IFC4.IfcRightCircularCone(a[0], a[1], a[2]),
+  3626867408: (a) => new IFC4.IfcRightCircularCylinder(a[0], a[1], a[2]),
+  3663146110: (a) => new IFC4.IfcSimplePropertyTemplate(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1412071761: (a) => new IFC4.IfcSpatialElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  710998568: (a) => new IFC4.IfcSpatialElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2706606064: (a) => new IFC4.IfcSpatialStructureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3893378262: (a) => new IFC4.IfcSpatialStructureElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  463610769: (a) => new IFC4.IfcSpatialZone(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2481509218: (a) => new IFC4.IfcSpatialZoneType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  451544542: (a) => new IFC4.IfcSphere(a[0], a[1]),
+  4015995234: (a) => new IFC4.IfcSphericalSurface(a[0], a[1]),
+  3544373492: (a) => new IFC4.IfcStructuralActivity(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3136571912: (a) => new IFC4.IfcStructuralItem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  530289379: (a) => new IFC4.IfcStructuralMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3689010777: (a) => new IFC4.IfcStructuralReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3979015343: (a) => new IFC4.IfcStructuralSurfaceMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2218152070: (a) => new IFC4.IfcStructuralSurfaceMemberVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  603775116: (a) => new IFC4.IfcStructuralSurfaceReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4095615324: (a) => new IFC4.IfcSubContractResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  699246055: (a) => new IFC4.IfcSurfaceCurve(a[0], a[1], a[2]),
+  2028607225: (a) => new IFC4.IfcSurfaceCurveSweptAreaSolid(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2809605785: (a) => new IFC4.IfcSurfaceOfLinearExtrusion(a[0], a[1], a[2], a[3]),
+  4124788165: (a) => new IFC4.IfcSurfaceOfRevolution(a[0], a[1], a[2]),
+  1580310250: (a) => new IFC4.IfcSystemFurnitureElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3473067441: (a) => new IFC4.IfcTask(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  3206491090: (a) => new IFC4.IfcTaskType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2387106220: (a) => new IFC4.IfcTessellatedFaceSet(a[0]),
+  1935646853: (a) => new IFC4.IfcToroidalSurface(a[0], a[1], a[2]),
+  2097647324: (a) => new IFC4.IfcTransportElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2916149573: (a) => new IFC4.IfcTriangulatedFaceSet(a[0], a[1], a[2], a[3], a[4]),
+  336235671: (a) => new IFC4.IfcWindowLiningProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]),
+  512836454: (a) => new IFC4.IfcWindowPanelProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2296667514: (a) => new IFC4.IfcActor(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1635779807: (a) => new IFC4.IfcAdvancedBrep(a[0]),
+  2603310189: (a) => new IFC4.IfcAdvancedBrepWithVoids(a[0], a[1]),
+  1674181508: (a) => new IFC4.IfcAnnotation(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2887950389: (a) => new IFC4.IfcBSplineSurface(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  167062518: (a) => new IFC4.IfcBSplineSurfaceWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1334484129: (a) => new IFC4.IfcBlock(a[0], a[1], a[2], a[3]),
+  3649129432: (a) => new IFC4.IfcBooleanClippingResult(a[0], a[1], a[2]),
+  1260505505: (_) => new IFC4.IfcBoundedCurve(),
+  4031249490: (a) => new IFC4.IfcBuilding(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1950629157: (a) => new IFC4.IfcBuildingElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3124254112: (a) => new IFC4.IfcBuildingStorey(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2197970202: (a) => new IFC4.IfcChimneyType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2937912522: (a) => new IFC4.IfcCircleHollowProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  3893394355: (a) => new IFC4.IfcCivilElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  300633059: (a) => new IFC4.IfcColumnType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3875453745: (a) => new IFC4.IfcComplexPropertyTemplate(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3732776249: (a) => new IFC4.IfcCompositeCurve(a[0], a[1]),
+  15328376: (a) => new IFC4.IfcCompositeCurveOnSurface(a[0], a[1]),
+  2510884976: (a) => new IFC4.IfcConic(a[0]),
+  2185764099: (a) => new IFC4.IfcConstructionEquipmentResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  4105962743: (a) => new IFC4.IfcConstructionMaterialResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1525564444: (a) => new IFC4.IfcConstructionProductResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2559216714: (a) => new IFC4.IfcConstructionResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3293443760: (a) => new IFC4.IfcControl(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3895139033: (a) => new IFC4.IfcCostItem(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1419761937: (a) => new IFC4.IfcCostSchedule(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1916426348: (a) => new IFC4.IfcCoveringType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3295246426: (a) => new IFC4.IfcCrewResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1457835157: (a) => new IFC4.IfcCurtainWallType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1213902940: (a) => new IFC4.IfcCylindricalSurface(a[0], a[1]),
+  3256556792: (a) => new IFC4.IfcDistributionElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3849074793: (a) => new IFC4.IfcDistributionFlowElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2963535650: (a) => new IFC4.IfcDoorLiningProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  1714330368: (a) => new IFC4.IfcDoorPanelProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2323601079: (a) => new IFC4.IfcDoorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  445594917: (a) => new IFC4.IfcDraughtingPreDefinedColour(a[0]),
+  4006246654: (a) => new IFC4.IfcDraughtingPreDefinedCurveFont(a[0]),
+  1758889154: (a) => new IFC4.IfcElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4123344466: (a) => new IFC4.IfcElementAssembly(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2397081782: (a) => new IFC4.IfcElementAssemblyType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1623761950: (a) => new IFC4.IfcElementComponent(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2590856083: (a) => new IFC4.IfcElementComponentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1704287377: (a) => new IFC4.IfcEllipse(a[0], a[1], a[2]),
+  2107101300: (a) => new IFC4.IfcEnergyConversionDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  132023988: (a) => new IFC4.IfcEngineType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3174744832: (a) => new IFC4.IfcEvaporativeCoolerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3390157468: (a) => new IFC4.IfcEvaporatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4148101412: (a) => new IFC4.IfcEvent(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2853485674: (a) => new IFC4.IfcExternalSpatialStructureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  807026263: (a) => new IFC4.IfcFacetedBrep(a[0]),
+  3737207727: (a) => new IFC4.IfcFacetedBrepWithVoids(a[0], a[1]),
+  647756555: (a) => new IFC4.IfcFastener(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2489546625: (a) => new IFC4.IfcFastenerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2827207264: (a) => new IFC4.IfcFeatureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2143335405: (a) => new IFC4.IfcFeatureElementAddition(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1287392070: (a) => new IFC4.IfcFeatureElementSubtraction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3907093117: (a) => new IFC4.IfcFlowControllerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3198132628: (a) => new IFC4.IfcFlowFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3815607619: (a) => new IFC4.IfcFlowMeterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1482959167: (a) => new IFC4.IfcFlowMovingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1834744321: (a) => new IFC4.IfcFlowSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1339347760: (a) => new IFC4.IfcFlowStorageDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2297155007: (a) => new IFC4.IfcFlowTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3009222698: (a) => new IFC4.IfcFlowTreatmentDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1893162501: (a) => new IFC4.IfcFootingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  263784265: (a) => new IFC4.IfcFurnishingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1509553395: (a) => new IFC4.IfcFurniture(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3493046030: (a) => new IFC4.IfcGeographicElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3009204131: (a) => new IFC4.IfcGrid(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2706460486: (a) => new IFC4.IfcGroup(a[0], a[1], a[2], a[3], a[4]),
+  1251058090: (a) => new IFC4.IfcHeatExchangerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1806887404: (a) => new IFC4.IfcHumidifierType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2571569899: (a) => new IFC4.IfcIndexedPolyCurve(a[0], a[1], a[2]),
+  3946677679: (a) => new IFC4.IfcInterceptorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3113134337: (a) => new IFC4.IfcIntersectionCurve(a[0], a[1], a[2]),
+  2391368822: (a) => new IFC4.IfcInventory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4288270099: (a) => new IFC4.IfcJunctionBoxType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3827777499: (a) => new IFC4.IfcLaborResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1051575348: (a) => new IFC4.IfcLampType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1161773419: (a) => new IFC4.IfcLightFixtureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  377706215: (a) => new IFC4.IfcMechanicalFastener(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2108223431: (a) => new IFC4.IfcMechanicalFastenerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1114901282: (a) => new IFC4.IfcMedicalDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3181161470: (a) => new IFC4.IfcMemberType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  977012517: (a) => new IFC4.IfcMotorConnectionType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4143007308: (a) => new IFC4.IfcOccupant(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3588315303: (a) => new IFC4.IfcOpeningElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3079942009: (a) => new IFC4.IfcOpeningStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2837617999: (a) => new IFC4.IfcOutletType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2382730787: (a) => new IFC4.IfcPerformanceHistory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3566463478: (a) => new IFC4.IfcPermeableCoveringProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3327091369: (a) => new IFC4.IfcPermit(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1158309216: (a) => new IFC4.IfcPileType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  804291784: (a) => new IFC4.IfcPipeFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4231323485: (a) => new IFC4.IfcPipeSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4017108033: (a) => new IFC4.IfcPlateType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2839578677: (a) => new IFC4.IfcPolygonalFaceSet(a[0], a[1], a[2], a[3]),
+  3724593414: (a) => new IFC4.IfcPolyline(a[0]),
+  3740093272: (a) => new IFC4.IfcPort(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2744685151: (a) => new IFC4.IfcProcedure(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2904328755: (a) => new IFC4.IfcProjectOrder(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3651124850: (a) => new IFC4.IfcProjectionElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1842657554: (a) => new IFC4.IfcProtectiveDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2250791053: (a) => new IFC4.IfcPumpType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2893384427: (a) => new IFC4.IfcRailingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2324767716: (a) => new IFC4.IfcRampFlightType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1469900589: (a) => new IFC4.IfcRampType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  683857671: (a) => new IFC4.IfcRationalBSplineSurfaceWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  3027567501: (a) => new IFC4.IfcReinforcingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  964333572: (a) => new IFC4.IfcReinforcingElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2320036040: (a) => new IFC4.IfcReinforcingMesh(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17]),
+  2310774935: (a) => new IFC4.IfcReinforcingMeshType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19]),
+  160246688: (a) => new IFC4.IfcRelAggregates(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2781568857: (a) => new IFC4.IfcRoofType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1768891740: (a) => new IFC4.IfcSanitaryTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2157484638: (a) => new IFC4.IfcSeamCurve(a[0], a[1], a[2]),
+  4074543187: (a) => new IFC4.IfcShadingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4097777520: (a) => new IFC4.IfcSite(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  2533589738: (a) => new IFC4.IfcSlabType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1072016465: (a) => new IFC4.IfcSolarDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3856911033: (a) => new IFC4.IfcSpace(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1305183839: (a) => new IFC4.IfcSpaceHeaterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3812236995: (a) => new IFC4.IfcSpaceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3112655638: (a) => new IFC4.IfcStackTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1039846685: (a) => new IFC4.IfcStairFlightType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  338393293: (a) => new IFC4.IfcStairType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  682877961: (a) => new IFC4.IfcStructuralAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1179482911: (a) => new IFC4.IfcStructuralConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1004757350: (a) => new IFC4.IfcStructuralCurveAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  4243806635: (a) => new IFC4.IfcStructuralCurveConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  214636428: (a) => new IFC4.IfcStructuralCurveMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2445595289: (a) => new IFC4.IfcStructuralCurveMemberVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2757150158: (a) => new IFC4.IfcStructuralCurveReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1807405624: (a) => new IFC4.IfcStructuralLinearAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1252848954: (a) => new IFC4.IfcStructuralLoadGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2082059205: (a) => new IFC4.IfcStructuralPointAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  734778138: (a) => new IFC4.IfcStructuralPointConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1235345126: (a) => new IFC4.IfcStructuralPointReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2986769608: (a) => new IFC4.IfcStructuralResultGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3657597509: (a) => new IFC4.IfcStructuralSurfaceAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1975003073: (a) => new IFC4.IfcStructuralSurfaceConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  148013059: (a) => new IFC4.IfcSubContractResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3101698114: (a) => new IFC4.IfcSurfaceFeature(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2315554128: (a) => new IFC4.IfcSwitchingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2254336722: (a) => new IFC4.IfcSystem(a[0], a[1], a[2], a[3], a[4]),
+  413509423: (a) => new IFC4.IfcSystemFurnitureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  5716631: (a) => new IFC4.IfcTankType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3824725483: (a) => new IFC4.IfcTendon(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  2347447852: (a) => new IFC4.IfcTendonAnchor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3081323446: (a) => new IFC4.IfcTendonAnchorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2415094496: (a) => new IFC4.IfcTendonType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  1692211062: (a) => new IFC4.IfcTransformerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1620046519: (a) => new IFC4.IfcTransportElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3593883385: (a) => new IFC4.IfcTrimmedCurve(a[0], a[1], a[2], a[3], a[4]),
+  1600972822: (a) => new IFC4.IfcTubeBundleType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1911125066: (a) => new IFC4.IfcUnitaryEquipmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  728799441: (a) => new IFC4.IfcValveType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2391383451: (a) => new IFC4.IfcVibrationIsolator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3313531582: (a) => new IFC4.IfcVibrationIsolatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2769231204: (a) => new IFC4.IfcVirtualElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  926996030: (a) => new IFC4.IfcVoidingFeature(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1898987631: (a) => new IFC4.IfcWallType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1133259667: (a) => new IFC4.IfcWasteTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4009809668: (a) => new IFC4.IfcWindowType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  4088093105: (a) => new IFC4.IfcWorkCalendar(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1028945134: (a) => new IFC4.IfcWorkControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  4218914973: (a) => new IFC4.IfcWorkPlan(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  3342526732: (a) => new IFC4.IfcWorkSchedule(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1033361043: (a) => new IFC4.IfcZone(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3821786052: (a) => new IFC4.IfcActionRequest(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1411407467: (a) => new IFC4.IfcAirTerminalBoxType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3352864051: (a) => new IFC4.IfcAirTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1871374353: (a) => new IFC4.IfcAirToAirHeatRecoveryType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3460190687: (a) => new IFC4.IfcAsset(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1532957894: (a) => new IFC4.IfcAudioVisualApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1967976161: (a) => new IFC4.IfcBSplineCurve(a[0], a[1], a[2], a[3], a[4]),
+  2461110595: (a) => new IFC4.IfcBSplineCurveWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  819618141: (a) => new IFC4.IfcBeamType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  231477066: (a) => new IFC4.IfcBoilerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1136057603: (a) => new IFC4.IfcBoundaryCurve(a[0], a[1]),
+  3299480353: (a) => new IFC4.IfcBuildingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2979338954: (a) => new IFC4.IfcBuildingElementPart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  39481116: (a) => new IFC4.IfcBuildingElementPartType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1095909175: (a) => new IFC4.IfcBuildingElementProxy(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1909888760: (a) => new IFC4.IfcBuildingElementProxyType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1177604601: (a) => new IFC4.IfcBuildingSystem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2188180465: (a) => new IFC4.IfcBurnerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  395041908: (a) => new IFC4.IfcCableCarrierFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3293546465: (a) => new IFC4.IfcCableCarrierSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2674252688: (a) => new IFC4.IfcCableFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1285652485: (a) => new IFC4.IfcCableSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2951183804: (a) => new IFC4.IfcChillerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3296154744: (a) => new IFC4.IfcChimney(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2611217952: (a) => new IFC4.IfcCircle(a[0], a[1]),
+  1677625105: (a) => new IFC4.IfcCivilElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2301859152: (a) => new IFC4.IfcCoilType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  843113511: (a) => new IFC4.IfcColumn(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  905975707: (a) => new IFC4.IfcColumnStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  400855858: (a) => new IFC4.IfcCommunicationsApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3850581409: (a) => new IFC4.IfcCompressorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2816379211: (a) => new IFC4.IfcCondenserType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3898045240: (a) => new IFC4.IfcConstructionEquipmentResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1060000209: (a) => new IFC4.IfcConstructionMaterialResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  488727124: (a) => new IFC4.IfcConstructionProductResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  335055490: (a) => new IFC4.IfcCooledBeamType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2954562838: (a) => new IFC4.IfcCoolingTowerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1973544240: (a) => new IFC4.IfcCovering(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3495092785: (a) => new IFC4.IfcCurtainWall(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3961806047: (a) => new IFC4.IfcDamperType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1335981549: (a) => new IFC4.IfcDiscreteAccessory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2635815018: (a) => new IFC4.IfcDiscreteAccessoryType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1599208980: (a) => new IFC4.IfcDistributionChamberElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2063403501: (a) => new IFC4.IfcDistributionControlElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1945004755: (a) => new IFC4.IfcDistributionElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3040386961: (a) => new IFC4.IfcDistributionFlowElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3041715199: (a) => new IFC4.IfcDistributionPort(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3205830791: (a) => new IFC4.IfcDistributionSystem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  395920057: (a) => new IFC4.IfcDoor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  3242481149: (a) => new IFC4.IfcDoorStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  869906466: (a) => new IFC4.IfcDuctFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3760055223: (a) => new IFC4.IfcDuctSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2030761528: (a) => new IFC4.IfcDuctSilencerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  663422040: (a) => new IFC4.IfcElectricApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2417008758: (a) => new IFC4.IfcElectricDistributionBoardType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3277789161: (a) => new IFC4.IfcElectricFlowStorageDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1534661035: (a) => new IFC4.IfcElectricGeneratorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1217240411: (a) => new IFC4.IfcElectricMotorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  712377611: (a) => new IFC4.IfcElectricTimeControlType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1658829314: (a) => new IFC4.IfcEnergyConversionDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2814081492: (a) => new IFC4.IfcEngine(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3747195512: (a) => new IFC4.IfcEvaporativeCooler(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  484807127: (a) => new IFC4.IfcEvaporator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1209101575: (a) => new IFC4.IfcExternalSpatialElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  346874300: (a) => new IFC4.IfcFanType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1810631287: (a) => new IFC4.IfcFilterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4222183408: (a) => new IFC4.IfcFireSuppressionTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2058353004: (a) => new IFC4.IfcFlowController(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4278956645: (a) => new IFC4.IfcFlowFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4037862832: (a) => new IFC4.IfcFlowInstrumentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2188021234: (a) => new IFC4.IfcFlowMeter(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3132237377: (a) => new IFC4.IfcFlowMovingDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  987401354: (a) => new IFC4.IfcFlowSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  707683696: (a) => new IFC4.IfcFlowStorageDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2223149337: (a) => new IFC4.IfcFlowTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3508470533: (a) => new IFC4.IfcFlowTreatmentDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  900683007: (a) => new IFC4.IfcFooting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3319311131: (a) => new IFC4.IfcHeatExchanger(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2068733104: (a) => new IFC4.IfcHumidifier(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4175244083: (a) => new IFC4.IfcInterceptor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2176052936: (a) => new IFC4.IfcJunctionBox(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  76236018: (a) => new IFC4.IfcLamp(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  629592764: (a) => new IFC4.IfcLightFixture(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1437502449: (a) => new IFC4.IfcMedicalDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1073191201: (a) => new IFC4.IfcMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1911478936: (a) => new IFC4.IfcMemberStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2474470126: (a) => new IFC4.IfcMotorConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  144952367: (a) => new IFC4.IfcOuterBoundaryCurve(a[0], a[1]),
+  3694346114: (a) => new IFC4.IfcOutlet(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1687234759: (a) => new IFC4.IfcPile(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  310824031: (a) => new IFC4.IfcPipeFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3612865200: (a) => new IFC4.IfcPipeSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3171933400: (a) => new IFC4.IfcPlate(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1156407060: (a) => new IFC4.IfcPlateStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  738039164: (a) => new IFC4.IfcProtectiveDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  655969474: (a) => new IFC4.IfcProtectiveDeviceTrippingUnitType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  90941305: (a) => new IFC4.IfcPump(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2262370178: (a) => new IFC4.IfcRailing(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3024970846: (a) => new IFC4.IfcRamp(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3283111854: (a) => new IFC4.IfcRampFlight(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1232101972: (a) => new IFC4.IfcRationalBSplineCurveWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  979691226: (a) => new IFC4.IfcReinforcingBar(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  2572171363: (a) => new IFC4.IfcReinforcingBarType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]),
+  2016517767: (a) => new IFC4.IfcRoof(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3053780830: (a) => new IFC4.IfcSanitaryTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1783015770: (a) => new IFC4.IfcSensorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1329646415: (a) => new IFC4.IfcShadingDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1529196076: (a) => new IFC4.IfcSlab(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3127900445: (a) => new IFC4.IfcSlabElementedCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3027962421: (a) => new IFC4.IfcSlabStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3420628829: (a) => new IFC4.IfcSolarDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1999602285: (a) => new IFC4.IfcSpaceHeater(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1404847402: (a) => new IFC4.IfcStackTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  331165859: (a) => new IFC4.IfcStair(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4252922144: (a) => new IFC4.IfcStairFlight(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  2515109513: (a) => new IFC4.IfcStructuralAnalysisModel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  385403989: (a) => new IFC4.IfcStructuralLoadCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1621171031: (a) => new IFC4.IfcStructuralPlanarAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1162798199: (a) => new IFC4.IfcSwitchingDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  812556717: (a) => new IFC4.IfcTank(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3825984169: (a) => new IFC4.IfcTransformer(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3026737570: (a) => new IFC4.IfcTubeBundle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3179687236: (a) => new IFC4.IfcUnitaryControlElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4292641817: (a) => new IFC4.IfcUnitaryEquipment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4207607924: (a) => new IFC4.IfcValve(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2391406946: (a) => new IFC4.IfcWall(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4156078855: (a) => new IFC4.IfcWallElementedCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3512223829: (a) => new IFC4.IfcWallStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4237592921: (a) => new IFC4.IfcWasteTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3304561284: (a) => new IFC4.IfcWindow(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  486154966: (a) => new IFC4.IfcWindowStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  2874132201: (a) => new IFC4.IfcActuatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1634111441: (a) => new IFC4.IfcAirTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  177149247: (a) => new IFC4.IfcAirTerminalBox(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2056796094: (a) => new IFC4.IfcAirToAirHeatRecovery(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3001207471: (a) => new IFC4.IfcAlarmType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  277319702: (a) => new IFC4.IfcAudioVisualAppliance(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  753842376: (a) => new IFC4.IfcBeam(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2906023776: (a) => new IFC4.IfcBeamStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  32344328: (a) => new IFC4.IfcBoiler(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2938176219: (a) => new IFC4.IfcBurner(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  635142910: (a) => new IFC4.IfcCableCarrierFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3758799889: (a) => new IFC4.IfcCableCarrierSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1051757585: (a) => new IFC4.IfcCableFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4217484030: (a) => new IFC4.IfcCableSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3902619387: (a) => new IFC4.IfcChiller(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  639361253: (a) => new IFC4.IfcCoil(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3221913625: (a) => new IFC4.IfcCommunicationsAppliance(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3571504051: (a) => new IFC4.IfcCompressor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2272882330: (a) => new IFC4.IfcCondenser(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  578613899: (a) => new IFC4.IfcControllerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4136498852: (a) => new IFC4.IfcCooledBeam(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3640358203: (a) => new IFC4.IfcCoolingTower(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4074379575: (a) => new IFC4.IfcDamper(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1052013943: (a) => new IFC4.IfcDistributionChamberElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  562808652: (a) => new IFC4.IfcDistributionCircuit(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1062813311: (a) => new IFC4.IfcDistributionControlElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  342316401: (a) => new IFC4.IfcDuctFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3518393246: (a) => new IFC4.IfcDuctSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1360408905: (a) => new IFC4.IfcDuctSilencer(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1904799276: (a) => new IFC4.IfcElectricAppliance(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  862014818: (a) => new IFC4.IfcElectricDistributionBoard(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3310460725: (a) => new IFC4.IfcElectricFlowStorageDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  264262732: (a) => new IFC4.IfcElectricGenerator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  402227799: (a) => new IFC4.IfcElectricMotor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1003880860: (a) => new IFC4.IfcElectricTimeControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3415622556: (a) => new IFC4.IfcFan(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  819412036: (a) => new IFC4.IfcFilter(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1426591983: (a) => new IFC4.IfcFireSuppressionTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  182646315: (a) => new IFC4.IfcFlowInstrument(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2295281155: (a) => new IFC4.IfcProtectiveDeviceTrippingUnit(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4086658281: (a) => new IFC4.IfcSensor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  630975310: (a) => new IFC4.IfcUnitaryControlElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4288193352: (a) => new IFC4.IfcActuator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3087945054: (a) => new IFC4.IfcAlarm(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  25142252: (a) => new IFC4.IfcController(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8])
+};
 TypeInitialisers[2] = {
   3699917729: (v) => new IFC4.IfcAbsorbedDoseMeasure(v),
   4182062534: (v) => new IFC4.IfcAccelerationMeasure(v),
@@ -62050,6 +63414,884 @@ var IFC4;
   }
   IFC42.IfcController = IfcController;
 })(IFC4 || (IFC4 = {}));
+Constructors[3] = {
+  3630933823: (a) => new IFC4X3.IfcActorRole(a[0], a[1], a[2]),
+  618182010: (a) => new IFC4X3.IfcAddress(a[0], a[1], a[2]),
+  2879124712: (a) => new IFC4X3.IfcAlignmentParameterSegment(a[0], a[1]),
+  3633395639: (a) => new IFC4X3.IfcAlignmentVerticalSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  639542469: (a) => new IFC4X3.IfcApplication(a[0], a[1], a[2], a[3]),
+  411424972: (a) => new IFC4X3.IfcAppliedValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  130549933: (a) => new IFC4X3.IfcApproval(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4037036970: (a) => new IFC4X3.IfcBoundaryCondition(a[0]),
+  1560379544: (a) => new IFC4X3.IfcBoundaryEdgeCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3367102660: (a) => new IFC4X3.IfcBoundaryFaceCondition(a[0], a[1], a[2], a[3]),
+  1387855156: (a) => new IFC4X3.IfcBoundaryNodeCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2069777674: (a) => new IFC4X3.IfcBoundaryNodeConditionWarping(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2859738748: (_) => new IFC4X3.IfcConnectionGeometry(),
+  2614616156: (a) => new IFC4X3.IfcConnectionPointGeometry(a[0], a[1]),
+  2732653382: (a) => new IFC4X3.IfcConnectionSurfaceGeometry(a[0], a[1]),
+  775493141: (a) => new IFC4X3.IfcConnectionVolumeGeometry(a[0], a[1]),
+  1959218052: (a) => new IFC4X3.IfcConstraint(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1785450214: (a) => new IFC4X3.IfcCoordinateOperation(a[0], a[1]),
+  1466758467: (a) => new IFC4X3.IfcCoordinateReferenceSystem(a[0], a[1], a[2]),
+  602808272: (a) => new IFC4X3.IfcCostValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1765591967: (a) => new IFC4X3.IfcDerivedUnit(a[0], a[1], a[2], a[3]),
+  1045800335: (a) => new IFC4X3.IfcDerivedUnitElement(a[0], a[1]),
+  2949456006: (a) => new IFC4X3.IfcDimensionalExponents(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  4294318154: (_) => new IFC4X3.IfcExternalInformation(),
+  3200245327: (a) => new IFC4X3.IfcExternalReference(a[0], a[1], a[2]),
+  2242383968: (a) => new IFC4X3.IfcExternallyDefinedHatchStyle(a[0], a[1], a[2]),
+  1040185647: (a) => new IFC4X3.IfcExternallyDefinedSurfaceStyle(a[0], a[1], a[2]),
+  3548104201: (a) => new IFC4X3.IfcExternallyDefinedTextFont(a[0], a[1], a[2]),
+  917726184: (a) => new IFC4X3.IfcGeographicCRS(a[0], a[1], a[2], a[3], a[4], a[5]),
+  852622518: (a) => new IFC4X3.IfcGridAxis(a[0], a[1], a[2]),
+  3020489413: (a) => new IFC4X3.IfcIrregularTimeSeriesValue(a[0], a[1]),
+  2655187982: (a) => new IFC4X3.IfcLibraryInformation(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3452421091: (a) => new IFC4X3.IfcLibraryReference(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4162380809: (a) => new IFC4X3.IfcLightDistributionData(a[0], a[1], a[2]),
+  1566485204: (a) => new IFC4X3.IfcLightIntensityDistribution(a[0], a[1]),
+  3057273783: (a) => new IFC4X3.IfcMapConversion(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4105526436: (a) => new IFC4X3.IfcMapConversionScaled(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1847130766: (a) => new IFC4X3.IfcMaterialClassificationRelationship(a[0], a[1]),
+  760658860: (_) => new IFC4X3.IfcMaterialDefinition(),
+  248100487: (a) => new IFC4X3.IfcMaterialLayer(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3303938423: (a) => new IFC4X3.IfcMaterialLayerSet(a[0], a[1], a[2]),
+  1847252529: (a) => new IFC4X3.IfcMaterialLayerWithOffsets(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2199411900: (a) => new IFC4X3.IfcMaterialList(a[0]),
+  2235152071: (a) => new IFC4X3.IfcMaterialProfile(a[0], a[1], a[2], a[3], a[4], a[5]),
+  164193824: (a) => new IFC4X3.IfcMaterialProfileSet(a[0], a[1], a[2], a[3]),
+  552965576: (a) => new IFC4X3.IfcMaterialProfileWithOffsets(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1507914824: (_) => new IFC4X3.IfcMaterialUsageDefinition(),
+  2597039031: (a) => new IFC4X3.IfcMeasureWithUnit(a[0], a[1]),
+  3368373690: (a) => new IFC4X3.IfcMetric(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2706619895: (a) => new IFC4X3.IfcMonetaryUnit(a[0]),
+  1918398963: (a) => new IFC4X3.IfcNamedUnit(a[0], a[1]),
+  3701648758: (a) => new IFC4X3.IfcObjectPlacement(a[0]),
+  2251480897: (a) => new IFC4X3.IfcObjective(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4251960020: (a) => new IFC4X3.IfcOrganization(a[0], a[1], a[2], a[3], a[4]),
+  1207048766: (a) => new IFC4X3.IfcOwnerHistory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2077209135: (a) => new IFC4X3.IfcPerson(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  101040310: (a) => new IFC4X3.IfcPersonAndOrganization(a[0], a[1], a[2]),
+  2483315170: (a) => new IFC4X3.IfcPhysicalQuantity(a[0], a[1]),
+  2226359599: (a) => new IFC4X3.IfcPhysicalSimpleQuantity(a[0], a[1], a[2]),
+  3355820592: (a) => new IFC4X3.IfcPostalAddress(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  677532197: (_) => new IFC4X3.IfcPresentationItem(),
+  2022622350: (a) => new IFC4X3.IfcPresentationLayerAssignment(a[0], a[1], a[2], a[3]),
+  1304840413: (a) => new IFC4X3.IfcPresentationLayerWithStyle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3119450353: (a) => new IFC4X3.IfcPresentationStyle(a[0]),
+  2095639259: (a) => new IFC4X3.IfcProductRepresentation(a[0], a[1], a[2]),
+  3958567839: (a) => new IFC4X3.IfcProfileDef(a[0], a[1]),
+  3843373140: (a) => new IFC4X3.IfcProjectedCRS(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  986844984: (_) => new IFC4X3.IfcPropertyAbstraction(),
+  3710013099: (a) => new IFC4X3.IfcPropertyEnumeration(a[0], a[1], a[2]),
+  2044713172: (a) => new IFC4X3.IfcQuantityArea(a[0], a[1], a[2], a[3], a[4]),
+  2093928680: (a) => new IFC4X3.IfcQuantityCount(a[0], a[1], a[2], a[3], a[4]),
+  931644368: (a) => new IFC4X3.IfcQuantityLength(a[0], a[1], a[2], a[3], a[4]),
+  2691318326: (a) => new IFC4X3.IfcQuantityNumber(a[0], a[1], a[2], a[3], a[4]),
+  3252649465: (a) => new IFC4X3.IfcQuantityTime(a[0], a[1], a[2], a[3], a[4]),
+  2405470396: (a) => new IFC4X3.IfcQuantityVolume(a[0], a[1], a[2], a[3], a[4]),
+  825690147: (a) => new IFC4X3.IfcQuantityWeight(a[0], a[1], a[2], a[3], a[4]),
+  3915482550: (a) => new IFC4X3.IfcRecurrencePattern(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2433181523: (a) => new IFC4X3.IfcReference(a[0], a[1], a[2], a[3], a[4]),
+  1076942058: (a) => new IFC4X3.IfcRepresentation(a[0], a[1], a[2], a[3]),
+  3377609919: (a) => new IFC4X3.IfcRepresentationContext(a[0], a[1]),
+  3008791417: (_) => new IFC4X3.IfcRepresentationItem(),
+  1660063152: (a) => new IFC4X3.IfcRepresentationMap(a[0], a[1]),
+  2439245199: (a) => new IFC4X3.IfcResourceLevelRelationship(a[0], a[1]),
+  1794013214: (a) => new IFC4X3.IfcRigidOperation(a[0], a[1], a[2], a[3], a[4]),
+  2341007311: (a) => new IFC4X3.IfcRoot(a[0], a[1], a[2], a[3]),
+  448429030: (a) => new IFC4X3.IfcSIUnit(a[0], a[1], a[2]),
+  1054537805: (a) => new IFC4X3.IfcSchedulingTime(a[0], a[1], a[2]),
+  867548509: (a) => new IFC4X3.IfcShapeAspect(a[0], a[1], a[2], a[3], a[4]),
+  3982875396: (a) => new IFC4X3.IfcShapeModel(a[0], a[1], a[2], a[3]),
+  4240577450: (a) => new IFC4X3.IfcShapeRepresentation(a[0], a[1], a[2], a[3]),
+  2273995522: (a) => new IFC4X3.IfcStructuralConnectionCondition(a[0]),
+  2162789131: (a) => new IFC4X3.IfcStructuralLoad(a[0]),
+  3478079324: (a) => new IFC4X3.IfcStructuralLoadConfiguration(a[0], a[1], a[2]),
+  609421318: (a) => new IFC4X3.IfcStructuralLoadOrResult(a[0]),
+  2525727697: (a) => new IFC4X3.IfcStructuralLoadStatic(a[0]),
+  3408363356: (a) => new IFC4X3.IfcStructuralLoadTemperature(a[0], a[1], a[2], a[3]),
+  2830218821: (a) => new IFC4X3.IfcStyleModel(a[0], a[1], a[2], a[3]),
+  3958052878: (a) => new IFC4X3.IfcStyledItem(a[0], a[1], a[2]),
+  3049322572: (a) => new IFC4X3.IfcStyledRepresentation(a[0], a[1], a[2], a[3]),
+  2934153892: (a) => new IFC4X3.IfcSurfaceReinforcementArea(a[0], a[1], a[2], a[3]),
+  1300840506: (a) => new IFC4X3.IfcSurfaceStyle(a[0], a[1], a[2]),
+  3303107099: (a) => new IFC4X3.IfcSurfaceStyleLighting(a[0], a[1], a[2], a[3]),
+  1607154358: (a) => new IFC4X3.IfcSurfaceStyleRefraction(a[0], a[1]),
+  846575682: (a) => new IFC4X3.IfcSurfaceStyleShading(a[0], a[1]),
+  1351298697: (a) => new IFC4X3.IfcSurfaceStyleWithTextures(a[0]),
+  626085974: (a) => new IFC4X3.IfcSurfaceTexture(a[0], a[1], a[2], a[3], a[4]),
+  985171141: (a) => new IFC4X3.IfcTable(a[0], a[1], a[2]),
+  2043862942: (a) => new IFC4X3.IfcTableColumn(a[0], a[1], a[2], a[3], a[4]),
+  531007025: (a) => new IFC4X3.IfcTableRow(a[0], a[1]),
+  1549132990: (a) => new IFC4X3.IfcTaskTime(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19]),
+  2771591690: (a) => new IFC4X3.IfcTaskTimeRecurring(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19], a[20]),
+  912023232: (a) => new IFC4X3.IfcTelecomAddress(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1447204868: (a) => new IFC4X3.IfcTextStyle(a[0], a[1], a[2], a[3], a[4]),
+  2636378356: (a) => new IFC4X3.IfcTextStyleForDefinedFont(a[0], a[1]),
+  1640371178: (a) => new IFC4X3.IfcTextStyleTextModel(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  280115917: (a) => new IFC4X3.IfcTextureCoordinate(a[0]),
+  1742049831: (a) => new IFC4X3.IfcTextureCoordinateGenerator(a[0], a[1], a[2]),
+  222769930: (a) => new IFC4X3.IfcTextureCoordinateIndices(a[0], a[1]),
+  1010789467: (a) => new IFC4X3.IfcTextureCoordinateIndicesWithVoids(a[0], a[1], a[2]),
+  2552916305: (a) => new IFC4X3.IfcTextureMap(a[0], a[1], a[2]),
+  1210645708: (a) => new IFC4X3.IfcTextureVertex(a[0]),
+  3611470254: (a) => new IFC4X3.IfcTextureVertexList(a[0]),
+  1199560280: (a) => new IFC4X3.IfcTimePeriod(a[0], a[1]),
+  3101149627: (a) => new IFC4X3.IfcTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  581633288: (a) => new IFC4X3.IfcTimeSeriesValue(a[0]),
+  1377556343: (_) => new IFC4X3.IfcTopologicalRepresentationItem(),
+  1735638870: (a) => new IFC4X3.IfcTopologyRepresentation(a[0], a[1], a[2], a[3]),
+  180925521: (a) => new IFC4X3.IfcUnitAssignment(a[0]),
+  2799835756: (_) => new IFC4X3.IfcVertex(),
+  1907098498: (a) => new IFC4X3.IfcVertexPoint(a[0]),
+  891718957: (a) => new IFC4X3.IfcVirtualGridIntersection(a[0], a[1]),
+  1175146630: (a) => new IFC4X3.IfcWellKnownText(a[0], a[1]),
+  1236880293: (a) => new IFC4X3.IfcWorkTime(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3752311538: (a) => new IFC4X3.IfcAlignmentCantSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  536804194: (a) => new IFC4X3.IfcAlignmentHorizontalSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3869604511: (a) => new IFC4X3.IfcApprovalRelationship(a[0], a[1], a[2], a[3]),
+  3798115385: (a) => new IFC4X3.IfcArbitraryClosedProfileDef(a[0], a[1], a[2]),
+  1310608509: (a) => new IFC4X3.IfcArbitraryOpenProfileDef(a[0], a[1], a[2]),
+  2705031697: (a) => new IFC4X3.IfcArbitraryProfileDefWithVoids(a[0], a[1], a[2], a[3]),
+  616511568: (a) => new IFC4X3.IfcBlobTexture(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3150382593: (a) => new IFC4X3.IfcCenterLineProfileDef(a[0], a[1], a[2], a[3]),
+  747523909: (a) => new IFC4X3.IfcClassification(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  647927063: (a) => new IFC4X3.IfcClassificationReference(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3285139300: (a) => new IFC4X3.IfcColourRgbList(a[0]),
+  3264961684: (a) => new IFC4X3.IfcColourSpecification(a[0]),
+  1485152156: (a) => new IFC4X3.IfcCompositeProfileDef(a[0], a[1], a[2], a[3]),
+  370225590: (a) => new IFC4X3.IfcConnectedFaceSet(a[0]),
+  1981873012: (a) => new IFC4X3.IfcConnectionCurveGeometry(a[0], a[1]),
+  45288368: (a) => new IFC4X3.IfcConnectionPointEccentricity(a[0], a[1], a[2], a[3], a[4]),
+  3050246964: (a) => new IFC4X3.IfcContextDependentUnit(a[0], a[1], a[2]),
+  2889183280: (a) => new IFC4X3.IfcConversionBasedUnit(a[0], a[1], a[2], a[3]),
+  2713554722: (a) => new IFC4X3.IfcConversionBasedUnitWithOffset(a[0], a[1], a[2], a[3], a[4]),
+  539742890: (a) => new IFC4X3.IfcCurrencyRelationship(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3800577675: (a) => new IFC4X3.IfcCurveStyle(a[0], a[1], a[2], a[3], a[4]),
+  1105321065: (a) => new IFC4X3.IfcCurveStyleFont(a[0], a[1]),
+  2367409068: (a) => new IFC4X3.IfcCurveStyleFontAndScaling(a[0], a[1], a[2]),
+  3510044353: (a) => new IFC4X3.IfcCurveStyleFontPattern(a[0], a[1]),
+  3632507154: (a) => new IFC4X3.IfcDerivedProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  1154170062: (a) => new IFC4X3.IfcDocumentInformation(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  770865208: (a) => new IFC4X3.IfcDocumentInformationRelationship(a[0], a[1], a[2], a[3], a[4]),
+  3732053477: (a) => new IFC4X3.IfcDocumentReference(a[0], a[1], a[2], a[3], a[4]),
+  3900360178: (a) => new IFC4X3.IfcEdge(a[0], a[1]),
+  476780140: (a) => new IFC4X3.IfcEdgeCurve(a[0], a[1], a[2], a[3]),
+  211053100: (a) => new IFC4X3.IfcEventTime(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  297599258: (a) => new IFC4X3.IfcExtendedProperties(a[0], a[1], a[2]),
+  1437805879: (a) => new IFC4X3.IfcExternalReferenceRelationship(a[0], a[1], a[2], a[3]),
+  2556980723: (a) => new IFC4X3.IfcFace(a[0]),
+  1809719519: (a) => new IFC4X3.IfcFaceBound(a[0], a[1]),
+  803316827: (a) => new IFC4X3.IfcFaceOuterBound(a[0], a[1]),
+  3008276851: (a) => new IFC4X3.IfcFaceSurface(a[0], a[1], a[2]),
+  4219587988: (a) => new IFC4X3.IfcFailureConnectionCondition(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  738692330: (a) => new IFC4X3.IfcFillAreaStyle(a[0], a[1], a[2]),
+  3448662350: (a) => new IFC4X3.IfcGeometricRepresentationContext(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2453401579: (_) => new IFC4X3.IfcGeometricRepresentationItem(),
+  4142052618: (a) => new IFC4X3.IfcGeometricRepresentationSubContext(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3590301190: (a) => new IFC4X3.IfcGeometricSet(a[0]),
+  178086475: (a) => new IFC4X3.IfcGridPlacement(a[0], a[1], a[2]),
+  812098782: (a) => new IFC4X3.IfcHalfSpaceSolid(a[0], a[1]),
+  3905492369: (a) => new IFC4X3.IfcImageTexture(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3570813810: (a) => new IFC4X3.IfcIndexedColourMap(a[0], a[1], a[2], a[3]),
+  1437953363: (a) => new IFC4X3.IfcIndexedTextureMap(a[0], a[1], a[2]),
+  2133299955: (a) => new IFC4X3.IfcIndexedTriangleTextureMap(a[0], a[1], a[2], a[3]),
+  3741457305: (a) => new IFC4X3.IfcIrregularTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1585845231: (a) => new IFC4X3.IfcLagTime(a[0], a[1], a[2], a[3], a[4]),
+  1402838566: (a) => new IFC4X3.IfcLightSource(a[0], a[1], a[2], a[3]),
+  125510826: (a) => new IFC4X3.IfcLightSourceAmbient(a[0], a[1], a[2], a[3]),
+  2604431987: (a) => new IFC4X3.IfcLightSourceDirectional(a[0], a[1], a[2], a[3], a[4]),
+  4266656042: (a) => new IFC4X3.IfcLightSourceGoniometric(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1520743889: (a) => new IFC4X3.IfcLightSourcePositional(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3422422726: (a) => new IFC4X3.IfcLightSourceSpot(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  388784114: (a) => new IFC4X3.IfcLinearPlacement(a[0], a[1], a[2]),
+  2624227202: (a) => new IFC4X3.IfcLocalPlacement(a[0], a[1]),
+  1008929658: (_) => new IFC4X3.IfcLoop(),
+  2347385850: (a) => new IFC4X3.IfcMappedItem(a[0], a[1]),
+  1838606355: (a) => new IFC4X3.IfcMaterial(a[0], a[1], a[2]),
+  3708119e3: (a) => new IFC4X3.IfcMaterialConstituent(a[0], a[1], a[2], a[3], a[4]),
+  2852063980: (a) => new IFC4X3.IfcMaterialConstituentSet(a[0], a[1], a[2]),
+  2022407955: (a) => new IFC4X3.IfcMaterialDefinitionRepresentation(a[0], a[1], a[2], a[3]),
+  1303795690: (a) => new IFC4X3.IfcMaterialLayerSetUsage(a[0], a[1], a[2], a[3], a[4]),
+  3079605661: (a) => new IFC4X3.IfcMaterialProfileSetUsage(a[0], a[1], a[2]),
+  3404854881: (a) => new IFC4X3.IfcMaterialProfileSetUsageTapering(a[0], a[1], a[2], a[3], a[4]),
+  3265635763: (a) => new IFC4X3.IfcMaterialProperties(a[0], a[1], a[2], a[3]),
+  853536259: (a) => new IFC4X3.IfcMaterialRelationship(a[0], a[1], a[2], a[3], a[4]),
+  2998442950: (a) => new IFC4X3.IfcMirroredProfileDef(a[0], a[1], a[2], a[3]),
+  219451334: (a) => new IFC4X3.IfcObjectDefinition(a[0], a[1], a[2], a[3]),
+  182550632: (a) => new IFC4X3.IfcOpenCrossProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2665983363: (a) => new IFC4X3.IfcOpenShell(a[0]),
+  1411181986: (a) => new IFC4X3.IfcOrganizationRelationship(a[0], a[1], a[2], a[3]),
+  1029017970: (a) => new IFC4X3.IfcOrientedEdge(a[0], a[1]),
+  2529465313: (a) => new IFC4X3.IfcParameterizedProfileDef(a[0], a[1], a[2]),
+  2519244187: (a) => new IFC4X3.IfcPath(a[0]),
+  3021840470: (a) => new IFC4X3.IfcPhysicalComplexQuantity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  597895409: (a) => new IFC4X3.IfcPixelTexture(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2004835150: (a) => new IFC4X3.IfcPlacement(a[0]),
+  1663979128: (a) => new IFC4X3.IfcPlanarExtent(a[0], a[1]),
+  2067069095: (_) => new IFC4X3.IfcPoint(),
+  2165702409: (a) => new IFC4X3.IfcPointByDistanceExpression(a[0], a[1], a[2], a[3], a[4]),
+  4022376103: (a) => new IFC4X3.IfcPointOnCurve(a[0], a[1]),
+  1423911732: (a) => new IFC4X3.IfcPointOnSurface(a[0], a[1], a[2]),
+  2924175390: (a) => new IFC4X3.IfcPolyLoop(a[0]),
+  2775532180: (a) => new IFC4X3.IfcPolygonalBoundedHalfSpace(a[0], a[1], a[2], a[3]),
+  3727388367: (a) => new IFC4X3.IfcPreDefinedItem(a[0]),
+  3778827333: (_) => new IFC4X3.IfcPreDefinedProperties(),
+  1775413392: (a) => new IFC4X3.IfcPreDefinedTextFont(a[0]),
+  673634403: (a) => new IFC4X3.IfcProductDefinitionShape(a[0], a[1], a[2]),
+  2802850158: (a) => new IFC4X3.IfcProfileProperties(a[0], a[1], a[2], a[3]),
+  2598011224: (a) => new IFC4X3.IfcProperty(a[0], a[1]),
+  1680319473: (a) => new IFC4X3.IfcPropertyDefinition(a[0], a[1], a[2], a[3]),
+  148025276: (a) => new IFC4X3.IfcPropertyDependencyRelationship(a[0], a[1], a[2], a[3], a[4]),
+  3357820518: (a) => new IFC4X3.IfcPropertySetDefinition(a[0], a[1], a[2], a[3]),
+  1482703590: (a) => new IFC4X3.IfcPropertyTemplateDefinition(a[0], a[1], a[2], a[3]),
+  2090586900: (a) => new IFC4X3.IfcQuantitySet(a[0], a[1], a[2], a[3]),
+  3615266464: (a) => new IFC4X3.IfcRectangleProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  3413951693: (a) => new IFC4X3.IfcRegularTimeSeries(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1580146022: (a) => new IFC4X3.IfcReinforcementBarProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  478536968: (a) => new IFC4X3.IfcRelationship(a[0], a[1], a[2], a[3]),
+  2943643501: (a) => new IFC4X3.IfcResourceApprovalRelationship(a[0], a[1], a[2], a[3]),
+  1608871552: (a) => new IFC4X3.IfcResourceConstraintRelationship(a[0], a[1], a[2], a[3]),
+  1042787934: (a) => new IFC4X3.IfcResourceTime(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17]),
+  2778083089: (a) => new IFC4X3.IfcRoundedRectangleProfileDef(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2042790032: (a) => new IFC4X3.IfcSectionProperties(a[0], a[1], a[2]),
+  4165799628: (a) => new IFC4X3.IfcSectionReinforcementProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1509187699: (a) => new IFC4X3.IfcSectionedSpine(a[0], a[1], a[2]),
+  823603102: (a) => new IFC4X3.IfcSegment(a[0]),
+  4124623270: (a) => new IFC4X3.IfcShellBasedSurfaceModel(a[0]),
+  3692461612: (a) => new IFC4X3.IfcSimpleProperty(a[0], a[1]),
+  2609359061: (a) => new IFC4X3.IfcSlippageConnectionCondition(a[0], a[1], a[2], a[3]),
+  723233188: (_) => new IFC4X3.IfcSolidModel(),
+  1595516126: (a) => new IFC4X3.IfcStructuralLoadLinearForce(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2668620305: (a) => new IFC4X3.IfcStructuralLoadPlanarForce(a[0], a[1], a[2], a[3]),
+  2473145415: (a) => new IFC4X3.IfcStructuralLoadSingleDisplacement(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1973038258: (a) => new IFC4X3.IfcStructuralLoadSingleDisplacementDistortion(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1597423693: (a) => new IFC4X3.IfcStructuralLoadSingleForce(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1190533807: (a) => new IFC4X3.IfcStructuralLoadSingleForceWarping(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2233826070: (a) => new IFC4X3.IfcSubedge(a[0], a[1], a[2]),
+  2513912981: (_) => new IFC4X3.IfcSurface(),
+  1878645084: (a) => new IFC4X3.IfcSurfaceStyleRendering(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2247615214: (a) => new IFC4X3.IfcSweptAreaSolid(a[0], a[1]),
+  1260650574: (a) => new IFC4X3.IfcSweptDiskSolid(a[0], a[1], a[2], a[3], a[4]),
+  1096409881: (a) => new IFC4X3.IfcSweptDiskSolidPolygonal(a[0], a[1], a[2], a[3], a[4], a[5]),
+  230924584: (a) => new IFC4X3.IfcSweptSurface(a[0], a[1]),
+  3071757647: (a) => new IFC4X3.IfcTShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  901063453: (_) => new IFC4X3.IfcTessellatedItem(),
+  4282788508: (a) => new IFC4X3.IfcTextLiteral(a[0], a[1], a[2]),
+  3124975700: (a) => new IFC4X3.IfcTextLiteralWithExtent(a[0], a[1], a[2], a[3], a[4]),
+  1983826977: (a) => new IFC4X3.IfcTextStyleFontModel(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2715220739: (a) => new IFC4X3.IfcTrapeziumProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1628702193: (a) => new IFC4X3.IfcTypeObject(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3736923433: (a) => new IFC4X3.IfcTypeProcess(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2347495698: (a) => new IFC4X3.IfcTypeProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3698973494: (a) => new IFC4X3.IfcTypeResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  427810014: (a) => new IFC4X3.IfcUShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1417489154: (a) => new IFC4X3.IfcVector(a[0], a[1]),
+  2759199220: (a) => new IFC4X3.IfcVertexLoop(a[0]),
+  2543172580: (a) => new IFC4X3.IfcZShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3406155212: (a) => new IFC4X3.IfcAdvancedFace(a[0], a[1], a[2]),
+  669184980: (a) => new IFC4X3.IfcAnnotationFillArea(a[0], a[1]),
+  3207858831: (a) => new IFC4X3.IfcAsymmetricIShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14]),
+  4261334040: (a) => new IFC4X3.IfcAxis1Placement(a[0], a[1]),
+  3125803723: (a) => new IFC4X3.IfcAxis2Placement2D(a[0], a[1]),
+  2740243338: (a) => new IFC4X3.IfcAxis2Placement3D(a[0], a[1], a[2]),
+  3425423356: (a) => new IFC4X3.IfcAxis2PlacementLinear(a[0], a[1], a[2]),
+  2736907675: (a) => new IFC4X3.IfcBooleanResult(a[0], a[1], a[2]),
+  4182860854: (_) => new IFC4X3.IfcBoundedSurface(),
+  2581212453: (a) => new IFC4X3.IfcBoundingBox(a[0], a[1], a[2], a[3]),
+  2713105998: (a) => new IFC4X3.IfcBoxedHalfSpace(a[0], a[1], a[2]),
+  2898889636: (a) => new IFC4X3.IfcCShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1123145078: (a) => new IFC4X3.IfcCartesianPoint(a[0]),
+  574549367: (_) => new IFC4X3.IfcCartesianPointList(),
+  1675464909: (a) => new IFC4X3.IfcCartesianPointList2D(a[0], a[1]),
+  2059837836: (a) => new IFC4X3.IfcCartesianPointList3D(a[0], a[1]),
+  59481748: (a) => new IFC4X3.IfcCartesianTransformationOperator(a[0], a[1], a[2], a[3]),
+  3749851601: (a) => new IFC4X3.IfcCartesianTransformationOperator2D(a[0], a[1], a[2], a[3]),
+  3486308946: (a) => new IFC4X3.IfcCartesianTransformationOperator2DnonUniform(a[0], a[1], a[2], a[3], a[4]),
+  3331915920: (a) => new IFC4X3.IfcCartesianTransformationOperator3D(a[0], a[1], a[2], a[3], a[4]),
+  1416205885: (a) => new IFC4X3.IfcCartesianTransformationOperator3DnonUniform(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1383045692: (a) => new IFC4X3.IfcCircleProfileDef(a[0], a[1], a[2], a[3]),
+  2205249479: (a) => new IFC4X3.IfcClosedShell(a[0]),
+  776857604: (a) => new IFC4X3.IfcColourRgb(a[0], a[1], a[2], a[3]),
+  2542286263: (a) => new IFC4X3.IfcComplexProperty(a[0], a[1], a[2], a[3]),
+  2485617015: (a) => new IFC4X3.IfcCompositeCurveSegment(a[0], a[1], a[2]),
+  2574617495: (a) => new IFC4X3.IfcConstructionResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3419103109: (a) => new IFC4X3.IfcContext(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1815067380: (a) => new IFC4X3.IfcCrewResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2506170314: (a) => new IFC4X3.IfcCsgPrimitive3D(a[0]),
+  2147822146: (a) => new IFC4X3.IfcCsgSolid(a[0]),
+  2601014836: (_) => new IFC4X3.IfcCurve(),
+  2827736869: (a) => new IFC4X3.IfcCurveBoundedPlane(a[0], a[1], a[2]),
+  2629017746: (a) => new IFC4X3.IfcCurveBoundedSurface(a[0], a[1], a[2]),
+  4212018352: (a) => new IFC4X3.IfcCurveSegment(a[0], a[1], a[2], a[3], a[4]),
+  32440307: (a) => new IFC4X3.IfcDirection(a[0]),
+  593015953: (a) => new IFC4X3.IfcDirectrixCurveSweptAreaSolid(a[0], a[1], a[2], a[3], a[4]),
+  1472233963: (a) => new IFC4X3.IfcEdgeLoop(a[0]),
+  1883228015: (a) => new IFC4X3.IfcElementQuantity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  339256511: (a) => new IFC4X3.IfcElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2777663545: (a) => new IFC4X3.IfcElementarySurface(a[0]),
+  2835456948: (a) => new IFC4X3.IfcEllipseProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  4024345920: (a) => new IFC4X3.IfcEventType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  477187591: (a) => new IFC4X3.IfcExtrudedAreaSolid(a[0], a[1], a[2], a[3]),
+  2804161546: (a) => new IFC4X3.IfcExtrudedAreaSolidTapered(a[0], a[1], a[2], a[3], a[4]),
+  2047409740: (a) => new IFC4X3.IfcFaceBasedSurfaceModel(a[0]),
+  374418227: (a) => new IFC4X3.IfcFillAreaStyleHatching(a[0], a[1], a[2], a[3], a[4]),
+  315944413: (a) => new IFC4X3.IfcFillAreaStyleTiles(a[0], a[1], a[2]),
+  2652556860: (a) => new IFC4X3.IfcFixedReferenceSweptAreaSolid(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4238390223: (a) => new IFC4X3.IfcFurnishingElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1268542332: (a) => new IFC4X3.IfcFurnitureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4095422895: (a) => new IFC4X3.IfcGeographicElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  987898635: (a) => new IFC4X3.IfcGeometricCurveSet(a[0]),
+  1484403080: (a) => new IFC4X3.IfcIShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  178912537: (a) => new IFC4X3.IfcIndexedPolygonalFace(a[0]),
+  2294589976: (a) => new IFC4X3.IfcIndexedPolygonalFaceWithVoids(a[0], a[1]),
+  3465909080: (a) => new IFC4X3.IfcIndexedPolygonalTextureMap(a[0], a[1], a[2], a[3]),
+  572779678: (a) => new IFC4X3.IfcLShapeProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  428585644: (a) => new IFC4X3.IfcLaborResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1281925730: (a) => new IFC4X3.IfcLine(a[0], a[1]),
+  1425443689: (a) => new IFC4X3.IfcManifoldSolidBrep(a[0]),
+  3888040117: (a) => new IFC4X3.IfcObject(a[0], a[1], a[2], a[3], a[4]),
+  590820931: (a) => new IFC4X3.IfcOffsetCurve(a[0]),
+  3388369263: (a) => new IFC4X3.IfcOffsetCurve2D(a[0], a[1], a[2]),
+  3505215534: (a) => new IFC4X3.IfcOffsetCurve3D(a[0], a[1], a[2], a[3]),
+  2485787929: (a) => new IFC4X3.IfcOffsetCurveByDistances(a[0], a[1], a[2]),
+  1682466193: (a) => new IFC4X3.IfcPcurve(a[0], a[1]),
+  603570806: (a) => new IFC4X3.IfcPlanarBox(a[0], a[1], a[2]),
+  220341763: (a) => new IFC4X3.IfcPlane(a[0]),
+  3381221214: (a) => new IFC4X3.IfcPolynomialCurve(a[0], a[1], a[2], a[3]),
+  759155922: (a) => new IFC4X3.IfcPreDefinedColour(a[0]),
+  2559016684: (a) => new IFC4X3.IfcPreDefinedCurveFont(a[0]),
+  3967405729: (a) => new IFC4X3.IfcPreDefinedPropertySet(a[0], a[1], a[2], a[3]),
+  569719735: (a) => new IFC4X3.IfcProcedureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2945172077: (a) => new IFC4X3.IfcProcess(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  4208778838: (a) => new IFC4X3.IfcProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  103090709: (a) => new IFC4X3.IfcProject(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  653396225: (a) => new IFC4X3.IfcProjectLibrary(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  871118103: (a) => new IFC4X3.IfcPropertyBoundedValue(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4166981789: (a) => new IFC4X3.IfcPropertyEnumeratedValue(a[0], a[1], a[2], a[3]),
+  2752243245: (a) => new IFC4X3.IfcPropertyListValue(a[0], a[1], a[2], a[3]),
+  941946838: (a) => new IFC4X3.IfcPropertyReferenceValue(a[0], a[1], a[2], a[3]),
+  1451395588: (a) => new IFC4X3.IfcPropertySet(a[0], a[1], a[2], a[3], a[4]),
+  492091185: (a) => new IFC4X3.IfcPropertySetTemplate(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3650150729: (a) => new IFC4X3.IfcPropertySingleValue(a[0], a[1], a[2], a[3]),
+  110355661: (a) => new IFC4X3.IfcPropertyTableValue(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3521284610: (a) => new IFC4X3.IfcPropertyTemplate(a[0], a[1], a[2], a[3]),
+  2770003689: (a) => new IFC4X3.IfcRectangleHollowProfileDef(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2798486643: (a) => new IFC4X3.IfcRectangularPyramid(a[0], a[1], a[2], a[3]),
+  3454111270: (a) => new IFC4X3.IfcRectangularTrimmedSurface(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3765753017: (a) => new IFC4X3.IfcReinforcementDefinitionProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3939117080: (a) => new IFC4X3.IfcRelAssigns(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1683148259: (a) => new IFC4X3.IfcRelAssignsToActor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2495723537: (a) => new IFC4X3.IfcRelAssignsToControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1307041759: (a) => new IFC4X3.IfcRelAssignsToGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1027710054: (a) => new IFC4X3.IfcRelAssignsToGroupByFactor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4278684876: (a) => new IFC4X3.IfcRelAssignsToProcess(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2857406711: (a) => new IFC4X3.IfcRelAssignsToProduct(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  205026976: (a) => new IFC4X3.IfcRelAssignsToResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1865459582: (a) => new IFC4X3.IfcRelAssociates(a[0], a[1], a[2], a[3], a[4]),
+  4095574036: (a) => new IFC4X3.IfcRelAssociatesApproval(a[0], a[1], a[2], a[3], a[4], a[5]),
+  919958153: (a) => new IFC4X3.IfcRelAssociatesClassification(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2728634034: (a) => new IFC4X3.IfcRelAssociatesConstraint(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  982818633: (a) => new IFC4X3.IfcRelAssociatesDocument(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3840914261: (a) => new IFC4X3.IfcRelAssociatesLibrary(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2655215786: (a) => new IFC4X3.IfcRelAssociatesMaterial(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1033248425: (a) => new IFC4X3.IfcRelAssociatesProfileDef(a[0], a[1], a[2], a[3], a[4], a[5]),
+  826625072: (a) => new IFC4X3.IfcRelConnects(a[0], a[1], a[2], a[3]),
+  1204542856: (a) => new IFC4X3.IfcRelConnectsElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3945020480: (a) => new IFC4X3.IfcRelConnectsPathElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4201705270: (a) => new IFC4X3.IfcRelConnectsPortToElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3190031847: (a) => new IFC4X3.IfcRelConnectsPorts(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2127690289: (a) => new IFC4X3.IfcRelConnectsStructuralActivity(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1638771189: (a) => new IFC4X3.IfcRelConnectsStructuralMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  504942748: (a) => new IFC4X3.IfcRelConnectsWithEccentricity(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3678494232: (a) => new IFC4X3.IfcRelConnectsWithRealizingElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3242617779: (a) => new IFC4X3.IfcRelContainedInSpatialStructure(a[0], a[1], a[2], a[3], a[4], a[5]),
+  886880790: (a) => new IFC4X3.IfcRelCoversBldgElements(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2802773753: (a) => new IFC4X3.IfcRelCoversSpaces(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2565941209: (a) => new IFC4X3.IfcRelDeclares(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2551354335: (a) => new IFC4X3.IfcRelDecomposes(a[0], a[1], a[2], a[3]),
+  693640335: (a) => new IFC4X3.IfcRelDefines(a[0], a[1], a[2], a[3]),
+  1462361463: (a) => new IFC4X3.IfcRelDefinesByObject(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4186316022: (a) => new IFC4X3.IfcRelDefinesByProperties(a[0], a[1], a[2], a[3], a[4], a[5]),
+  307848117: (a) => new IFC4X3.IfcRelDefinesByTemplate(a[0], a[1], a[2], a[3], a[4], a[5]),
+  781010003: (a) => new IFC4X3.IfcRelDefinesByType(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3940055652: (a) => new IFC4X3.IfcRelFillsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  279856033: (a) => new IFC4X3.IfcRelFlowControlElements(a[0], a[1], a[2], a[3], a[4], a[5]),
+  427948657: (a) => new IFC4X3.IfcRelInterferesElements(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3268803585: (a) => new IFC4X3.IfcRelNests(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1441486842: (a) => new IFC4X3.IfcRelPositions(a[0], a[1], a[2], a[3], a[4], a[5]),
+  750771296: (a) => new IFC4X3.IfcRelProjectsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1245217292: (a) => new IFC4X3.IfcRelReferencedInSpatialStructure(a[0], a[1], a[2], a[3], a[4], a[5]),
+  4122056220: (a) => new IFC4X3.IfcRelSequence(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  366585022: (a) => new IFC4X3.IfcRelServicesBuildings(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3451746338: (a) => new IFC4X3.IfcRelSpaceBoundary(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3523091289: (a) => new IFC4X3.IfcRelSpaceBoundary1stLevel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1521410863: (a) => new IFC4X3.IfcRelSpaceBoundary2ndLevel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1401173127: (a) => new IFC4X3.IfcRelVoidsElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  816062949: (a) => new IFC4X3.IfcReparametrisedCompositeCurveSegment(a[0], a[1], a[2], a[3]),
+  2914609552: (a) => new IFC4X3.IfcResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1856042241: (a) => new IFC4X3.IfcRevolvedAreaSolid(a[0], a[1], a[2], a[3]),
+  3243963512: (a) => new IFC4X3.IfcRevolvedAreaSolidTapered(a[0], a[1], a[2], a[3], a[4]),
+  4158566097: (a) => new IFC4X3.IfcRightCircularCone(a[0], a[1], a[2]),
+  3626867408: (a) => new IFC4X3.IfcRightCircularCylinder(a[0], a[1], a[2]),
+  1862484736: (a) => new IFC4X3.IfcSectionedSolid(a[0], a[1]),
+  1290935644: (a) => new IFC4X3.IfcSectionedSolidHorizontal(a[0], a[1], a[2]),
+  1356537516: (a) => new IFC4X3.IfcSectionedSurface(a[0], a[1], a[2]),
+  3663146110: (a) => new IFC4X3.IfcSimplePropertyTemplate(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1412071761: (a) => new IFC4X3.IfcSpatialElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  710998568: (a) => new IFC4X3.IfcSpatialElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2706606064: (a) => new IFC4X3.IfcSpatialStructureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3893378262: (a) => new IFC4X3.IfcSpatialStructureElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  463610769: (a) => new IFC4X3.IfcSpatialZone(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2481509218: (a) => new IFC4X3.IfcSpatialZoneType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  451544542: (a) => new IFC4X3.IfcSphere(a[0], a[1]),
+  4015995234: (a) => new IFC4X3.IfcSphericalSurface(a[0], a[1]),
+  2735484536: (a) => new IFC4X3.IfcSpiral(a[0]),
+  3544373492: (a) => new IFC4X3.IfcStructuralActivity(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3136571912: (a) => new IFC4X3.IfcStructuralItem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  530289379: (a) => new IFC4X3.IfcStructuralMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3689010777: (a) => new IFC4X3.IfcStructuralReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3979015343: (a) => new IFC4X3.IfcStructuralSurfaceMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2218152070: (a) => new IFC4X3.IfcStructuralSurfaceMemberVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  603775116: (a) => new IFC4X3.IfcStructuralSurfaceReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4095615324: (a) => new IFC4X3.IfcSubContractResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  699246055: (a) => new IFC4X3.IfcSurfaceCurve(a[0], a[1], a[2]),
+  2028607225: (a) => new IFC4X3.IfcSurfaceCurveSweptAreaSolid(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2809605785: (a) => new IFC4X3.IfcSurfaceOfLinearExtrusion(a[0], a[1], a[2], a[3]),
+  4124788165: (a) => new IFC4X3.IfcSurfaceOfRevolution(a[0], a[1], a[2]),
+  1580310250: (a) => new IFC4X3.IfcSystemFurnitureElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3473067441: (a) => new IFC4X3.IfcTask(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  3206491090: (a) => new IFC4X3.IfcTaskType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2387106220: (a) => new IFC4X3.IfcTessellatedFaceSet(a[0]),
+  782932809: (a) => new IFC4X3.IfcThirdOrderPolynomialSpiral(a[0], a[1], a[2], a[3], a[4]),
+  1935646853: (a) => new IFC4X3.IfcToroidalSurface(a[0], a[1], a[2]),
+  3665877780: (a) => new IFC4X3.IfcTransportationDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2916149573: (a) => new IFC4X3.IfcTriangulatedFaceSet(a[0], a[1], a[2], a[3], a[4]),
+  1229763772: (a) => new IFC4X3.IfcTriangulatedIrregularNetwork(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3651464721: (a) => new IFC4X3.IfcVehicleType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  336235671: (a) => new IFC4X3.IfcWindowLiningProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]),
+  512836454: (a) => new IFC4X3.IfcWindowPanelProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2296667514: (a) => new IFC4X3.IfcActor(a[0], a[1], a[2], a[3], a[4], a[5]),
+  1635779807: (a) => new IFC4X3.IfcAdvancedBrep(a[0]),
+  2603310189: (a) => new IFC4X3.IfcAdvancedBrepWithVoids(a[0], a[1]),
+  1674181508: (a) => new IFC4X3.IfcAnnotation(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2887950389: (a) => new IFC4X3.IfcBSplineSurface(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  167062518: (a) => new IFC4X3.IfcBSplineSurfaceWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1334484129: (a) => new IFC4X3.IfcBlock(a[0], a[1], a[2], a[3]),
+  3649129432: (a) => new IFC4X3.IfcBooleanClippingResult(a[0], a[1], a[2]),
+  1260505505: (_) => new IFC4X3.IfcBoundedCurve(),
+  3124254112: (a) => new IFC4X3.IfcBuildingStorey(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1626504194: (a) => new IFC4X3.IfcBuiltElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2197970202: (a) => new IFC4X3.IfcChimneyType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2937912522: (a) => new IFC4X3.IfcCircleHollowProfileDef(a[0], a[1], a[2], a[3], a[4]),
+  3893394355: (a) => new IFC4X3.IfcCivilElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3497074424: (a) => new IFC4X3.IfcClothoid(a[0], a[1]),
+  300633059: (a) => new IFC4X3.IfcColumnType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3875453745: (a) => new IFC4X3.IfcComplexPropertyTemplate(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3732776249: (a) => new IFC4X3.IfcCompositeCurve(a[0], a[1]),
+  15328376: (a) => new IFC4X3.IfcCompositeCurveOnSurface(a[0], a[1]),
+  2510884976: (a) => new IFC4X3.IfcConic(a[0]),
+  2185764099: (a) => new IFC4X3.IfcConstructionEquipmentResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  4105962743: (a) => new IFC4X3.IfcConstructionMaterialResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1525564444: (a) => new IFC4X3.IfcConstructionProductResourceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2559216714: (a) => new IFC4X3.IfcConstructionResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3293443760: (a) => new IFC4X3.IfcControl(a[0], a[1], a[2], a[3], a[4], a[5]),
+  2000195564: (a) => new IFC4X3.IfcCosineSpiral(a[0], a[1], a[2]),
+  3895139033: (a) => new IFC4X3.IfcCostItem(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1419761937: (a) => new IFC4X3.IfcCostSchedule(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4189326743: (a) => new IFC4X3.IfcCourseType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1916426348: (a) => new IFC4X3.IfcCoveringType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3295246426: (a) => new IFC4X3.IfcCrewResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1457835157: (a) => new IFC4X3.IfcCurtainWallType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1213902940: (a) => new IFC4X3.IfcCylindricalSurface(a[0], a[1]),
+  1306400036: (a) => new IFC4X3.IfcDeepFoundationType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4234616927: (a) => new IFC4X3.IfcDirectrixDerivedReferenceSweptAreaSolid(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3256556792: (a) => new IFC4X3.IfcDistributionElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3849074793: (a) => new IFC4X3.IfcDistributionFlowElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2963535650: (a) => new IFC4X3.IfcDoorLiningProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  1714330368: (a) => new IFC4X3.IfcDoorPanelProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2323601079: (a) => new IFC4X3.IfcDoorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  445594917: (a) => new IFC4X3.IfcDraughtingPreDefinedColour(a[0]),
+  4006246654: (a) => new IFC4X3.IfcDraughtingPreDefinedCurveFont(a[0]),
+  1758889154: (a) => new IFC4X3.IfcElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4123344466: (a) => new IFC4X3.IfcElementAssembly(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2397081782: (a) => new IFC4X3.IfcElementAssemblyType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1623761950: (a) => new IFC4X3.IfcElementComponent(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2590856083: (a) => new IFC4X3.IfcElementComponentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1704287377: (a) => new IFC4X3.IfcEllipse(a[0], a[1], a[2]),
+  2107101300: (a) => new IFC4X3.IfcEnergyConversionDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  132023988: (a) => new IFC4X3.IfcEngineType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3174744832: (a) => new IFC4X3.IfcEvaporativeCoolerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3390157468: (a) => new IFC4X3.IfcEvaporatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4148101412: (a) => new IFC4X3.IfcEvent(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2853485674: (a) => new IFC4X3.IfcExternalSpatialStructureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  807026263: (a) => new IFC4X3.IfcFacetedBrep(a[0]),
+  3737207727: (a) => new IFC4X3.IfcFacetedBrepWithVoids(a[0], a[1]),
+  24185140: (a) => new IFC4X3.IfcFacility(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1310830890: (a) => new IFC4X3.IfcFacilityPart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4228831410: (a) => new IFC4X3.IfcFacilityPartCommon(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  647756555: (a) => new IFC4X3.IfcFastener(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2489546625: (a) => new IFC4X3.IfcFastenerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2827207264: (a) => new IFC4X3.IfcFeatureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2143335405: (a) => new IFC4X3.IfcFeatureElementAddition(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1287392070: (a) => new IFC4X3.IfcFeatureElementSubtraction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3907093117: (a) => new IFC4X3.IfcFlowControllerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3198132628: (a) => new IFC4X3.IfcFlowFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3815607619: (a) => new IFC4X3.IfcFlowMeterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1482959167: (a) => new IFC4X3.IfcFlowMovingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1834744321: (a) => new IFC4X3.IfcFlowSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1339347760: (a) => new IFC4X3.IfcFlowStorageDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2297155007: (a) => new IFC4X3.IfcFlowTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3009222698: (a) => new IFC4X3.IfcFlowTreatmentDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1893162501: (a) => new IFC4X3.IfcFootingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  263784265: (a) => new IFC4X3.IfcFurnishingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1509553395: (a) => new IFC4X3.IfcFurniture(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3493046030: (a) => new IFC4X3.IfcGeographicElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4230923436: (a) => new IFC4X3.IfcGeotechnicalElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1594536857: (a) => new IFC4X3.IfcGeotechnicalStratum(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2898700619: (a) => new IFC4X3.IfcGradientCurve(a[0], a[1], a[2], a[3]),
+  2706460486: (a) => new IFC4X3.IfcGroup(a[0], a[1], a[2], a[3], a[4]),
+  1251058090: (a) => new IFC4X3.IfcHeatExchangerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1806887404: (a) => new IFC4X3.IfcHumidifierType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2568555532: (a) => new IFC4X3.IfcImpactProtectionDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3948183225: (a) => new IFC4X3.IfcImpactProtectionDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2571569899: (a) => new IFC4X3.IfcIndexedPolyCurve(a[0], a[1], a[2]),
+  3946677679: (a) => new IFC4X3.IfcInterceptorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3113134337: (a) => new IFC4X3.IfcIntersectionCurve(a[0], a[1], a[2]),
+  2391368822: (a) => new IFC4X3.IfcInventory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4288270099: (a) => new IFC4X3.IfcJunctionBoxType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  679976338: (a) => new IFC4X3.IfcKerbType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3827777499: (a) => new IFC4X3.IfcLaborResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1051575348: (a) => new IFC4X3.IfcLampType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1161773419: (a) => new IFC4X3.IfcLightFixtureType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2176059722: (a) => new IFC4X3.IfcLinearElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1770583370: (a) => new IFC4X3.IfcLiquidTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  525669439: (a) => new IFC4X3.IfcMarineFacility(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  976884017: (a) => new IFC4X3.IfcMarinePart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  377706215: (a) => new IFC4X3.IfcMechanicalFastener(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2108223431: (a) => new IFC4X3.IfcMechanicalFastenerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1114901282: (a) => new IFC4X3.IfcMedicalDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3181161470: (a) => new IFC4X3.IfcMemberType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1950438474: (a) => new IFC4X3.IfcMobileTelecommunicationsApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  710110818: (a) => new IFC4X3.IfcMooringDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  977012517: (a) => new IFC4X3.IfcMotorConnectionType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  506776471: (a) => new IFC4X3.IfcNavigationElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4143007308: (a) => new IFC4X3.IfcOccupant(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3588315303: (a) => new IFC4X3.IfcOpeningElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2837617999: (a) => new IFC4X3.IfcOutletType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  514975943: (a) => new IFC4X3.IfcPavementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2382730787: (a) => new IFC4X3.IfcPerformanceHistory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3566463478: (a) => new IFC4X3.IfcPermeableCoveringProperties(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3327091369: (a) => new IFC4X3.IfcPermit(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1158309216: (a) => new IFC4X3.IfcPileType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  804291784: (a) => new IFC4X3.IfcPipeFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4231323485: (a) => new IFC4X3.IfcPipeSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4017108033: (a) => new IFC4X3.IfcPlateType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2839578677: (a) => new IFC4X3.IfcPolygonalFaceSet(a[0], a[1], a[2], a[3]),
+  3724593414: (a) => new IFC4X3.IfcPolyline(a[0]),
+  3740093272: (a) => new IFC4X3.IfcPort(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1946335990: (a) => new IFC4X3.IfcPositioningElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2744685151: (a) => new IFC4X3.IfcProcedure(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2904328755: (a) => new IFC4X3.IfcProjectOrder(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3651124850: (a) => new IFC4X3.IfcProjectionElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1842657554: (a) => new IFC4X3.IfcProtectiveDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2250791053: (a) => new IFC4X3.IfcPumpType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1763565496: (a) => new IFC4X3.IfcRailType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2893384427: (a) => new IFC4X3.IfcRailingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3992365140: (a) => new IFC4X3.IfcRailway(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1891881377: (a) => new IFC4X3.IfcRailwayPart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2324767716: (a) => new IFC4X3.IfcRampFlightType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1469900589: (a) => new IFC4X3.IfcRampType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  683857671: (a) => new IFC4X3.IfcRationalBSplineSurfaceWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  4021432810: (a) => new IFC4X3.IfcReferent(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3027567501: (a) => new IFC4X3.IfcReinforcingElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  964333572: (a) => new IFC4X3.IfcReinforcingElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2320036040: (a) => new IFC4X3.IfcReinforcingMesh(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17]),
+  2310774935: (a) => new IFC4X3.IfcReinforcingMeshType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17], a[18], a[19]),
+  3818125796: (a) => new IFC4X3.IfcRelAdheresToElement(a[0], a[1], a[2], a[3], a[4], a[5]),
+  160246688: (a) => new IFC4X3.IfcRelAggregates(a[0], a[1], a[2], a[3], a[4], a[5]),
+  146592293: (a) => new IFC4X3.IfcRoad(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  550521510: (a) => new IFC4X3.IfcRoadPart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2781568857: (a) => new IFC4X3.IfcRoofType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1768891740: (a) => new IFC4X3.IfcSanitaryTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2157484638: (a) => new IFC4X3.IfcSeamCurve(a[0], a[1], a[2]),
+  3649235739: (a) => new IFC4X3.IfcSecondOrderPolynomialSpiral(a[0], a[1], a[2], a[3]),
+  544395925: (a) => new IFC4X3.IfcSegmentedReferenceCurve(a[0], a[1], a[2], a[3]),
+  1027922057: (a) => new IFC4X3.IfcSeventhOrderPolynomialSpiral(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4074543187: (a) => new IFC4X3.IfcShadingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  33720170: (a) => new IFC4X3.IfcSign(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3599934289: (a) => new IFC4X3.IfcSignType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1894708472: (a) => new IFC4X3.IfcSignalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  42703149: (a) => new IFC4X3.IfcSineSpiral(a[0], a[1], a[2], a[3]),
+  4097777520: (a) => new IFC4X3.IfcSite(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  2533589738: (a) => new IFC4X3.IfcSlabType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1072016465: (a) => new IFC4X3.IfcSolarDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3856911033: (a) => new IFC4X3.IfcSpace(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1305183839: (a) => new IFC4X3.IfcSpaceHeaterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3812236995: (a) => new IFC4X3.IfcSpaceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3112655638: (a) => new IFC4X3.IfcStackTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1039846685: (a) => new IFC4X3.IfcStairFlightType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  338393293: (a) => new IFC4X3.IfcStairType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  682877961: (a) => new IFC4X3.IfcStructuralAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1179482911: (a) => new IFC4X3.IfcStructuralConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1004757350: (a) => new IFC4X3.IfcStructuralCurveAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  4243806635: (a) => new IFC4X3.IfcStructuralCurveConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  214636428: (a) => new IFC4X3.IfcStructuralCurveMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2445595289: (a) => new IFC4X3.IfcStructuralCurveMemberVarying(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2757150158: (a) => new IFC4X3.IfcStructuralCurveReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1807405624: (a) => new IFC4X3.IfcStructuralLinearAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1252848954: (a) => new IFC4X3.IfcStructuralLoadGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2082059205: (a) => new IFC4X3.IfcStructuralPointAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  734778138: (a) => new IFC4X3.IfcStructuralPointConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1235345126: (a) => new IFC4X3.IfcStructuralPointReaction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2986769608: (a) => new IFC4X3.IfcStructuralResultGroup(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3657597509: (a) => new IFC4X3.IfcStructuralSurfaceAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1975003073: (a) => new IFC4X3.IfcStructuralSurfaceConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  148013059: (a) => new IFC4X3.IfcSubContractResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3101698114: (a) => new IFC4X3.IfcSurfaceFeature(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2315554128: (a) => new IFC4X3.IfcSwitchingDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2254336722: (a) => new IFC4X3.IfcSystem(a[0], a[1], a[2], a[3], a[4]),
+  413509423: (a) => new IFC4X3.IfcSystemFurnitureElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  5716631: (a) => new IFC4X3.IfcTankType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3824725483: (a) => new IFC4X3.IfcTendon(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15], a[16]),
+  2347447852: (a) => new IFC4X3.IfcTendonAnchor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3081323446: (a) => new IFC4X3.IfcTendonAnchorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3663046924: (a) => new IFC4X3.IfcTendonConduit(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2281632017: (a) => new IFC4X3.IfcTendonConduitType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2415094496: (a) => new IFC4X3.IfcTendonType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  618700268: (a) => new IFC4X3.IfcTrackElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1692211062: (a) => new IFC4X3.IfcTransformerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2097647324: (a) => new IFC4X3.IfcTransportElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1953115116: (a) => new IFC4X3.IfcTransportationDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3593883385: (a) => new IFC4X3.IfcTrimmedCurve(a[0], a[1], a[2], a[3], a[4]),
+  1600972822: (a) => new IFC4X3.IfcTubeBundleType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1911125066: (a) => new IFC4X3.IfcUnitaryEquipmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  728799441: (a) => new IFC4X3.IfcValveType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  840318589: (a) => new IFC4X3.IfcVehicle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1530820697: (a) => new IFC4X3.IfcVibrationDamper(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3956297820: (a) => new IFC4X3.IfcVibrationDamperType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2391383451: (a) => new IFC4X3.IfcVibrationIsolator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3313531582: (a) => new IFC4X3.IfcVibrationIsolatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2769231204: (a) => new IFC4X3.IfcVirtualElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  926996030: (a) => new IFC4X3.IfcVoidingFeature(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1898987631: (a) => new IFC4X3.IfcWallType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1133259667: (a) => new IFC4X3.IfcWasteTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4009809668: (a) => new IFC4X3.IfcWindowType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  4088093105: (a) => new IFC4X3.IfcWorkCalendar(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1028945134: (a) => new IFC4X3.IfcWorkControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  4218914973: (a) => new IFC4X3.IfcWorkPlan(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  3342526732: (a) => new IFC4X3.IfcWorkSchedule(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1033361043: (a) => new IFC4X3.IfcZone(a[0], a[1], a[2], a[3], a[4], a[5]),
+  3821786052: (a) => new IFC4X3.IfcActionRequest(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1411407467: (a) => new IFC4X3.IfcAirTerminalBoxType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3352864051: (a) => new IFC4X3.IfcAirTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1871374353: (a) => new IFC4X3.IfcAirToAirHeatRecoveryType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4266260250: (a) => new IFC4X3.IfcAlignmentCant(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1545765605: (a) => new IFC4X3.IfcAlignmentHorizontal(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  317615605: (a) => new IFC4X3.IfcAlignmentSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1662888072: (a) => new IFC4X3.IfcAlignmentVertical(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  3460190687: (a) => new IFC4X3.IfcAsset(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  1532957894: (a) => new IFC4X3.IfcAudioVisualApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1967976161: (a) => new IFC4X3.IfcBSplineCurve(a[0], a[1], a[2], a[3], a[4]),
+  2461110595: (a) => new IFC4X3.IfcBSplineCurveWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  819618141: (a) => new IFC4X3.IfcBeamType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3649138523: (a) => new IFC4X3.IfcBearingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  231477066: (a) => new IFC4X3.IfcBoilerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1136057603: (a) => new IFC4X3.IfcBoundaryCurve(a[0], a[1]),
+  644574406: (a) => new IFC4X3.IfcBridge(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  963979645: (a) => new IFC4X3.IfcBridgePart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  4031249490: (a) => new IFC4X3.IfcBuilding(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  2979338954: (a) => new IFC4X3.IfcBuildingElementPart(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  39481116: (a) => new IFC4X3.IfcBuildingElementPartType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1909888760: (a) => new IFC4X3.IfcBuildingElementProxyType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1177604601: (a) => new IFC4X3.IfcBuildingSystem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1876633798: (a) => new IFC4X3.IfcBuiltElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3862327254: (a) => new IFC4X3.IfcBuiltSystem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  2188180465: (a) => new IFC4X3.IfcBurnerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  395041908: (a) => new IFC4X3.IfcCableCarrierFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3293546465: (a) => new IFC4X3.IfcCableCarrierSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2674252688: (a) => new IFC4X3.IfcCableFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1285652485: (a) => new IFC4X3.IfcCableSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3203706013: (a) => new IFC4X3.IfcCaissonFoundationType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2951183804: (a) => new IFC4X3.IfcChillerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3296154744: (a) => new IFC4X3.IfcChimney(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2611217952: (a) => new IFC4X3.IfcCircle(a[0], a[1]),
+  1677625105: (a) => new IFC4X3.IfcCivilElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2301859152: (a) => new IFC4X3.IfcCoilType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  843113511: (a) => new IFC4X3.IfcColumn(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  400855858: (a) => new IFC4X3.IfcCommunicationsApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3850581409: (a) => new IFC4X3.IfcCompressorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2816379211: (a) => new IFC4X3.IfcCondenserType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3898045240: (a) => new IFC4X3.IfcConstructionEquipmentResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1060000209: (a) => new IFC4X3.IfcConstructionMaterialResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  488727124: (a) => new IFC4X3.IfcConstructionProductResource(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  2940368186: (a) => new IFC4X3.IfcConveyorSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  335055490: (a) => new IFC4X3.IfcCooledBeamType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2954562838: (a) => new IFC4X3.IfcCoolingTowerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1502416096: (a) => new IFC4X3.IfcCourse(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1973544240: (a) => new IFC4X3.IfcCovering(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3495092785: (a) => new IFC4X3.IfcCurtainWall(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3961806047: (a) => new IFC4X3.IfcDamperType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3426335179: (a) => new IFC4X3.IfcDeepFoundation(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1335981549: (a) => new IFC4X3.IfcDiscreteAccessory(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2635815018: (a) => new IFC4X3.IfcDiscreteAccessoryType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  479945903: (a) => new IFC4X3.IfcDistributionBoardType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1599208980: (a) => new IFC4X3.IfcDistributionChamberElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2063403501: (a) => new IFC4X3.IfcDistributionControlElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1945004755: (a) => new IFC4X3.IfcDistributionElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3040386961: (a) => new IFC4X3.IfcDistributionFlowElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3041715199: (a) => new IFC4X3.IfcDistributionPort(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3205830791: (a) => new IFC4X3.IfcDistributionSystem(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  395920057: (a) => new IFC4X3.IfcDoor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  869906466: (a) => new IFC4X3.IfcDuctFittingType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3760055223: (a) => new IFC4X3.IfcDuctSegmentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2030761528: (a) => new IFC4X3.IfcDuctSilencerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3071239417: (a) => new IFC4X3.IfcEarthworksCut(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1077100507: (a) => new IFC4X3.IfcEarthworksElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3376911765: (a) => new IFC4X3.IfcEarthworksFill(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  663422040: (a) => new IFC4X3.IfcElectricApplianceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2417008758: (a) => new IFC4X3.IfcElectricDistributionBoardType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3277789161: (a) => new IFC4X3.IfcElectricFlowStorageDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2142170206: (a) => new IFC4X3.IfcElectricFlowTreatmentDeviceType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1534661035: (a) => new IFC4X3.IfcElectricGeneratorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1217240411: (a) => new IFC4X3.IfcElectricMotorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  712377611: (a) => new IFC4X3.IfcElectricTimeControlType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1658829314: (a) => new IFC4X3.IfcEnergyConversionDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2814081492: (a) => new IFC4X3.IfcEngine(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3747195512: (a) => new IFC4X3.IfcEvaporativeCooler(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  484807127: (a) => new IFC4X3.IfcEvaporator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1209101575: (a) => new IFC4X3.IfcExternalSpatialElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  346874300: (a) => new IFC4X3.IfcFanType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1810631287: (a) => new IFC4X3.IfcFilterType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4222183408: (a) => new IFC4X3.IfcFireSuppressionTerminalType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2058353004: (a) => new IFC4X3.IfcFlowController(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4278956645: (a) => new IFC4X3.IfcFlowFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  4037862832: (a) => new IFC4X3.IfcFlowInstrumentType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  2188021234: (a) => new IFC4X3.IfcFlowMeter(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3132237377: (a) => new IFC4X3.IfcFlowMovingDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  987401354: (a) => new IFC4X3.IfcFlowSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  707683696: (a) => new IFC4X3.IfcFlowStorageDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2223149337: (a) => new IFC4X3.IfcFlowTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3508470533: (a) => new IFC4X3.IfcFlowTreatmentDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  900683007: (a) => new IFC4X3.IfcFooting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2713699986: (a) => new IFC4X3.IfcGeotechnicalAssembly(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  3009204131: (a) => new IFC4X3.IfcGrid(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  3319311131: (a) => new IFC4X3.IfcHeatExchanger(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2068733104: (a) => new IFC4X3.IfcHumidifier(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4175244083: (a) => new IFC4X3.IfcInterceptor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2176052936: (a) => new IFC4X3.IfcJunctionBox(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2696325953: (a) => new IFC4X3.IfcKerb(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  76236018: (a) => new IFC4X3.IfcLamp(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  629592764: (a) => new IFC4X3.IfcLightFixture(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1154579445: (a) => new IFC4X3.IfcLinearPositioningElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1638804497: (a) => new IFC4X3.IfcLiquidTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1437502449: (a) => new IFC4X3.IfcMedicalDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1073191201: (a) => new IFC4X3.IfcMember(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2078563270: (a) => new IFC4X3.IfcMobileTelecommunicationsAppliance(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  234836483: (a) => new IFC4X3.IfcMooringDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2474470126: (a) => new IFC4X3.IfcMotorConnection(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2182337498: (a) => new IFC4X3.IfcNavigationElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  144952367: (a) => new IFC4X3.IfcOuterBoundaryCurve(a[0], a[1]),
+  3694346114: (a) => new IFC4X3.IfcOutlet(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1383356374: (a) => new IFC4X3.IfcPavement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1687234759: (a) => new IFC4X3.IfcPile(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  310824031: (a) => new IFC4X3.IfcPipeFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3612865200: (a) => new IFC4X3.IfcPipeSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3171933400: (a) => new IFC4X3.IfcPlate(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  738039164: (a) => new IFC4X3.IfcProtectiveDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  655969474: (a) => new IFC4X3.IfcProtectiveDeviceTrippingUnitType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  90941305: (a) => new IFC4X3.IfcPump(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3290496277: (a) => new IFC4X3.IfcRail(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2262370178: (a) => new IFC4X3.IfcRailing(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3024970846: (a) => new IFC4X3.IfcRamp(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3283111854: (a) => new IFC4X3.IfcRampFlight(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1232101972: (a) => new IFC4X3.IfcRationalBSplineCurveWithKnots(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3798194928: (a) => new IFC4X3.IfcReinforcedSoil(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  979691226: (a) => new IFC4X3.IfcReinforcingBar(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13]),
+  2572171363: (a) => new IFC4X3.IfcReinforcingBarType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12], a[13], a[14], a[15]),
+  2016517767: (a) => new IFC4X3.IfcRoof(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3053780830: (a) => new IFC4X3.IfcSanitaryTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1783015770: (a) => new IFC4X3.IfcSensorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1329646415: (a) => new IFC4X3.IfcShadingDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  991950508: (a) => new IFC4X3.IfcSignal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1529196076: (a) => new IFC4X3.IfcSlab(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3420628829: (a) => new IFC4X3.IfcSolarDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1999602285: (a) => new IFC4X3.IfcSpaceHeater(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1404847402: (a) => new IFC4X3.IfcStackTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  331165859: (a) => new IFC4X3.IfcStair(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4252922144: (a) => new IFC4X3.IfcStairFlight(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  2515109513: (a) => new IFC4X3.IfcStructuralAnalysisModel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  385403989: (a) => new IFC4X3.IfcStructuralLoadCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10]),
+  1621171031: (a) => new IFC4X3.IfcStructuralPlanarAction(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11]),
+  1162798199: (a) => new IFC4X3.IfcSwitchingDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  812556717: (a) => new IFC4X3.IfcTank(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3425753595: (a) => new IFC4X3.IfcTrackElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3825984169: (a) => new IFC4X3.IfcTransformer(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1620046519: (a) => new IFC4X3.IfcTransportElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3026737570: (a) => new IFC4X3.IfcTubeBundle(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3179687236: (a) => new IFC4X3.IfcUnitaryControlElementType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  4292641817: (a) => new IFC4X3.IfcUnitaryEquipment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4207607924: (a) => new IFC4X3.IfcValve(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2391406946: (a) => new IFC4X3.IfcWall(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3512223829: (a) => new IFC4X3.IfcWallStandardCase(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4237592921: (a) => new IFC4X3.IfcWasteTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3304561284: (a) => new IFC4X3.IfcWindow(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9], a[10], a[11], a[12]),
+  2874132201: (a) => new IFC4X3.IfcActuatorType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  1634111441: (a) => new IFC4X3.IfcAirTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  177149247: (a) => new IFC4X3.IfcAirTerminalBox(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2056796094: (a) => new IFC4X3.IfcAirToAirHeatRecovery(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3001207471: (a) => new IFC4X3.IfcAlarmType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  325726236: (a) => new IFC4X3.IfcAlignment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  277319702: (a) => new IFC4X3.IfcAudioVisualAppliance(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  753842376: (a) => new IFC4X3.IfcBeam(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4196446775: (a) => new IFC4X3.IfcBearing(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  32344328: (a) => new IFC4X3.IfcBoiler(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3314249567: (a) => new IFC4X3.IfcBorehole(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1095909175: (a) => new IFC4X3.IfcBuildingElementProxy(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2938176219: (a) => new IFC4X3.IfcBurner(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  635142910: (a) => new IFC4X3.IfcCableCarrierFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3758799889: (a) => new IFC4X3.IfcCableCarrierSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1051757585: (a) => new IFC4X3.IfcCableFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4217484030: (a) => new IFC4X3.IfcCableSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3999819293: (a) => new IFC4X3.IfcCaissonFoundation(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3902619387: (a) => new IFC4X3.IfcChiller(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  639361253: (a) => new IFC4X3.IfcCoil(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3221913625: (a) => new IFC4X3.IfcCommunicationsAppliance(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3571504051: (a) => new IFC4X3.IfcCompressor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2272882330: (a) => new IFC4X3.IfcCondenser(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  578613899: (a) => new IFC4X3.IfcControllerType(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8], a[9]),
+  3460952963: (a) => new IFC4X3.IfcConveyorSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4136498852: (a) => new IFC4X3.IfcCooledBeam(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3640358203: (a) => new IFC4X3.IfcCoolingTower(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4074379575: (a) => new IFC4X3.IfcDamper(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3693000487: (a) => new IFC4X3.IfcDistributionBoard(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1052013943: (a) => new IFC4X3.IfcDistributionChamberElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  562808652: (a) => new IFC4X3.IfcDistributionCircuit(a[0], a[1], a[2], a[3], a[4], a[5], a[6]),
+  1062813311: (a) => new IFC4X3.IfcDistributionControlElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  342316401: (a) => new IFC4X3.IfcDuctFitting(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3518393246: (a) => new IFC4X3.IfcDuctSegment(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1360408905: (a) => new IFC4X3.IfcDuctSilencer(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1904799276: (a) => new IFC4X3.IfcElectricAppliance(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  862014818: (a) => new IFC4X3.IfcElectricDistributionBoard(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3310460725: (a) => new IFC4X3.IfcElectricFlowStorageDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  24726584: (a) => new IFC4X3.IfcElectricFlowTreatmentDevice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  264262732: (a) => new IFC4X3.IfcElectricGenerator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  402227799: (a) => new IFC4X3.IfcElectricMotor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1003880860: (a) => new IFC4X3.IfcElectricTimeControl(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3415622556: (a) => new IFC4X3.IfcFan(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  819412036: (a) => new IFC4X3.IfcFilter(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  1426591983: (a) => new IFC4X3.IfcFireSuppressionTerminal(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  182646315: (a) => new IFC4X3.IfcFlowInstrument(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  2680139844: (a) => new IFC4X3.IfcGeomodel(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  1971632696: (a) => new IFC4X3.IfcGeoslice(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]),
+  2295281155: (a) => new IFC4X3.IfcProtectiveDeviceTrippingUnit(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4086658281: (a) => new IFC4X3.IfcSensor(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  630975310: (a) => new IFC4X3.IfcUnitaryControlElement(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  4288193352: (a) => new IFC4X3.IfcActuator(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  3087945054: (a) => new IFC4X3.IfcAlarm(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8]),
+  25142252: (a) => new IFC4X3.IfcController(a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], a[8])
+};
 TypeInitialisers[3] = {
   3699917729: (v) => new IFC4X3.IfcAbsorbedDoseMeasure(v),
   4182062534: (v) => new IFC4X3.IfcAccelerationMeasure(v),
@@ -78455,7 +80697,7 @@ var IFC4X3;
   }
   IFC4X32.IfcController = IfcController;
 })(IFC4X3 || (IFC4X3 = {}));
-_c = class {
+_d = class {
   static setLogLevel(level) {
     this.logLevel = level;
   }
@@ -78479,7 +80721,7 @@ _c = class {
       console.error("ERROR: ", msg, ...args);
     }
   }
-}, _c.logLevel = 4, _c;
+}, _d.logLevel = 4, _d;
 if (typeof document !== "undefined") {
   const currentScriptData = document.currentScript;
   if ((currentScriptData == null ? void 0 : currentScriptData.src) !== void 0)
@@ -78532,8 +80774,7 @@ class VirtualPropertiesController {
       }
       for (let i = 0; i < this._model.guidsItemsLength(); i++) {
         const localId = this._model.guidsItems(i);
-        if (localId === null)
-          continue;
+        if (localId === null) continue;
         const guid = this._model.guids(i);
         this._guidToLocalIdMap.set(guid, localId);
         let itemInfo = this._items.get(localId);
@@ -78560,8 +80801,7 @@ class VirtualPropertiesController {
     const psetLocalIds = categoriesIds[category];
     for (const psetId of psetLocalIds) {
       const relations = this.getItemRelations(psetId);
-      if (!(relations && relations[relation]))
-        continue;
+      if (!(relations && relations[relation])) continue;
       const localIds = relations[relation];
       for (const itemId of localIds) {
         let relationsObject = this._relations.get(itemId);
@@ -78605,8 +80845,7 @@ class VirtualPropertiesController {
     const itemIds = [];
     for (const localId of localIds) {
       const found = this._localIdsToGeometryIds.get(localId);
-      if (!found)
-        continue;
+      if (!found) continue;
       for (const itemId of found) {
         itemIds.push(itemId);
       }
@@ -78619,13 +80858,10 @@ class VirtualPropertiesController {
     const result = [];
     for (const itemId of itemIds) {
       const localIdIndex = meshes.meshesItems(itemId);
-      if (localIdIndex === null)
-        continue;
+      if (localIdIndex === null) continue;
       const localId = this._model.localIds(localIdIndex);
-      if (localId === null)
-        continue;
-      if (seen.has(localId))
-        continue;
+      if (localId === null) continue;
+      if (seen.has(localId)) continue;
       seen.add(localId);
       result.push(localId);
     }
@@ -78657,8 +80893,7 @@ class VirtualPropertiesController {
     const result = /* @__PURE__ */ new Set();
     for (const id of ids) {
       const localId = this.convertToLocalId(id);
-      if (localId === null)
-        continue;
+      if (localId === null) continue;
       this.traverseSpatialStructure(localId, result);
     }
     return [...result];
@@ -78673,8 +80908,7 @@ class VirtualPropertiesController {
   }
   getLocalIds() {
     const array = this._model.localIdsArray();
-    if (!array)
-      return [];
+    if (!array) return [];
     return Array.from(array);
   }
   getItemsCategories(ids) {
@@ -78682,8 +80916,7 @@ class VirtualPropertiesController {
     const result = [];
     for (const id of ids) {
       const localId = this.convertToLocalId(id);
-      if (localId === null)
-        continue;
+      if (localId === null) continue;
       let category = ((_a2 = this._items.get(localId)) == null ? void 0 : _a2.category) ?? null;
       if (category === null) {
         for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
@@ -78720,8 +80953,7 @@ class VirtualPropertiesController {
     const names = /* @__PURE__ */ new Set();
     for (let i = 0; i < this._model.uniqueAttributesLength(); i++) {
       const attribute = this._model.uniqueAttributes(i);
-      if (!attribute)
-        continue;
+      if (!attribute) continue;
       const [name] = JSON.parse(attribute);
       names.add(name);
     }
@@ -78731,8 +80963,7 @@ class VirtualPropertiesController {
     const values = /* @__PURE__ */ new Set();
     for (let i = 0; i < this._model.uniqueAttributesLength(); i++) {
       const attribute = this._model.uniqueAttributes(i);
-      if (!attribute)
-        continue;
+      if (!attribute) continue;
       const [, value] = JSON.parse(attribute);
       values.add(value);
     }
@@ -78747,23 +80978,19 @@ class VirtualPropertiesController {
     const categoriesRegex = params.map((value) => value.categories).filter((value) => value !== void 0).flat();
     for (let i = 0; i < this._model.categoriesLength(); i++) {
       const localId = this._model.localIds(i);
-      if (localId === null)
-        continue;
+      if (localId === null) continue;
       let valid = true;
       if (areCategoriesDefined) {
         const category2 = this._model.categories(i);
         valid = categoriesRegex.some((regex) => regex == null ? void 0 : regex.test(category2));
       }
-      if (!valid)
-        continue;
+      if (!valid) continue;
       const buffer = this._model.attributes(i);
-      if (!buffer)
-        continue;
+      if (!buffer) continue;
       const attributeSet = {};
       for (let j = 0; j < buffer.dataLength(); j++) {
         const attr = buffer.data(j);
-        if (!attr)
-          continue;
+        if (!attr) continue;
         const [name, value, type] = JSON.parse(attr);
         attributeSet[name] = { value, type };
       }
@@ -78774,16 +81001,14 @@ class VirtualPropertiesController {
         if (categories) {
           categoryMatch = categories.some((value) => value.test(category));
         }
-        if (!categoryMatch)
-          continue;
+        if (!categoryMatch) continue;
         let setPasses = true;
         if (attributes) {
           const { aggregation, queries } = attributes;
           const queryResults = [];
           for (const { name, value, type, negate } of queries) {
             const key = keys.find((key2) => name.test(key2));
-            if (!(key && ((_a2 = attributeSet[key]) == null ? void 0 : _a2.value) !== void 0))
-              break;
+            if (!(key && ((_a2 = attributeSet[key]) == null ? void 0 : _a2.value) !== void 0)) break;
             let pass = false;
             const { value: keyValue, type: keyType } = attributeSet[key];
             if (value instanceof RegExp) {
@@ -78794,16 +81019,14 @@ class VirtualPropertiesController {
             if (type !== void 0) {
               pass = pass && typeof keyType === "string" && type.test(keyType);
             }
-            if (negate)
-              pass = !pass;
+            if (negate) pass = !pass;
             queryResults.push(pass);
           }
           setPasses = aggregation === "exclusive" ? queryResults.every((result2) => result2) : queryResults.some((result2) => result2);
         }
         if (setPasses) {
           const key = keys.find((key2) => get.test(key2));
-          if (!(key && ((_b2 = attributeSet[key]) == null ? void 0 : _b2.value) !== void 0))
-            continue;
+          if (!(key && ((_b2 = attributeSet[key]) == null ? void 0 : _b2.value) !== void 0)) continue;
           const mapKey = resultKey ?? key;
           const value = (_c3 = attributeSet[key]) == null ? void 0 : _c3.value;
           if (!map.has(mapKey)) {
@@ -78833,8 +81056,7 @@ class VirtualPropertiesController {
     const types = /* @__PURE__ */ new Set();
     for (let i = 0; i < this._model.uniqueAttributesLength(); i++) {
       const attribute = this._model.uniqueAttributes(i);
-      if (!attribute)
-        continue;
+      if (!attribute) continue;
       const [, , type] = JSON.parse(attribute);
       types.add(type);
     }
@@ -78844,8 +81066,7 @@ class VirtualPropertiesController {
     const names = /* @__PURE__ */ new Set();
     for (let i = 0; i < this._model.relationNamesLength(); i++) {
       const name = this._model.relationNames(i);
-      if (!name)
-        continue;
+      if (!name) continue;
       names.add(name);
     }
     return [...names];
@@ -79031,8 +81252,7 @@ class VirtualPropertiesController {
     this._itemDataCache.clear();
     const result = [];
     const _ids = ids.length !== 0 ? ids : this._model.localIdsArray();
-    if (!_ids)
-      return result;
+    if (!_ids) return result;
     this._itemDataConfig = {
       ...this._itemDataConfig,
       ...config
@@ -79096,8 +81316,7 @@ class VirtualPropertiesController {
     const categories = /* @__PURE__ */ new Set();
     for (let index = 0; index < this._model.categoriesLength(); index++) {
       const category = this._model.categories(index);
-      if (!category)
-        continue;
+      if (!category) continue;
       categories.add(category);
     }
     for (let i = 0; i < this._virtualModel.requests.length; i++) {
@@ -79137,8 +81356,7 @@ class VirtualPropertiesController {
     }
     for (let index = 0; index < this._model.categoriesLength(); index++) {
       const currentCategory = this._model.categories(index);
-      if (!currentCategory)
-        continue;
+      if (!currentCategory) continue;
       const localId = this._model.localIds(index);
       if (deletedItems.has(localId)) {
         continue;
@@ -79219,20 +81437,16 @@ class VirtualPropertiesController {
     const missingItemsToIterate = new Set(itemIds);
     for (let i = 0; i < allAttributesLength; i++) {
       const localId = this._model.localIds(i);
-      if (localId === null)
-        continue;
+      if (localId === null) continue;
       missingItemsToIterate.delete(localId);
-      if ((itemIds == null ? void 0 : itemIds.length) && !itemIds.includes(localId))
-        continue;
+      if ((itemIds == null ? void 0 : itemIds.length) && !itemIds.includes(localId)) continue;
       const attribute = this._model.attributes(i);
-      if (!attribute)
-        continue;
+      if (!attribute) continue;
       const dataLength = attribute == null ? void 0 : attribute.dataLength();
       let itemPasses = false;
       for (let j = 0; j < dataLength; j++) {
         const data = attribute.data(j);
-        if (!data)
-          continue;
+        if (!data) continue;
         const [attrName, val, typeValue] = JSON.parse(data);
         const pass = this.checkAttribute(
           {
@@ -79288,8 +81502,7 @@ class VirtualPropertiesController {
         for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
           const request = this._virtualModel.requests[i];
           if (request.type === EditRequestType.CREATE_ITEM) {
-            if (request.localId !== localId)
-              continue;
+            if (request.localId !== localId) continue;
             const data = {};
             for (const name2 in request.data.data) {
               const found = request.data.data[name2];
@@ -79332,8 +81545,7 @@ class VirtualPropertiesController {
     for (const srcId of sources) {
       const rels = this.getItemRelations(srcId);
       const linked = rels == null ? void 0 : rels[name];
-      if (!linked)
-        continue;
+      if (!linked) continue;
       if (targetItemIds) {
         for (const trgId of linked) {
           if (targetItemIds.has(trgId)) {
@@ -79356,16 +81568,14 @@ class VirtualPropertiesController {
         const itemsCategories = this.getItemsCategories(candidateIds);
         candidateIds = candidateIds.filter((_, index) => {
           const category = itemsCategories[index];
-          if (!category)
-            return null;
+          if (!category) return null;
           return categories.some((entry) => entry.test(category));
         });
       }
     } else {
       candidateIds = ((_a2 = categories == null ? void 0 : categories.filter(Boolean)) == null ? void 0 : _a2.length) ? Object.values(this.getItemsOfCategories(categories)).flat() : void 0;
     }
-    if ((candidateIds == null ? void 0 : candidateIds.length) === 0)
-      return [];
+    if ((candidateIds == null ? void 0 : candidateIds.length) === 0) return [];
     if (attributes) {
       const aggregation = attributes.aggregation ?? "exclusive";
       const ids = [];
@@ -79405,8 +81615,7 @@ class VirtualPropertiesController {
       }
       candidateIds = [...set];
     }
-    if ((candidateIds == null ? void 0 : candidateIds.length) === 0)
-      return [];
+    if ((candidateIds == null ? void 0 : candidateIds.length) === 0) return [];
     if (relation && Boolean(relation.name)) {
       const { name, query } = relation;
       const targetIds = query ? new Set(this.getItemsByQuery(query)) : void 0;
@@ -79442,8 +81651,7 @@ class VirtualPropertiesController {
     for (let i = 0; i < length; i++) {
       const localIdIndex = geometries.meshesItems(i);
       const localId = this._model.localIds(localIdIndex);
-      if (localId === null)
-        continue;
+      if (localId === null) continue;
       if (!this._localIdsToGeometryIds.has(localId)) {
         this._localIdsToGeometryIds.set(localId, []);
       }
@@ -79452,11 +81660,9 @@ class VirtualPropertiesController {
   }
   convertToLocalId(id) {
     const isLocalId = typeof id === "number";
-    if (isLocalId)
-      return id;
+    if (isLocalId) return id;
     const localId = this._guidToLocalIdMap.get(id);
-    if (localId === void 0)
-      return null;
+    if (localId === void 0) return null;
     return localId;
   }
   getChildrenLocalIds(treeItem, collector) {
@@ -79470,8 +81676,7 @@ class VirtualPropertiesController {
     }
   }
   traverseSpatialStructure(localId, collector, treeItem = this.getSpatialStructure()) {
-    if (!treeItem)
-      return;
+    if (!treeItem) return;
     if (treeItem.localId === localId && treeItem.children) {
       for (const child of treeItem.children) {
         this.getChildrenLocalIds(child, collector);
@@ -79557,16 +81762,13 @@ class VirtualIndexesController {
     const seen = /* @__PURE__ */ new Set();
     for (const name of stored) {
       const o = overlay.get(name);
-      if (o === DELETED)
-        continue;
+      if (o === DELETED) continue;
       out.push(name);
       seen.add(name);
     }
     for (const [name, entry] of overlay) {
-      if (entry === DELETED)
-        continue;
-      if (seen.has(name))
-        continue;
+      if (entry === DELETED) continue;
+      if (seen.has(name)) continue;
       out.push(name);
     }
     return out;
@@ -79586,19 +81788,28 @@ class VirtualIndexesController {
    */
   getKeys(name) {
     const entry = this.resolve(name);
-    if (!entry)
-      return null;
+    if (!entry) return null;
     return entry.info.keyType === "number" ? this.materializeNumberKeys(entry) : this.materializeStringKeys(entry);
+  }
+  getKey(name, index) {
+    const entry = this.resolve(name);
+    if (!entry) return null;
+    return entry.info.keyType === "number" ? this.materializeNumberKeys(entry)[index] ?? null : this.readStringKey(entry.source, index);
+  }
+  getValues(name) {
+    const entry = this.resolve(name);
+    if (!entry) return null;
+    if (entry.info.valueType === "none") return null;
+    const inverse = this.inverseMap(entry);
+    return Array.from(inverse.keys());
   }
   /**
    * Test whether a key exists in the named index without resolving its value.
    */
   has(name, key) {
     const entry = this.resolve(name);
-    if (!entry)
-      return false;
-    if (typeof key !== entry.info.keyType)
-      return false;
+    if (!entry) return false;
+    if (typeof key !== entry.info.keyType) return false;
     return this.keyMap(entry).has(key);
   }
   /**
@@ -79608,16 +81819,12 @@ class VirtualIndexesController {
    */
   getEntry(name, key) {
     const entry = this.resolve(name);
-    if (!entry)
-      return null;
-    if (typeof key !== entry.info.keyType)
-      return null;
+    if (!entry) return null;
+    if (typeof key !== entry.info.keyType) return null;
     const position = this.keyMap(entry).get(key);
-    if (position === void 0)
-      return null;
+    if (position === void 0) return null;
     const { mode, valueType } = entry.info;
-    if (mode === "keysOnly" || valueType === "none")
-      return null;
+    if (mode === "keysOnly" || valueType === "none") return null;
     if (mode === "oneToOne") {
       return this.readScalarValue(entry, position);
     }
@@ -79633,16 +81840,12 @@ class VirtualIndexesController {
    */
   getInverseEntry(name, value) {
     const entry = this.resolve(name);
-    if (!entry)
-      return null;
-    if (entry.info.valueType === "none")
-      return null;
-    if (typeof value !== entry.info.valueType)
-      return null;
+    if (!entry) return null;
+    if (entry.info.valueType === "none") return null;
+    if (typeof value !== entry.info.valueType) return null;
     const inverse = this.inverseMap(entry);
     const keys = inverse.get(value);
-    if (!keys)
-      return null;
+    if (!keys) return null;
     return entry.info.keyType === "number" ? Uint32Array.from(keys) : keys.slice();
   }
   /**
@@ -79661,11 +81864,9 @@ class VirtualIndexesController {
     this._storedByName.delete(name);
     if (this._storedNames) {
       const i = this._storedNames.indexOf(name);
-      if (i !== -1)
-        this._storedNames.splice(i, 1);
+      if (i !== -1) this._storedNames.splice(i, 1);
     }
-    if (this._overlay)
-      this._overlay.delete(name);
+    if (this._overlay) this._overlay.delete(name);
   }
   // ---------------------------------------------------------------------------
   // Resolution
@@ -79673,23 +81874,18 @@ class VirtualIndexesController {
   resolve(name) {
     const overlay = this.overlay();
     const pending = overlay.get(name);
-    if (pending === DELETED)
-      return null;
-    if (pending !== void 0)
-      return pending;
+    if (pending === DELETED) return null;
+    if (pending !== void 0) return pending;
     return this.resolveStored(name);
   }
   resolveStored(name) {
     const cached = this._storedByName.get(name);
-    if (cached)
-      return cached;
+    if (cached) return cached;
     const length = this._vm.data.indexesLength();
     for (let i = 0; i < length; i++) {
       const fb = this._vm.data.indexes(i);
-      if (!fb)
-        continue;
-      if (fb.name() !== name)
-        continue;
+      if (!fb) continue;
+      if (fb.name() !== name) continue;
       const entry = this.entryFromFb(fb, name);
       this._storedByName.set(name, entry);
       return entry;
@@ -79697,17 +81893,14 @@ class VirtualIndexesController {
     return null;
   }
   storedNames() {
-    if (this._storedNames)
-      return this._storedNames;
+    if (this._storedNames) return this._storedNames;
     const names = [];
     const length = this._vm.data.indexesLength();
     for (let i = 0; i < length; i++) {
       const idx = this._vm.data.indexes(i);
-      if (!idx)
-        continue;
+      if (!idx) continue;
       const name = idx.name();
-      if (!name)
-        continue;
+      if (!name) continue;
       names.push(name);
     }
     this._storedNames = names;
@@ -79743,16 +81936,12 @@ class VirtualIndexesController {
     const keyType = stringKeys > 0 ? "string" : "number";
     const size = keyType === "string" ? stringKeys : numberKeys;
     let valueType = "none";
-    if (stringValues > 0)
-      valueType = "string";
-    else if (numberValues > 0)
-      valueType = "number";
+    if (stringValues > 0) valueType = "string";
+    else if (numberValues > 0) valueType = "number";
     let mode = "keysOnly";
     if (valueType !== "none") {
-      if (endLen === 0)
-        mode = "oneToOne";
-      else
-        mode = startLen > 0 ? "oneToNNonLinear" : "oneToNLinear";
+      if (endLen === 0) mode = "oneToOne";
+      else mode = startLen > 0 ? "oneToNNonLinear" : "oneToNLinear";
     }
     return {
       source: { kind: "fb", fb },
@@ -79773,10 +81962,8 @@ class VirtualIndexesController {
     if (valueType !== "none") {
       const endLen = ((_a2 = data.end) == null ? void 0 : _a2.length) ?? 0;
       const startLen = ((_b2 = data.start) == null ? void 0 : _b2.length) ?? 0;
-      if (endLen === 0)
-        mode = "oneToOne";
-      else
-        mode = startLen > 0 ? "oneToNNonLinear" : "oneToNLinear";
+      if (endLen === 0) mode = "oneToOne";
+      else mode = startLen > 0 ? "oneToNNonLinear" : "oneToNLinear";
     }
     const numberKeysArray = keyType === "number" ? Uint32Array.from(data.keys) : null;
     const numberValuesArray = valueType === "number" && data.values ? Uint32Array.from(data.values) : null;
@@ -79821,22 +82008,19 @@ class VirtualIndexesController {
   // ---------------------------------------------------------------------------
   /** Lazily build the `key -> position in keys vector` map for forward lookup. */
   keyMap(entry) {
-    if (entry.keyPositions)
-      return entry.keyPositions;
+    if (entry.keyPositions) return entry.keyPositions;
     const map = /* @__PURE__ */ new Map();
     const { source, info } = entry;
     if (info.keyType === "number") {
       for (let i = 0; i < info.size; i++) {
         const k = this.readNumberKey(source, i);
-        if (k === null)
-          continue;
+        if (k === null) continue;
         map.set(k, i);
       }
     } else {
       for (let i = 0; i < info.size; i++) {
         const k = this.readStringKey(source, i);
-        if (k === null)
-          continue;
+        if (k === null) continue;
         map.set(k, i);
       }
     }
@@ -79863,8 +82047,7 @@ class VirtualIndexesController {
   }
   readNumberSlice(entry, start, end) {
     const all = this.numberValuesArray(entry.source);
-    if (!all)
-      return new Uint32Array(0);
+    if (!all) return new Uint32Array(0);
     return all.subarray(start, end);
   }
   readStringSlice(entry, start, end) {
@@ -79889,8 +82072,7 @@ class VirtualIndexesController {
   }
   /** Lazily build the inverse map. */
   inverseMap(entry) {
-    if (entry.inverse)
-      return entry.inverse;
+    if (entry.inverse) return entry.inverse;
     const map = /* @__PURE__ */ new Map();
     const { source, info } = entry;
     const pushKey = (value, key) => {
@@ -79906,20 +82088,17 @@ class VirtualIndexesController {
     };
     for (let i = 0; i < info.size; i++) {
       const key = info.keyType === "number" ? this.readNumberKey(source, i) : this.readStringKey(source, i);
-      if (key === null)
-        continue;
+      if (key === null) continue;
       if (info.mode === "oneToOne") {
         const v = this.readScalarValue(entry, i);
-        if (v !== null)
-          pushKey(v, key);
+        if (v !== null) pushKey(v, key);
         continue;
       }
       if (info.mode === "oneToNLinear" || info.mode === "oneToNNonLinear") {
         const [start, end] = this.sliceBounds(entry, i);
         for (let j = start; j < end; j++) {
           const v = info.valueType === "number" ? this.readNumberValueAt(source, j) : this.readStringValueAt(source, j);
-          if (v !== null && v !== void 0)
-            pushKey(v, key);
+          if (v !== null && v !== void 0) pushKey(v, key);
         }
       }
     }
@@ -80644,8 +82823,7 @@ class HighlightHelper {
     const count = model.itemConfig.size;
     for (let itemId = 0; itemId < count; itemId++) {
       const hasHighlight = model.itemConfig.getHighlight(itemId);
-      if (!hasHighlight)
-        continue;
+      if (!hasHighlight) continue;
       const [localId] = model.properties.getLocalIdsFromItemIds([itemId]);
       found.push(localId);
     }
@@ -80899,8 +83077,7 @@ class GeometryHelper {
   getSampleGeometry(model, itemIndex, lod) {
     const sampleIndices = model.boxes.sampleOf(itemIndex);
     const result = [];
-    if (!sampleIndices)
-      return result;
+    if (!sampleIndices) return result;
     const meshes = model.data.meshes();
     for (const sampleIndex of sampleIndices) {
       const sample = model.tiles.fetchSample(sampleIndex, lod);
@@ -80931,8 +83108,7 @@ class GeometryHelper {
     const p3 = { x: 0, y: 0, z: 0 };
     const geometries = this.getSampleGeometry(model, id, CurrentLod.GEOMETRY);
     for (const { indices, positions } of geometries) {
-      if (!(indices && positions))
-        continue;
+      if (!(indices && positions)) continue;
       for (let i = 0; i < indices.length - 2; i += 3) {
         const i1 = indices[i] * 3;
         const i2 = indices[i + 1] * 3;
@@ -80972,8 +83148,7 @@ class SectionHelper {
     const meshes = [];
     for (const itemID of indices) {
       const sampleIds = model.boxes.sampleOf(itemID);
-      if (!sampleIds)
-        continue;
+      if (!sampleIds) continue;
       for (const sampleId of sampleIds) {
         const boundingBox2 = model.boxes.get(sampleId);
         if (!plane.intersectsBox(boundingBox2)) {
@@ -80985,8 +83160,7 @@ class SectionHelper {
           continue;
         }
         const sample = model.tiles.meshes.samples(sampleId);
-        if (!sample)
-          continue;
+        if (!sample) continue;
         const definitionID = sample.representation();
         if (!visitedGeometries.has(definitionID)) {
           const geometries2 = [];
@@ -81009,8 +83183,7 @@ class SectionHelper {
           visitedGeometries.set(definitionID, geometries2);
         }
         const geometries = visitedGeometries.get(definitionID);
-        if (!geometries)
-          continue;
+        if (!geometries) continue;
         for (const geometry of geometries) {
           const mesh = new Mesh(geometry);
           const transform = model.tiles.getSampleTransform(sampleId);
@@ -81071,14 +83244,12 @@ class SequenceHelper {
   getSequenced(result, fromItems, inputs) {
     var _a2;
     const resultFunction = this.sequenceResultFunction[result];
-    if (!resultFunction)
-      return null;
+    if (!resultFunction) return null;
     let partial = [];
     let iterations = 0;
     for (const action of fromItems) {
       const selectorFunction = this.sequenceSelectorFunction[action];
-      if (!selectorFunction)
-        continue;
+      if (!selectorFunction) continue;
       const input2 = (_a2 = inputs == null ? void 0 : inputs.selector) == null ? void 0 : _a2[action];
       const data = iterations === 0 ? input2 : partial;
       partial = selectorFunction(data);
@@ -81102,8 +83273,7 @@ class ItemsHelper {
     const count = model.data.localIdsLength();
     for (let itemId = 0; itemId < count; itemId++) {
       const conditionPass = condition(itemId);
-      if (!conditionPass)
-        continue;
+      if (!conditionPass) continue;
       found.push(itemId);
     }
     return found;
@@ -81174,8 +83344,7 @@ class VirtualFragmentsModel {
     __publicField(this, "_nextId", 0);
     __publicField(this, "_requestsForRedo", []);
     __publicField(this, "_onTransferMaterial", (data, trans) => {
-      if (!this._connection)
-        return void 0;
+      if (!this._connection) return void 0;
       return this._connection.fetch(data, trans);
     });
     this._modelId = modelId;
@@ -81205,6 +83374,12 @@ class VirtualFragmentsModel {
   }
   getIndexKeys(name) {
     return this.indexes.getKeys(name);
+  }
+  getIndexKey(name, index) {
+    return this.indexes.getKey(name, index);
+  }
+  getIndexValues(name) {
+    return this.indexes.getValues(name);
   }
   hasIndexEntry(name, key) {
     return this.indexes.has(name, key);
@@ -81488,10 +83663,10 @@ class VirtualFragmentsModel {
       });
     }
     const { model } = EditUtils.edit(this.data, requests, {
-      raw: true,
+      raw,
       delta: true
     });
-    return raw ? model : pako.deflate(model);
+    return model;
   }
   dispose() {
     this.tiles.dispose();
@@ -81536,14 +83711,14 @@ class VirtualFragmentsModel {
     this.tiles.update(time);
     return this.tiles.tilesUpdated;
   }
-  edit(requests) {
+  edit(requests, raw = true) {
     const ids = EditUtils.solveIds(requests, this._nextId);
     this._nextId += ids.length;
     for (const request of requests) {
       this.requests.push(request);
     }
     const { model, items } = EditUtils.edit(this.data, this.requests, {
-      raw: true,
+      raw,
       delta: true
     });
     this._visibilityHelper.clearHiddenForEdit();
@@ -81555,13 +83730,13 @@ class VirtualFragmentsModel {
     this._requestsForRedo = [];
     this._nextId = this.getMaxLocalId();
   }
-  save() {
+  save(raw = true) {
     this.requests.push({
       type: EditRequestType.UPDATE_MAX_LOCAL_ID,
       localId: this._nextId
     });
     const { model } = EditUtils.edit(this.data, this.requests, {
-      raw: true,
+      raw,
       delta: false
     });
     return model;
@@ -81812,6 +83987,7 @@ class ThreadModelCreator extends ThreadController {
       config
     );
     this.thread.list.set(modelId, model);
+    this.thread.controllerManager.updater.start();
     notify("parsing", 1);
     throwIfAborted();
     await model.setupData((progress) => {
@@ -81898,8 +84074,7 @@ class ThreadModelDeleter extends ThreadController {
   async execute(input) {
     const { modelId } = input;
     const model = this.thread.list.get(modelId);
-    if (!model)
-      return;
+    if (!model) return;
     model.dispose();
     this.thread.list.delete(modelId);
   }
@@ -81910,8 +84085,7 @@ class ThreadModelAborter extends ThreadController {
   }
   async execute(input) {
     const { modelId } = input;
-    if (!this.thread.loading.has(modelId))
-      return;
+    if (!this.thread.loading.has(modelId)) return;
     this.thread.aborting.add(modelId);
   }
 }
@@ -81985,8 +84159,7 @@ class ThreadExecutor extends ThreadController {
   safeCopyData(input) {
     for (let i = 0; i < input.parameters.length; i++) {
       const data = input.parameters[i];
-      if (!data)
-        continue;
+      if (!data) continue;
       input.parameters[i] = MultithreadingHelper.data(data);
     }
   }
@@ -81996,19 +84169,47 @@ class ThreadUpdater {
     __publicField(this, "_thread");
     __publicField(this, "_updateThreshold", 16);
     __publicField(this, "_updateDelay", 128);
-    this._thread = thread2;
-    const updateAll = () => {
+    __publicField(this, "_running", false);
+    __publicField(this, "_timeout", null);
+    __publicField(this, "_tick", () => {
+      this._timeout = null;
+      if (!this._running) return;
+      if (this._thread.list.size === 0) {
+        this._running = false;
+        return;
+      }
       const updated = this.updateAllModels();
       const delay = updated ? this._updateDelay : 0;
-      setTimeout(updateAll, delay);
-    };
-    updateAll();
+      this.schedule(delay);
+    });
+    this._thread = thread2;
+  }
+  // Starts the update loop if it is not already running. Idempotent. Called
+  // when a model is registered so the loop resumes after it stopped itself
+  // while idle. The loop is no longer started at construction time, so merely
+  // importing the library (e.g. for an IFC conversion task) does not spin a
+  // perpetual timer. See #234.
+  start() {
+    if (this._running) return;
+    this._running = true;
+    this.schedule(0);
+  }
+  // Stops the loop and clears any pending timer. Safe to call repeatedly.
+  stop() {
+    this._running = false;
+    if (this._timeout !== null) {
+      clearTimeout(this._timeout);
+      this._timeout = null;
+    }
   }
   setUpdateDelay(delay) {
     if (typeof delay !== "number" || !Number.isFinite(delay) || delay < 0) {
       return;
     }
     this._updateDelay = delay;
+  }
+  schedule(delay) {
+    this._timeout = setTimeout(this._tick, delay);
   }
   updateAllModels() {
     const start = performance.now();
