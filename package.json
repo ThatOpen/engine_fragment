@@ -12,7 +12,7 @@
     "build-examples": "vite build --config ./vite.config-examples.ts",
     "build": "yarn copy-readme && yarn build-examples && yarn build-core",
     "copy-readme": "node resources/readme-copier.mjs",
-    "test": "echo 'test to be implemented!'",
+    "test": "yarn workspace @thatopen/fragments test",
     "format": "prettier --write .",
     "publish-repo": "yarn workspace @thatopen/fragments publish-repo",
     "reset-release-please": "git commit --allow-empty -m \"chore: release 2.0.0\" -m \"Release-As: 2.0.0\""

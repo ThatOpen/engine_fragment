@@ -137,3 +137,5 @@ resources/asdf2.json
 
 .DS_Store
 .claude/
+
+.tmp
