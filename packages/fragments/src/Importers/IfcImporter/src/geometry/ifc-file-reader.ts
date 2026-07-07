@@ -700,37 +700,52 @@ export class IfcFileReader {
 
     centroid.divideScalar(index.length);
 
-    v1.set(position[0], position[1], position[2]);
-    v2.set(position[3], position[4], position[5]);
-    v3.set(position[6], position[7], position[8]);
-
     const p = 10000;
     const hashAreaSum = GeomsFbUtils.round(areaSum, p);
     const hashBigArea = GeomsFbUtils.round(biggestArea, p);
     const hashVolume = GeomsFbUtils.round(volume, p);
 
-    const x1 = GeomsFbUtils.round(v1.x, p);
-    const y1 = GeomsFbUtils.round(v1.y, p);
-    const z1 = GeomsFbUtils.round(v1.z, p);
+    // Order-independent geometric anchor: the AABB corners don't depend on the
+    // vertex ordering (unlike the first vertex used before), so a duplicate
+    // emitted with a permuted buffer still matches.
+    const aabb = GeomsFbUtils.getAABB(position);
+    const minX = GeomsFbUtils.round(aabb.min.x, p);
+    const minY = GeomsFbUtils.round(aabb.min.y, p);
+    const minZ = GeomsFbUtils.round(aabb.min.z, p);
+    const maxX = GeomsFbUtils.round(aabb.max.x, p);
+    const maxY = GeomsFbUtils.round(aabb.max.y, p);
+    const maxZ = GeomsFbUtils.round(aabb.max.z, p);
 
     const cx = GeomsFbUtils.round(centroid.x, p);
     const cy = GeomsFbUtils.round(centroid.y, p);
     const cz = GeomsFbUtils.round(centroid.z, p);
 
     // The key so far is invariant to where interior detail sits: two meshes with
-    // the same outline, area, volume, centroid and first vertex collide even when
+    // the same outline, area, volume, centroid and bounding box collide even when
     // their holes are in different places.
     // Fold every vertex coordinate (quantized to the same precision as cx/cy/cz)
-    // into the key so position-distinct geometry stays distinct.
-    const mod = 2 ** 32;
+    // into the key so position-distinct geometry stays distinct. Each vertex is
+    // hashed from its (x, y, z) triple with a small polynomial (x/y/z don't
+    // cancel), then the per-vertex hashes are summed commutatively — so the key
+    // is invariant to vertex ordering and a duplicate emitted with a permuted
+    // buffer still matches, while moved holes (a changed coordinate set) don't.
+    // Prime modulus for good distribution; no bitwise operators. Every product
+    // stays below Number.MAX_SAFE_INTEGER (2 ** 53), so each mod is exact.
+    const MODULUS = 4294967291; // largest prime below 2 ** 32
+    const AY = 1000003; // prime mixing y into the per-vertex hash
+    const AZ = 1000033; // prime mixing z into the per-vertex hash
     let vertexKey = 0;
-    for (let i = 0; i < position.length; i++) {
-      const c = Math.round(position[i] * p);
-      // Classic h = 31 * h + c polynomial hash; O(vertices), kept in an unsigned 32-bit
-      vertexKey = (((vertexKey * 31 + c) % mod) + mod) % mod;
+    for (let i = 0; i + 2 < position.length; i += 3) {
+      let h = Math.round(position[i] * p) % MODULUS;
+      h = (h * AY + Math.round(position[i + 1] * p)) % MODULUS;
+      h = (h * AZ + Math.round(position[i + 2] * p)) % MODULUS;
+      vertexKey = (vertexKey + h) % MODULUS;
+    }
+    if (vertexKey < 0) {
+      vertexKey += MODULUS; // normalize the one possible negative remainder
     }
 
-    const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${x1}-${y1}-${z1}-${vertexKey}`;
+    const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`;
 
     if (this._problematicGeometriesHashes.has(hash)) {
       console.log(`Fragments: Problematic geometry: ${geometryData.id}`);
