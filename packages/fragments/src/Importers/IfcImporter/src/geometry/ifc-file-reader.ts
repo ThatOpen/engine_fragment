@@ -717,7 +717,20 @@ export class IfcFileReader {
     const cy = GeomsFbUtils.round(centroid.y, p);
     const cz = GeomsFbUtils.round(centroid.z, p);
 
-    const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${x1}-${y1}-${z1}`;
+    // The key so far is invariant to where interior detail sits: two meshes with
+    // the same outline, area, volume, centroid and first vertex collide even when
+    // their holes are in different places.
+    // Fold every vertex coordinate (quantized to the same precision as cx/cy/cz)
+    // into the key so position-distinct geometry stays distinct.
+    const mod = 2 ** 32;
+    let vertexKey = 0;
+    for (let i = 0; i < position.length; i++) {
+      const c = Math.round(position[i] * p);
+      // Classic h = 31 * h + c polynomial hash; O(vertices), kept in an unsigned 32-bit
+      vertexKey = (((vertexKey * 31 + c) % mod) + mod) % mod;
+    }
+
+    const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${x1}-${y1}-${z1}-${vertexKey}`;
 
     if (this._problematicGeometriesHashes.has(hash)) {
       console.log(`Fragments: Problematic geometry: ${geometryData.id}`);
