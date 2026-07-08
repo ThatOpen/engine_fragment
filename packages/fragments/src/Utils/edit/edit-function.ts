@@ -1409,7 +1409,6 @@ export function edit(
 
     // Guid
     if (attributes.guid) {
-      console.log(attributes.guid);
       guidsOffsets.push(builder.createSharedString(attributes.guid));
       guidsItems.push(currentId);
     }
