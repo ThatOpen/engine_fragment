@@ -88,6 +88,18 @@ export class IfcImporter {
       WEBIFC.IFCRELCONTAINEDINSPATIALSTRUCTURE,
       { forRelated: "ContainedInStructure", forRelating: "ContainsElements" },
     ],
+    // Needed for the spatial structure to include IFC4x3 alignment layouts:
+    // alignments attach to the spatial element by reference (not containment)
+    // and nest their horizontal/vertical/referent children via IfcRelNests
+    // (issue #743).
+    [
+      WEBIFC.IFCRELREFERENCEDINSPATIALSTRUCTURE,
+      { forRelated: "ReferencedInStructures", forRelating: "ReferencesElements" },
+    ],
+    [
+      WEBIFC.IFCRELNESTS,
+      { forRelated: "Nests", forRelating: "IsNestedBy" },
+    ],
   ]);
 
   /**

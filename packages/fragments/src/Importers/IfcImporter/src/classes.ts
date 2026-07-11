@@ -6,6 +6,16 @@ export const ifcClasses = {
     WEBIFC.IFCSITE,
     WEBIFC.IFCBUILDING,
     WEBIFC.IFCBUILDINGSTOREY,
+    // IFC4x3 alignment layout entities, imported as data so they appear in the
+    // spatial structure (issue #743). Their geometry is still handled
+    // separately (saved as lines); these are the semantic items, to be linked
+    // to the saved alignment objects later.
+    WEBIFC.IFCALIGNMENT,
+    WEBIFC.IFCALIGNMENTHORIZONTAL,
+    WEBIFC.IFCALIGNMENTVERTICAL,
+    WEBIFC.IFCALIGNMENTCANT,
+    WEBIFC.IFCALIGNMENTSEGMENT,
+    WEBIFC.IFCREFERENT,
   ]),
   units: new Set([
     WEBIFC.IFCUNITASSIGNMENT,

@@ -23,6 +23,11 @@ export class IfcPropertyProcessor {
   private _lengthUnitsFactor = 1;
   private _attributesOffsets: number[] = [];
   private _relationsMap: Record<number, { [name: string]: number[] }> = {};
+
+  // Tracks entities already placed in the spatial structure so an item
+  // reachable by more than one relation (e.g. an alignment aggregated to the
+  // project and also referenced by a bridge) is listed once, not duplicated.
+  private _spatialVisited = new Set<number>();
   private _guids: string[] = [];
   private _guidsItems: number[] = [];
   private _uniqueAttributes = new Set<string>();
@@ -809,13 +814,15 @@ export class IfcPropertyProcessor {
       if (!relations) continue;
 
       const entityGroups: { [type: string]: number[] } = {};
-      for (const expressID of relations) {
-        const entityIndex = this.expressIDs.indexOf(expressID);
+      for (const relatedID of relations) {
+        if (this._spatialVisited.has(relatedID)) continue;
+        const entityIndex = this.expressIDs.indexOf(relatedID);
         if (entityIndex === -1) continue;
         const entityClass = this.classes[entityIndex];
         if (!entityClass) continue;
+        this._spatialVisited.add(relatedID);
         if (!entityGroups[entityClass]) entityGroups[entityClass] = [];
-        entityGroups[entityClass].push(expressID);
+        entityGroups[entityClass].push(relatedID);
       }
 
       for (const category in entityGroups) {
@@ -853,8 +860,25 @@ export class IfcPropertyProcessor {
     const ifcApi = await this.getIfcApi();
     const ifcClass = WEBIFC.IFCPROJECT;
     const classEntities = [...ifcApi.GetLineIDsWithType(0, ifcClass)];
+    // The project roots are the entry points; mark them visited so a stray
+    // reference back to them can't re-nest the whole tree.
+    this._spatialVisited = new Set<number>(classEntities);
     const childrenOffsets = classEntities.map((id) =>
-      this.getEntityDecomposition(id, ["IsDecomposedBy", "ContainsElements"]),
+      // Beyond the classic containment/aggregation relations, we follow:
+      //   - ReferencesElements (IfcRelReferencedInSpatialStructure): IFC4x3
+      //     alignments attach to the spatial element (e.g. IfcBridge) by
+      //     reference, not containment, so this is how IfcAlignment is reached.
+      //   - IsNestedBy (IfcRelNests): IfcAlignment nests its
+      //     IfcAlignmentHorizontal / IfcAlignmentVertical / IfcReferent, and
+      //     those nest their segments, via IfcRelNests.
+      // Without both, alignment layouts were absent from getSpatialStructure()
+      // even though the items exist in the model (issue #743).
+      this.getEntityDecomposition(id, [
+        "IsDecomposedBy",
+        "ContainsElements",
+        "ReferencesElements",
+        "IsNestedBy",
+      ]),
     );
 
     const categoryOffset = this._builder.createSharedString("IFCPROJECT");
