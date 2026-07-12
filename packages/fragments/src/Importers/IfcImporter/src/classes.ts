@@ -9,13 +9,13 @@ export const ifcClasses = {
     // IFC4x3 alignment layout entities, imported as data so they appear in the
     // spatial structure (issue #743). Their geometry is still handled
     // separately (saved as lines); these are the semantic items, to be linked
-    // to the saved alignment objects later.
+    // to the saved alignment objects later. IFCREFERENT is not here: it carries
+    // body geometry, so it lives in `elements` instead (issue #744).
     WEBIFC.IFCALIGNMENT,
     WEBIFC.IFCALIGNMENTHORIZONTAL,
     WEBIFC.IFCALIGNMENTVERTICAL,
     WEBIFC.IFCALIGNMENTCANT,
     WEBIFC.IFCALIGNMENTSEGMENT,
-    WEBIFC.IFCREFERENT,
   ]),
   units: new Set([
     WEBIFC.IFCUNITASSIGNMENT,
@@ -211,6 +211,11 @@ export const ifcClasses = {
     WEBIFC.IFCBUILDINGSTOREY,
     WEBIFC.IFCSPACE,
     WEBIFC.IFCANNOTATION,
+    // IFC4x3 bridge elements that carry body geometry but were missing here,
+    // so they never rendered (issue #744). IFCREFERENT also appears in the
+    // spatial structure (issue #743) since elements are in the entity list.
+    WEBIFC.IFCBEARING,
+    WEBIFC.IFCREFERENT,
     WEBIFC.IFCCONTROLLER,
     WEBIFC.IFCBOILER,
     WEBIFC.IFCLAMP,
