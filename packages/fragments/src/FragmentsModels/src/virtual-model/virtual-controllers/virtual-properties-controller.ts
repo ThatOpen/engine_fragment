@@ -919,11 +919,17 @@ export class VirtualPropertiesController {
 
     const missingItemsToIterate = new Set<number>(itemIds);
 
+    // Set lookup instead of Array.includes: with a candidate list of size m
+    // (e.g. from a category pre-filter) the includes call made this loop
+    // O(n × m) — on a model with 121k property sets a single
+    // getItemsByQuery pset query took ~5 minutes; with the Set it takes ~1s
+    const itemIdSet = itemIds?.length ? new Set<number>(itemIds) : null;
+
     for (let i = 0; i < allAttributesLength; i++) {
       const localId = this._model.localIds(i);
       if (localId === null) continue;
       missingItemsToIterate.delete(localId);
-      if (itemIds?.length && !itemIds.includes(localId)) continue;
+      if (itemIdSet && !itemIdSet.has(localId)) continue;
       const attribute = this._model.attributes(i);
       if (!attribute) continue;
 
