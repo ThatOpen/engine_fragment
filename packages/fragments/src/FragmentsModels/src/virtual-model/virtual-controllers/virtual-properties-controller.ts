@@ -208,7 +208,18 @@ export class VirtualPropertiesController {
 
   getItemIdsFromLocalIds(localIds?: Iterable<number>): number[] {
     if (!localIds) {
-      return Array.from(this._model.meshes()!.meshesItemsArray()!);
+      // "Every itemId" is every index into meshes_items, not its contents.
+      // meshesItemsArray() holds localId indices, so returning it emitted
+      // values from the wrong id space: callers like setVisible(undefined)
+      // ("hide everything") then wrote itemConfig at the wrong offsets, and
+      // only appeared to work on models whose geometry items happen to come
+      // first in the localIds array.
+      const meshes = this._model.meshes();
+      if (!meshes) return [];
+      const count = meshes.meshesItemsLength();
+      const all: number[] = new Array(count);
+      for (let itemId = 0; itemId < count; itemId++) all[itemId] = itemId;
+      return all;
     }
     const itemIds: number[] = [];
     for (const localId of localIds) {

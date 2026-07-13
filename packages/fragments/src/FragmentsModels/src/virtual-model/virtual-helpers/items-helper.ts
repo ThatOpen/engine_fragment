@@ -18,7 +18,11 @@ export class ItemsHelper {
     condition: (item: number) => boolean,
   ) {
     const found: number[] = [];
-    const count = model.data.localIdsLength();
+    // The condition reads itemConfig, so iterate its own id space (itemIds,
+    // i.e. meshes_items indices). Walking localIdsLength here emitted ids that
+    // don't exist in meshes_items, which callers then tried to map back to
+    // localIds.
+    const count = model.itemConfig.size;
     for (let itemId = 0; itemId < count; itemId++) {
       const conditionPass = condition(itemId);
       if (!conditionPass) continue;

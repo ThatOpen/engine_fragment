@@ -852,7 +852,16 @@ export class VirtualFragmentsModel {
   };
 
   private setupItemsConfig() {
-    const itemsCount = this.data.localIdsLength();
+    // itemConfig is addressed by itemId (an index into meshes_items), which
+    // is what getItemIdsFromLocalIds returns and what every setVisible /
+    // setHighlight call writes. Sizing it by localIdsLength instead mixed two
+    // id spaces: items without geometry have no itemId at all, so the tail of
+    // the buffer was never written and stayed flagged visible, and querying it
+    // handed those out-of-range ids to getLocalIdsFromItemIds, which read past
+    // the end of meshes_items (flatbuffers don't bounds check) and decoded
+    // junk into real localIds.
+    const meshes = this.data.meshes();
+    const itemsCount = meshes ? meshes.meshesItemsLength() : 0;
     return new ItemConfigController(itemsCount);
   }
 }
