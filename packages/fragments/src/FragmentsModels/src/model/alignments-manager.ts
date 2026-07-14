@@ -181,16 +181,36 @@ export class AlignmentsManager {
   }
 
   dispose() {
-    this._absoluteAlignments.removeFromParent();
-    for (const alignment of this._absoluteAlignments.children) {
-      const line = alignment as THREE.Mesh;
-      line.geometry.dispose();
-      line.geometry = undefined as any;
-      line.material = undefined as any;
+    // There are three alignment groups (absolute, horizontal, vertical), and
+    // each one's direct children are per-alignment groups, not meshes: the curve
+    // lines and station points live one level deeper. Disposing only the
+    // absolute group and treating its groups as meshes both leaked geometry and
+    // threw on the undefined `geometry`.
+    const groups = [
+      this._absoluteAlignments,
+      this._horizontalAlignments,
+      this._verticalAlignments,
+    ];
+    for (const group of groups) {
+      group.traverse((child) => {
+        const object = child as THREE.Mesh;
+        if (!object.geometry) return;
+        object.geometry.dispose();
+        object.geometry = undefined as any;
+        object.material = undefined as any;
+      });
+      group.clear();
+      group.removeFromParent();
     }
-    for (const material of Object.values(this._alignmentMaterials)) {
+
+    // _alignmentMaterials is a Map, so Object.values on it returned nothing and
+    // its materials were never disposed. The endpoint materials leaked too.
+    for (const material of this._alignmentMaterials.values()) {
       material.dispose();
     }
-    this._alignmentMaterials = {} as any;
+    this._alignmentMaterials.clear();
+    for (const material of Object.values(this._endpointsMaterials)) {
+      material.dispose();
+    }
   }
 }
