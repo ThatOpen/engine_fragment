@@ -110,6 +110,49 @@ export class VirtualPropertiesController {
 
   private _relations = new Map<number, Record<string, number[]>>();
 
+  // Memoized localId → array index lookups. The flatbuffer accessors return
+  // a fresh TypedArray view on every call, so the caches are keyed by the
+  // underlying buffer and length instead of array identity. Without these,
+  // every getItemAttributes/getItemRelations call does a linear indexOf scan,
+  // which makes bulk reads (e.g. getItemsData over all psets) O(n²).
+  private _localIdIndexCache: {
+    buffer: ArrayBufferLike;
+    length: number;
+    map: Map<number, number>;
+  } | null = null;
+
+  private _relationsItemIndexCache: {
+    buffer: ArrayBufferLike;
+    length: number;
+    map: Map<number, number>;
+  } | null = null;
+
+  private indexOfLocalId(localId: number): number | undefined {
+    const arr = this._model.localIdsArray();
+    if (!arr) return undefined;
+    let cache = this._localIdIndexCache;
+    if (!cache || cache.length !== arr.length || cache.buffer !== arr.buffer) {
+      const map = new Map<number, number>();
+      for (let i = 0; i < arr.length; i++) map.set(arr[i], i);
+      cache = { buffer: arr.buffer, length: arr.length, map };
+      this._localIdIndexCache = cache;
+    }
+    return cache.map.get(localId) ?? -1;
+  }
+
+  private indexOfRelationsItem(localId: number): number | undefined {
+    const arr = this._model.relationsItemsArray();
+    if (!arr) return undefined;
+    let cache = this._relationsItemIndexCache;
+    if (!cache || cache.length !== arr.length || cache.buffer !== arr.buffer) {
+      const map = new Map<number, number>();
+      for (let i = 0; i < arr.length; i++) map.set(arr[i], i);
+      cache = { buffer: arr.buffer, length: arr.length, map };
+      this._relationsItemIndexCache = cache;
+    }
+    return cache.map.get(localId) ?? -1;
+  }
+
   private getAllLocalIds() {
     return this._model.localIdsArray() ?? [];
   }
@@ -508,7 +551,7 @@ export class VirtualPropertiesController {
     if (localId === null) {
       return null;
     }
-    const index = this._model.localIdsArray()?.indexOf(localId);
+    const index = this.indexOfLocalId(localId);
     if (index === undefined || index === -1) {
       // If the item was created, return the created data
       const data: Record<string, { value: any; type?: string }> = {};
@@ -742,7 +785,7 @@ export class VirtualPropertiesController {
       return null;
     }
     const relations = this._relations.get(localId) ?? {};
-    const index = this._model.relationsItemsArray()?.indexOf(localId);
+    const index = this.indexOfRelationsItem(localId);
     if (index === undefined || index === -1) {
       return Object.keys(relations).length > 0 ? relations : null;
     }
