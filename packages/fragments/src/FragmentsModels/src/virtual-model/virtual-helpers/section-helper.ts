@@ -1,12 +1,12 @@
 import * as THREE from "three";
-import { VirtualFragmentsModel } from "../virtual-fragments-model";
 import { CurrentLod, ModelSection } from "../../model/model-types";
 import { MiscHelper, SectionGenerator } from "../../utils";
+import { VirtualFragmentsModel } from "../virtual-fragments-model";
 
 export class SectionHelper {
   private _sectionGenerator = new SectionGenerator();
 
-  async getSection(
+  getSection(
     model: VirtualFragmentsModel,
     plane: THREE.Plane,
     indices: number[],

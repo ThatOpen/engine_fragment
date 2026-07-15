@@ -1,5 +1,6 @@
-import * as THREE from "three";
 import pako from "pako";
+import * as THREE from "three";
+import { EditRequest } from "../../../Utils";
 import {
   CurrentLod,
   Identifier,
@@ -8,14 +9,14 @@ import {
   ItemsQueryConfig,
   ItemsQueryParams,
 } from "../model";
-import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
-import { EditRequest } from "../../../Utils";
+import { IFragmentsModel } from "../model/fragments-model-interface";
 import { isRawBuffer } from "../utils/misc/buffer";
+import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 
 /**
  * The main class for managing a 3D model loaded from a fragments file in a single thread. It's designed for easy data querying in the backend, so all the 3D visualization logic is not present.
  */
-export class SingleThreadedFragmentsModel {
+export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
   private readonly _modelId: string;
   private _virtualModel: VirtualFragmentsModel;
 
@@ -77,7 +78,7 @@ export class SingleThreadedFragmentsModel {
    * Translate internal `itemId`s into user-facing `localId`s, preserving
    * order. See {@link VirtualFragmentsModel.getLocalIdsFromItemIds}.
    */
-  async getLocalIdsFromItemIds(itemIds: Iterable<number>) {
+  getLocalIdsFromItemIds(itemIds: Iterable<number>) {
     return this._virtualModel.getLocalIdsFromItemIds(itemIds);
   }
 
@@ -160,9 +161,16 @@ export class SingleThreadedFragmentsModel {
   }
 
   /**
-   * Get all the items of the model that have geometry.
+   * @deprecated use {@link getItemsIdsWithGeometry}
    */
   getItemsWithGeometry() {
+    return this.getItemsIdsWithGeometry();
+  }
+
+  /**
+   * Get all the items of the model that have geometry.
+   */
+  getItemsIdsWithGeometry() {
     return this._virtualModel.getItemsWithGeometry();
   }
 
@@ -241,7 +249,7 @@ export class SingleThreadedFragmentsModel {
    * Get the absolute positions of the specified items.
    * @param localIds - The local IDs of the items to look up.
    */
-  getPositions(localIds: number[]) {
+  getPositions(localIds?: number[]) {
     return this._virtualModel.getPositions(localIds);
   }
 
@@ -261,6 +269,10 @@ export class SingleThreadedFragmentsModel {
     return this._virtualModel.getItemsGeometry(localIds, lod);
   }
 
+  getItemsVolume(localIds: number[]) {
+    return this._virtualModel.getItemsVolume(localIds);
+  }
+
   /**
    * Query items based on specified parameters.
    * @param params - The query parameters.
@@ -275,21 +287,21 @@ export class SingleThreadedFragmentsModel {
    * @param plane - The plane to get the section of.
    * @param localIds - The local IDs of the items to get the section of. If undefined, it will return the section of all items.
    */
-  async getSection(plane: THREE.Plane, localIds?: number[]) {
+  getSection(plane: THREE.Plane, localIds?: number[]) {
     return this._virtualModel.getSection(plane, localIds);
   }
 
   /**
    * Get all the local IDs of the model.
    */
-  async getLocalIds() {
+  getLocalIds() {
     return this._virtualModel.getLocalIds();
   }
 
   /**
    * Gets all the materials IDs of the model.
    */
-  async getMaterialsIds() {
+  getMaterialsIds() {
     return this._virtualModel.getMaterialsIds();
   }
 
@@ -297,14 +309,14 @@ export class SingleThreadedFragmentsModel {
    * Gets the materials of the model.
    * @param localIds - The local IDs of the materials to get. If undefined, it will return all materials.
    */
-  async getMaterials(localIds?: Iterable<number>) {
+  getMaterials(localIds?: Iterable<number>) {
     return this._virtualModel.getMaterials(localIds);
   }
 
   /**
    * Gets all the representations IDs of the model.
    */
-  async getRepresentationsIds() {
+  getRepresentationsIds() {
     return this._virtualModel.getRepresentationsIds();
   }
 
@@ -312,14 +324,14 @@ export class SingleThreadedFragmentsModel {
    * Gets the representations of the model.
    * @param localIds - The local IDs of the representations to get. If undefined, it will return all representations.
    */
-  async getRepresentations(localIds?: Iterable<number>) {
+  getRepresentations(localIds?: Iterable<number>) {
     return this._virtualModel.getRepresentations(localIds);
   }
 
   /**
    * Gets all the local transforms IDs of the model.
    */
-  async getLocalTransformsIds() {
+  getLocalTransformsIds() {
     return this._virtualModel.getLocalTransformsIds();
   }
 
@@ -327,14 +339,14 @@ export class SingleThreadedFragmentsModel {
    * Gets the local transforms of the model.
    * @param localIds - The local IDs of the local transforms to get. If undefined, it will return all local transforms.
    */
-  async getLocalTransforms(localIds?: Iterable<number>) {
+  getLocalTransforms(localIds?: Iterable<number>) {
     return this._virtualModel.getLocalTransforms(localIds);
   }
 
   /**
    * Gets all the global transforms IDs of the model.
    */
-  async getGlobalTransformsIds() {
+  getGlobalTransformsIds() {
     return this._virtualModel.getGlobalTransformsIds();
   }
 
@@ -342,14 +354,14 @@ export class SingleThreadedFragmentsModel {
    * Gets the global transforms of the model.
    * @param localIds - The local IDs of the global transforms to get. If undefined, it will return all global transforms.
    */
-  async getGlobalTransforms(localIds?: Iterable<number>) {
+  getGlobalTransforms(localIds?: Iterable<number>) {
     return this._virtualModel.getGlobalTransforms(localIds);
   }
 
   /**
    * Gets all the samples IDs of the model.
    */
-  async getSamplesIds() {
+  getSamplesIds() {
     return this._virtualModel.getSamplesIds();
   }
 
@@ -357,7 +369,7 @@ export class SingleThreadedFragmentsModel {
    * Gets the samples of the model.
    * @param localIds - The local IDs of the samples to get. If undefined, it will return all samples.
    */
-  async getSamples(localIds?: Iterable<number>) {
+  getSamples(localIds?: Iterable<number>) {
     return this._virtualModel.getSamples(localIds);
   }
 
@@ -366,14 +378,14 @@ export class SingleThreadedFragmentsModel {
    * outline-style passes that share tile geometry and clip drawing to
    * just the outlined samples. See {@link VirtualFragmentsModel.getItemDrawChunks}.
    */
-  async getItemDrawChunks(localIds: Iterable<number>) {
+  getItemDrawChunks(localIds: Iterable<number>) {
     return this._virtualModel.getItemDrawChunks(localIds);
   }
 
   /**
    * Gets all the items IDs of the model.
    */
-  async getItemsIds() {
+  getItemsIds() {
     return this._virtualModel.getItemsIds();
   }
 
@@ -381,7 +393,7 @@ export class SingleThreadedFragmentsModel {
    * Gets the items of the model.
    * @param localIds - The local IDs of the items to get. If undefined, it will return all items.
    */
-  async getItems(localIds?: Iterable<number>) {
+  getItems(localIds?: Iterable<number>) {
     return this._virtualModel.getItems(localIds);
   }
 
@@ -389,7 +401,7 @@ export class SingleThreadedFragmentsModel {
    * Gets the relations of the model.
    * @param localIds - The local IDs of the relations to get. If undefined, it will return all relations.
    */
-  async getRelations(localIds?: number[]) {
+  getRelations(localIds?: number[]) {
     return this._virtualModel.getRelations(localIds);
   }
 
@@ -397,7 +409,7 @@ export class SingleThreadedFragmentsModel {
    * Gets the global transforms IDs of the items of the model.
    * @param ids - The local IDs of the items to get the global transforms IDs of.
    */
-  async getGlobalTranformsIdsOfItems(ids: number[]) {
+  getGlobalTranformsIdsOfItems(ids: number[]) {
     return this._virtualModel.getGlobalTranformsIdsOfItems(ids);
   }
 
