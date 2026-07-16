@@ -343,6 +343,10 @@ export class FragmentsModels {
    */
   async dispose() {
     this._isDisposed = true;
+    if (this._autoRedrawInterval) {
+      clearTimeout(this._autoRedrawInterval);
+      this._autoRedrawInterval = null;
+    }
     const models = Array.from(this.models.list.values());
     const promises = [];
     for (const model of models) {
@@ -391,15 +395,23 @@ export class FragmentsModels {
       return;
     }
     const now = performance.now();
-    if (now - this._lastUpdate < this.settings.maxUpdateRate) {
+    if (!force && now - this._lastUpdate < this.settings.maxUpdateRate) {
+      // Keep the poll alive: view changes are detected by these
+      // periodic checks, so a throttled call must still leave a
+      // scheduled one behind. Cheap — no worker traffic happens
+      // until a view actually changes.
+      this.scheduleNextUpdate();
       return;
     }
     this._lastUpdate = now;
 
-    // Update the virtual view for all models
+    // Update the virtual view for all models. Unforced refreshes are
+    // skipped per model when its view is unchanged (no RPC at all);
+    // forced ones always dispatch because their FINISH acts as the
+    // completion fence for forceUpdateFinish below.
     const modelUpdates: Promise<void>[] = [];
     for (const model of this.models.list.values()) {
-      modelUpdates.push(model._refreshView());
+      modelUpdates.push(model._refreshView(force));
     }
     await Promise.all(modelUpdates);
 
@@ -411,6 +423,28 @@ export class FragmentsModels {
     } else {
       this.models.update();
     }
+    this.scheduleNextUpdate();
+  }
+
+  /**
+   * (Re)schedules the next automatic update. The view-change gating
+   * means an idle scene produces no worker messages and thus no
+   * FINISH-driven update events, so the loop sustains itself with
+   * this timer instead. Skipped when disposed or no models exist —
+   * the next model load (or any mesh update event) restarts it.
+   */
+  private scheduleNextUpdate() {
+    if (this._isDisposed || this.models.list.size === 0) {
+      return;
+    }
+    if (this._autoRedrawInterval) {
+      clearTimeout(this._autoRedrawInterval);
+    }
+    const offset = this.settings.maxUpdateRate + 1;
+    this._autoRedrawInterval = setTimeout(() => {
+      this._autoRedrawInterval = null;
+      this.update();
+    }, offset);
   }
 
   private async manageRequest(message: any): Promise<void> {

@@ -14,6 +14,15 @@ export class ViewManager {
   private readonly _tempVec = new THREE.Vector3();
   private readonly _tempFrustum = new THREE.Frustum();
 
+  /**
+   * Numeric fingerprint of the last view dispatched to the worker.
+   * `refreshView` skips the REFRESH_VIEW RPC when the view is
+   * identical to the previous one (unless forced), so an idle camera
+   * produces zero worker traffic instead of a full re-cull of every
+   * sample on every update tick. See {@link refreshView}.
+   */
+  private _lastViewSignature: number[] | null = null;
+
   private _updateCameraPositionEvent: (vector: THREE.Vector3) => void =
     () => {};
 
@@ -24,11 +33,31 @@ export class ViewManager {
 
   private _updateOrthoSizeEvent: () => number | void = () => {};
 
-  async refreshView(model: FragmentsModel, meshes: MeshManager) {
-    const fov = this.setup(meshes, model);
+  /**
+   * Sends the current view to the worker so it can re-evaluate culling
+   * and LOD. Returns `true` if a REFRESH_VIEW was actually dispatched.
+   *
+   * When `force` is false and the view (camera frustum + position in
+   * model space, clipping planes, viewport size, quality, model
+   * placement) is unchanged since the last dispatch, the RPC is
+   * skipped entirely and `false` is returned. Visibility, highlight,
+   * LOD-mode and edit changes don't need a view resend — the worker
+   * restarts its own tile pass for those. Forced sends always go
+   * through because `FragmentsModels.update(true)` uses the resulting
+   * FINISH as a completion fence.
+   */
+  async refreshView(model: FragmentsModel, meshes: MeshManager, force = false) {
+    const fov = this.setup(model);
     const frustum = CameraUtils.transform(this._tempFrustum, this._tempMatrix);
     const request: any = this.newViewRequest(frustum, fov, model);
+    const signature = this.computeViewSignature(request.view, model);
+    if (!force && this.signatureEquals(signature)) {
+      return false;
+    }
+    this._lastViewSignature = signature;
+    meshes.requests.clean(model.modelId);
     await model.threads.fetch(request);
+    return true;
   }
 
   useCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
@@ -55,13 +84,61 @@ export class ViewManager {
     return orthoSize;
   }
 
-  private setup(meshes: MeshManager, model: FragmentsModel) {
-    meshes.requests.clean(model.modelId);
+  private setup(model: FragmentsModel) {
     this._tempMatrix.copy(model.object.matrixWorld).invert();
     this._updateCameraPositionEvent(this._tempVec);
     this._updateCameraFrustumEvent(this._tempFrustum);
     const fov = this._updateFOVEvent();
     return fov;
+  }
+
+  /**
+   * Flattens everything view-relevant into a number list for cheap
+   * equality checks. `graphicThreshold` is deliberately excluded: it
+   * only budgets the worker's invisible-tile cache, so a change in it
+   * (e.g. the worker count changed) shouldn't force a full re-cull.
+   * `undefined` fields (fov on ortho cameras, ortho size on
+   * perspective ones) are encoded as NaN and compared with
+   * `Object.is` semantics below.
+   */
+  private computeViewSignature(view: any, model: FragmentsModel) {
+    const signature: number[] = [];
+    const frustum = view.cameraFrustum as THREE.Frustum;
+    for (const plane of frustum.planes) {
+      signature.push(plane.normal.x, plane.normal.y, plane.normal.z);
+      signature.push(plane.constant);
+    }
+    const position = view.cameraPosition as THREE.Vector3;
+    signature.push(position.x, position.y, position.z);
+    signature.push(view.fov ?? NaN);
+    signature.push(view.orthogonalDimension ?? NaN);
+    signature.push(view.viewSize);
+    signature.push(view.graphicQuality);
+    for (const plane of view.clippingPlanes as THREE.Plane[]) {
+      signature.push(plane.normal.x, plane.normal.y, plane.normal.z);
+      signature.push(plane.constant);
+    }
+    for (const element of model.object.matrixWorld.elements) {
+      signature.push(element);
+    }
+    return signature;
+  }
+
+  private signatureEquals(signature: number[]) {
+    const last = this._lastViewSignature;
+    if (!last || last.length !== signature.length) {
+      return false;
+    }
+    for (let i = 0; i < signature.length; i++) {
+      // NaN encodes "undefined" — treat NaN === NaN as equal.
+      if (
+        signature[i] !== last[i] &&
+        !(Number.isNaN(signature[i]) && Number.isNaN(last[i]))
+      ) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private newViewRequest(

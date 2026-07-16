@@ -1111,10 +1111,19 @@ export class FragmentsModel implements IFragmentsModel<true> {
   /**
    * Internal method to refresh the view of the model. You shouldn't call this directly. Instead, use {@link FragmentsModels.update}.
    */
-  async _refreshView() {
+  async _refreshView(force = false) {
     if (this.frozen) return;
-    this._isProcessing = true;
-    const mainPromise = this._viewManager.refreshView(this, this._meshManager);
+    // Only mark the model busy when a REFRESH_VIEW was actually
+    // dispatched — a skipped (unchanged-view) refresh produces no
+    // FINISH, so setting the flag would leave `isBusy` stuck. The
+    // flag flips before the worker can emit the resulting FINISH
+    // (mesh batches flush at least one macrotask later), so there is
+    // no window where the FINISH could be consumed first.
+    const mainPromise = this._viewManager
+      .refreshView(this, this._meshManager, force)
+      .then((sent) => {
+        if (sent) this._isProcessing = true;
+      });
     const deltaPromise = this._editor._update(this.modelId);
     await Promise.all([mainPromise, deltaPromise]);
   }
