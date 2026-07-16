@@ -44,6 +44,20 @@ export class VirtualBoxStructure {
     return this._collider.frustumCollide(bounds, frustum, fullyIncluded);
   }
 
+  /**
+   * Fills `mask` with 1 for every sample whose box is fully outside the
+   * frustum (plus optional clipping planes) and 0 for every candidate.
+   * Allocation-free variant of {@link collideFrustum} for the per-view
+   * culling pass.
+   */
+  fillOutsideFrustumMask(
+    bounds: THREE.Plane[],
+    frustum: THREE.Frustum,
+    mask: Uint8Array,
+  ) {
+    this._collider.frustumFillOutsideMask(bounds, frustum, mask);
+  }
+
   collideRay(bounds: THREE.Plane[], beam: THREE.Ray): number[] {
     return this._collider.rayCollide(bounds, beam);
   }

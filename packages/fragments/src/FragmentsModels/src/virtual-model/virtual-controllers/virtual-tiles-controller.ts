@@ -136,6 +136,17 @@ export class VirtualTilesController {
   private _changedSamples = 0;
   private _virtualView: any;
 
+  /**
+   * Per-sample frustum verdict from the spatial hierarchy, refreshed on
+   * every real view change: 1 = the sample's box is provably outside
+   * the frustum/clipping planes (skip all per-sample plane math in
+   * {@link fetchLodLevel}), 0 = candidate (run the exact per-sample
+   * test as before, so the final classification is unchanged). All
+   * zeroes when no view or lookup exists — the pass then behaves
+   * exactly like the flat version.
+   */
+  private _outsideMask: Uint8Array;
+
   private _lodMode = LodMode.DEFAULT;
 
   constructor(data: VirtualTileData) {
@@ -155,6 +166,7 @@ export class VirtualTilesController {
     this._sampleLodClass = new Uint8Array(this._sampleAmount);
     this._sampleLodState = new Uint8Array(this._sampleAmount);
     this._sampleLodSize = new Float32Array(this._sampleAmount);
+    this._outsideMask = new Uint8Array(this._sampleAmount);
     this._tileDimension = this.computeTileSize();
     this._tileBySample = new Array(this._sampleAmount);
     this._lodBySample = new Array(this._sampleAmount);
@@ -215,6 +227,26 @@ export class VirtualTilesController {
     this.updateOrientationIfNeeded();
     this.updatePositionIfNeeded();
     this.setupViewPlanes();
+    this.updateOutsideMask();
+  }
+
+  /**
+   * Rebuilds {@link _outsideMask} from the spatial hierarchy for the
+   * current view. One hierarchy walk per view change replaces the
+   * per-sample plane tests for everything that is provably outside —
+   * with a zoomed-in camera that is typically most of the model. Falls
+   * back to all-candidates (no skipping) when the model has no lookup
+   * (empty model) or no view yet.
+   */
+  private updateOutsideMask() {
+    const lookup = this._boxes.lookup;
+    const frustum = this._virtualView?.cameraFrustum;
+    if (!lookup || !frustum) {
+      this._outsideMask.fill(0);
+      return;
+    }
+    const clipping = this._virtualView.clippingPlanes ?? [];
+    lookup.fillOutsideFrustumMask(clipping, frustum, this._outsideMask);
   }
 
   updateVirtualMeshes(itemIds: number[]) {
@@ -924,6 +956,14 @@ export class VirtualTilesController {
         return CurrentLod.INVISIBLE;
       }
       return CurrentLod.GEOMETRY;
+    }
+
+    // Hierarchy verdict first: samples in branches that miss the view
+    // entirely skip the per-sample plane math. Candidates (mask 0) go
+    // through the exact same test as before, so the classification any
+    // sample ends up with is unchanged.
+    if (this._outsideMask[sample]) {
+      return CurrentLod.INVISIBLE;
     }
 
     const item = this._boxes.get(sample);
