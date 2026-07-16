@@ -89,7 +89,12 @@ export class ViewManager {
     view.fov = fov;
     view.orthogonalDimension = this.getOrthoSize();
     view.viewSize = Math.max(window.innerWidth, window.innerHeight);
-    view.graphicThreshold = GPU.estimateCapacity();
+    // The worker-side tile-memory counter is per worker (static within
+    // one worker's module scope), so hand each worker an equal share of
+    // the global budget. Without this, N workers each allow the full
+    // budget and the invisible-tile cache grows to N × capacity.
+    const threadCount = Math.max(1, model.threads.activeThreadCount);
+    view.graphicThreshold = GPU.estimateCapacity() / threadCount;
     view.graphicQuality = model.graphicsQuality * -1.5 + 2;
     view.clippingPlanes = this.getPlanes();
     view.modelPlacement = model.object.matrixWorld;

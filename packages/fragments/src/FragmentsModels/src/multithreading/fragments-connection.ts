@@ -35,6 +35,15 @@ export class FragmentsConnection extends Connection {
     return Object.fromEntries(this._threadGroups);
   }
 
+  /**
+   * Number of workers currently hosting at least one model. Used to
+   * split the global graphic-memory budget evenly between workers
+   * (each worker tracks its tile-cache consumption independently).
+   */
+  get activeThreadCount() {
+    return this._data.getThreadAmount();
+  }
+
   constructor(
     handleInput: ThreadHandler,
     threadPath: string,
