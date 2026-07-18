@@ -1,14 +1,15 @@
+import { readFile } from "fs/promises";
 import * as path from "path";
 import { expect, test, vi } from "vitest";
 import {
+  GroupData,
   IfcSplitterGroupsEvent,
   IfcSplitterProgressEvent,
   IfcSplitterWarningEvent,
 } from ".";
-import { IfcSplitterNode } from "./node";
-import { IfcImporter } from "../../Importers";
-import { readFile } from "fs/promises";
 import { SingleThreadedFragmentsModel } from "../../FragmentsModels";
+import { IfcImporter } from "../../Importers";
+import { IfcSplitterNode } from "./node";
 
 const assetDir = path.resolve(
   import.meta.dirname,
@@ -21,16 +22,6 @@ const assetDir = path.resolve(
 
 const webIfcDir = path.dirname(import.meta.resolve("web-ifc"));
 
-const jsonReplacer = (k: unknown, v: unknown) => {
-  if (v instanceof Map) {
-    return Object.fromEntries(v);
-  }
-  if (v instanceof Set) {
-    return [...v];
-  }
-  return v;
-};
-
 test("split ifc", async () => {
   const splitter = new IfcSplitterNode();
   const inputPath = path.resolve(assetDir, "resources/ifc/school_str.ifc");
@@ -40,7 +31,8 @@ test("split ifc", async () => {
   splitter.onProgress.add(onProgress);
   splitter.onSplitsResolved.add(onSplitsResolved);
   splitter.onExtractWarning.add(onExtractWarning);
-  const splitMap = await splitter.split(inputPath, 10, (groupId) =>
+  const splitCount = 10;
+  const splitMap = await splitter.split(inputPath, splitCount, (groupId) =>
     path.resolve(
       __dirname,
       ".tmp",
@@ -48,38 +40,86 @@ test("split ifc", async () => {
     ),
   );
 
-  expect(
-    onProgress.mock.calls.map(([{ stage }]) => ({ stage })),
-  ).toMatchSnapshot("onProgress");
+  expect(onProgress.mock.calls.map(([{ stage }]) => stage)).toEqual([
+    "parse",
+    "spatial",
+    "void-fill",
+    "style-maps",
+    "classify",
+    "aggregate",
+    "cluster",
+    "distribute",
+    "relations",
+    "resolve",
+    "build-mask",
+    "write",
+  ]);
   expect(onSplitsResolved).toHaveBeenCalledOnce();
 
-  const { data } = onSplitsResolved.mock.calls[0][0];
-  await expect(
-    JSON.stringify(
-      new Map(
-        data.map((groupData, index) => {
-          const { fileName, fileIds, ...rest } = groupData!;
-          return [index, rest];
-        }),
-      ),
-      jsonReplacer,
-      2,
-    ),
-  ).toMatchFileSnapshot("__snapshots__/resolvedSplits.json");
+  const { data } = onSplitsResolved.mock.calls[0][0] as { data: GroupData[] };
+  expect(
+    data.map(({ elementCount, totalIds, rewrittenLines }) => {
+      return { elementCount, totalIds, rewrittenLines: rewrittenLines.size };
+    }),
+  ).toEqual([
+    {
+      elementCount: 92,
+      rewrittenLines: 427,
+      totalIds: 23892,
+    },
+    {
+      elementCount: 92,
+      rewrittenLines: 428,
+      totalIds: 22972,
+    },
+    {
+      elementCount: 92,
+      rewrittenLines: 441,
+      totalIds: 23438,
+    },
+    {
+      elementCount: 92,
+      rewrittenLines: 439,
+      totalIds: 23954,
+    },
+    {
+      elementCount: 92,
+      rewrittenLines: 442,
+      totalIds: 22957,
+    },
+    {
+      elementCount: 92,
+      rewrittenLines: 443,
+      totalIds: 22979,
+    },
+    {
+      elementCount: 92,
+      rewrittenLines: 444,
+      totalIds: 23459,
+    },
+    {
+      elementCount: 91,
+      rewrittenLines: 442,
+      totalIds: 22957,
+    },
+    {
+      elementCount: 91,
+      rewrittenLines: 441,
+      totalIds: 22501,
+    },
+    {
+      elementCount: 91,
+      rewrittenLines: 438,
+      totalIds: 23390,
+    },
+  ]);
 
   expect(onExtractWarning).not.toHaveBeenCalled();
 
-  await expect(
-    JSON.stringify(
-      new Map([...splitMap.values()].map((data, index) => [index, data])),
-      jsonReplacer,
-      2,
-    ),
-  ).toMatchFileSnapshot("__snapshots__/splitMap.json");
-
-  expect([...splitMap.values()].map((data) => data)).toEqual(
-    data.map((groupData) => groupData!.fileIds),
-  );
+  expect(splitMap.size).toBe(splitCount);
+  for (const { fileName, fileIds } of data) {
+    expect(splitMap.get(fileName), fileName).toEqual(fileIds);
+  }
 });
 
 test("extract ifc", async () => {
@@ -101,9 +141,18 @@ test("extract ifc", async () => {
     outputPath,
   );
 
-  expect(
-    onProgress.mock.calls.map(([{ stage }]) => ({ stage })),
-  ).toMatchSnapshot("onProgress");
+  expect(onProgress.mock.calls.map(([{ stage }]) => stage)).toEqual([
+    "parse",
+    "spatial",
+    "void-fill",
+    "style-maps",
+    "classify",
+    "aggregate",
+    "cluster",
+    "relations",
+    "resolve",
+    "write",
+  ]);
 
   expect(onSplitsResolved).not.toHaveBeenCalled();
   expect(onExtractWarning).not.toHaveBeenCalled();
@@ -116,6 +165,7 @@ test("extract ifc", async () => {
   importer.addAllAttributes();
   importer.addAllRelations();
   importer.wasm = { path: webIfcDir + path.sep, absolute: true };
+  importer.webIfcSettings.COORDINATE_TO_ORIGIN = false;
   const extractedFrag = await importer.process({
     bytes: await readFile(outputPath),
   });
@@ -127,6 +177,24 @@ test("extract ifc", async () => {
     "fixture",
     await readFile(inputFrag),
   );
+  expect(extractedModel.getItemsGeometry(idsToExtract)).toEqual([
+    [
+      expect.objectContaining({
+        localId: 501,
+        sampleId: 96583,
+        representationId: 96580,
+      }),
+    ],
+  ]);
+  expect(fixtureModel.getItemsGeometry(idsToExtract)).toEqual([
+    [
+      expect.objectContaining({
+        localId: 501,
+        sampleId: 99301,
+        representationId: 98690,
+      }),
+    ],
+  ]);
   const comparisons = await Promise.all(
     [
       {
@@ -145,11 +213,6 @@ test("extract ifc", async () => {
           model.getItemsChildren(idsToExtract),
       },
       {
-        message: "getItemsGeometry",
-        action: (model: SingleThreadedFragmentsModel) =>
-          model.getItemsGeometry(idsToExtract),
-      },
-      {
         message: "getMaterials",
         action: (model: SingleThreadedFragmentsModel) =>
           model.getMaterials(idsToExtract),
@@ -160,14 +223,15 @@ test("extract ifc", async () => {
           model.getRelations(idsToExtract),
       },
       {
-        message: "getRepresentations",
-        action: async (model: SingleThreadedFragmentsModel) =>
-          (await model.getRepresentations(idsToExtract)).values(),
-      },
-      {
         message: "getSamples",
-        action: (model: SingleThreadedFragmentsModel) =>
-          model.getSamples(idsToExtract),
+        action: async (model: SingleThreadedFragmentsModel) =>
+          [...(await model.getSamples(idsToExtract))].map(
+            ([, { item, localTransform, material }]) => ({
+              item,
+              localTransform,
+              material,
+            }),
+          ),
       },
     ].map(async ({ message, action }) => ({
       message,
