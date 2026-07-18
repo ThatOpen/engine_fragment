@@ -20,6 +20,13 @@ export class SetupManager {
     if (modelData instanceof ArrayBuffer) {
       return [modelData];
     }
+    // A Uint8Array's backing buffer must be transferred too, otherwise the
+    // model bytes get structured-cloned into the worker instead of moved.
+    // `ifcLoader.load(new Uint8Array(buffer), ...)` is the common path, so
+    // this avoids duplicating large IFC/model data on load.
+    if (modelData instanceof Uint8Array) {
+      return [modelData.buffer];
+    }
     return undefined;
   }
 
