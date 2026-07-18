@@ -6,6 +6,20 @@ import {
   IfcSplitterWarningEvent,
 } from ".";
 import { IfcSplitterNode } from "./node";
+import { IfcImporter } from "../../Importers";
+import { readFile } from "fs/promises";
+import { SingleThreadedFragmentsModel } from "../../FragmentsModels";
+
+const assetDir = path.resolve(
+  import.meta.dirname,
+  "..",
+  "..",
+  "..",
+  "..",
+  "..",
+);
+
+const webIfcDir = path.dirname(import.meta.resolve("web-ifc"));
 
 const jsonReplacer = (k: unknown, v: unknown) => {
   if (v instanceof Map) {
@@ -19,15 +33,7 @@ const jsonReplacer = (k: unknown, v: unknown) => {
 
 test("split ifc", async () => {
   const splitter = new IfcSplitterNode();
-  const inputPath = path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "..",
-    "..",
-    "resources/ifc/school_str.ifc",
-  );
+  const inputPath = path.resolve(assetDir, "resources/ifc/school_str.ifc");
   const onProgress = vi.fn<(event: IfcSplitterProgressEvent) => unknown>();
   const onSplitsResolved = vi.fn<(event: IfcSplitterGroupsEvent) => unknown>();
   const onExtractWarning = vi.fn<(event: IfcSplitterWarningEvent) => unknown>();
@@ -78,15 +84,9 @@ test("split ifc", async () => {
 
 test("extract ifc", async () => {
   const splitter = new IfcSplitterNode();
-  const inputPath = path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "..",
-    "..",
-    "resources/ifc/school_str.ifc",
-  );
+  const inputPath = path.resolve(assetDir, "resources/ifc/school_str.ifc");
+  const inputFrag = path.resolve(assetDir, "resources/frags/school_str.frag");
+  const outputPath = path.resolve(__dirname, ".tmp", "extracted.ifc");
   const onProgress = vi.fn<(event: IfcSplitterProgressEvent) => unknown>();
   const onSplitsResolved = vi.fn<(event: IfcSplitterGroupsEvent) => unknown>();
   const onExtractWarning = vi.fn<(event: IfcSplitterWarningEvent) => unknown>();
@@ -98,7 +98,7 @@ test("extract ifc", async () => {
   const extractedIds = await splitter.extract(
     inputPath,
     idsToExtract,
-    path.resolve(__dirname, ".tmp", "extracted.ifc"),
+    outputPath,
   );
 
   expect(
@@ -108,13 +108,75 @@ test("extract ifc", async () => {
   expect(onSplitsResolved).not.toHaveBeenCalled();
   expect(onExtractWarning).not.toHaveBeenCalled();
 
-  await expect(
-    JSON.stringify(
-      [...extractedIds].sort((a, b) => a - b),
-      jsonReplacer,
-      2,
-    ),
-  ).toMatchFileSnapshot("__snapshots__/extractedIds.json");
+  expect(extractedIds.size).toBe(14576);
 
   expect(new Set(idsToExtract).isSubsetOf(extractedIds)).toBeTruthy();
+
+  const importer = new IfcImporter();
+  importer.addAllAttributes();
+  importer.addAllRelations();
+  importer.wasm = { path: webIfcDir + path.sep, absolute: true };
+  const extractedFrag = await importer.process({
+    bytes: await readFile(outputPath),
+  });
+  const extractedModel = new SingleThreadedFragmentsModel(
+    "extracted",
+    extractedFrag,
+  );
+  const fixtureModel = new SingleThreadedFragmentsModel(
+    "fixture",
+    await readFile(inputFrag),
+  );
+  const comparisons = await Promise.all(
+    [
+      {
+        message: "getGuidsByLocalIds",
+        action: (model: SingleThreadedFragmentsModel) =>
+          model.getGuidsByLocalIds(idsToExtract),
+      },
+      {
+        message: "getItemsData",
+        action: (model: SingleThreadedFragmentsModel) =>
+          model.getItemsData(idsToExtract),
+      },
+      {
+        message: "getItemsChildren",
+        action: (model: SingleThreadedFragmentsModel) =>
+          model.getItemsChildren(idsToExtract),
+      },
+      {
+        message: "getItemsGeometry",
+        action: (model: SingleThreadedFragmentsModel) =>
+          model.getItemsGeometry(idsToExtract),
+      },
+      {
+        message: "getMaterials",
+        action: (model: SingleThreadedFragmentsModel) =>
+          model.getMaterials(idsToExtract),
+      },
+      {
+        message: "getRelations",
+        action: (model: SingleThreadedFragmentsModel) =>
+          model.getRelations(idsToExtract),
+      },
+      {
+        message: "getRepresentations",
+        action: async (model: SingleThreadedFragmentsModel) =>
+          (await model.getRepresentations(idsToExtract)).values(),
+      },
+      {
+        message: "getSamples",
+        action: (model: SingleThreadedFragmentsModel) =>
+          model.getSamples(idsToExtract),
+      },
+    ].map(async ({ message, action }) => ({
+      message,
+      actual: await action(extractedModel),
+      expected: await action(fixtureModel),
+    })),
+  );
+
+  comparisons.map(({ message, actual, expected }) =>
+    expect.soft(actual, message).toEqual(expected),
+  );
 });
