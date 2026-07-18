@@ -61,7 +61,10 @@ export class GridReader {
       const curveId = axisCurve.AxisCurve.value;
       const curve = webIfc.GetLine(0, curveId);
       const axisData: GridAxisData = {
-        tag: axisCurve.AxisTag.value,
+        // AxisTag is an optional IfcLabel. web-ifc returns it as null when the
+        // IFC omits it (IFCGRIDAXIS($,...)), so read it defensively; otherwise
+        // a single tagless axis threw and the outer catch dropped every grid.
+        tag: axisCurve.AxisTag?.value ?? "",
         curve: [],
       };
       if (!curve.Points) {
