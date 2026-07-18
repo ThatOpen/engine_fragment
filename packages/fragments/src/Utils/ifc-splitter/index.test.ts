@@ -3,7 +3,9 @@ import * as path from "path";
 import { expect, test, vi } from "vitest";
 import {
   GroupData,
+  IfcSplitter,
   IfcSplitterGroupsEvent,
+  IfcSplitterIO,
   IfcSplitterProgressEvent,
   IfcSplitterWarningEvent,
 } from ".";
@@ -21,6 +23,161 @@ const assetDir = path.resolve(
 );
 
 const webIfcDir = path.dirname(import.meta.resolve("web-ifc"));
+
+const syntheticIfcWithWalls = (wallCount: number) =>
+  [
+    "ISO-10303-21;",
+    "HEADER;",
+    "ENDSEC;",
+    "DATA;",
+    ...Array.from(
+      { length: wallCount },
+      (_, i) => `#${i + 1}=IFCWALL('guid${i + 1}',$,$,$,$,$,$,$);`,
+    ),
+    "ENDSEC;",
+    "END-ISO-10303-21;",
+  ].join("\n");
+
+interface SinkState {
+  text: string;
+  closed: boolean;
+  aborted: boolean;
+}
+
+/**
+ * In-memory {@link IfcSplitterIO}. Captures what each output file received and,
+ * when `failOnRead` is set, errors that Nth read partway through so the write
+ * pass fails while every output sink is still open.
+ */
+class MemoryIO implements IfcSplitterIO {
+  readonly sinks = new Map<string, SinkState>();
+
+  private reads = 0;
+
+  constructor(
+    private readonly source: string,
+    private readonly failOnRead = 0,
+  ) {}
+
+  async readableStream(): Promise<ReadableStream<string>> {
+    this.reads += 1;
+    const shouldFail = this.reads === this.failOnRead;
+    const lines = this.source.split("\n");
+    let i = 0;
+    return new ReadableStream<string>({
+      pull(controller) {
+        if (shouldFail && i === 5) {
+          controller.error(new Error("read failed"));
+          return;
+        }
+        if (i >= lines.length) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(lines[i]);
+        i += 1;
+      },
+    });
+  }
+
+  async writableStream(filePath: string): Promise<WritableStream<string>> {
+    const state: SinkState = { text: "", closed: false, aborted: false };
+    this.sinks.set(filePath, state);
+    return new WritableStream<string>({
+      write(chunk) {
+        state.text += chunk;
+      },
+      close() {
+        state.closed = true;
+      },
+      abort() {
+        state.aborted = true;
+      },
+    });
+  }
+}
+
+test("split releases every output writer when the write pass fails", async () => {
+  const io = new MemoryIO(syntheticIfcWithWalls(2), 2);
+  const splitter = new IfcSplitter(io);
+
+  await expect(
+    splitter.split("in.ifc", 2, (groupId) => `out_${groupId}.ifc`),
+  ).rejects.toThrow("read failed");
+
+  expect(io.sinks.size).toBe(2);
+  for (const [name, state] of io.sinks) {
+    expect(state.aborted, `${name} aborted`).toBe(true);
+    expect(state.closed, `${name} closed`).toBe(false);
+  }
+});
+
+test("extract releases the output writer when the write pass fails", async () => {
+  const io = new MemoryIO(syntheticIfcWithWalls(2), 2);
+  const splitter = new IfcSplitter(io);
+
+  await expect(splitter.extract("in.ifc", [1], "out.ifc")).rejects.toThrow(
+    "read failed",
+  );
+
+  expect(io.sinks.get("out.ifc")?.aborted).toBe(true);
+  expect(io.sinks.get("out.ifc")?.closed).toBe(false);
+});
+
+// Regression: group membership used to live in a `1 << g` bitmask over a
+// Uint32Array, so group 32 aliased group 0, group 33 aliased group 1, and so
+// on — silently duplicating elements into the wrong output files.
+test.each([1, 32, 33, 64, 100])(
+  "split into %i groups keeps every group distinct",
+  async (numGroups) => {
+    const io = new MemoryIO(syntheticIfcWithWalls(numGroups));
+    const splitter = new IfcSplitter(io);
+
+    const splitMap = await splitter.split(
+      "in.ifc",
+      numGroups,
+      (groupId) => `out_${groupId}.ifc`,
+    );
+
+    expect(splitMap.size).toBe(numGroups);
+    expect(io.sinks.size).toBe(numGroups);
+
+    // One wall per group, and each wall lands in exactly one output file.
+    const owners = new Map<number, string[]>();
+    for (const [name, state] of io.sinks) {
+      expect(state.closed, `${name} closed`).toBe(true);
+      const walls = [...state.text.matchAll(/^#(\d+)=IFCWALL/gm)].map((m) =>
+        Number(m[1]),
+      );
+      expect(walls, `${name} wall count`).toHaveLength(1);
+      const existing = owners.get(walls[0]) ?? [];
+      owners.set(walls[0], [...existing, name]);
+    }
+
+    expect(owners.size, "every wall assigned exactly once").toBe(numGroups);
+    for (const [wall, files] of owners) {
+      expect(files, `#${wall} owners`).toHaveLength(1);
+    }
+  },
+);
+
+test.each([0, -1, 1.5, NaN])(
+  "split rejects numGroups=%s",
+  async (numGroups) => {
+    const splitter = new IfcSplitterNode();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const readableStream = vi.spyOn((splitter as any).io, "readableStream");
+    await expect(
+      splitter.split(
+        path.resolve(assetDir, "resources/ifc/school_str.ifc"),
+        numGroups,
+        () => path.resolve(import.meta.dirname, ".tmp", "unreachable.ifc"),
+      ),
+    ).rejects.toThrow(RangeError);
+    // rejected before any I/O happened
+    expect(readableStream).not.toHaveBeenCalled();
+  },
+);
 
 test("split ifc", async () => {
   const splitter = new IfcSplitterNode();
@@ -51,7 +208,7 @@ test("split ifc", async () => {
     "distribute",
     "relations",
     "resolve",
-    "build-mask",
+    "build-index",
     "write",
   ]);
   expect(onSplitsResolved).toHaveBeenCalledOnce();
@@ -159,7 +316,7 @@ test("extract ifc", async () => {
 
   expect(extractedIds.size).toBe(14576);
 
-  expect(new Set(idsToExtract).isSubsetOf(extractedIds)).toBeTruthy();
+  expect(idsToExtract.every((id) => extractedIds.has(id))).toBeTruthy();
 
   const importer = new IfcImporter();
   importer.addAllAttributes();

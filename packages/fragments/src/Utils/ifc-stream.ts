@@ -85,13 +85,21 @@ export class IfcDecoderStream extends TransformStream<Uint8Array, string> {
  */
 export async function* streamAsyncIterator<T>(stream: ReadableStream<T>) {
   const reader = stream.getReader();
+  let drained = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) return;
+      if (done) {
+        drained = true;
+        return;
+      }
       yield value;
     }
   } finally {
+    // On the abnormal path (`break`, `throw`, or an early `return` from the
+    // consumer) the source is still open — cancel it so the underlying file
+    // handle / socket is released instead of waiting for GC.
+    if (!drained) await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }

@@ -50,7 +50,7 @@
     "test-indexes": "yarn tsx ./src/FragmentsModels/test-indexes.ts"
   },
   "engines": {
-    "node": ">=17"
+    "node": ">=20.11.0"
   },
   "dependencies": {
     "earcut": "^3.0.1",

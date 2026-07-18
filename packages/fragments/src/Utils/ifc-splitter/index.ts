@@ -1,7 +1,6 @@
 /* eslint-disable max-classes-per-file */
 /* eslint-disable no-use-before-define */
 /* eslint-disable no-cond-assign */
-/* eslint-disable no-bitwise */
 
 import { Event } from "../event";
 import {
@@ -43,7 +42,7 @@ export type IfcSplitterStage =
   | "distribute"
   | "relations"
   | "resolve"
-  | "build-mask"
+  | "build-index"
   | "write";
 
 export interface IfcSplitterProgressEvent {
@@ -54,10 +53,6 @@ export interface IfcSplitterProgressEvent {
 export interface IfcSplitterWarningEvent {
   message: string;
   context: { id: number; type?: string };
-}
-
-export interface IfcSplitterGroupsEvent {
-  data: (GroupData | null)[];
 }
 
 /** Mapping of void/fill relationships between walls, openings, and fillers (doors/windows). */
@@ -89,6 +84,10 @@ export interface GroupData {
   elementCount: number;
   totalIds: number;
   fileName: string;
+}
+
+export interface IfcSplitterGroupsEvent {
+  data: (GroupData | null)[];
 }
 
 // ---------------------------------------------------------------------------
@@ -634,11 +633,66 @@ function resolveStyles(
 // Main split logic
 // ---------------------------------------------------------------------------
 
+/**
+ * Maps every parsed IFC id to the groups whose output file must contain it.
+ *
+ * Laid out CSR-style — `starts` slices into a flat `members` array — rather
+ * than as one bit per group in a `Uint32Array`, so the number of groups is not
+ * capped at 32. Lookup is a `subarray` view: O(1) and allocation-free, which
+ * matters because the write pass calls it once per data line.
+ */
+class IdGroupIndex {
+  private readonly starts: Uint32Array;
+  private readonly members: Uint32Array;
+  private readonly maxId: number;
+
+  constructor(groupsData: (GroupData | null)[], maxId: number) {
+    // Pass 1 — count each id's memberships into starts[id + 1], so the prefix
+    // sum below leaves starts[id] holding the id's own start offset.
+    const starts = new Uint32Array(maxId + 2);
+    let total = 0;
+    for (const groupData of groupsData) {
+      if (!groupData) continue;
+      for (const id of groupData.fileIds) {
+        if (id < 0 || id > maxId) continue; // dangling ref, no line to emit
+        starts[id + 1] += 1;
+        total += 1;
+      }
+    }
+    for (let i = 1; i < starts.length; i++) starts[i] += starts[i - 1];
+
+    // Pass 2 — place group indices.
+    const members = new Uint32Array(total);
+    const cursor = starts.slice();
+    for (let g = 0; g < groupsData.length; g++) {
+      const groupData = groupsData[g];
+      if (!groupData) continue;
+      for (const id of groupData.fileIds) {
+        if (id < 0 || id > maxId) continue;
+        members[cursor[id]] = g;
+        cursor[id] += 1;
+      }
+    }
+
+    this.starts = starts;
+    this.members = members;
+    this.maxId = maxId;
+  }
+
+  /**
+   * Indices of the groups that include `id`, ascending. Empty if none.
+   */
+  groupsOf(id: number): Uint32Array {
+    if (id < 0 || id > this.maxId) return new Uint32Array(0);
+    return this.members.subarray(this.starts[id], this.starts[id + 1]);
+  }
+}
+
 async function emitSplitLine(
   writers: (WritableStreamDefaultWriter | null)[],
   raw: string,
   groupsData: (GroupData | null)[],
-  idGroupMask: Uint32Array,
+  idGroups: IdGroupIndex,
 ): Promise<void> {
   if (raw.charCodeAt(0) !== 35) return; // '#'
   let id = 0;
@@ -650,13 +704,11 @@ async function emitSplitLine(
       break;
     }
   }
-  if (id === 0 || id >= idGroupMask.length) return;
+  if (id === 0) return;
 
-  const mask = idGroupMask[id];
-  if (mask === 0) return;
-
-  for (let g = 0; g < groupsData.length; g++) {
-    if (!(mask & (1 << g))) continue;
+  const groups = idGroups.groupsOf(id);
+  for (let i = 0; i < groups.length; i++) {
+    const g = groups[i];
     const gd = groupsData[g]!;
     const line = gd.rewrittenLines.get(id) ?? raw;
     await writers[g]!.write(`${line}\n`);
@@ -684,6 +736,20 @@ async function emitExtractLine(
   await writer.write(`${line}\n`);
 }
 
+/**
+ * Abort every writer, swallowing secondary failures so the original error is
+ * the one that propagates. Aborting an already closed writer rejects — that is
+ * expected and ignored.
+ */
+async function abortWriters(
+  writers: (WritableStreamDefaultWriter | null)[],
+  reason?: unknown,
+): Promise<void> {
+  await Promise.allSettled(
+    writers.map(async (writer) => writer?.abort(reason)),
+  );
+}
+
 export class IfcSplitter {
   protected readonly io: IfcSplitterIO;
   protected readonly eventTarget: EventTarget;
@@ -705,14 +771,23 @@ export class IfcSplitter {
   /**
    * Split an IFC file into N roughly equal groups of building elements.
    * @param inputPath - Absolute or relative path to the source IFC file.
-   * @param numGroups - Number of output files to produce (max 32).
+   * @param numGroups - Number of output files to produce. Not capped by the
+   * splitter, but note that the write pass holds one open writer per non-empty
+   * group, so the practical ceiling is the process' file descriptor limit.
    * @param outputPath - Given `groupId` returns output file path.
+   * @throws {RangeError} if `numGroups` is not a positive integer.
    */
   async split(
     inputPath: string,
     numGroups: number,
     outputPath: (groupId: number) => string,
   ): Promise<Map<string, Set<number>>> {
+    if (!Number.isInteger(numGroups) || numGroups < 1) {
+      throw new RangeError(
+        `numGroups must be a positive integer, received ${numGroups}`,
+      );
+    }
+
     // 1. Parse
     const parseStart = performance.now();
     const { header, footer, index } = await this.parseIfc(inputPath);
@@ -879,18 +954,10 @@ export class IfcSplitter {
     const maxParsedId = index.maxId;
     index.free();
 
-    // 9. Build Uint32Array bitmask for O(1) write-phase lookups
-    const buildMaskStart = performance.now();
-    const idGroupMask = new Uint32Array(maxParsedId + 1);
-    for (let g = 0; g < numGroups; g++) {
-      const groupData = groupsData[g];
-      if (!groupData) continue;
-      const bit = 1 << g;
-      for (const id of groupData.fileIds) {
-        idGroupMask[id] |= bit;
-      }
-    }
-    this.emitProgressEvent("build-mask", buildMaskStart);
+    // 9. Invert fileIds into an id -> groups index for O(1) write-phase lookups
+    const buildIndexStart = performance.now();
+    const idGroups = new IdGroupIndex(groupsData, maxParsedId);
+    this.emitProgressEvent("build-index", buildIndexStart);
 
     // 10. Second pass: write output files
     const writeStart = performance.now();
@@ -899,7 +966,7 @@ export class IfcSplitter {
       header,
       footer,
       groupsData,
-      idGroupMask,
+      idGroups,
     );
     this.emitProgressEvent("write", writeStart);
 
@@ -913,8 +980,10 @@ export class IfcSplitter {
   /**
    * Extract specific building elements from an IFC file into a new IFC file.
    * @param inputPath  - Absolute or relative path to the source IFC file.
-   * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped with a warning.
+   * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped, each reported through {@link onExtractWarning}.
    * @param outputPath - Path for the output IFC file.
+   * @throws {Error} if none of `elementIds` resolves to a building element. No
+   * output file is produced in that case.
    */
   async extract(
     inputPath: string,
@@ -1044,42 +1113,54 @@ export class IfcSplitter {
 
     const writeStart = performance.now();
     const writer = (await this.io.writableStream(outputPath)).getWriter();
-    await writer.write(`${header.join("\n")}\n`);
+    let closed = false;
+    try {
+      await writer.write(`${header.join("\n")}\n`);
 
-    let section: "header" | "data" | "footer" = "header";
-    let accumulator = "";
+      let section: "header" | "data" | "footer" = "header";
+      let accumulator = "";
 
-    await this.forEachLine(inputPath, async (line: string) => {
-      if (section === "header") {
-        if (line.trim() === "DATA;") section = "data";
-        return;
-      }
-      if (section === "data") {
-        const trimmed = line.trim();
-        if (trimmed === "ENDSEC;") {
-          if (accumulator) {
+      await this.forEachLine(inputPath, async (line: string) => {
+        if (section === "header") {
+          if (line.trim() === "DATA;") section = "data";
+          return;
+        }
+        if (section === "data") {
+          const trimmed = line.trim();
+          if (trimmed === "ENDSEC;") {
+            if (accumulator) {
+              await emitExtractLine(
+                writer,
+                accumulator,
+                fileIds,
+                rewrittenLines,
+              );
+              accumulator = "";
+            }
+            section = "footer";
+            return;
+          }
+
+          if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
+            await emitExtractLine(writer, trimmed, fileIds, rewrittenLines);
+            return;
+          }
+
+          accumulator += (accumulator ? " " : "") + trimmed;
+          if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
             await emitExtractLine(writer, accumulator, fileIds, rewrittenLines);
             accumulator = "";
           }
-          section = "footer";
-          return;
         }
+      });
 
-        if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-          await emitExtractLine(writer, trimmed, fileIds, rewrittenLines);
-          return;
-        }
-
-        accumulator += (accumulator ? " " : "") + trimmed;
-        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-          await emitExtractLine(writer, accumulator, fileIds, rewrittenLines);
-          accumulator = "";
-        }
-      }
-    });
-
-    await writer.write(`${footer.join("\n")}\n`);
-    await writer.close();
+      await writer.write(`${footer.join("\n")}\n`);
+      await writer.close();
+      closed = true;
+    } finally {
+      // Reading or writing may reject mid-stream; release the sink either way.
+      if (!closed) await abortWriters([writer]);
+    }
     this.emitProgressEvent("write", writeStart);
 
     return fileIds;
@@ -1156,11 +1237,70 @@ export class IfcSplitter {
     header: string[],
     footer: string[],
     groupsData: (GroupData | null)[],
-    idGroupMask: Uint32Array,
+    idGroups: IdGroupIndex,
   ): Promise<void> {
     const headerStr = `${header.join("\n")}\n`;
+    const writers = await this.openGroupWriters(groupsData, headerStr);
 
-    const writers: (WritableStreamDefaultWriter | null)[] = await Promise.all(
+    let section: "header" | "data" | "footer" = "header";
+    let accumulator = "";
+    let closed = false;
+
+    try {
+      await this.forEachLine(inputPath, async (line: string) => {
+        if (section === "header") {
+          if (line.trim() === "DATA;") section = "data";
+          return;
+        }
+        if (section === "data") {
+          const trimmed = line.trim();
+          if (trimmed === "ENDSEC;") {
+            if (accumulator) {
+              await emitSplitLine(writers, accumulator, groupsData, idGroups);
+              accumulator = "";
+            }
+            section = "footer";
+            return;
+          }
+
+          if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
+            await emitSplitLine(writers, trimmed, groupsData, idGroups);
+            return;
+          }
+
+          accumulator += (accumulator ? " " : "") + trimmed;
+          if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
+            await emitSplitLine(writers, accumulator, groupsData, idGroups);
+            accumulator = "";
+          }
+        }
+      });
+
+      const footerStr = `${footer.join("\n")}\n`;
+      await Promise.all(
+        writers.map(async (writer) => {
+          if (!writer) return;
+          await writer.write(footerStr);
+          await writer.close();
+        }),
+      );
+      closed = true;
+    } finally {
+      // Any read/write rejection leaves every sink open — abort them all rather
+      // than leaking one file handle per group.
+      if (!closed) await abortWriters(writers);
+    }
+  }
+
+  /**
+   * Open one writer per non-empty group and prime it with the header. If any
+   * writer fails to open, the ones already opened are aborted before rethrowing.
+   */
+  private async openGroupWriters(
+    groupsData: (GroupData | null)[],
+    headerStr: string,
+  ): Promise<(WritableStreamDefaultWriter | null)[]> {
+    const opened = await Promise.allSettled(
       groupsData.map(async (groupData) => {
         if (!groupData) return null;
         const writer = (
@@ -1171,46 +1311,17 @@ export class IfcSplitter {
       }),
     );
 
-    let section: "header" | "data" | "footer" = "header";
-    let accumulator = "";
-
-    await this.forEachLine(inputPath, async (line: string) => {
-      if (section === "header") {
-        if (line.trim() === "DATA;") section = "data";
-        return;
-      }
-      if (section === "data") {
-        const trimmed = line.trim();
-        if (trimmed === "ENDSEC;") {
-          if (accumulator) {
-            await emitSplitLine(writers, accumulator, groupsData, idGroupMask);
-            accumulator = "";
-          }
-          section = "footer";
-          return;
-        }
-
-        if (!accumulator && trimmed.charCodeAt(trimmed.length - 1) === 59) {
-          await emitSplitLine(writers, trimmed, groupsData, idGroupMask);
-          return;
-        }
-
-        accumulator += (accumulator ? " " : "") + trimmed;
-        if (accumulator.charCodeAt(accumulator.length - 1) === 59) {
-          await emitSplitLine(writers, accumulator, groupsData, idGroupMask);
-          accumulator = "";
-        }
-      }
-    });
-
-    const footerStr = `${footer.join("\n")}\n`;
-    await Promise.all(
-      writers.map(async (writer) => {
-        if (!writer) return;
-        await writer.write(footerStr);
-        await writer.close();
-      }),
+    const writers = opened.map((result) =>
+      result.status === "fulfilled" ? result.value : null,
     );
+    const failed = opened.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    if (failed.length > 0) {
+      await abortWriters(writers, failed[0].reason);
+      throw failed[0].reason;
+    }
+    return writers;
   }
 
   protected emitProgressEvent(stage: IfcSplitterStage, start: number) {
