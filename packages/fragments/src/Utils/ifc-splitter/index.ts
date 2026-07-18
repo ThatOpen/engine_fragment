@@ -79,15 +79,26 @@ export interface StyleMaps {
 
 /** Per-group output data: the set of IFC entity IDs to include and any rewritten relationship lines. */
 export interface GroupData {
+  /**
+   * The `groupId` this data was resolved for — the value passed to `split`'s
+   * `outputPath` callback. Carried explicitly rather than implied by position,
+   * because groups that end up with no elements produce no entry at all.
+   */
+  groupId: number;
   fileIds: Set<number>;
   rewrittenLines: Map<number, string>;
   elementCount: number;
   totalIds: number;
-  fileName: string;
+  filePath: string;
 }
 
 export interface IfcSplitterGroupsEvent {
-  data: (GroupData | null)[];
+  /**
+   * One entry per **non-empty** group, ascending by {@link GroupData.groupId}.
+   * A `split` into more groups than there are element clusters simply yields
+   * fewer entries than `numGroups` — use `groupId` to correlate, not the index.
+   */
+  data: GroupData[];
 }
 
 // ---------------------------------------------------------------------------
@@ -646,13 +657,12 @@ class IdGroupIndex {
   private readonly members: Uint32Array;
   private readonly maxId: number;
 
-  constructor(groupsData: (GroupData | null)[], maxId: number) {
+  constructor(groupsData: GroupData[], maxId: number) {
     // Pass 1 — count each id's memberships into starts[id + 1], so the prefix
     // sum below leaves starts[id] holding the id's own start offset.
     const starts = new Uint32Array(maxId + 2);
     let total = 0;
     for (const groupData of groupsData) {
-      if (!groupData) continue;
       for (const id of groupData.fileIds) {
         if (id < 0 || id > maxId) continue; // dangling ref, no line to emit
         starts[id + 1] += 1;
@@ -661,13 +671,13 @@ class IdGroupIndex {
     }
     for (let i = 1; i < starts.length; i++) starts[i] += starts[i - 1];
 
-    // Pass 2 — place group indices.
+    // Pass 2 — place positions. `members` holds indices into `groupsData`, not
+    // `GroupData.groupId`, so it stays aligned with the writers array, which is
+    // built from `groupsData` the same way.
     const members = new Uint32Array(total);
     const cursor = starts.slice();
     for (let g = 0; g < groupsData.length; g++) {
-      const groupData = groupsData[g];
-      if (!groupData) continue;
-      for (const id of groupData.fileIds) {
+      for (const id of groupsData[g].fileIds) {
         if (id < 0 || id > maxId) continue;
         members[cursor[id]] = g;
         cursor[id] += 1;
@@ -680,7 +690,8 @@ class IdGroupIndex {
   }
 
   /**
-   * Indices of the groups that include `id`, ascending. Empty if none.
+   * Positions in `groupsData` of the groups that include `id`, ascending.
+   * Empty if none.
    */
   groupsOf(id: number): Uint32Array {
     if (id < 0 || id > this.maxId) return new Uint32Array(0);
@@ -689,9 +700,9 @@ class IdGroupIndex {
 }
 
 async function emitSplitLine(
-  writers: (WritableStreamDefaultWriter | null)[],
+  writers: WritableStreamDefaultWriter[],
   raw: string,
-  groupsData: (GroupData | null)[],
+  groupsData: GroupData[],
   idGroups: IdGroupIndex,
 ): Promise<void> {
   if (raw.charCodeAt(0) !== 35) return; // '#'
@@ -709,9 +720,8 @@ async function emitSplitLine(
   const groups = idGroups.groupsOf(id);
   for (let i = 0; i < groups.length; i++) {
     const g = groups[i];
-    const gd = groupsData[g]!;
-    const line = gd.rewrittenLines.get(id) ?? raw;
-    await writers[g]!.write(`${line}\n`);
+    const line = groupsData[g].rewrittenLines.get(id) ?? raw;
+    await writers[g].write(`${line}\n`);
   }
 }
 
@@ -742,12 +752,10 @@ async function emitExtractLine(
  * expected and ignored.
  */
 async function abortWriters(
-  writers: (WritableStreamDefaultWriter | null)[],
+  writers: WritableStreamDefaultWriter[],
   reason?: unknown,
 ): Promise<void> {
-  await Promise.allSettled(
-    writers.map(async (writer) => writer?.abort(reason)),
-  );
+  await Promise.allSettled(writers.map(async (writer) => writer.abort(reason)));
 }
 
 export class IfcSplitter {
@@ -775,13 +783,14 @@ export class IfcSplitter {
    * splitter, but note that the write pass holds one open writer per non-empty
    * group, so the practical ceiling is the process' file descriptor limit.
    * @param outputPath - Given `groupId` returns output file path.
+   * @returns a map keyed by {@link GroupData.groupId}.
    * @throws {RangeError} if `numGroups` is not a positive integer.
    */
   async split(
     inputPath: string,
     numGroups: number,
     outputPath: (groupId: number) => string,
-  ): Promise<Map<string, Set<number>>> {
+  ): Promise<Map<number, { path: string; ids: Set<number> }>> {
     if (!Number.isInteger(numGroups) || numGroups < 1) {
       throw new RangeError(
         `numGroups must be a positive integer, received ${numGroups}`,
@@ -885,14 +894,14 @@ export class IfcSplitter {
 
     // 8. Resolve deps for all groups
     const resolveStart = performance.now();
-    const groupsData: (GroupData | null)[] = [];
+    const groupsData: GroupData[] = [];
 
     for (let g = 0; g < numGroups; g++) {
       const groupElementIds = groups[g];
-      if (groupElementIds.size === 0) {
-        groupsData.push(null);
-        continue;
-      }
+      // A group gets nothing when there are fewer clusters than `numGroups`.
+      // Such a group produces no entry and no output file, so `groupsData` is
+      // dense and every consumer correlates via `groupId` rather than position.
+      if (groupElementIds.size === 0) continue;
 
       const fileIds = new Set<number>(sharedIds);
 
@@ -939,11 +948,12 @@ export class IfcSplitter {
 
       const totalIds = fileIds.size;
       groupsData.push({
+        groupId: g,
         fileIds,
         rewrittenLines,
         elementCount: groupElementIds.size,
         totalIds,
-        fileName: outputPath(g),
+        filePath: outputPath(g),
       });
     }
 
@@ -971,9 +981,10 @@ export class IfcSplitter {
     this.emitProgressEvent("write", writeStart);
 
     return new Map(
-      groupsData
-        .filter((g): g is GroupData => !!g)
-        .map((g) => [g.fileName, g.fileIds]),
+      groupsData.map(({ groupId, filePath, fileIds }) => [
+        groupId,
+        { path: filePath, ids: fileIds },
+      ]),
     );
   }
 
@@ -1236,7 +1247,7 @@ export class IfcSplitter {
     inputPath: string,
     header: string[],
     footer: string[],
-    groupsData: (GroupData | null)[],
+    groupsData: GroupData[],
     idGroups: IdGroupIndex,
   ): Promise<void> {
     const headerStr = `${header.join("\n")}\n`;
@@ -1279,7 +1290,6 @@ export class IfcSplitter {
       const footerStr = `${footer.join("\n")}\n`;
       await Promise.all(
         writers.map(async (writer) => {
-          if (!writer) return;
           await writer.write(footerStr);
           await writer.close();
         }),
@@ -1297,31 +1307,30 @@ export class IfcSplitter {
    * writer fails to open, the ones already opened are aborted before rethrowing.
    */
   private async openGroupWriters(
-    groupsData: (GroupData | null)[],
+    groupsData: GroupData[],
     headerStr: string,
-  ): Promise<(WritableStreamDefaultWriter | null)[]> {
-    const opened = await Promise.allSettled(
+  ): Promise<WritableStreamDefaultWriter[]> {
+    const settled = await Promise.allSettled(
       groupsData.map(async (groupData) => {
-        if (!groupData) return null;
         const writer = (
-          await this.io.writableStream(groupData.fileName)
+          await this.io.writableStream(groupData.filePath)
         ).getWriter();
         await writer.write(headerStr);
         return writer;
       }),
     );
 
-    const writers = opened.map((result) =>
-      result.status === "fulfilled" ? result.value : null,
+    const opened = settled.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value] : [],
     );
-    const failed = opened.filter(
+    const failure = settled.find(
       (result): result is PromiseRejectedResult => result.status === "rejected",
     );
-    if (failed.length > 0) {
-      await abortWriters(writers, failed[0].reason);
-      throw failed[0].reason;
+    if (failure) {
+      await abortWriters(opened, failure.reason);
+      throw failure.reason;
     }
-    return writers;
+    return opened;
   }
 
   protected emitProgressEvent(stage: IfcSplitterStage, start: number) {

@@ -2,7 +2,6 @@ import { readFile } from "fs/promises";
 import * as path from "path";
 import { expect, test, vi } from "vitest";
 import {
-  GroupData,
   IfcSplitter,
   IfcSplitterGroupsEvent,
   IfcSplitterIO,
@@ -161,6 +160,46 @@ test.each([1, 32, 33, 64, 100])(
   },
 );
 
+// More groups requested than there are element clusters: the surplus groups
+// yield no GroupData and no output file at all. `groupId` — not the array
+// index — is what ties an entry back to the requested group.
+test("split into more groups than clusters skips the empty ones", async () => {
+  const wallCount = 3;
+  const numGroups = 10;
+  const io = new MemoryIO(syntheticIfcWithWalls(wallCount));
+  const splitter = new IfcSplitter(io);
+  const onSplitsResolved = vi.fn<(event: IfcSplitterGroupsEvent) => unknown>();
+  splitter.onSplitsResolved.add(onSplitsResolved);
+
+  const splitMap = await splitter.split(
+    "in.ifc",
+    numGroups,
+    (groupId) => `out_${groupId}.ifc`,
+  );
+
+  const { data } = onSplitsResolved.mock.calls[0][0];
+
+  // No null padding out to numGroups, and no file for the empty groups.
+  expect(data).toHaveLength(wallCount);
+  expect(data.every((group) => group !== null)).toBe(true);
+  expect(splitMap.size).toBe(wallCount);
+  expect(io.sinks.size).toBe(wallCount);
+
+  // Each entry still knows which requested group it came from.
+  expect(data.map(({ groupId }) => groupId)).toEqual([0, 1, 2]);
+  for (const group of data) {
+    expect(group.filePath, `groupId ${group.groupId}`).toBe(
+      `out_${group.groupId}.ifc`,
+    );
+    expect(io.sinks.get(group.filePath)?.closed).toBe(true);
+  }
+
+  // The surplus groups produced nothing at all.
+  for (let g = wallCount; g < numGroups; g++) {
+    expect(io.sinks.has(`out_${g}.ifc`), `out_${g}.ifc`).toBe(false);
+  }
+});
+
 test.each([0, -1, 1.5, NaN])(
   "split rejects numGroups=%s",
   async (numGroups) => {
@@ -213,7 +252,11 @@ test("split ifc", async () => {
   ]);
   expect(onSplitsResolved).toHaveBeenCalledOnce();
 
-  const { data } = onSplitsResolved.mock.calls[0][0] as { data: GroupData[] };
+  const { data } = onSplitsResolved.mock.calls[0][0];
+  // Every group is non-empty here, so groupId matches position 1:1.
+  expect(data.map(({ groupId }) => groupId)).toEqual([
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9,
+  ]);
   expect(
     data.map(({ elementCount, totalIds, rewrittenLines }) => {
       return { elementCount, totalIds, rewrittenLines: rewrittenLines.size };
@@ -274,8 +317,11 @@ test("split ifc", async () => {
   expect(onExtractWarning).not.toHaveBeenCalled();
 
   expect(splitMap.size).toBe(splitCount);
-  for (const { fileName, fileIds } of data) {
-    expect(splitMap.get(fileName), fileName).toEqual(fileIds);
+  for (const { groupId, filePath, fileIds } of data) {
+    expect(splitMap.get(groupId), filePath).toEqual({
+      path: filePath,
+      ids: fileIds,
+    });
   }
 });
 
