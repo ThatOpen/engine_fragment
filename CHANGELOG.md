@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### ⚠ BREAKING CHANGES
+
+* `split`/`extract`: have become `async`, have changed signature (including return types) and are scoped under `IfcSplitter`, exposed events (`onProgress`, `onSplitsResolved`, `onExtractWarning`) instead of console logs.
+* `extract` now throws if no targets to extract were found, instead of logging and returning without producing an output file
+* `split` now throws a `RangeError` unless `numGroups` is a positive integer. The previous 32-group ceiling is gone: group membership is no longer stored as a `1 << g` bitmask, so any number of splits is supported (bounded in practice by the process' open file descriptor limit, one per group).
+* `@thatopen/fragments` now requires node `>=20.11.0` (`fs.openAsBlob`, global web streams)
+
 ## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
 
 

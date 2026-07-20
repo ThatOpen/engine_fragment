@@ -57,8 +57,12 @@ module.exports = {
   overrides: [
     {
       files: ["*.test.ts"],
-      env: {
-        jest: true,
+      rules: {
+        // vitest is a devDependency by design
+        "import/no-extraneous-dependencies": [
+          "error",
+          { devDependencies: true },
+        ],
       },
     },
   ],
