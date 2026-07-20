@@ -1,3 +1,7 @@
+// eslint-disable-next-line max-classes-per-file
+import * as webIfc from "web-ifc";
+import { extractLineMeta, parseStepArguments } from "./ifc-parsing-utils";
+
 const crCharCode = 13; // "\r";
 const nl = "\n";
 
@@ -63,6 +67,107 @@ export class IfcDecoderStream extends TransformStream<Uint8Array, string> {
         const remaining = decoder.decode();
         const full = tail + remaining;
         if (full) controller.enqueue(full);
+      },
+    });
+  }
+}
+
+/**
+ *
+ * @example
+ * ```ts
+ * let blob: Blob;
+ *
+ * // node
+ * blob = await fs.openAsBlob(path, { type: "text/plain" });
+ *
+ * const ifcStream = blob
+ *   .stream()
+ *   .pipeThrough(new IfcDecoderStream())
+ *   .pipeThrough(new IfcParserStream());
+ *
+ * for await (const entity of ifcStream) {
+ *   const localId = entity.expressID;
+ *   const type = entity.type;
+ * }
+ * ```
+ */
+export class IfcParserStream extends TransformStream<
+  string,
+  webIfc.IfcLineObject
+> {
+  constructor() {
+    let schemaFactoryMap: Record<number, (...args: unknown[]) => any> | null =
+      null;
+    let section: "header" | "data" | "footer" = "header";
+    const header: string[] = [];
+    const schemaRE = /FILE_SCHEMA\(+'?([^')]*)'?\)+;/;
+
+    function getFactory(type: string): ((line: string) => any) | null {
+      if (!schemaFactoryMap) return null;
+
+      const typeCode = (webIfc as Record<string, unknown>)[type];
+      if (typeof typeCode !== "number") return null;
+
+      const ctor = schemaFactoryMap[typeCode];
+      if (!ctor) return null;
+
+      return (line: string) => {
+        const args = parseStepArguments(line);
+        return ctor(args);
+      };
+    }
+
+    super({
+      transform(line, controller) {
+        switch (section) {
+          case "header":
+            if (line.trim() === "DATA;") {
+              const schemaLine = header.find((line) => schemaRE.test(line));
+              const schema = schemaLine && schemaRE.exec(schemaLine)?.[1];
+              if (!schema) {
+                controller.error("Ifc schema not found");
+                return;
+              }
+              const schemaIndex = webIfc.SchemaNames.findIndex((names) =>
+                names?.includes(schema),
+              );
+              if (schemaIndex === -1) {
+                controller.error(`Ifc schema '${schema}' not found`);
+                return;
+              }
+              schemaFactoryMap = webIfc.Constructors[schemaIndex];
+              section = "data";
+              return;
+            }
+            header.push(line);
+            break;
+
+          case "data":
+            {
+              if (line.trim() === "ENDSEC;") {
+                section = "footer";
+                return;
+              }
+              const result = extractLineMeta(line);
+              if (!result) {
+                controller.error(`Ifc corrupted line: ${line}`);
+                return;
+              }
+              const factory = getFactory(result.type);
+              if (!factory) {
+                controller.error(`Unknown Ifc type '${result.type}'`);
+                return;
+              }
+              const entity = factory(line);
+              entity.expressID = result.id;
+              controller.enqueue(entity);
+            }
+            break;
+
+          default:
+            break;
+        }
       },
     });
   }
