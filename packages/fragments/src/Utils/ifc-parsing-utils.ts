@@ -136,6 +136,9 @@ function parseList(
 
     const ch = src[pos];
 
+    // end of the enclosing list — the caller consumes the ")"
+    if (ch === ")") break;
+
     if (ch === "$") {
       // omitted / null attribute
       items.push({ type: StepTapeType.Empty, value: null });
