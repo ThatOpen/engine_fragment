@@ -518,7 +518,17 @@ export interface DeleteRelationRequest extends BaseUpdateRequest {
 export interface RawIndexData {
   /** Index identifier, unique within the model. */
   name: string;
-  /** Key vector. Drives the storage type (`number_keys` or `string_keys`). */
+  /**
+   * Key vector. Drives the storage type (`number_keys` or `string_keys`).
+   *
+   * Performance: prefer `number` keys for large or hot indexes. Number keys are
+   * read straight from a `Uint32Array`, while string keys cost a UTF-8 decode
+   * plus a long-string hash on every lookup-map build. If your keys are long
+   * strings (e.g. hashes), hash them down to a `uint32` at build time and keep a
+   * small side table if you need the original string back; both the build and
+   * every lookup get dramatically cheaper, and it also keeps the worker-to-main
+   * payload a plain typed-array copy.
+   */
   keys: number[] | string[];
   /** Value vector. Drives `number_values` or `string_values`. Omit for keys-only. */
   values?: number[] | string[];
