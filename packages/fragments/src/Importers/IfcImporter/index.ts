@@ -153,6 +153,17 @@ export class IfcImporter {
   doubleSidedMaterials = false;
 
   /**
+   * Whether to import each material's own property sets (`IfcMaterialProperties`
+   * in IFC4, `IfcExtendedMaterialProperties` in IFC2X3).
+   * @remarks Off by default to keep the output lean. These entities link to
+   * their material through a direct `Material` attribute rather than an
+   * `IfcRel*`, so when enabled the importer also synthesizes the inverse
+   * `HasProperties` relation on the material, making the properties reachable as
+   * element -> material -> material properties. See issue #249.
+   */
+  includeMaterialProperties = false;
+
+  /**
    * If set, ignores the items that are further away to the origin than this value.
    * Keep in mind that if your IFC is correctly georreferenced, this value should never
    * be too high. If it's too high, it's either because your file uses absolute coordinates,
@@ -178,6 +189,14 @@ export class IfcImporter {
    */
   async process(data: ProcessData) {
     this._builder = new fb.Builder(1024);
+
+    // Opt-in material property sets (issue #249). Added here rather than in the
+    // `classes` initializer so toggling the flag after construction still works.
+    if (this.includeMaterialProperties) {
+      for (const materialPropertyClass of ifcClasses.materialProperties) {
+        this.classes.abstract.add(materialPropertyClass);
+      }
+    }
 
     // Get geometry
 

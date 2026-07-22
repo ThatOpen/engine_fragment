@@ -36,6 +36,17 @@ export const ifcClasses = {
     WEBIFC.IFCMATERIALPROFILESET,
     WEBIFC.IFCMATERIALPROFILESETUSAGE,
   ]),
+  // Opt-in via IfcImporter.includeMaterialProperties (issue #249). Not folded
+  // into `materials` above because these are heavier and off by default: they
+  // pull each material's property sets. IFCMATERIALPROPERTIES is the IFC4
+  // entity; IFCEXTENDEDMATERIALPROPERTIES is the concrete IFC2X3 subtype
+  // (IfcMaterialProperties is abstract there). Both link to their material by a
+  // direct `Material` attribute rather than an IfcRel, so the importer also
+  // synthesizes the inverse `HasProperties` relation on the material.
+  materialProperties: new Set([
+    WEBIFC.IFCMATERIALPROPERTIES,
+    WEBIFC.IFCEXTENDEDMATERIALPROPERTIES,
+  ]),
   properties: new Set([
     WEBIFC.IFCPROPERTYSET,
     WEBIFC.IFCPROPERTYSINGLEVALUE,

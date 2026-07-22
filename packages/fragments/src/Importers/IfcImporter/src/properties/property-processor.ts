@@ -235,6 +235,9 @@ export class IfcPropertyProcessor {
         this.classes.push(className);
         this.expressIDs.push(expressID);
         await this.serializeAttributes(expressID, attrs);
+        if (this._serializer.includeMaterialProperties) {
+          this.addMaterialPropertiesInverse(expressID, attrs);
+        }
       } catch (e) {
         console.log(
           `Problem reading properties for ${expressID}. If many items are problematic, it may be a problem with the category you are trying to process. You can remove it and try again.`,
@@ -276,6 +279,36 @@ export class IfcPropertyProcessor {
       this.classes.push(category);
       this.expressIDs.push(expressID);
       this._attributesOffsets.push(attributesOffset);
+    }
+  }
+
+  // `IfcMaterial.HasProperties` is the IFC4 inverse of
+  // `IfcMaterialProperties.Material` (and of the IFC2X3
+  // `IfcExtendedMaterialProperties` subtype). web-ifc only exposes the forward
+  // `Material` reference, and the generic attribute pass records just that
+  // direction, so without this the material's properties are serialized but
+  // unreachable from an element. Synthesize the inverse on the material so the
+  // path element -> HasAssociations -> material -> HasProperties -> material
+  // properties works (issue #249). No-op for anything that isn't material
+  // properties, so it's safe to call for every processed item.
+  private addMaterialPropertiesInverse(
+    expressID: number,
+    attrs: RawEntityAttrs,
+  ) {
+    const type = attrs.type as unknown as number;
+    if (
+      type !== WEBIFC.IFCMATERIALPROPERTIES &&
+      type !== WEBIFC.IFCEXTENDEDMATERIALPROPERTIES
+    ) {
+      return;
+    }
+    const material = attrs.Material;
+    const materialID =
+      material && typeof material === "object" && "value" in material
+        ? (material as { value: unknown }).value
+        : undefined;
+    if (typeof materialID === "number") {
+      this.addRelation(materialID, "HasProperties", [expressID]);
     }
   }
 
