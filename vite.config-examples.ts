@@ -98,8 +98,16 @@ const entries = globSync("packages/**/src/**/example.html").map(
 
 const input = Object.fromEntries(entries);
 
+const fragmentsVersion = JSON.parse(
+  fs.readFileSync(path.resolve("packages/fragments/package.json"), "utf-8"),
+).version;
+
 export default defineConfig({
   base: "./",
+  // The examples import the library from source, so the __FRAGMENTS_VERSION__
+  // constant used by getWorker (defined in the library's own vite.config.ts) must
+  // be substituted here too, otherwise it leaks unreplaced and throws at runtime.
+  define: { __FRAGMENTS_VERSION__: JSON.stringify(fragmentsVersion) },
   esbuild: {
     supported: {
       "top-level-await": true,

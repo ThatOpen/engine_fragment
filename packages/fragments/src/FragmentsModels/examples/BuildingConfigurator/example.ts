@@ -271,6 +271,10 @@ const ground = new THREE.Mesh<
   THREE.MeshLambertMaterial | THREE.MeshBasicMaterial
 >(new THREE.BufferGeometry(), defaultMat);
 
+// The ground geometry is regenerated in place on every rebuild, so its bounds
+// can lag a frame and frustum culling wrongly drops it. Never cull it.
+ground.frustumCulled = false;
+
 world.scene.three.add(ground);
 
 // Grid
@@ -337,6 +341,7 @@ const regenerateFragments = async () => {
   ground.position.x = -floorPadding;
   ground.position.z = -floorPadding;
   ground.geometry.computeBoundingBox();
+  ground.geometry.computeBoundingSphere();
 
   // Create base items
 
