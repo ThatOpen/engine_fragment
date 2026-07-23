@@ -325,6 +325,50 @@ test("split ifc", async () => {
   }
 });
 
+// Regression: extract used to resolve dependencies (including resolveStyles)
+// before rewriting relationship lines. Entities pulled into the output only by
+// the relations pass therefore never got their presentation styles resolved:
+// their IfcStyledItem bindings — and the style chain behind them (surface
+// style, rendering, colour) — were silently dropped. Nothing references a
+// styled item, so the output has no dangling refs and no warning fires; the
+// geometry just loses its render style. The relations pass must run before
+// dependency resolution so resolveStyles covers relation-discovered geometry.
+test("extract keeps the styled items of every included geometry item", async () => {
+  const splitter = new IfcSplitterNode();
+  const inputPath = path.resolve(assetDir, "resources/ifc/school_str.ifc");
+  const outputPath = path.resolve(__dirname, ".tmp", "styled.ifc");
+
+  const extractedIds = await splitter.extract(inputPath, [501], outputPath);
+
+  const source = await readFile(inputPath, "utf8");
+
+  // Every styled item in the source whose target geometry was extracted must
+  // be extracted too, along with the styles it binds.
+  const missingStyledItems: number[] = [];
+  const missingStyles: number[] = [];
+  for (const m of source.matchAll(/^#(\d+)\s*=\s*IFCSTYLEDITEM\((.*)$/gm)) {
+    const styledItemId = Number(m[1]);
+    const [target, ...styleRefs] = [...m[2].matchAll(/#(\d+)/g)].map((r) =>
+      Number(r[1]),
+    );
+    if (!extractedIds.has(target)) continue;
+    if (!extractedIds.has(styledItemId)) {
+      missingStyledItems.push(styledItemId);
+      continue;
+    }
+    for (const styleId of styleRefs) {
+      if (!extractedIds.has(styleId)) missingStyles.push(styleId);
+    }
+  }
+
+  expect(missingStyledItems, "styled items of included geometry").toHaveLength(
+    0,
+  );
+  expect(missingStyles, "styles bound by included styled items").toHaveLength(
+    0,
+  );
+});
+
 test("extract ifc", async () => {
   const splitter = new IfcSplitterNode();
   const inputPath = path.resolve(assetDir, "resources/ifc/school_str.ifc");
@@ -393,8 +437,8 @@ test("extract ifc", async () => {
     [
       expect.objectContaining({
         localId: 501,
-        sampleId: 99301,
-        representationId: 98690,
+        sampleId: 99277,
+        representationId: 98663,
       }),
     ],
   ]);
