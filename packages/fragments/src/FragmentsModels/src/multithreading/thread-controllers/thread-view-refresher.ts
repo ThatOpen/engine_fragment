@@ -19,7 +19,9 @@ export class ThreadViewRefresher extends ThreadController {
 
   private safeCopyFrustum(input: any) {
     const frustum = input.view.cameraFrustum;
-    input.view.cameraFrustum = MultithreadingHelper.frustum(frustum);
+    input.view.cameraFrustum = frustum
+      ? MultithreadingHelper.frustum(frustum)
+      : null;
   }
 
   private safeCopyPosition(input: any) {
