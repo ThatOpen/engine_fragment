@@ -324,9 +324,13 @@ function collectDeps(
   while (stack.length > 0) {
     const id = stack.pop()!;
     if (visited.has(id)) continue;
-    visited.add(id);
     const refs = index.getRefs(id);
+    // No refs entry means no line defines this id: it was only ever REFERENCED,
+    // by a dangling `#N` or by a `#` inside a quoted string. Nothing is written
+    // for it, so it must not enter `visited` — that set is the group's id list,
+    // reported to the caller and used to size id-indexed maps.
     if (!refs) continue;
+    visited.add(id);
     for (let i = 0; i < refs.length; i++) {
       const refId = refs[i];
       if (visited.has(refId)) continue;
@@ -345,9 +349,10 @@ function collectDepsAll(
   while (stack.length > 0) {
     const id = stack.pop()!;
     if (visited.has(id)) continue;
-    visited.add(id);
     const refs = index.getRefs(id);
+    // Undefined id — see collectDeps.
     if (!refs) continue;
+    visited.add(id);
     for (let i = 0; i < refs.length; i++) {
       if (!visited.has(refs[i])) stack.push(refs[i]);
     }

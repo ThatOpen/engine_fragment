@@ -123,6 +123,41 @@ test("extract releases the output writer when the write pass fails", async () =>
   expect(io.sinks.get("out.ifc")?.closed).toBe(false);
 });
 
+// Regression: `collectDeps` marked an id visited BEFORE looking up its refs, so
+// an id that is only ever referenced — never defined by a line of its own — was
+// reported in the group's id set. It cannot be, since nothing is written for it.
+test("split never reports an id the source does not define", async () => {
+  const source = [
+    "ISO-10303-21;",
+    "HEADER;",
+    "ENDSEC;",
+    "DATA;",
+    // Dangling reference: no line defines #999.
+    "#1=IFCWALL('guid1',$,$,$,$,#999,$,$);",
+    // '#' inside a quoted string, which the ref scanner reads as a reference.
+    "#2=IFCWALL('guid2 (see #99999)',$,$,$,$,$,$,$);",
+    "ENDSEC;",
+    "END-ISO-10303-21;",
+  ].join("\n");
+  const defined = new Set(
+    [...source.matchAll(/^#(\d+)=/gm)].map((m) => Number(m[1])),
+  );
+  const io = new MemoryIO(source);
+  const splitter = new IfcSplitter(io);
+
+  const splitMap = await splitter.split(
+    "in.ifc",
+    2,
+    (groupId) => `out_${groupId}.ifc`,
+  );
+
+  expect(splitMap.size).toBe(2);
+  for (const [groupId, { ids }] of splitMap) {
+    const undefined_ = [...ids].filter((id) => !defined.has(id));
+    expect(undefined_, `group ${groupId} reports undefined ids`).toEqual([]);
+  }
+});
+
 // Regression: group membership used to live in a `1 << g` bitmask over a
 // Uint32Array, so group 32 aliased group 0, group 33 aliased group 1, and so
 // on — silently duplicating elements into the wrong output files.
