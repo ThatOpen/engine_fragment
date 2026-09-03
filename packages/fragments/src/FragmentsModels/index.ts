@@ -172,6 +172,7 @@ export class FragmentsModels {
   private _isDisposed = false;
   private _autoRedrawInterval: any = null;
   private _lastUpdate = 0;
+  private _pendingForcedUpdate: Promise<void> | null = null;
 
   /**
    * Creates a new FragmentsModels instance.
@@ -395,15 +396,44 @@ export class FragmentsModels {
       return;
     }
     const now = performance.now();
-    if (!force && now - this._lastUpdate < this.settings.maxUpdateRate) {
-      // Keep the poll alive: view changes are detected by these
-      // periodic checks, so a throttled call must still leave a
-      // scheduled one behind. Cheap — no worker traffic happens
-      // until a view actually changes.
-      this.scheduleNextUpdate();
+    const elapsed = now - this._lastUpdate;
+    if (elapsed < this.settings.maxUpdateRate) {
+      if (!force) {
+        // Keep the poll alive: view changes are detected by these
+        // periodic checks, so a throttled call must still leave a
+        // scheduled one behind. Cheap — no worker traffic happens
+        // until a view actually changes.
+        this.scheduleNextUpdate();
+        return;
+      }
+      // Forced updates must not be dropped (callers await them as a
+      // fence), but they must not bypass the rate limit either: camera
+      // controls emit "rest" — and the components layer forces an
+      // update on it — on nearly every frame of a programmatic orbit,
+      // and each forced refresh is a full re-cull plus an unbounded
+      // drain on the main thread. Coalesce every forced call inside
+      // the window into one trailing forced update; awaiting callers
+      // are released when that one has settled, which covers all the
+      // RPCs they could have been waiting for.
+      if (!this._pendingForcedUpdate) {
+        const delay = this.settings.maxUpdateRate - elapsed + 1;
+        this._pendingForcedUpdate = new Promise<void>((resolve) => {
+          setTimeout(() => {
+            this._pendingForcedUpdate = null;
+            this.performUpdate(true).then(resolve, () => resolve());
+          }, delay);
+        });
+      }
+      return this._pendingForcedUpdate;
+    }
+    return this.performUpdate(force);
+  }
+
+  private async performUpdate(force: boolean) {
+    if (this._isDisposed) {
       return;
     }
-    this._lastUpdate = now;
+    this._lastUpdate = performance.now();
 
     // Update the virtual view for all models. Unforced refreshes are
     // skipped per model when its view is unchanged (no RPC at all);
