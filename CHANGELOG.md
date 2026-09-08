@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+* `setSample()` passed `high === 0` (a highlight-derived value, true for almost every non-highlighted sample) as the `visible` argument to `updateTile()`, instead of the method's own `vis` parameter (the real value `VisibilityHelper.setVisible()`/`toggleVisible()` compute from `model.itemConfig`). On models where the affected samples' LOD state doesn't otherwise change on the same tick, this means a `setVisible()`/`toggleVisible()` call updates the model's own visibility state (`getVisible()` reflects it correctly) without ever updating the corresponding tile's rendered geometry - most reliably observed on large (10k+ item) models, where the correct LOD-driven `updateVisible()` path is less frequently re-entered for the same samples than on small models.
+
 ### ⚠ BREAKING CHANGES
 
 * `split`/`extract`: have become `async`, have changed signature (including return types) and are scoped under `IfcSplitter`, exposed events (`onProgress`, `onSplitsResolved`, `onExtractWarning`) instead of console logs.
