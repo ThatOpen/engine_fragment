@@ -195,8 +195,16 @@ export class VirtualTilesController {
       mesh.setupTemplates();
     }
     const step = Math.max(1, Math.floor(this._sampleAmount / 20));
+    // Fill tiles in descending sample-dimension order (the same order the
+    // cull sweep uses) instead of file order. A tile's index buffer is
+    // laid out in insertion order and the per-sample LOD decision is
+    // driven by screen size, so with size-sorted samples the geometry /
+    // wires / invisible cut through a tile becomes one or two contiguous
+    // runs instead of dozens of interleaved ones — and every visible run
+    // is a separate `geometry.groups` entry, i.e. a separate draw call on
+    // the main thread. Tile membership itself is unchanged.
     for (let i = 0; i < this._sampleAmount; i++) {
-      this.generateSampleInTiles(i);
+      this.generateSampleInTiles(this._samplesDimensions[i]);
       if (i % step === 0) {
         onProgress?.(i / this._sampleAmount);
         // Yield the worker thread so progress messages get dispatched
