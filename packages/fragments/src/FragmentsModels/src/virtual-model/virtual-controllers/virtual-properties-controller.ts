@@ -316,13 +316,12 @@ export class VirtualPropertiesController {
       let category = this._items.get(localId)?.category ?? null;
       if (category === null) {
         // If the item was created, return the created category
-        for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
-          const request = this._virtualModel.requests[i];
-          if (request.type === EditRequestType.CREATE_ITEM) {
-            if (request.localId === localId) {
-              category = request.data.category;
-            }
-          }
+        const created = this._virtualModel.requestIndex.first(
+          localId,
+          EditRequestType.CREATE_ITEM,
+        );
+        if (created) {
+          category = created.data.category;
         }
       }
       result.push(category);
@@ -562,26 +561,24 @@ export class VirtualPropertiesController {
     if (localId === null) {
       return null;
     }
+    // Newest pending edit of this item's attributes, if any
+    const edited = this._virtualModel.requestIndex.latest(
+      localId,
+      EditRequestType.CREATE_ITEM,
+      // DO NOT remove this or editing created items break
+      // if you have problems with this, contact Antonio
+      EditRequestType.UPDATE_ITEM,
+    );
     const index = this.indexOfLocalId(localId);
     if (index === undefined || index === -1) {
       // If the item was created, return the created data
-      const data: Record<string, { value: any; type?: string }> = {};
-      for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
-        const request = this._virtualModel.requests[i];
-        if (
-          request.type === EditRequestType.CREATE_ITEM ||
-          // DO NOT remove this or editing created items break
-          // if you have problems with this, contact Antonio
-          request.type === EditRequestType.UPDATE_ITEM
-        ) {
-          if (request.localId === localId) {
-            for (const name in request.data.data) {
-              const found = request.data.data[name];
-              data[name] = { value: found.value, type: found.type };
-            }
-            return data;
-          }
+      if (edited) {
+        const data: Record<string, { value: any; type?: string }> = {};
+        for (const name in edited.data.data) {
+          const found = edited.data.data[name];
+          data[name] = { value: found.value, type: found.type };
         }
+        return data;
       }
 
       // No previous id found and no new item, return null
@@ -594,21 +591,12 @@ export class VirtualPropertiesController {
     const data: Record<string, { value: any; type?: string }> = {};
 
     // If edited, return edited data
-    // We traverse it backwards to get the latest edited data
-    for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
-      const request = this._virtualModel.requests[i];
-      if (
-        request.type === EditRequestType.UPDATE_ITEM ||
-        request.type === EditRequestType.CREATE_ITEM
-      ) {
-        if (request.localId === localId) {
-          for (const name in request.data.data) {
-            const found = request.data.data[name];
-            data[name] = { value: found.value, type: found.type };
-          }
-          return data;
-        }
+    if (edited) {
+      for (const name in edited.data.data) {
+        const found = edited.data.data[name];
+        data[name] = { value: found.value, type: found.type };
       }
+      return data;
     }
 
     for (let j = 0; j < buffer.dataLength(); j++) {
@@ -671,14 +659,10 @@ export class VirtualPropertiesController {
     const localId =
       typeof id === "number" ? id : this._guidToLocalIdMap.get(id) ?? null;
 
-    const deletedItems = new Set<number>();
-    for (const request of this._virtualModel.requests) {
-      if (request.type === EditRequestType.DELETE_ITEM) {
-        deletedItems.add(request.localId as number);
-      }
-    }
-
-    if (localId === null || deletedItems.has(localId)) {
+    if (
+      localId === null ||
+      this._virtualModel.requestIndex.deletedItems.has(localId)
+    ) {
       return {};
     }
 
@@ -717,6 +701,7 @@ export class VirtualPropertiesController {
 
     if (relations) {
       const itemRels = this.getItemRelations(id);
+      const { deletedItems } = this._virtualModel.requestIndex;
       for (const [key, localIds] of Object.entries(itemRels ?? {})) {
         for (const localId of localIds) {
           if (deletedItems.has(localId)) {
@@ -779,21 +764,18 @@ export class VirtualPropertiesController {
     const isLocalId = typeof id === "number";
     const localId = isLocalId ? id : this.getLocalIdsByGuids([id])[0];
 
-    // If a relation was created or updated and not saved yet, return the newest relation
-    for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
-      const request = this._virtualModel.requests[i];
-      if (
-        request.type === EditRequestType.UPDATE_RELATION ||
-        request.type === EditRequestType.CREATE_RELATION
-      ) {
-        if (request.localId === localId) {
-          return request.data.data;
-        }
-      }
-    }
-
     if (localId === null) {
       return null;
+    }
+
+    // If a relation was created or updated and not saved yet, return the newest relation
+    const edited = this._virtualModel.requestIndex.latest(
+      localId,
+      EditRequestType.UPDATE_RELATION,
+      EditRequestType.CREATE_RELATION,
+    );
+    if (edited) {
+      return edited.data.data;
     }
     const relations = this._relations.get(localId) ?? {};
     const index = this.indexOfRelationsItem(localId);
@@ -1107,43 +1089,42 @@ export class VirtualPropertiesController {
       }
     } else {
       for (const localId of missingItemsToIterate) {
-        // If the item was created, return the created data
-        for (let i = this._virtualModel.requests.length - 1; i >= 0; i--) {
-          const request = this._virtualModel.requests[i];
-          if (request.type === EditRequestType.CREATE_ITEM) {
-            if (request.localId !== localId) continue;
-            // Collect item data
-            const data: Record<string, { value: any; type?: string }> = {};
-            for (const name in request.data.data) {
-              const found = request.data.data[name];
-              data[name] = { value: found.value, type: found.type };
-            }
+        // If the item was created, check the created data
+        const created = this._virtualModel.requestIndex.latest(
+          localId,
+          EditRequestType.CREATE_ITEM,
+        );
+        if (!created) continue;
+        // Collect item data
+        const data: Record<string, { value: any; type?: string }> = {};
+        for (const name in created.data.data) {
+          const found = created.data.data[name];
+          data[name] = { value: found.value, type: found.type };
+        }
 
-            // Check if it passes
-            let itemPasses = false;
-            for (const [
-              attrName,
-              { value: val, type: typeValue },
-            ] of Object.entries(data)) {
-              const pass = this.checkAttribute(
-                {
-                  name: attrName,
-                  value: val,
-                  type: typeValue,
-                },
-                { name, value, type },
-              );
+        // Check if it passes
+        let itemPasses = false;
+        for (const [
+          attrName,
+          { value: val, type: typeValue },
+        ] of Object.entries(data)) {
+          const pass = this.checkAttribute(
+            {
+              name: attrName,
+              value: val,
+              type: typeValue,
+            },
+            { name, value, type },
+          );
 
-              if (pass) {
-                itemPasses = true;
-                break;
-              }
-            }
-
-            if (negate ? !itemPasses : itemPasses) {
-              res.push(localId);
-            }
+          if (pass) {
+            itemPasses = true;
+            break;
           }
+        }
+
+        if (negate ? !itemPasses : itemPasses) {
+          res.push(localId);
         }
       }
     }

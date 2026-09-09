@@ -55,6 +55,7 @@ import {
   VisibilityHelper,
 } from "./virtual-helpers";
 import { TileData } from "./virtual-meshes";
+import { EditRequestIndex } from "./edit-request-index";
 
 export class VirtualFragmentsModel {
   data: Model;
@@ -68,6 +69,8 @@ export class VirtualFragmentsModel {
   indexes: VirtualIndexesController;
 
   requests: EditRequest[] = [];
+
+  private _requestIndex = new EditRequestIndex();
 
   private _raycastHelper = new RaycastHelper();
   private _coordinatesHelper = new CoordinatesHelper();
@@ -586,11 +589,21 @@ export class VirtualFragmentsModel {
     return this.tiles.tilesUpdated;
   }
 
+  /**
+   * Per-localId lookup over the pending requests, used by the property reads
+   * instead of scanning the whole requests list per item.
+   */
+  get requestIndex() {
+    this._requestIndex.sync(this.requests);
+    return this._requestIndex;
+  }
+
   edit(requests: EditRequest[], raw = true) {
     const ids = EditUtils.solveIds(requests, this._nextId);
     this._nextId += ids.length;
     for (const request of requests) {
       this.requests.push(request);
+      this._requestIndex.push(request);
     }
     const { model, items } = EditUtils.edit(this.data, this.requests, {
       raw,
@@ -607,14 +620,17 @@ export class VirtualFragmentsModel {
   reset() {
     this.requests = [];
     this._requestsForRedo = [];
+    this._requestIndex.rebuild(this.requests);
     this._nextId = this.getMaxLocalId();
   }
 
   save(raw = true) {
-    this.requests.push({
+    const request: EditRequest = {
       type: EditRequestType.UPDATE_MAX_LOCAL_ID,
       localId: this._nextId,
-    });
+    };
+    this.requests.push(request);
+    this._requestIndex.push(request);
     const { model } = EditUtils.edit(this.data, this.requests, {
       raw,
       delta: false,
@@ -630,6 +646,7 @@ export class VirtualFragmentsModel {
     if (!lastRequest) {
       return;
     }
+    this._requestIndex.pop(lastRequest);
     this._requestsForRedo.unshift(lastRequest);
   }
 
@@ -642,6 +659,7 @@ export class VirtualFragmentsModel {
       return;
     }
     this.requests.push(lastUndoneRequest);
+    this._requestIndex.push(lastUndoneRequest);
   }
 
   getRequests() {
@@ -657,6 +675,7 @@ export class VirtualFragmentsModel {
   }) {
     if (data.requests) {
       this.requests = data.requests;
+      this._requestIndex.rebuild(this.requests);
     }
     if (data.undoneRequests) {
       this._requestsForRedo = data.undoneRequests;
@@ -682,6 +701,7 @@ export class VirtualFragmentsModel {
         this._requestsForRedo.push(allRequests[i]);
       }
     }
+    this._requestIndex.rebuild(this.requests);
   }
 
   getMaterialsIds() {
