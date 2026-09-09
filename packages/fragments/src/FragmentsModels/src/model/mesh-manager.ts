@@ -235,12 +235,20 @@ export class MeshManager {
 
   private updateStatus(mesh: BIMMesh, request: any) {
     const {
-      tileData: { highlightData },
+      tileData: { highlightData, visibilityData },
       currentLod,
     } = request;
 
     const { geometry } = mesh;
     geometry.clearGroups();
+
+    if (
+      currentLod !== CurrentLod.WIRES &&
+      this.applyCompactIndex(geometry, visibilityData, !!highlightData)
+    ) {
+      return;
+    }
+
     this.lod.processMesh(mesh, request);
 
     if (!highlightData) return;
@@ -253,6 +261,73 @@ export class MeshManager {
     const materials = this.materials.createHighlights(mesh, request);
     mesh.material = materials;
   }
+
+  /**
+   * Minimum number of visibility runs before a shell tile switches from
+   * one geometry.group per run (one draw call each) to a compacted index
+   * buffer drawn with a single call. Small run counts stay on the group
+   * path: the copy is not worth it and highlights need groups anyway.
+   */
+  private static readonly compactMinRuns = 3;
+
+  /**
+   * Rewrite the tile's GPU index with just the visible runs so the whole
+   * tile is one draw call. Returns false (after restoring the full index
+   * if it was compacted before) when the group path must be used:
+   * LOD/wire meshes, tiles without a CPU index copy, highlighted tiles
+   * (highlight groups address the full index) and tiles with few runs.
+   */
+  private applyCompactIndex(
+    geometry: THREE.BufferGeometry,
+    visibilityData: { position: ArrayLike<number>; size: ArrayLike<number> } | undefined,
+    hasHighlight: boolean,
+  ) {
+    const full = geometry.userData.fullIndex as
+      | Uint16Array
+      | Uint32Array
+      | undefined;
+    const index = geometry.index;
+    if (!full || !index) return false;
+
+    const runs = visibilityData ? visibilityData.position.length : 0;
+    if (hasHighlight || runs < MeshManager.compactMinRuns) {
+      this.restoreFullIndex(geometry, full);
+      return false;
+    }
+
+    const target = index.array as Uint16Array | Uint32Array;
+    const { position, size } = visibilityData!;
+    let count = 0;
+    for (let i = 0; i < runs; i++) {
+      const start = position[i];
+      const isWhite = size[i] === this.white;
+      const end = isWhite ? full.length : Math.min(full.length, start + size[i]);
+      if (end <= start) continue;
+      target.set(full.subarray(start, end), count);
+      count += end - start;
+    }
+
+    index.needsUpdate = true;
+    geometry.setDrawRange(0, count);
+    geometry.addGroup(0, count, 0);
+    geometry.userData.compactIndex = true;
+    return true;
+  }
+
+  private restoreFullIndex(
+    geometry: THREE.BufferGeometry,
+    full: Uint16Array | Uint32Array,
+  ) {
+    if (!geometry.userData.compactIndex) return;
+    const index = geometry.index!;
+    (index.array as Uint16Array | Uint32Array).set(full);
+    index.needsUpdate = true;
+    geometry.setDrawRange(0, Infinity);
+    geometry.userData.compactIndex = false;
+  }
+
+  // TODO: Deduplicate with other white values (LODManager, MaterialManager)
+  private readonly white = 0xffffffff;
 
   private cleanAttributeMemory(geometry: THREE.BufferGeometry, name: string) {
     const attr = geometry.attributes[name] as THREE.BufferAttribute;
@@ -278,8 +353,16 @@ export class MeshManager {
     if (!indices) {
       throw new Error("Fragments: no indices provided to create the mesh.");
     }
-    geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-    geometry.index!.onUpload(this.deleteAttribute(geometry));
+    // Unlike positions/normals, the index array is kept on the CPU: it is
+    // the source for compacting the visible ranges of a tile into a
+    // single draw call (see applyCompactIndex). The GPU-side attribute is
+    // a same-sized copy whose content is rewritten in place, so the GL
+    // buffer never has to be reallocated.
+    const full = indices as Uint16Array | Uint32Array;
+    const gpu = full.slice();
+    geometry.setIndex(new THREE.BufferAttribute(gpu, 1));
+    geometry.userData.fullIndex = full;
+    geometry.userData.compactIndex = false;
   }
 
   private setNormals(normals: any, geometry: THREE.BufferGeometry) {
