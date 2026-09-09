@@ -4,6 +4,7 @@
 import { MaterialDefinition } from "../../model/model-types";
 import { CRCData } from "./crc-data";
 import { IntHelper } from "./int-helper";
+import { MaterialUtils } from "../geometry/material-utils";
 
 // src: https://stackoverflow.com/questions/27939882/fast-crc-algorithm
 
@@ -44,7 +45,7 @@ export class CRC {
     this.reset();
     this.compute(modelId);
     this.compute(objectClass);
-    this.compute(materialDefinition);
+    this.compute(MaterialUtils.getKey(materialDefinition));
     this.compute(currentLod);
     this.compute(templateId !== undefined);
   }

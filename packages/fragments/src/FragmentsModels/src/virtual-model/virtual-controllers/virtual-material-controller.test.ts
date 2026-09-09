@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 import * as THREE from "three";
-import { MaterialDefinition } from "../../model/model-types";
+import {
+  MaterialDefinition,
+  ObjectClass,
+  CurrentLod,
+} from "../../model/model-types";
 import { MaterialManager } from "../../model/material-manager";
 import { VirtualMaterialController } from "./virtual-material-controller";
 
@@ -30,6 +34,22 @@ const opacityOverride = (opacity: number) =>
   }) as MaterialDefinition;
 
 describe("preserved material definitions", () => {
+  test("rendered materials distinguish named depth properties, independently of insertion order", () => {
+    const { renderer } = harness();
+    const request = {
+      modelId: "model",
+      objectClass: ObjectClass.SHELL,
+      currentLod: CurrentLod.GEOMETRY,
+    };
+    const noWrite = renderer.get({ ...original(), depthWrite: false }, request);
+    const noTest = renderer.get({ ...original(), depthTest: false }, request);
+    expect(noWrite).not.toBe(noTest);
+    expect(noTest.depthWrite).toBe(true);
+    expect(noTest.depthTest).toBe(false);
+    expect(renderer.get({ depthWrite: false, ...original() }, request)).toBe(
+      noWrite,
+    );
+  });
   test("reuses identical overrides across items and repeated slider values", () => {
     const { controller, definitions } = harness();
     controller.transfer([original()]);
