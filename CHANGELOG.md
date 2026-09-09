@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+* Reuse identical preserved highlight materials across items and repeated updates, while keeping depth, transparency and inheritance settings distinct.
+
 ### ⚠ BREAKING CHANGES
 
 * `split`/`extract`: have become `async`, have changed signature (including return types) and are scoped under `IfcSplitter`, exposed events (`onProgress`, `onSplitsResolved`, `onExtractWarning`) instead of console logs.
