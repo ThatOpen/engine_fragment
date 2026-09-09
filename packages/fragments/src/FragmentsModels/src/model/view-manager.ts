@@ -10,6 +10,7 @@ export class ViewManager {
   currentCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null =
     null;
 
+  private _noCameraWarned = false;
   private readonly _tempMatrix = new THREE.Matrix4();
   private readonly _tempVec = new THREE.Vector3();
   private readonly _tempFrustum = new THREE.Frustum();
@@ -26,9 +27,27 @@ export class ViewManager {
 
   async refreshView(model: FragmentsModel, meshes: MeshManager) {
     const fov = this.setup(meshes, model);
+    // With no camera there is nothing to cull against, so send a frustum
+    // sized to the model rather than the default one, whose six identical
+    // planes silently discard the negative-X half space (#255). Encoding
+    // this in the frustum instead of a companion flag keeps the wire
+    // format unchanged, so a worker older than this fix — a real pairing,
+    // since the worker is separately pinned — reads it correctly without
+    // knowing the fix exists.
+    if (!this.currentCamera) {
+      this.warnNoCameraOnce(model);
+      // `box` is world space; `_tempMatrix` is the inverse model matrix,
+      // so this lands in the model space the worker culls in.
+      const bounds = model.box;
+      if (!bounds.isEmpty()) {
+        bounds.applyMatrix4(this._tempMatrix);
+      }
+      const containing = CameraUtils.containing(bounds, this._tempFrustum);
+      await model.threads.fetch(this.newViewRequest(containing, fov, model));
+      return;
+    }
     const frustum = CameraUtils.transform(this._tempFrustum, this._tempMatrix);
-    const request: any = this.newViewRequest(frustum, fov, model);
-    await model.threads.fetch(request);
+    await model.threads.fetch(this.newViewRequest(frustum, fov, model));
   }
 
   useCamera(camera: THREE.PerspectiveCamera | THREE.OrthographicCamera) {
@@ -62,6 +81,18 @@ export class ViewManager {
     this._updateCameraFrustumEvent(this._tempFrustum);
     const fov = this._updateFOVEvent();
     return fov;
+  }
+
+  private warnNoCameraOnce(model: FragmentsModel) {
+    if (this._noCameraWarned) {
+      return;
+    }
+    console.warn(
+      `Fragments: model "${model.modelId}" is being rendered before ` +
+        "useCamera() has been called. Frustum culling is disabled until " +
+        "a camera is set.",
+    );
+    this._noCameraWarned = true;
   }
 
   private newViewRequest(

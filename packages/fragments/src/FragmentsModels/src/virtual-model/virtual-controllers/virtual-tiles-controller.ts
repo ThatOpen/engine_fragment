@@ -459,10 +459,23 @@ export class VirtualTilesController {
     });
   }
 
+  /**
+   * Defensive only. A camera-less main thread sends a model-containing frustum
+   * rather than omitting one, so this should always be true in practice —
+   * but the field is untyped across the worker boundary, and dereferencing
+   * it unguarded is what turns a missing frustum into a crash on every
+   * frame instead of a degraded view.
+   */
+  private get hasCameraFrustum() {
+    return !!this._virtualView.cameraFrustum;
+  }
+
   private setupViewPlanes() {
     this._virtualPlanes = [];
-    for (const plane of this._virtualView.cameraFrustum.planes) {
-      this._virtualPlanes.push(plane);
+    if (this.hasCameraFrustum) {
+      for (const plane of this._virtualView.cameraFrustum.planes) {
+        this._virtualPlanes.push(plane);
+      }
     }
     if (this._virtualView.clippingPlanes) {
       for (const plane of this._virtualView.clippingPlanes) {
@@ -473,6 +486,8 @@ export class VirtualTilesController {
 
   private updateOrientationIfNeeded() {
     const orientation = this.getCurrentViewOrientation();
+    // No frustum → no camera → orientation tracking is meaningless.
+    if (!orientation) return;
     const orientationThreshold = this._params.updateviewOrientation;
     const orientationChange = orientation.angleTo(this._lastView.rotation);
     const orientationNeedsUpdate = orientationChange > orientationThreshold;
@@ -483,6 +498,9 @@ export class VirtualTilesController {
   }
 
   private getCurrentViewOrientation() {
+    if (!this.hasCameraFrustum) {
+      return undefined;
+    }
     return this._virtualView.cameraFrustum.planes[4].normal;
   }
 
