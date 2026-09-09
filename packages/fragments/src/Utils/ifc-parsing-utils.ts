@@ -4,8 +4,10 @@
 // ---------------------------------------------------------------------------
 // STEP argument tokenizer — produces web-ifc's raw tape shape, so the result
 // can be fed straight into webIfc.FromRawLineData (the registry GetLine uses).
-// Token type codes come from web-ifc's exported constants; verified against
-// web-ifc's own GetRawLineData output:
+// Token type codes mirror web-ifc's exported constants (asserted against
+// web-ifc in ifc-parsing-utils.test.ts — importing web-ifc here would pull the
+// whole module into the worker bundle); verified against web-ifc's own
+// GetRawLineData output:
 //   - `$` (omitted)      → null
 //   - `*` (derived)      → no slot at all
 //   - `'text'`           → { type: STRING, value: <decoded text> }
@@ -17,7 +19,30 @@
 //   - `IFCLABEL('x')`    → { type: LABEL, typecode, value: <inner primitive> }
 //   - `( ... )`          → StepArgument[]
 // ---------------------------------------------------------------------------
-import * as webIfc from "web-ifc";
+import { ifcCategoryMap } from "./ifc-category-map";
+
+/** web-ifc's raw tape token codes (`STRING`, `LABEL`, … in web-ifc-api). */
+export const STEP_TOKEN = {
+  UNKNOWN: 0,
+  STRING: 1,
+  LABEL: 2,
+  ENUM: 3,
+  REAL: 4,
+  REF: 5,
+  INTEGER: 10,
+} as const;
+
+/** IFC type name → numeric typecode, the same table web-ifc exposes as constants. */
+let typecodeByName: Map<string, number> | null = null;
+function getTypecode(name: string): number | undefined {
+  if (!typecodeByName) {
+    typecodeByName = new Map<string, number>();
+    for (const [id, typeName] of Object.entries(ifcCategoryMap)) {
+      typecodeByName.set(typeName, Number(id));
+    }
+  }
+  return typecodeByName.get(name.toUpperCase());
+}
 
 export interface LineMeta {
   id: number;
@@ -117,7 +142,7 @@ export function extractArgsString(raw: string | undefined): string | null {
   return raw.substring(idx + 1, lastParen);
 }
 
-const { STRING, LABEL, ENUM, REAL, REF, INTEGER } = webIfc;
+const { STRING, LABEL, ENUM, REAL, REF, INTEGER } = STEP_TOKEN;
 
 export type StepArgument =
   | null
@@ -340,11 +365,11 @@ function parseList(
       pos = inner.pos + 1;
 
       // web-ifc flattens a typed value to its numeric typecode + inner primitive
-      const typecode = (webIfc as Record<string, unknown>)[name.toUpperCase()];
+      const typecode = getTypecode(name);
       const first = inner.items[0];
       items.push({
         type: LABEL,
-        typecode: typeof typecode === "number" ? typecode : undefined,
+        typecode,
         value:
           first === null || Array.isArray(first)
             ? first ?? undefined
