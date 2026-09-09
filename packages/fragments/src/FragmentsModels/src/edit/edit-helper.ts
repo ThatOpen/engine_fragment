@@ -1,9 +1,33 @@
 import { FragmentsModel, FragmentsModels } from "../..";
 import * as EDIT from "../../../Utils/edit";
 import { isIndexRequest } from "../../../Utils/edit";
+import { EditRequestType } from "../../../Utils/edit/edit-types";
 import { FragmentsConnection } from "../multithreading/fragments-connection";
 import { EditUtils } from "../../../Utils/edit/edit-utils";
 import { VirtualModelConfig } from "../model/model-types";
+
+// Request types that change what is rendered (geometry, materials,
+// transforms or whole elements). Requests outside this set (items without
+// samples, relations, metadata, spatial structure, indices) don't affect
+// the picture, so the delta model doesn't need to be rebuilt for them.
+const RENDER_AFFECTING_REQUESTS = new Set<EditRequestType>([
+  EditRequestType.CREATE_MATERIAL,
+  EditRequestType.CREATE_REPRESENTATION,
+  EditRequestType.CREATE_SAMPLE,
+  EditRequestType.CREATE_GLOBAL_TRANSFORM,
+  EditRequestType.CREATE_LOCAL_TRANSFORM,
+  EditRequestType.UPDATE_MATERIAL,
+  EditRequestType.UPDATE_REPRESENTATION,
+  EditRequestType.UPDATE_SAMPLE,
+  EditRequestType.UPDATE_GLOBAL_TRANSFORM,
+  EditRequestType.UPDATE_LOCAL_TRANSFORM,
+  EditRequestType.DELETE_MATERIAL,
+  EditRequestType.DELETE_REPRESENTATION,
+  EditRequestType.DELETE_SAMPLE,
+  EditRequestType.DELETE_GLOBAL_TRANSFORM,
+  EditRequestType.DELETE_LOCAL_TRANSFORM,
+  EditRequestType.DELETE_ITEM,
+]);
 
 export class EditHelper {
   private _deltaModels: { [modelId: string]: FragmentsModel[] | null } = {};
@@ -26,6 +50,15 @@ export class EditHelper {
     if (!model) {
       throw new Error(`Model ${modelId} not found`);
     }
+
+    // Data-only edits (property sets, relations, attributes, spatial
+    // structure...) don't change the rendered picture. Rebuilding the delta
+    // model for them causes a visible flash per edit round, so skip the
+    // rebuild and keep the current delta visuals. An empty actions array is
+    // the "recompute everything" call (undo/redo) and must always rebuild.
+    const onlyDataEdits =
+      actions.length > 0 &&
+      actions.every((action) => !RENDER_AFFECTING_REQUESTS.has(action.type));
 
     // Get old delta models
     const oldDeltaModels = this._deltaModels[modelId] || [];
@@ -59,11 +92,26 @@ export class EditHelper {
       action.localId = ids[idsIdx++];
     }
 
+    if (onlyDataEdits) {
+      // The virtual model already has the new requests applied; the current
+      // delta visuals are still correct. The next render-affecting edit
+      // rebuilds the delta from the full request history anyway.
+      this._deltaModels[modelId] = oldDeltaModels.length ? oldDeltaModels : null;
+      return ids;
+    }
+
     // Load new delta models
     // For now we just generate one, maybe we want to generate multiple in the future?
     const deltaModel = await this.load(deltaModelBuffer as any, model);
     this._deltaModels[modelId] = [deltaModel];
     model.deltaModelId = deltaModel.modelId;
+
+    // Hide the outgoing delta visuals synchronously — dispose() below is
+    // async, so without this a frame can render both deltas on top of each
+    // other (z-fighting flash).
+    for (const oldDeltaModel of oldDeltaModels) {
+      oldDeltaModel.object.visible = false;
+    }
 
     // Dispose old delta models and remove from models list
     const deletePromises = [];
