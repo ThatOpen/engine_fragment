@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+* Settle forced updates when the scene is empty or the last model is removed, without waiting for a worker FINISH that can no longer arrive.
+
 ### ⚠ BREAKING CHANGES
 
 * `split`/`extract`: have become `async`, have changed signature (including return types) and are scoped under `IfcSplitter`, exposed events (`onProgress`, `onSplitsResolved`, `onExtractWarning`) instead of console logs.

@@ -49,6 +49,8 @@ export class MeshManager {
   constructor(onUpdate: () => void) {
     this._onUpdate = onUpdate;
     this.requests.onFinish = (seq) => this.handleFinish(seq);
+    this.list.onItemDeleted.add(() => this.finishEmptyScene());
+    this.list.onCleared.add(() => this.finishEmptyScene());
   }
 
   /**
@@ -73,13 +75,24 @@ export class MeshManager {
     // No outbound RPCs have been issued yet, or everything we've sent
     // has already settled — nothing to wait for. Drain whatever's in
     // the queue (may be empty) and return.
-    if (this._lastSettledSeq >= targetSeq) {
+    if (this.list.size === 0 || this._lastSettledSeq >= targetSeq) {
       this.drainAll();
       return;
     }
     await new Promise<void>((resolve) => {
       this._fenceWaiters.push({ targetSeq, resolve });
     });
+  }
+
+  private finishEmptyScene() {
+    if (this.list.size !== 0) return;
+    // Removed models cannot produce further visible tile updates. Do not
+    // advance the settled sequence: subsequently loaded models still need
+    // their own worker FINISH.
+    this.drainAll();
+    const waiters = this._fenceWaiters;
+    this._fenceWaiters = [];
+    for (const waiter of waiters) waiter.resolve();
   }
 
   /**
