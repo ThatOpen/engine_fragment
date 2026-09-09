@@ -124,6 +124,10 @@ const tilesController = () => {
     updateviewOrientation: (8 * Math.PI) / 180,
     updateViewPosition: 256,
   };
+  // The real constructor always sets these; updateOutsideMask (hierarchical
+  // culling) falls back to all-candidates when lookup is null.
+  controller._boxes = { lookup: null };
+  controller._outsideMask = new Uint8Array(0);
   return controller;
 };
 
