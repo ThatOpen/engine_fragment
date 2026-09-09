@@ -229,8 +229,23 @@ export class VirtualTilesController {
   }
 
   setupView(view: any) {
+    const previous = this._virtualView;
     this._virtualView = view;
     VirtualMemoryController.setCapacity(view.meshThreshold);
+    if (previous && this.viewEquals(previous, view)) {
+      // Same view as before (typically a forced update used as a
+      // completion fence): adopt the new view object (it may carry a
+      // fresh graphicThreshold) but skip the full re-cull. If the
+      // previous pass already finished, emit a FINISH directly so
+      // main-side `forceUpdateFinish` fences settle; if a pass is
+      // still running, its natural FINISH will carry this RPC's seq
+      // because the stamp is read at emission time.
+      this.setupViewPlanes();
+      if (this.tilesUpdated) {
+        this.emitFinish();
+      }
+      return;
+    }
     this.restart();
     this.updateOrientationIfNeeded();
     this.updatePositionIfNeeded();
@@ -454,6 +469,11 @@ export class VirtualTilesController {
     if (!updateFinished) {
       return;
     }
+    this.emitFinish();
+    this.tilesUpdated = true;
+  }
+
+  private emitFinish() {
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.FINISH,
       modelId: this._modelId,
@@ -466,7 +486,53 @@ export class VirtualTilesController {
       // waiters precisely, no buffer / poll required.
       seq: thread.lastSeenSeq,
     });
-    this.tilesUpdated = true;
+  }
+
+  /**
+   * Structural equality of two worker-side views, covering every field
+   * the culling/LOD pass reads. `graphicThreshold` is deliberately
+   * ignored — it only budgets the invisible-tile cache, so a change in
+   * it must not trigger a full re-cull (the new value still takes
+   * effect because the caller stores the incoming view first).
+   */
+  private viewEquals(a: any, b: any): boolean {
+    if (
+      a.fov !== b.fov ||
+      a.orthogonalDimension !== b.orthogonalDimension ||
+      a.viewSize !== b.viewSize ||
+      a.graphicQuality !== b.graphicQuality
+    ) {
+      return false;
+    }
+    if (!this.vectorEquals(a.cameraPosition, b.cameraPosition)) {
+      return false;
+    }
+    const aPlanes = a.cameraFrustum.planes;
+    const bPlanes = b.cameraFrustum.planes;
+    for (let i = 0; i < aPlanes.length; i++) {
+      if (!this.planeEquals(aPlanes[i], bPlanes[i])) {
+        return false;
+      }
+    }
+    const aClipping = a.clippingPlanes || [];
+    const bClipping = b.clippingPlanes || [];
+    if (aClipping.length !== bClipping.length) {
+      return false;
+    }
+    for (let i = 0; i < aClipping.length; i++) {
+      if (!this.planeEquals(aClipping[i], bClipping[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private planeEquals(a: THREE.Plane, b: THREE.Plane) {
+    return a.constant === b.constant && this.vectorEquals(a.normal, b.normal);
+  }
+
+  private vectorEquals(a: THREE.Vector3, b: THREE.Vector3) {
+    return a.x === b.x && a.y === b.y && a.z === b.z;
   }
 
   private updatePositionIfNeeded() {
