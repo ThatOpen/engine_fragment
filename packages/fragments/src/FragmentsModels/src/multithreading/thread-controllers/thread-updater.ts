@@ -56,17 +56,35 @@ export class ThreadUpdater {
     this.schedule(delay);
   };
 
+  // Offset into the model list where the next tick starts. Rotating the
+  // start point keeps one model with a long-running cull pass from
+  // eating the whole per-tick time budget every tick and starving the
+  // other models on this worker.
+  private _nextModelOffset = 0;
+
   private updateAllModels() {
     const start = performance.now();
     let isUpdated = true;
-    for (const [, model] of this._thread.list) {
+    const models = Array.from(this._thread.list.values());
+    const offset = this._nextModelOffset % models.length;
+    let processed = 0;
+    for (; processed < models.length; processed++) {
+      const model = models[(offset + processed) % models.length];
       const modelUpdated = model.update(start);
       isUpdated = isUpdated && modelUpdated;
       const end = performance.now();
       const timePassed = end - start;
       if (timePassed > this._updateThreshold) {
+        processed++;
         break;
       }
+    }
+    this._nextModelOffset = (offset + processed) % models.length;
+    // Models we didn't reach this tick may still have pending work, so
+    // don't let the loop back off to the idle delay based on a partial
+    // sweep.
+    if (processed < models.length) {
+      isUpdated = false;
     }
     return isUpdated;
   }
