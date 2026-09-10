@@ -111,3 +111,48 @@ test(
   },
   CONVERSION_TIMEOUT,
 );
+
+// Regression for https://github.com/ThatOpen/engine_fragment/issues/264:
+// grid axes whose curve is not a point list (IFCCIRCLE, IFCLINE,
+// IFCTRIMMEDCURVE...) were silently skipped, leaving no trace of them in the
+// converted grid.
+test(
+  "unsupported grid axis curves are surfaced instead of dropped silently",
+  async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const grids = await convertAndGetGrids("grids-radial-axes.ifc");
+
+    expect(grids.map(({ id }) => id)).toEqual([226, 248]);
+
+    // The purely-polyline grid is untouched and reports nothing.
+    const valid = grids.find(({ id }) => id === 226) as GridData;
+    expect(valid.unsupportedAxes).toBeUndefined();
+
+    // The radial grid keeps its polyline axes...
+    const radial = grids.find(({ id }) => id === 248) as GridData;
+    expect(radial.uAxes.map(({ tag }) => tag)).toEqual(["A", "B"]);
+    expect(radial.vAxes.map(({ tag }) => tag)).toEqual(["1", "2"]);
+    // ...never emits an empty-curve axis (the grid label code slices the
+    // first/last points of each curve, so an empty one would produce NaNs)...
+    for (const { tag, curve } of [...radial.uAxes, ...radial.vAxes]) {
+      expect(curve.length, `axis ${tag}`).toBeGreaterThan(0);
+    }
+    // ...and reports the axes it could not represent, with their curve types.
+    expect(radial.unsupportedAxes).toEqual([
+      { tag: "R1", curveType: "IFCCIRCLE" },
+      { tag: "L1", curveType: "IFCLINE" },
+      { tag: "T1", curveType: "IFCTRIMMEDCURVE" },
+    ]);
+
+    // The skipped axes are also reported at import time.
+    const warnings = gridWarnings(warn);
+    expect(warnings).toHaveLength(1);
+    const [message] = warnings[0];
+    expect(message).toContain("#248");
+    for (const text of ["R1", "L1", "T1", "IFCCIRCLE"]) {
+      expect(message).toContain(text);
+    }
+  },
+  CONVERSION_TIMEOUT,
+);

@@ -40,13 +40,29 @@ export class GridReader {
 
           transform.premultiply(coordMatrix);
 
+          const unsupportedAxes: NonNullable<GridData["unsupportedAxes"]> = [];
+
           const data: GridData = {
             id,
             transform: transform.elements,
-            uAxes: this.getGridAxes(grid, webIfc, units, "UAxes"),
-            vAxes: this.getGridAxes(grid, webIfc, units, "VAxes"),
-            wAxes: this.getGridAxes(grid, webIfc, units, "WAxes"),
+            // prettier-ignore
+            uAxes: this.getGridAxes(grid, webIfc, units, "UAxes", unsupportedAxes),
+            // prettier-ignore
+            vAxes: this.getGridAxes(grid, webIfc, units, "VAxes", unsupportedAxes),
+            // prettier-ignore
+            wAxes: this.getGridAxes(grid, webIfc, units, "WAxes", unsupportedAxes),
           };
+
+          if (unsupportedAxes.length > 0) {
+            data.unsupportedAxes = unsupportedAxes;
+            const skipped = unsupportedAxes
+              .map(({ tag, curveType }) => `"${tag}" (${curveType})`)
+              .join(", ");
+            console.warn(
+              `Fragments: IFCGRID #${id} has axes with unsupported curve types that will not be displayed: ${skipped}.`
+            );
+          }
+
           result.push(data);
         } catch (error) {
           console.warn(
@@ -67,7 +83,8 @@ export class GridReader {
     ifcGrid: any,
     webIfc: WEBIFC.IfcAPI,
     units: number,
-    ifcKey: "UAxes" | "VAxes" | "WAxes"
+    ifcKey: "UAxes" | "VAxes" | "WAxes",
+    unsupportedAxes: NonNullable<GridData["unsupportedAxes"]>
   ): GridAxisData[] {
     if (!ifcGrid[ifcKey]) {
       return [];
@@ -85,10 +102,6 @@ export class GridReader {
         tag: axisCurve.AxisTag?.value ?? "",
         curve: [],
       };
-      if (!curve.Points) {
-        continue;
-      }
-
       // IFCCARTESIANPOINT can be 2D or 3D depending on the exporter; the
       // downstream renderer assumes 3D points (3 values each), so normalize
       // here. Without this, a file like BLOXHUB that stores grid axis points
@@ -101,27 +114,49 @@ export class GridReader {
         axisData.curve.push(x, y, z);
       };
 
-      if (curve.type === WEBIFC.IFCPOLYLINE) {
+      if (curve.type === WEBIFC.IFCPOLYLINE && curve.Points) {
         for (const { value: pointId } of curve.Points) {
           const ifcPoints = webIfc.GetLine(0, pointId);
           if (ifcPoints.Coordinates) {
             pushPoint(ifcPoints.Coordinates);
           }
         }
-      } else {
-        const pointsId = curve.Points.value;
-        if (!pointsId) {
-          continue;
-        }
-        const ifcPoints = webIfc.GetLine(0, pointsId);
+      } else if (curve.Points?.value) {
+        // Non-polyline curves with a point list (e.g. IFCINDEXEDPOLYCURVE).
+        const ifcPoints = webIfc.GetLine(0, curve.Points.value);
         if (ifcPoints.CoordList) {
           for (const coordinates of ifcPoints.CoordList) {
             pushPoint(coordinates);
           }
         }
       }
+
+      if (axisData.curve.length === 0) {
+        // Curves without a readable point list (IFCCIRCLE, IFCLINE,
+        // IFCTRIMMEDCURVE...) are not tessellated yet. Never emit an
+        // empty-curve axis (downstream label placement slices the ends of
+        // the curve and would produce NaN positions); surface it instead of
+        // dropping it silently.
+        unsupportedAxes.push({
+          tag: axisData.tag,
+          curveType: this.getCurveTypeName(webIfc, curve),
+        });
+        continue;
+      }
+
       axisDataArr.push(axisData);
     }
     return axisDataArr;
+  }
+
+  private getCurveTypeName(webIfc: WEBIFC.IfcAPI, curve: any) {
+    try {
+      // Uppercase to match the STEP spelling used in IFC files (IFCCIRCLE...).
+      const name = webIfc.GetNameFromTypeCode(curve.type);
+      if (name) return name.toUpperCase();
+    } catch {
+      // Fall through to the numeric type code below.
+    }
+    return `IFC type ${curve.type}`;
   }
 }
