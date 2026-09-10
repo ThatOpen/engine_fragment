@@ -135,15 +135,14 @@ export class IfcFileReader {
 
     this._previousGeometriesIDs.clear();
 
-    this._ifcAPI = new WEBIFC.IfcAPI();
-    this._ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
-    await this._ifcAPI.Init();
-
-    // xxhash-wasm embeds its module, so unlike web-ifc there is no path to
-    // configure. Hashing is synchronous once this resolves, which is what lets
-    // the dedup key be computed inside web-ifc's synchronous mesh callback.
-    // Reused across loads: it holds no per-model state and has nothing to free.
-    this._hasher ??= await xxhash();
+    const ifcAPI = new WEBIFC.IfcAPI();
+    ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
+    const [, hasher] = await Promise.all([
+      ifcAPI.Init(),
+      this._hasher ?? xxhash(),
+    ]);
+    this._ifcAPI = ifcAPI;
+    this._hasher ??= hasher;
 
     let modelID = 0;
 
