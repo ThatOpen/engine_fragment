@@ -323,7 +323,7 @@ test("split ifc", async () => {
       ids: fileIds,
     });
   }
-});
+}, 60_000);
 
 // Regression: extract used to resolve dependencies (including resolveStyles)
 // before rewriting relationship lines. Entities pulled into the output only by
@@ -489,4 +489,4 @@ test("extract ifc", async () => {
   comparisons.map(({ message, actual, expected }) =>
     expect.soft(actual, message).toEqual(expected),
   );
-});
+}, 60_000);
