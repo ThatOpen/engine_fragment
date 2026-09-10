@@ -737,18 +737,29 @@ export class IfcFileReader {
     // iteration order, so a repeated representation is byte-identical. Only the
     // same shape authored with a different triangle order stops deduplicating.
     //
-    // FACTOR is a large prime rather than 10, so the wrap below doesn't fall
-    // into a repeating pattern. Every step is taken modulo MODULUS to keep the
-    // running value small: `vertexKey * FACTOR + coordinate` peaks near 4.3e15,
-    // under the 2 ** 53 above which doubles stop holding integers exactly and
-    // the arithmetic would silently round.
+    // Every step is taken modulo MODULUS to keep the running value small.
+    // MODULUS being prime is the load-bearing part: it makes the values a field,
+    // so multiplying by FACTOR is invertible and never collapses two distinct
+    // running values into one. FACTOR only needs to be large and not a multiple
+    // of MODULUS - its being prime is convention rather than a requirement.
+    // "Large" is approximate: the base wants to outrun the values it folds, and
+    // at 1e6 it doesn't quite, since a model sited a kilometre from the origin
+    // reaches coordinates near 1e7. The fold is still sound, so treat the
+    // one-digit-per-coordinate picture above as a mental model, not a literal
+    // claim.
+    //
+    // FACTOR can't grow much further anyway: `vertexKey * FACTOR + coordinate`
+    // is the widest moment and peaks at 4.29e15, just under half of the 2 ** 53
+    // below which doubles hold every integer exactly. Past that the fold would
+    // stay deterministic - identical geometry still yields an identical key -
+    // but rounding would cost distribution and raise the collision rate.
     //
     // Coordinates are quantized to the same 1/p resolution as cx/cy/cz, then
     // normalized into [0, MODULUS) before folding. JS `%` keeps the sign of the
     // dividend (-7 % 5 is -2, not 3), and leaving values signed is what let the
     // earlier commutative version cancel two vertices out of the key entirely.
     const MODULUS = 4294967291; // largest prime below 2 ** 32
-    const FACTOR = 1000003; // prime multiplier of the polynomial
+    const FACTOR = 1000003; // base of the fold; see the note above
     let vertexKey = 0;
     for (let i = 0; i < position.length; i++) {
       let coordinate = Math.round(position[i] * p) % MODULUS;
