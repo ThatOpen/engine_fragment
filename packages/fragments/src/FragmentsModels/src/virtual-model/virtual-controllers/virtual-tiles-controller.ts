@@ -926,7 +926,7 @@ export class VirtualTilesController {
     const tileIds = this.getTileIds(id, lod);
     if (tileIds === undefined) return;
     MiscHelper.forEach(tileIds, (tileId) => {
-      this.updateTile(tileId, id, high, high === 0);
+      this.updateTile(tileId, id, high, vis);
     });
   }
 
