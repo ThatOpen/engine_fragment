@@ -705,9 +705,9 @@ export class IfcFileReader {
     const hashBigArea = GeomsFbUtils.round(biggestArea, p);
     const hashVolume = GeomsFbUtils.round(volume, p);
 
-    // Order-independent geometric anchor: the AABB corners don't depend on the
-    // vertex ordering (unlike the first vertex used before), so a duplicate
-    // emitted with a permuted buffer still matches.
+    // Cheap early discriminator: the AABB corners reject differently sized
+    // geometry before the per-vertex fold below has to separate anything, and
+    // unlike the first vertex used before they don't depend on vertex ordering.
     const aabb = GeomsFbUtils.getAABB(position);
     const minX = GeomsFbUtils.round(aabb.min.x, p);
     const minY = GeomsFbUtils.round(aabb.min.y, p);
@@ -724,25 +724,25 @@ export class IfcFileReader {
     // the same outline, area, volume, centroid and bounding box collide even when
     // their holes are in different places.
     // Fold every vertex coordinate (quantized to the same precision as cx/cy/cz)
-    // into the key so position-distinct geometry stays distinct. Each vertex is
-    // hashed from its (x, y, z) triple with a small polynomial (x/y/z don't
-    // cancel), then the per-vertex hashes are summed commutatively — so the key
-    // is invariant to vertex ordering and a duplicate emitted with a permuted
-    // buffer still matches, while moved holes (a changed coordinate set) don't.
-    // Prime modulus for good distribution; no bitwise operators. Every product
+    // into the key with an ordered polynomial hash, so position-distinct geometry
+    // stays distinct while byte-identical duplicates still match. Ordered rather
+    // than commutative: web-ifc emits vertices in face-iteration order, so a
+    // repeated representation comes back in identical order. An order-invariant
+    // fold would only buy the rarer case of the same shape authored with a
+    // different triangle order, at the cost of collision resistance.
+    // Prime modulus for good distribution; no bitwise operators, which would cap
+    // the key at 32 bits. Each coordinate is normalized into [0, MODULUS) before
+    // it is folded, since JS `%` keeps the sign of the dividend. Every product
     // stays below Number.MAX_SAFE_INTEGER (2 ** 53), so each mod is exact.
     const MODULUS = 4294967291; // largest prime below 2 ** 32
-    const AY = 1000003; // prime mixing y into the per-vertex hash
-    const AZ = 1000033; // prime mixing z into the per-vertex hash
+    const FACTOR = 1000003; // prime multiplier of the polynomial
     let vertexKey = 0;
-    for (let i = 0; i + 2 < position.length; i += 3) {
-      let h = Math.round(position[i] * p) % MODULUS;
-      h = (h * AY + Math.round(position[i + 1] * p)) % MODULUS;
-      h = (h * AZ + Math.round(position[i + 2] * p)) % MODULUS;
-      vertexKey = (vertexKey + h) % MODULUS;
-    }
-    if (vertexKey < 0) {
-      vertexKey += MODULUS; // normalize the one possible negative remainder
+    for (let i = 0; i < position.length; i++) {
+      let coordinate = Math.round(position[i] * p) % MODULUS;
+      if (coordinate < 0) {
+        coordinate += MODULUS;
+      }
+      vertexKey = (vertexKey * FACTOR + coordinate) % MODULUS;
     }
 
     const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`;
