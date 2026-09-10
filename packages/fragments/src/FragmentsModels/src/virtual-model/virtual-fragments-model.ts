@@ -174,6 +174,13 @@ export class VirtualFragmentsModel {
     return this.properties.getItemsCategories(ids);
   }
 
+  // Item.getCategory() dispatches "getItemCategory" through the worker, so
+  // this wrapper must exist here (#267). Unknown ids are skipped by
+  // getItemsCategories, leaving an empty array, hence the null fallback.
+  getItemCategory(id: number) {
+    return this.getItemsCategories([id])[0] ?? null;
+  }
+
   getItemIdsByLocalIds(localIds: number[]) {
     return this.properties.getItemIdsFromLocalIds(localIds);
   }
