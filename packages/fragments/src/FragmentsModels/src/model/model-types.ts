@@ -130,6 +130,24 @@ export type MaterialDefinition = {
    */
   depthWrite?: boolean;
 
+  /**
+   * Depth-bias factor mapped to THREE's polygonOffsetFactor. When either
+   * this or polygonOffsetUnits is a non-zero number, polygonOffset is
+   * enabled on the produced material. Useful to resolve z-fighting between
+   * exactly coplanar faces (e.g. an element sitting exactly on the surface
+   * that hosts it).
+   * @default 0 (no depth bias)
+   */
+  polygonOffsetFactor?: number;
+
+  /**
+   * Depth-bias units mapped to THREE's polygonOffsetUnits. When either
+   * this or polygonOffsetFactor is a non-zero number, polygonOffset is
+   * enabled on the produced material.
+   * @default 0 (no depth bias)
+   */
+  polygonOffsetUnits?: number;
+
   /** The local ID of the material */
   localId?: number;
 

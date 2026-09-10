@@ -8,6 +8,10 @@ export class HighlightHelper {
     "opacity",
     "transparent",
     "renderedFaces",
+    "depthTest",
+    "depthWrite",
+    "polygonOffsetFactor",
+    "polygonOffsetUnits",
   ];
 
   resetHighlight(model: VirtualFragmentsModel, items?: number[]): void {

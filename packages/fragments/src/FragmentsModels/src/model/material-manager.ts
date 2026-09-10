@@ -204,6 +204,11 @@ export class MaterialManager {
         userData: { customId: data.customId, localId: data.localId },
         depthTest: data.depthTest ?? true,
         depthWrite: data.depthWrite ?? true,
+        polygonOffset:
+          (data.polygonOffsetFactor ?? 0) !== 0 ||
+          (data.polygonOffsetUnits ?? 0) !== 0,
+        polygonOffsetFactor: data.polygonOffsetFactor ?? 0,
+        polygonOffsetUnits: data.polygonOffsetUnits ?? 0,
         side: data.renderedFaces === 1 ? THREE.DoubleSide : THREE.FrontSide,
       });
     } else if (objectClass === ObjectClass.LINE) {
