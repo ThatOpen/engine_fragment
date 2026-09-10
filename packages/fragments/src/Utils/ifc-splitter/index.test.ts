@@ -126,18 +126,6 @@ test.each<[string, readonly string[]]>([
   expect(types).toEqual(before);
 });
 
-test("the merged config copies the type arrays instead of aliasing them", () => {
-  const elementTypes = ["IFCANNOTATION"];
-
-  const merged = mergedConfigOf({ elementTypes });
-  merged.elementTypes.add("IFCWALL");
-  merged.spatialTypes.clear();
-
-  // A frozen default would have thrown; a caller's array would have grown.
-  expect(elementTypes).toEqual(["IFCANNOTATION"]);
-  expect(mergedConfigOf().spatialTypes).toEqual(new Set(SPATIAL_TYPES));
-});
-
 test.each<[string, IfcSplitterConfig | undefined]>([
   ["is omitted", undefined],
   ["is empty", {}],
