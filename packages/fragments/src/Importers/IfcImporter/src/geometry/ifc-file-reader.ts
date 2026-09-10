@@ -720,20 +720,33 @@ export class IfcFileReader {
     const cy = GeomsFbUtils.round(centroid.y, p);
     const cz = GeomsFbUtils.round(centroid.z, p);
 
-    // The key so far is invariant to where interior detail sits: two meshes with
-    // the same outline, area, volume, centroid and bounding box collide even when
-    // their holes are in different places.
-    // Fold every vertex coordinate (quantized to the same precision as cx/cy/cz)
-    // into the key with an ordered polynomial hash, so position-distinct geometry
-    // stays distinct while byte-identical duplicates still match. Ordered rather
-    // than commutative: web-ifc emits vertices in face-iteration order, so a
-    // repeated representation comes back in identical order. An order-invariant
-    // fold would only buy the rarer case of the same shape authored with a
-    // different triangle order, at the cost of collision resistance.
-    // Prime modulus for good distribution; no bitwise operators, which would cap
-    // the key at 32 bits. Each coordinate is normalized into [0, MODULUS) before
-    // it is folded, since JS `%` keeps the sign of the dividend. Every product
-    // stays below Number.MAX_SAFE_INTEGER (2 ** 53), so each mod is exact.
+    // Everything above is blind to where interior detail sits: two plates with
+    // the same outline, area, volume, centroid and bounding box hash alike even
+    // when their bolt holes are in different places (#237). So fold the actual
+    // coordinates in.
+    //
+    // The fold works the way you read a decimal number. With a FACTOR of 10,
+    // the coordinates 1, 2, 3 become ((0 * 10 + 1) * 10 + 2) * 10 + 3 = 123:
+    // each value shifts the ones before it up a place, so where a value sits is
+    // part of the result. That is what separates moved holes - 3, 2, 1 folds to
+    // 321, whereas adding the coordinates up could not tell them apart, since
+    // 1 + 2 + 3 = 3 + 2 + 1.
+    //
+    // Being order-sensitive means an identical geometry only dedups if it comes
+    // back in identical vertex order, which it does: web-ifc emits in face
+    // iteration order, so a repeated representation is byte-identical. Only the
+    // same shape authored with a different triangle order stops deduplicating.
+    //
+    // FACTOR is a large prime rather than 10, so the wrap below doesn't fall
+    // into a repeating pattern. Every step is taken modulo MODULUS to keep the
+    // running value small: `vertexKey * FACTOR + coordinate` peaks near 4.3e15,
+    // under the 2 ** 53 above which doubles stop holding integers exactly and
+    // the arithmetic would silently round.
+    //
+    // Coordinates are quantized to the same 1/p resolution as cx/cy/cz, then
+    // normalized into [0, MODULUS) before folding. JS `%` keeps the sign of the
+    // dividend (-7 % 5 is -2, not 3), and leaving values signed is what let the
+    // earlier commutative version cancel two vertices out of the key entirely.
     const MODULUS = 4294967291; // largest prime below 2 ** 32
     const FACTOR = 1000003; // prime multiplier of the polynomial
     let vertexKey = 0;
