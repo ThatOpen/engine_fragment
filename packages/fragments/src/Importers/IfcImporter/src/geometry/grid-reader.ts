@@ -18,24 +18,42 @@ export class GridReader {
       const size = gridsVector.size();
       for (let i = 0; i < size; i++) {
         const id = gridsVector.get(i);
-        const grid = webIfc.GetLine(0, id);
 
-        const transform = FragmentsIfcUtils.getAbsolutePlacement(
-          webIfc,
-          grid,
-          units
-        );
+        // One malformed grid must not drop the remaining ones, so each grid
+        // gets its own catch instead of failing the whole read.
+        try {
+          const grid = webIfc.GetLine(0, id);
 
-        transform.premultiply(coordMatrix);
+          // ObjectPlacement is optional for IFCGRID; getAbsolutePlacement
+          // falls back to the identity placement, but let the user know.
+          if (!grid.ObjectPlacement) {
+            console.warn(
+              `Fragments: IFCGRID #${id} has no ObjectPlacement. Using the identity placement for it.`
+            );
+          }
 
-        const data: GridData = {
-          id,
-          transform: transform.elements,
-          uAxes: this.getGridAxes(grid, webIfc, units, "UAxes"),
-          vAxes: this.getGridAxes(grid, webIfc, units, "VAxes"),
-          wAxes: this.getGridAxes(grid, webIfc, units, "WAxes"),
-        };
-        result.push(data);
+          const transform = FragmentsIfcUtils.getAbsolutePlacement(
+            webIfc,
+            grid,
+            units
+          );
+
+          transform.premultiply(coordMatrix);
+
+          const data: GridData = {
+            id,
+            transform: transform.elements,
+            uAxes: this.getGridAxes(grid, webIfc, units, "UAxes"),
+            vAxes: this.getGridAxes(grid, webIfc, units, "VAxes"),
+            wAxes: this.getGridAxes(grid, webIfc, units, "WAxes"),
+          };
+          result.push(data);
+        } catch (error) {
+          console.warn(
+            `Fragments: skipping IFCGRID #${id} because it could not be read:`,
+            error
+          );
+        }
       }
 
       return result;
