@@ -99,5 +99,6 @@ export default defineConfig({
       maxWidth: Infinity,
       maxOutputLength: Infinity,
     },
+    passWithNoTests: false,
   },
 });

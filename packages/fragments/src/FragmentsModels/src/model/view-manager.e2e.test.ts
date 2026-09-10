@@ -1,11 +1,12 @@
-import { describe, expect, test } from "vitest";
-import * as THREE from "three";
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Pako from "pako";
+import * as THREE from "three";
+import { describe, expect, test } from "vitest";
+import { CameraUtils } from "../utils/geometry/camera-utils";
 import { VirtualFragmentsModel } from "../virtual-model";
 import { CurrentLod, TileRequestClass } from "./model-types";
-import { CameraUtils } from "../utils/geometry/camera-utils";
 
 /**
  * End-to-end companion to view-manager.test.ts, for
@@ -26,8 +27,9 @@ import { CameraUtils } from "../utils/geometry/camera-utils";
  * the message has landed.
  */
 
-const FRAG = fileURLToPath(
-  new URL("../../../../../../resources/frags/small_test.frag", import.meta.url),
+const FRAG = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../../../../../../resources/frags/small_test.frag",
 );
 
 /**
