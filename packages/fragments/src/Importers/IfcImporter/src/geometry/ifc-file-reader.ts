@@ -1,5 +1,6 @@
 import * as WEBIFC from "web-ifc";
 import * as THREE from "three";
+import xxhash, { XXHashAPI } from "xxhash-wasm";
 import { ShellData, ifcCategoryMap, GeomsFbUtils } from "../../../../Utils";
 
 import * as TFB from "../../../../Schema";
@@ -65,6 +66,8 @@ export type TransformData = {
 
 export class IfcFileReader {
   private _ifcAPI: WEBIFC.IfcAPI | null = null;
+
+  private _hasher: XXHashAPI | null = null;
   wasm = {
     path: "../../../../node_modules/web-ifc/",
     absolute: false,
@@ -135,6 +138,12 @@ export class IfcFileReader {
     this._ifcAPI = new WEBIFC.IfcAPI();
     this._ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
     await this._ifcAPI.Init();
+
+    // xxhash-wasm embeds its module, so unlike web-ifc there is no path to
+    // configure. Hashing is synchronous once this resolves, which is what lets
+    // the dedup key be computed inside web-ifc's synchronous mesh callback.
+    // Reused across loads: it holds no per-model state and has nothing to free.
+    this._hasher ??= await xxhash();
 
     let modelID = 0;
 
@@ -568,6 +577,10 @@ export class IfcFileReader {
       throw new Error("Fragments: IfcAPI not initialized");
     }
 
+    if (this._hasher === null) {
+      throw new Error("Fragments: Hasher not initialized");
+    }
+
     // First, let's get the geometry data from web-ifc
 
     const geometryRef = mesh.geometries.get(geometryIndex);
@@ -724,9 +737,9 @@ export class IfcFileReader {
     // Everything above is blind to where interior detail sits: two plates with
     // the same outline, area, volume, centroid and bounding box hash alike even
     // when their bolt holes are in different places (#237). Folding the vertex
-    // positions in is what separates them; see `hashCoordinates` for why the
-    // fold is order-sensitive and which mixer it uses.
-    const vertexKey = hashCoordinates(position, p);
+    // positions in is what separates them; see `hashCoordinates` for how they
+    // are quantized and why the fold is order-sensitive.
+    const vertexKey = hashCoordinates(this._hasher, position, p);
 
     const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`;
 

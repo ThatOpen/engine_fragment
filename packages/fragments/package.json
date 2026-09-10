@@ -56,7 +56,8 @@
     "earcut": "^3.0.1",
     "flatbuffers": "25.2.10",
     "lru-cache": "11.1.0",
-    "pako": "2.1.0"
+    "pako": "2.1.0",
+    "xxhash-wasm": "^1.1.0"
   },
   "devDependencies": {
     "@andypf/json-viewer": "^2.1.10",
