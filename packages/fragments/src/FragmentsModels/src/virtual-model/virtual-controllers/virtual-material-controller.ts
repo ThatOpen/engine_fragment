@@ -11,6 +11,7 @@ type VirtualMaterialTransfer = (data: any, trans?: any[]) => void;
 export class VirtualMaterialController {
   private readonly _modelId: string;
   private readonly _list: MaterialDefinition[] = [];
+  private readonly _idsByDefinition = new Map<string, number>();
   private readonly _onTransfer: VirtualMaterialTransfer;
 
   constructor(modelId: string, onTransfer: VirtualMaterialTransfer) {
@@ -64,36 +65,19 @@ export class VirtualMaterialController {
     return result;
   }
 
-  private checkMaterialExists(material: MaterialDefinition, ids: number[]) {
-    // Don't deduplicate materials with preserveOriginalMaterial flag,
-    // as they need to preserve original material properties (like opacity)
-    // which may differ from existing materials with the same color
-    if (material.preserveOriginalMaterial) {
-      return false;
-    }
-    const count = this._list.length;
-    for (let i = 0; i < count; i++) {
-      const current = this._list[i];
-      const isSame = MaterialUtils.isSame(material, current);
-      if (isSame) {
-        ids.push(i);
-        return true;
-      }
-    }
-    return false;
-  }
-
   private deduplicateMaterials(materialDefinition: MaterialDefinition[]) {
     const ids = [] as number[];
     const materialDefinitions = [] as MaterialDefinition[];
     for (const material of materialDefinition) {
-      const exists = this.checkMaterialExists(material, ids);
-      if (!exists) {
+      const key = MaterialUtils.getKey(material);
+      let id = this._idsByDefinition.get(key);
+      if (id === undefined) {
+        id = this._list.length;
         this._list.push(material);
+        this._idsByDefinition.set(key, id);
         materialDefinitions.push(material);
-        const currentId = this._list.length - 1;
-        ids.push(currentId);
       }
+      ids.push(id);
     }
     return { materialDefinitions, ids };
   }
