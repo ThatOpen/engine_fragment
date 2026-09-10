@@ -1,17 +1,16 @@
 import { beforeAll, expect, test } from "vitest";
-import xxhash, { XXHashAPI } from "xxhash-wasm";
-import { hashCoordinates } from "./geometry-hash";
+import { Hasher } from "./geometry-hash";
 
 const p = 10000;
 
-let hasher: XXHashAPI;
+let hasher: Hasher;
 
 beforeAll(async () => {
-  hasher = await xxhash();
+  hasher = await Hasher.init();
 });
 
 const hash = (coordinates: ArrayLike<number>) =>
-  hashCoordinates(hasher, coordinates, p);
+  hasher.hashCoordinates(coordinates, p);
 
 test("is deterministic and returns an unsigned 64 bit integer", () => {
   const coordinates = [-0.132, 0.012, 0.006, -0.108, -0.012, 0.006];
@@ -53,32 +52,46 @@ test("collapses differences below the quantization step", () => {
 
 test("separates plates whose holes moved, which is issue #237", () => {
   const plate = (holeX: number) =>
+    // prettier-ignore
     [
-      /* eslint-disable prettier/prettier */
-      -200, -100, 6, 200, -100, 6, 200, 100, 6, -200, 100, 6,
-      holeX - 12, 12, 6, holeX + 12, 12, 6, holeX + 12, -12, 6, holeX - 12, -12, 6,
-      /* eslint-enable prettier/prettier */
+      -200, -100, 6,
+      200, -100, 6,
+      200, 100, 6,
+      -200, 100, 6,
+      holeX - 12, 12, 6,
+      holeX + 12, 12, 6,
+      holeX + 12, -12, 6,
+      holeX - 12, -12, 6,
     ].map((value) => value / 1000);
 
   expect(hash(plate(-120))).not.toBe(hash(plate(-40)));
 });
 
-test("collides no more than chance over structured geometry", () => {
-  // Building coordinates repeat and share grid lines, which is where weak
-  // mixers degrade. Birthday expectation here is vanishing at 64 bits.
+test("gives 90k similar boxes each their own key", () => {
+  // Real models repeat sizes and share grid lines, so these coordinates look
+  // far more alike than random numbers would, and that is where a weak hash
+  // starts handing two different shapes the same key. Every box below is a
+  // different size, and a repeat by sheer luck is vanishingly unlikely at 64
+  // bits, so a repeat here would mean the hash lost a real difference.
   const hashes = new Set<bigint>();
   let count = 0;
   for (let width = 1; width <= 300; width++) {
     for (let depth = 1; depth <= 300; depth++) {
-      const box = [
-        /* eslint-disable prettier/prettier */
-        0, 0, 0, width, 0, 0, width, depth, 0, 0, depth, 0,
-        0, 0, 50, width, 0, 50, width, depth, 50, 0, depth, 50,
-        /* eslint-enable prettier/prettier */
-      ].map((value) => value / 1000);
+      const box =
+        // prettier-ignore
+        [
+          0, 0, 0,
+          width, 0, 0,
+          width, depth, 0,
+          0, depth, 0,
+          0, 0, 50,
+          width, 0, 50,
+          width, depth, 50,
+          0, depth, 50,
+        ].map((value) => value / 1000);
       hashes.add(hash(box));
       count++;
     }
   }
-  expect(count - hashes.size).toBe(0);
+  expect(hashes.size, "should have no collisions").toBe(count);
 });

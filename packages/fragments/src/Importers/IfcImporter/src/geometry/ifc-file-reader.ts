@@ -1,6 +1,5 @@
 import * as WEBIFC from "web-ifc";
 import * as THREE from "three";
-import xxhash, { XXHashAPI } from "xxhash-wasm";
 import { ShellData, ifcCategoryMap, GeomsFbUtils } from "../../../../Utils";
 
 import * as TFB from "../../../../Schema";
@@ -11,7 +10,7 @@ import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GridReader } from "./grid-reader";
 import { SpaceBoundaryReader } from "./space-boundary-reader";
-import { hashCoordinates } from "./geometry-hash";
+import { Hasher } from "./geometry-hash";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -67,7 +66,7 @@ export type TransformData = {
 export class IfcFileReader {
   private _ifcAPI: WEBIFC.IfcAPI | null = null;
 
-  private _hasher: XXHashAPI | null = null;
+  private _hasher: Hasher | null = null;
   wasm = {
     path: "../../../../node_modules/web-ifc/",
     absolute: false,
@@ -137,12 +136,9 @@ export class IfcFileReader {
 
     const ifcAPI = new WEBIFC.IfcAPI();
     ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
-    const [, hasher] = await Promise.all([
-      ifcAPI.Init(),
-      this._hasher ?? xxhash(),
-    ]);
+    const [, hasher] = await Promise.all([ifcAPI.Init(), Hasher.init()]);
     this._ifcAPI = ifcAPI;
-    this._hasher ??= hasher;
+    this._hasher = hasher;
 
     let modelID = 0;
 
@@ -316,7 +312,10 @@ export class IfcFileReader {
     const grids = this._gridReader.read(this._ifcAPI);
     this.onGridsLoaded(grids);
 
-    if (this._serializer.geometryProcessSettings.processIfcRelSpaceBoundarySecondLevel) {
+    if (
+      this._serializer.geometryProcessSettings
+        .processIfcRelSpaceBoundarySecondLevel
+    ) {
       this._spaceBoundaryReader.read(
         this._ifcAPI,
         this._serializer,
@@ -738,7 +737,7 @@ export class IfcFileReader {
     // when their bolt holes are in different places (#237). Folding the vertex
     // positions in is what separates them; see `hashCoordinates` for how they
     // are quantized and why the fold is order-sensitive.
-    const vertexKey = hashCoordinates(this._hasher, position, p);
+    const vertexKey = this._hasher.hashCoordinates(position, p);
 
     const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`;
 
