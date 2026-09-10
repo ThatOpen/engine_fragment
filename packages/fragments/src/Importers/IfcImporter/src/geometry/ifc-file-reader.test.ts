@@ -21,11 +21,11 @@ const webIfcDir = path.dirname(import.meta.resolve("web-ifc"));
  * The x coordinates (in mm) that lie inside the plate outline, i.e. the corners
  * of its bolt holes, deduplicated and sorted.
  */
-const holeCorners = (positions: ArrayLike<number>) => {
+const xPositions = (positions: ArrayLike<number>) => {
   const corners = new Set<number>();
   for (let i = 0; i < positions.length; i += 3) {
     const x = Math.round(positions[i] * 1000);
-    if (Math.abs(x) < 200) corners.add(x);
+    corners.add(x);
   }
   return Array.from(corners).sort((a, b) => a - b);
 };
@@ -58,6 +58,8 @@ test("geometries differing only in interior detail are not deduplicated", async 
   expect(plateA.representationId).not.toBe(plateB.representationId);
 
   // Each plate keeps its own holes: A's at ±120 mm, B's at ±40 mm.
-  expect(holeCorners(plateA.positions!)).toEqual([-132, -108, 108, 132]);
-  expect(holeCorners(plateB.positions!)).toEqual([-52, -28, 28, 52]);
+  expect(xPositions(plateA.positions!)).toEqual([
+    -200, -132, -108, 108, 132, 200,
+  ]);
+  expect(xPositions(plateB.positions!)).toEqual([-200, -52, -28, 28, 52, 200]);
 });
