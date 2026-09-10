@@ -20,16 +20,31 @@ export interface IfcSplitterConfig {
   /**
    * @default {@link ELEMENT_TYPES}
    */
-  elementTypes?: Set<string>;
+  elementTypes?: string[];
   /**
    * @default {@link SPATIAL_TYPES}
    */
-  spatialTypes?: Set<string>;
+  spatialTypes?: string[];
   /**
    * @see {@link listIdxByType}
    * @returns the index of the argument to parse as a ref list
    */
   listArgIndex?: (ifcType: string) => number | undefined;
+}
+
+interface IfcSplitterResolvedConfig {
+  /**
+   * @see {@link IfcSplitterConfig.elementTypes}
+   */
+  elementTypes: Set<string>;
+  /**
+   * @see {@link IfcSplitterConfig.spatialTypes}
+   */
+  spatialTypes: Set<string>;
+  /**
+   * @see {@link IfcSplitterConfig.listArgIndex}
+   */
+  listArgIndex: (ifcType: string) => number | undefined;
 }
 
 export interface IfcSplitterIO {
@@ -139,7 +154,12 @@ interface RelEntry {
 // ---------------------------------------------------------------------------
 // IFC element categories we consider "splittable building elements"
 // ---------------------------------------------------------------------------
-const ELEMENT_TYPES: Set<string> = new Set([
+
+/**
+ * The default {@link IfcSplitterConfig.elementTypes}.
+ * Exported so it can be extended rather than replaced.
+ */
+export const ELEMENT_TYPES = Object.freeze([
   "IFCWALL",
   "IFCWALLSTANDARDCASE",
   "IFCWALLELEMENTEDCASE",
@@ -193,14 +213,18 @@ const ELEMENT_TYPES: Set<string> = new Set([
   "IFCGEOGRAPHICELEMENT",
   "IFCPROXY",
   "IFCMECHANICALFASTENER",
-]);
+] as const);
 
-const SPATIAL_TYPES: Set<string> = new Set([
+/**
+ * The default {@link IfcSplitterConfig.spatialTypes}.
+ * Exported so it can be extended rather than replaced.
+ */
+export const SPATIAL_TYPES = Object.freeze([
   "IFCPROJECT",
   "IFCSITE",
   "IFCBUILDING",
   "IFCBUILDINGSTOREY",
-]);
+] as const);
 
 /**
  * Returns the argument index at which a given IFC type stores its list of
@@ -208,8 +232,11 @@ const SPATIAL_TYPES: Set<string> = new Set([
  * field, end up with an empty list, and skip the line entirely — dropping all
  * its transitive dependencies (property sets, materials, styles, etc.) from
  * the split output.
+ *
+ * The default {@link IfcSplitterConfig.listArgIndex}. Exported so an override
+ * can delegate to it for the types it doesn't care about.
  */
-const listIdxByType = (type: string): number => {
+export const listIdxByType = (type: string): number => {
   switch (type) {
     case "IFCRELAGGREGATES":
       return 5;
@@ -781,16 +808,15 @@ async function abortWriters(
 
 export class IfcSplitter {
   protected readonly io: IfcSplitterIO;
-  protected readonly config: Required<IfcSplitterConfig>;
+  protected readonly config: IfcSplitterResolvedConfig;
   protected readonly eventTarget: EventTarget;
 
-  constructor(ifcSplitterIO: IfcSplitterIO, config?: IfcSplitterConfig) {
+  constructor(ifcSplitterIO: IfcSplitterIO, config: IfcSplitterConfig = {}) {
     this.io = ifcSplitterIO;
     this.config = {
-      elementTypes: ELEMENT_TYPES,
-      spatialTypes: SPATIAL_TYPES,
-      listArgIndex: listIdxByType,
-      ...config,
+      elementTypes: new Set(config.elementTypes ?? ELEMENT_TYPES),
+      spatialTypes: new Set(config.spatialTypes ?? SPATIAL_TYPES),
+      listArgIndex: config.listArgIndex ?? listIdxByType,
     };
     this.eventTarget = new EventTarget();
   }
