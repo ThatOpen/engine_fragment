@@ -372,7 +372,6 @@ test("extract keeps the styled items of every included geometry item", async () 
 test("extract ifc", async () => {
   const splitter = new IfcSplitterNode();
   const inputPath = path.resolve(assetDir, "resources/ifc/school_str.ifc");
-  const inputFrag = path.resolve(assetDir, "resources/frags/school_str.frag");
   const outputPath = path.resolve(__dirname, ".tmp", "extracted.ifc");
   const onProgress = vi.fn<(event: IfcSplitterProgressEvent) => unknown>();
   const onSplitsResolved = vi.fn<(event: IfcSplitterGroupsEvent) => unknown>();
@@ -413,16 +412,16 @@ test("extract ifc", async () => {
   importer.addAllRelations();
   importer.wasm = { path: webIfcDir + path.sep, absolute: true };
   importer.webIfcSettings.COORDINATE_TO_ORIGIN = false;
+  const fixtureFrag = await importer.process({
+    bytes: await readFile(inputPath),
+  });
+  const fixtureModel = new SingleThreadedFragmentsModel("fixture", fixtureFrag);
   const extractedFrag = await importer.process({
     bytes: await readFile(outputPath),
   });
   const extractedModel = new SingleThreadedFragmentsModel(
     "extracted",
     extractedFrag,
-  );
-  const fixtureModel = new SingleThreadedFragmentsModel(
-    "fixture",
-    await readFile(inputFrag),
   );
   expect(extractedModel.getItemsGeometry(idsToExtract)).toEqual([
     [
