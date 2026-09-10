@@ -36,8 +36,8 @@
     "prettier": "3.2.5",
     "stats.js": "^0.17.0",
     "typescript": "5.4.2",
-    "vite": "5.1.6",
-    "vite-plugin-dts": "3.7.3"
+    "vite": "7.3.6",
+    "vite-plugin-dts": "4.5.4"
   },
   "version": "3.4.0"
 }
