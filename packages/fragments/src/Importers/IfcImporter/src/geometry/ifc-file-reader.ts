@@ -10,6 +10,7 @@ import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GridReader } from "./grid-reader";
 import { SpaceBoundaryReader } from "./space-boundary-reader";
+import { hashCoordinates } from "./geometry-hash";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -722,43 +723,10 @@ export class IfcFileReader {
 
     // Everything above is blind to where interior detail sits: two plates with
     // the same outline, area, volume, centroid and bounding box hash alike even
-    // when their bolt holes are in different places (#237). So fold the actual
-    // coordinates in, quantized to the same 1/p resolution as cx/cy/cz.
-    //
-    // MurmurHash3's 32-bit mixer, one round per coordinate, then its finalizer.
-    // `Math.imul` and the bitwise operators are defined on 32-bit two's
-    // complement, so wrapping and sign are specified behaviour here rather than
-    // something to reason about - nothing to normalize, nothing that overflows.
-    //
-    // The mixer is worth the extra multiply. Building coordinates are highly
-    // structured (repeated modules, shared grid lines, a handful of distinct
-    // values per mesh), and a plain FNV-1a fold avalanches too weakly for that:
-    // over 68k plates differing only in hole position it collided 13 times
-    // against a birthday expectation of 0.5, where this mixer collided once.
-    //
-    // The fold is order-sensitive, which is what separates moved holes: adding
-    // the coordinates up could not, since 1 + 2 + 3 = 3 + 2 + 1. That does mean
-    // an identical geometry only dedups when it comes back in identical vertex
-    // order, which it does - web-ifc emits in face-iteration order, so a
-    // repeated representation is byte-identical. Only the same shape authored
-    // with a different triangle order stops deduplicating, which costs memory
-    // rather than correctness.
-    /* eslint-disable no-bitwise */
-    let vertexKey = 0;
-    for (let i = 0; i < position.length; i++) {
-      let coordinate = Math.imul(Math.round(position[i] * p), 0xcc9e2d51);
-      coordinate = Math.imul((coordinate << 15) | (coordinate >>> 17), 0x1b873593);
-      vertexKey ^= coordinate;
-      vertexKey = (vertexKey << 13) | (vertexKey >>> 19);
-      vertexKey = (Math.imul(vertexKey, 5) + 0xe6546b64) | 0;
-    }
-    vertexKey ^= position.length;
-    vertexKey ^= vertexKey >>> 16;
-    vertexKey = Math.imul(vertexKey, 0x85ebca6b);
-    vertexKey ^= vertexKey >>> 13;
-    vertexKey = Math.imul(vertexKey, 0xc2b2ae35);
-    vertexKey = (vertexKey ^ (vertexKey >>> 16)) >>> 0;
-    /* eslint-enable no-bitwise */
+    // when their bolt holes are in different places (#237). Folding the vertex
+    // positions in is what separates them; see `hashCoordinates` for why the
+    // fold is order-sensitive and which mixer it uses.
+    const vertexKey = hashCoordinates(position, p);
 
     const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`;
 
