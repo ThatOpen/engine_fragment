@@ -91,9 +91,11 @@ export default defineConfig({
     }),
   ],
   test: {
-    environment: "happy-dom",
+    // A file that needs a DOM declares `// @vitest-environment happy-dom`,
+    // which also brings in the canvas mock and the web-worker shim (see ./vitest.setup.ts).
+    environment: "node",
     environmentOptions: { happyDOM: { url: "https://localhost" } },
-    setupFiles: ["vitest-canvas-mock", "@vitest/web-worker"],
+    setupFiles: ["./vitest.setup.ts"],
     snapshotFormat: {
       maxDepth: Infinity,
       maxWidth: Infinity,
