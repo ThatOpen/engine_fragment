@@ -6,6 +6,7 @@ import {
   CurrentLod,
 } from "../../model/model-types";
 import { MaterialManager } from "../../model/material-manager";
+import { HighlightHelper } from "../virtual-helpers/highlight-helper";
 import { VirtualMaterialController } from "./virtual-material-controller";
 
 function harness() {
@@ -98,5 +99,82 @@ describe("preserved material definitions", () => {
     const b = { ...a, _explicitProps: ["transparent", "opacity", "opacity"] };
     const ids = controller.transfer([a, b]);
     expect(ids[0]).toBe(ids[1]);
+  });
+});
+
+describe("polygon offset depth bias", () => {
+  const request = {
+    modelId: "model",
+    objectClass: ObjectClass.SHELL,
+    currentLod: CurrentLod.GEOMETRY,
+  };
+
+  test("does not alias definitions that differ only in depth bias", () => {
+    const { controller } = harness();
+    const base = original();
+    const variants = [
+      base,
+      { ...base, polygonOffsetFactor: -1 },
+      { ...base, polygonOffsetFactor: -2 },
+      { ...base, polygonOffsetUnits: -1 },
+      { ...base, polygonOffsetFactor: -1, polygonOffsetUnits: -1 },
+    ];
+    const ids = controller.transfer(variants);
+    expect(new Set(ids).size).toBe(variants.length);
+    const repeat = controller.transfer([
+      { ...base, polygonOffsetFactor: -1, polygonOffsetUnits: -1 },
+    ]);
+    expect(repeat[0]).toBe(ids[4]);
+  });
+
+  test("a biased definition produces a material with polygonOffset enabled", () => {
+    const { renderer } = harness();
+    const biased = renderer.get(
+      { ...original(), polygonOffsetFactor: -1, polygonOffsetUnits: -2 },
+      request,
+    ) as THREE.MeshLambertMaterial;
+    expect(biased.polygonOffset).toBe(true);
+    expect(biased.polygonOffsetFactor).toBe(-1);
+    expect(biased.polygonOffsetUnits).toBe(-2);
+    const unitsOnly = renderer.get(
+      { ...original(), polygonOffsetUnits: -4 },
+      request,
+    ) as THREE.MeshLambertMaterial;
+    expect(unitsOnly.polygonOffset).toBe(true);
+    expect(unitsOnly.polygonOffsetFactor).toBe(0);
+    expect(unitsOnly.polygonOffsetUnits).toBe(-4);
+  });
+
+  test("a definition without bias keeps today's defaults", () => {
+    const { renderer } = harness();
+    const plain = renderer.get(original(), request) as THREE.MeshLambertMaterial;
+    expect(plain.polygonOffset).toBe(false);
+    expect(plain.polygonOffsetFactor).toBe(0);
+    expect(plain.polygonOffsetUnits).toBe(0);
+    const zero = renderer.get(
+      { ...original(), polygonOffsetFactor: 0, polygonOffsetUnits: 0 },
+      request,
+    ) as THREE.MeshLambertMaterial;
+    expect(zero.polygonOffset).toBe(false);
+  });
+
+  test("a later highlight without bias inherits the previous highlight's bias and depth flags", () => {
+    const helper = new HighlightHelper();
+    const pastHigh: MaterialDefinition = {
+      ...original(),
+      depthTest: false,
+      depthWrite: false,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2,
+    };
+    const model = { materials: { fetch: () => pastHigh } };
+    const newHigh = (helper as any).getNewHighFromPast(model, 1, {
+      color: new THREE.Color(0, 1, 0),
+    });
+    expect(newHigh.polygonOffsetFactor).toBe(-1);
+    expect(newHigh.polygonOffsetUnits).toBe(-2);
+    expect(newHigh.depthTest).toBe(false);
+    expect(newHigh.depthWrite).toBe(false);
+    expect(newHigh.color).toEqual(new THREE.Color(0, 1, 0));
   });
 });
