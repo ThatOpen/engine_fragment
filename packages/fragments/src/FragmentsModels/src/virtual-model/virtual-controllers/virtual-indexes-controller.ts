@@ -54,6 +54,13 @@ interface IndexCacheEntry {
  * Stored indexes are cached for the model's lifetime. Pending indexes are
  * cached per "request batch" (invalidated when `requests.length` changes,
  * which covers push, undo, redo, and `selectRequest`).
+ *
+ * Performance note: index reads cross the worker boundary by structured
+ * clone. Typed arrays clone at memcpy speed, so number-keyed indexes are
+ * cheap at any size; the expensive part of string keys is decoding the
+ * strings, not the crossing itself. For large indexes with long string
+ * keys, hash the keys to uint32 at build time and store the number-keyed
+ * index instead (see the discussion in #250).
  */
 export class VirtualIndexesController {
   private readonly _vm: VirtualFragmentsModel;
