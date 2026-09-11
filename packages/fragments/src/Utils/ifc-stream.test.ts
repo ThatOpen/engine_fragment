@@ -6,6 +6,7 @@ import {
   IfcParserStream,
   streamAsyncIterator,
 } from "./ifc-stream";
+import { IfcStatementScanner } from "./ifc-scanner";
 
 const sourceOf = (values: number[], onCancel: () => void) =>
   new ReadableStream<number>({
@@ -193,43 +194,61 @@ test("parseStepArguments returns no arguments for a line without parens", () => 
 // IfcParserStream
 // ---------------------------------------------------------------------------
 
-const linesOf = (lines: string[]) =>
-  new ReadableStream<string>({
+const bytesOf = (text: string, chunkSize?: number) => {
+  const bytes = new TextEncoder().encode(text);
+  const size = Math.max(chunkSize ?? bytes.length, 1);
+  return new ReadableStream<Uint8Array>({
     start(controller) {
-      for (const line of lines) controller.enqueue(line);
+      for (let i = 0; i < bytes.length; i += size) {
+        controller.enqueue(bytes.subarray(i, i + size));
+      }
       controller.close();
     },
   });
+};
 
-const collect = async (lines: string[]) => {
+const collect = async (text: string) => {
   const out: any[] = [];
   for await (const entity of streamAsyncIterator(
-    linesOf(lines).pipeThrough(new IfcParserStream()),
+    bytesOf(text)
+      .pipeThrough(new IfcStatementScanner())
+      .pipeThrough(new IfcParserStream()),
   )) {
     out.push(entity);
   }
   return out;
 };
 
-const HEADER = [
-  "ISO-10303-21;",
-  "HEADER;",
-  "FILE_DESCRIPTION((''),'2;1');",
-  "FILE_NAME('','',(''),(''),'','','');",
-  "FILE_SCHEMA(('IFC4'));",
-  "ENDSEC;",
-  "DATA;",
-];
+/** Joins statements written without their trailing `;`. */
+const ifc = (...statements: string[]) =>
+  statements.map((statement) => `${statement};`).join("\n");
 
-const FOOTER = ["ENDSEC;", "END-ISO-10303-21;"];
+const HEADER = ifc(
+  "ISO-10303-21",
+  "HEADER",
+  "FILE_DESCRIPTION((''),'2;1')",
+  "FILE_NAME('','',(''),(''),'','','')",
+  "FILE_SCHEMA(('IFC4'))",
+  "ENDSEC",
+  "DATA",
+);
+
+const FOOTER = ifc("ENDSEC", "END-ISO-10303-21");
+
+/** A well-formed IFC file whose DATA section holds `statements`. */
+const ifcFile = (...statements: string[]) =>
+  [HEADER, ifc(...statements), FOOTER].join("\n");
+
+/** Same, but `body` goes in verbatim — for exercising statement framing. */
+const ifcFileRaw = (body: string) => [HEADER, body, FOOTER].join("\n");
 
 test("IfcParserStream produces entities matching web-ifc's GetLine shape", async () => {
-  const [point, prop] = await collect([
-    ...HEADER,
-    "#1=IFCCARTESIANPOINT((1.5,-2.5E-1,3.));",
-    "#2=IFCPROPERTYSINGLEVALUE('Answer',$,IFCLABEL('forty two'),$);",
-    ...FOOTER,
-  ]);
+  const [point, prop] = await collect(
+    ifcFile(
+      "#1=IFCCARTESIANPOINT((1.5,-2.5E-1,3.))",
+      "#2=IFCPROPERTYSINGLEVALUE('Answer',$,IFCLABEL('forty two'),$)",
+    ),
+  );
 
   expect(point.expressID).toBe(1);
   expect(point.type).toBe(webIfc.IFCCARTESIANPOINT);
@@ -247,11 +266,9 @@ test("IfcParserStream produces entities matching web-ifc's GetLine shape", async
 });
 
 test("IfcParserStream does not shift attributes of '*' derived slots", async () => {
-  const [unit] = await collect([
-    ...HEADER,
-    "#1=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.);",
-    ...FOOTER,
-  ]);
+  const [unit] = await collect(
+    ifcFile("#1=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.)"),
+  );
 
   expect(unit.UnitType).toEqual({ type: webIfc.ENUM, value: "LENGTHUNIT" });
   expect(unit.Prefix).toBeNull();
@@ -259,119 +276,130 @@ test("IfcParserStream does not shift attributes of '*' derived slots", async () 
 });
 
 test("IfcParserStream parses .T./.F. as booleans", async () => {
-  const [prop] = await collect([
-    ...HEADER,
-    "#1=IFCPROPERTYSINGLEVALUE('B',$,IFCBOOLEAN(.T.),$);",
-    ...FOOTER,
-  ]);
+  const [prop] = await collect(
+    ifcFile("#1=IFCPROPERTYSINGLEVALUE('B',$,IFCBOOLEAN(.T.),$)"),
+  );
 
   expect(prop.NominalValue.value).toBe(true);
 });
 
 test("IfcParserStream decodes escaped strings", async () => {
-  const [prop] = await collect([
-    ...HEADER,
-    "#1=IFCPROPERTYSINGLEVALUE('X',$,IFCTEXT('caf\\X2\\00E9\\X0\\'),$);",
-    ...FOOTER,
-  ]);
+  const [prop] = await collect(
+    ifcFile(
+      "#1=IFCPROPERTYSINGLEVALUE('X',$,IFCTEXT('caf\\X2\\00E9\\X0\\'),$)",
+    ),
+  );
 
   expect(prop.NominalValue.value).toBe("café");
 });
 
 test("IfcParserStream handles statements spanning or sharing physical lines", async () => {
-  const entities = await collect([
-    ...HEADER,
-    "#1=IFCPROPERTYSINGLEVALUE('Answer',$,", // wrapped across two lines
-    "  IFCLABEL('forty two'),$);",
-    "#2=IFCCARTESIANPOINT((0.,0.)); #3=IFCCARTESIANPOINT((1.,1.));", // shared line
-    ...FOOTER,
-  ]);
+  const entities = await collect(
+    ifcFileRaw(
+      [
+        "#1=IFCPROPERTYSINGLEVALUE('Answer',$,", // wrapped across two lines
+        "  IFCLABEL('forty two'),$);",
+        "#2=IFCCARTESIANPOINT((0.,0.)); #3=IFCCARTESIANPOINT((1.,1.));", // shared
+      ].join("\n"),
+    ),
+  );
 
   expect(entities.map((e) => e.expressID)).toEqual([1, 2, 3]);
   expect(entities[0].NominalValue.value).toBe("forty two");
 });
 
 test("IfcParserStream tolerates blank, indented, and comment lines", async () => {
-  const entities = await collect([
-    ...HEADER,
-    "",
-    "/* a whole-line comment */",
-    "  #1=IFCCARTESIANPOINT((1.,2.));",
-    "/* a comment",
-    "   spanning lines */ #2=IFCCARTESIANPOINT((3.,4.));",
-    ...FOOTER,
-  ]);
+  const entities = await collect(
+    ifcFileRaw(
+      [
+        "",
+        "/* a whole-line comment */",
+        "  #1=IFCCARTESIANPOINT((1.,2.));",
+        "/* a comment",
+        "   spanning lines */ #2=IFCCARTESIANPOINT((3.,4.));",
+      ].join("\n"),
+    ),
+  );
 
   expect(entities.map((e) => e.expressID)).toEqual([1, 2]);
 });
 
 test("IfcParserStream accepts spec-legal FILE_SCHEMA variants", async () => {
-  const spaced = await collect([
-    "ISO-10303-21;",
-    "HEADER;",
-    "FILE_SCHEMA (('IFC4'));", // whitespace before the parens
-    "ENDSEC;",
-    "DATA;",
-    "#1=IFCCARTESIANPOINT((0.,0.));",
-    ...FOOTER,
-  ]);
+  const spaced = await collect(
+    ifc(
+      "ISO-10303-21",
+      "HEADER",
+      "FILE_SCHEMA (('IFC4'))", // whitespace before the parens
+      "ENDSEC",
+      "DATA",
+      "#1=IFCCARTESIANPOINT((0.,0.))",
+      "ENDSEC",
+      "END-ISO-10303-21",
+    ),
+  );
   expect(spaced).toHaveLength(1);
 
-  const multi = await collect([
-    "ISO-10303-21;",
-    "HEADER;",
-    "FILE_SCHEMA(('NOTASCHEMA','IFC4'));", // multi-identifier list
-    "ENDSEC;",
-    "DATA;",
-    "#1=IFCCARTESIANPOINT((0.,0.));",
-    ...FOOTER,
-  ]);
+  const multi = await collect(
+    ifc(
+      "ISO-10303-21",
+      "HEADER",
+      "FILE_SCHEMA(('NOTASCHEMA','IFC4'))", // multi-identifier list
+      "ENDSEC",
+      "DATA",
+      "#1=IFCCARTESIANPOINT((0.,0.))",
+      "ENDSEC",
+      "END-ISO-10303-21",
+    ),
+  );
   expect(multi).toHaveLength(1);
 });
 
 test("IfcParserStream skips entity types outside the declared schema", async () => {
-  const entities = await collect([
-    "ISO-10303-21;",
-    "HEADER;",
-    "FILE_SCHEMA(('IFC2X3'));",
-    "ENDSEC;",
-    "DATA;",
-    "#1=IFCALIGNMENT($,$,$,$,$,$,$);", // IFC4X3-only type
-    "#2=IFCTOTALGARBAGETYPE($);", // not a web-ifc type at all
-    "#3=IFCCARTESIANPOINT((0.,0.));",
-    ...FOOTER,
-  ]);
+  const entities = await collect(
+    ifc(
+      "ISO-10303-21",
+      "HEADER",
+      "FILE_SCHEMA(('IFC2X3'))",
+      "ENDSEC",
+      "DATA",
+      "#1=IFCALIGNMENT($,$,$,$,$,$,$)", // IFC4X3-only type
+      "#2=IFCTOTALGARBAGETYPE($)", // not a web-ifc type at all
+      "#3=IFCCARTESIANPOINT((0.,0.))",
+      "ENDSEC",
+      "END-ISO-10303-21",
+    ),
+  );
 
   expect(entities.map((e) => e.expressID)).toEqual([3]);
 });
 
 test("IfcParserStream parses entities from several DATA sections", async () => {
-  const entities = await collect([
-    ...HEADER,
-    "#1=IFCCARTESIANPOINT((0.,0.));",
-    "ENDSEC;",
-    "DATA;",
-    "#2=IFCCARTESIANPOINT((9.,9.));",
-    ...FOOTER,
-  ]);
+  const entities = await collect(
+    ifcFile(
+      "#1=IFCCARTESIANPOINT((0.,0.))",
+      "ENDSEC",
+      "DATA",
+      "#2=IFCCARTESIANPOINT((9.,9.))",
+    ),
+  );
 
   expect(entities.map((e) => e.expressID)).toEqual([1, 2]);
 });
 
 test("IfcParserStream errors when the header has no FILE_SCHEMA", async () => {
-  await expect(collect(["ISO-10303-21;", "HEADER;", "DATA;"])).rejects.toThrow(
+  await expect(collect(ifc("ISO-10303-21", "HEADER", "DATA"))).rejects.toThrow(
     "Ifc schema not found",
   );
 });
 
 test("IfcParserStream errors on an unsupported schema", async () => {
   await expect(
-    collect(["HEADER;", "FILE_SCHEMA(('IFC9000'));", "DATA;"]),
+    collect(ifc("HEADER", "FILE_SCHEMA(('IFC9000'))", "DATA")),
   ).rejects.toThrow("Ifc schema 'IFC9000' not found");
 });
 
 test("IfcParserStream errors on a corrupted data statement", async () => {
-  await expect(collect([...HEADER, "garbage;"])).rejects.toThrow(
+  await expect(collect(ifcFile("garbage"))).rejects.toThrow(
     "Corrupted Ifc statement: garbage",
   );
 });
@@ -379,36 +407,25 @@ test("IfcParserStream errors on a corrupted data statement", async () => {
 test("IfcParserStream errors on truncated input instead of succeeding", async () => {
   // ends mid-DATA with a complete last statement but no ENDSEC/END-ISO marker
   await expect(
-    collect([...HEADER, "#1=IFCCARTESIANPOINT((0.,0.));"]),
+    collect([HEADER, ifc("#1=IFCCARTESIANPOINT((0.,0.))")].join("\n")),
   ).rejects.toThrow("Unexpected end of Ifc stream");
 
   // non-IFC input never reaches DATA; and must not succeed silently
-  await expect(collect(["hello", "world"])).rejects.toThrow(
+  await expect(collect("hello\nworld")).rejects.toThrow(
     "Unexpected end of Ifc stream",
   );
 });
 
-test("IfcDecoderStream and IfcParserStream compose over byte chunks", async () => {
-  const text = [
-    ...HEADER,
-    "#1=IFCCARTESIANPOINT((1.5,2.5,3.5));",
-    ...FOOTER,
-  ].join("\r\n");
-  const bytes = new TextEncoder().encode(text);
-  const chunked = new ReadableStream<Uint8Array>({
-    start(controller) {
-      // deliberately split mid-line to exercise the decoder's tail handling
-      for (let i = 0; i < bytes.length; i += 7) {
-        controller.enqueue(bytes.subarray(i, i + 7));
-      }
-      controller.close();
-    },
-  });
-
+test("IfcStatementScanner and IfcParserStream compose over byte chunks", async () => {
+  const text = ifcFile("#1=IFCCARTESIANPOINT((1.5,2.5,3.5))").replace(
+    /\n/g,
+    "\r\n",
+  );
+  // 7-byte chunks split statements, the `#N=` prefix, and CRLF pairs apart
   const entities: any[] = [];
   for await (const entity of streamAsyncIterator(
-    chunked
-      .pipeThrough(new IfcDecoderStream())
+    bytesOf(text, 7)
+      .pipeThrough(new IfcStatementScanner())
       .pipeThrough(new IfcParserStream()),
   )) {
     entities.push(entity);

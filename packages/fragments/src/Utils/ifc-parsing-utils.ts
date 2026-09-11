@@ -370,3 +370,76 @@ export function parseStepArguments(line: string): StepArgument[] {
   if (end < start) return [];
   return parseList(line, start + 1, end).items;
 }
+
+// ---------------------------------------------------------------------------
+// Entity construction — raw statement text to a web-ifc entity
+// ---------------------------------------------------------------------------
+
+/** Builds a web-ifc entity from the raw argument tape of one statement. */
+export type RawFactory = (args: StepArgument[]) => webIfc.IfcLineObject;
+
+/**
+ * The `FromRawLineData` registry for the first of `schemaNames` web-ifc knows,
+ * or `null` if it knows none of them.
+ */
+export function entityFactories(
+  schemaNames: string[],
+): Record<number, RawFactory> | null {
+  for (const name of schemaNames) {
+    const schemaIndex = webIfc.SchemaNames.findIndex((names) =>
+      names?.includes(name),
+    );
+    if (schemaIndex !== -1) {
+      return (
+        webIfc.FromRawLineData as Record<number, Record<number, RawFactory>>
+      )[schemaIndex];
+    }
+  }
+  return null;
+}
+
+/** The schema identifiers of a `FILE_SCHEMA(('IFC4'))` statement. */
+export function parseFileSchema(raw: string): string[] | null {
+  try {
+    const [names] = parseStepArguments(raw);
+    if (!Array.isArray(names)) return null;
+    const schemas: string[] = [];
+    for (const item of names) {
+      if (item && !Array.isArray(item) && typeof item.value === "string") {
+        schemas.push(item.value);
+      }
+    }
+    return schemas.length ? schemas : null;
+  } catch {
+    // a malformed FILE_SCHEMA is reported later, as "schema not found"
+    return null;
+  }
+}
+
+/**
+ * Turn one statement into a web-ifc entity, matching `IfcAPI.GetLine`'s shape.
+ *
+ * Returns `null` for entity types outside web-ifc or outside the file's
+ * declared schema, matching web-ifc's own tolerance for such lines.
+ *
+ * @throws if the arguments are malformed.
+ */
+export function buildEntity({
+  raw,
+  id,
+  type,
+  factories,
+}: {
+  raw: string;
+  id: number;
+  type: string;
+  factories: Record<number, RawFactory>;
+}): webIfc.IfcLineObject | null {
+  const typeCode = (webIfc as Record<string, unknown>)[type];
+  if (typeof typeCode !== "number") return null;
+  const factory = factories[typeCode];
+  if (!factory) return null;
+  const entity = factory(parseStepArguments(raw));
+  entity.expressID = id;
+  return entity;
+}
