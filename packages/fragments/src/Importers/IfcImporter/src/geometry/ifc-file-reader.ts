@@ -10,6 +10,7 @@ import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GridReader } from "./grid-reader";
 import { SpaceBoundaryReader } from "./space-boundary-reader";
+import { Hasher } from "./geometry-hash";
 
 export type CircleExtrusionData = {
   type: TFB.RepresentationClass.CIRCLE_EXTRUSION;
@@ -64,6 +65,8 @@ export type TransformData = {
 
 export class IfcFileReader {
   private _ifcAPI: WEBIFC.IfcAPI | null = null;
+
+  private _hasher: Hasher | null = null;
   wasm = {
     path: "../../../../node_modules/web-ifc/",
     absolute: false,
@@ -131,9 +134,11 @@ export class IfcFileReader {
 
     this._previousGeometriesIDs.clear();
 
-    this._ifcAPI = new WEBIFC.IfcAPI();
-    this._ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
-    await this._ifcAPI.Init();
+    const ifcAPI = new WEBIFC.IfcAPI();
+    ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
+    const [, hasher] = await Promise.all([ifcAPI.Init(), Hasher.init()]);
+    this._ifcAPI = ifcAPI;
+    this._hasher = hasher;
 
     let modelID = 0;
 
@@ -307,7 +312,10 @@ export class IfcFileReader {
     const grids = this._gridReader.read(this._ifcAPI);
     this.onGridsLoaded(grids);
 
-    if (this._serializer.geometryProcessSettings.processIfcRelSpaceBoundarySecondLevel) {
+    if (
+      this._serializer.geometryProcessSettings
+        .processIfcRelSpaceBoundarySecondLevel
+    ) {
       this._spaceBoundaryReader.read(
         this._ifcAPI,
         this._serializer,
@@ -567,6 +575,10 @@ export class IfcFileReader {
       throw new Error("Fragments: IfcAPI not initialized");
     }
 
+    if (this._hasher === null) {
+      throw new Error("Fragments: Hasher not initialized");
+    }
+
     // First, let's get the geometry data from web-ifc
 
     const geometryRef = mesh.geometries.get(geometryIndex);
@@ -700,24 +712,34 @@ export class IfcFileReader {
 
     centroid.divideScalar(index.length);
 
-    v1.set(position[0], position[1], position[2]);
-    v2.set(position[3], position[4], position[5]);
-    v3.set(position[6], position[7], position[8]);
-
     const p = 10000;
     const hashAreaSum = GeomsFbUtils.round(areaSum, p);
     const hashBigArea = GeomsFbUtils.round(biggestArea, p);
     const hashVolume = GeomsFbUtils.round(volume, p);
 
-    const x1 = GeomsFbUtils.round(v1.x, p);
-    const y1 = GeomsFbUtils.round(v1.y, p);
-    const z1 = GeomsFbUtils.round(v1.z, p);
+    // Cheap early discriminator: the AABB corners reject differently sized
+    // geometry before the per-vertex fold below has to separate anything, and
+    // unlike the first vertex used before they don't depend on vertex ordering.
+    const aabb = GeomsFbUtils.getAABB(position);
+    const minX = GeomsFbUtils.round(aabb.min.x, p);
+    const minY = GeomsFbUtils.round(aabb.min.y, p);
+    const minZ = GeomsFbUtils.round(aabb.min.z, p);
+    const maxX = GeomsFbUtils.round(aabb.max.x, p);
+    const maxY = GeomsFbUtils.round(aabb.max.y, p);
+    const maxZ = GeomsFbUtils.round(aabb.max.z, p);
 
     const cx = GeomsFbUtils.round(centroid.x, p);
     const cy = GeomsFbUtils.round(centroid.y, p);
     const cz = GeomsFbUtils.round(centroid.z, p);
 
-    const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${x1}-${y1}-${z1}`;
+    // Everything above is blind to where interior detail sits: two plates with
+    // the same outline, area, volume, centroid and bounding box hash alike even
+    // when their bolt holes are in different places (#237). Folding the vertex
+    // positions in is what separates them; see `hashCoordinates` for how they
+    // are quantized and why the fold is order-sensitive.
+    const vertexKey = this._hasher.hashCoordinates(position, p);
+
+    const hash = `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`;
 
     if (this._problematicGeometriesHashes.has(hash)) {
       console.log(`Fragments: Problematic geometry: ${geometryData.id}`);
