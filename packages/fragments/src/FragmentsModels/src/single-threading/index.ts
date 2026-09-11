@@ -8,6 +8,7 @@ import {
   ItemsDataConfig,
   ItemsQueryConfig,
   ItemsQueryParams,
+  LoadAbortedError,
 } from "../model";
 import { IFragmentsModel } from "../model/fragments-model-interface";
 import { isRawBuffer } from "../utils/misc/buffer";
@@ -21,10 +22,33 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
   private _virtualModel: VirtualFragmentsModel;
 
   /**
+   * The promise of the asynchronous part of the model setup, started by the
+   * constructor. See {@link ready}. It is memoized: the setup runs exactly
+   * once, no public path can re-trigger it.
+   */
+  private readonly _setup: Promise<void>;
+
+  private _disposed = false;
+
+  /**
    * The ID of the model.
    */
   get modelId() {
     return this._modelId;
+  }
+
+  /**
+   * Resolves when the model is fully set up. The constructor starts an
+   * asynchronous setup that spans multiple macrotasks; await this before
+   * relying on the model being completely initialized.
+   *
+   * If {@link dispose} is called while the setup is still running, this
+   * promise rejects with a {@link LoadAbortedError}. If nobody awaits it,
+   * the rejection is already handled internally, so it never surfaces as
+   * an unhandled rejection.
+   */
+  get ready(): Promise<void> {
+    return this._setup;
   }
 
   /**
@@ -47,14 +71,35 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
       undefined as any,
     );
 
-    this._virtualModel.setupData();
+    // Store the setup promise (exposed as `ready`) and give dispose() a way
+    // to stop the chain: the generation loop calls this callback at every
+    // yield point, so after dispose() it stops at the next tick instead of
+    // running to completion against torn-down controllers (#261, #262).
+    this._setup = this._virtualModel.setupData(undefined, () => {
+      if (this._disposed) {
+        throw new LoadAbortedError(this._modelId);
+      }
+    });
+
+    // Handled route for the rejection: a setup failure (or a dispose() abort)
+    // on a model whose `ready` nobody awaits must not become an unhandled
+    // rejection. Awaiting `ready` still rethrows the original error.
+    this._setup.catch(() => {});
   }
 
   /**
    * Dispose the model. Use this when you're done with the model.
    * If you use the {@link FragmentsModels.dispose} method, this will be called automatically for all models.
+   *
+   * If the setup started by the constructor is still running, it is aborted
+   * at its next yield point and {@link ready} rejects with a
+   * {@link LoadAbortedError}. Calling this more than once is a no-op.
    */
   dispose() {
+    if (this._disposed) {
+      return;
+    }
+    this._disposed = true;
     this._virtualModel.dispose();
     this._virtualModel = null as any;
   }
