@@ -3,7 +3,11 @@ import { Builder } from "flatbuffers";
 import * as TFB from "../../../../Schema";
 import { RawEntityAttrs } from "./types";
 import { IfcImporter } from "../..";
-import { FragmentsIfcUtils, ifcCategoryMap } from "../../../../Utils";
+import {
+  FragmentsIfcUtils,
+  ifcCategoryMap,
+  getProvenanceMetadata,
+} from "../../../../Utils";
 import { ProcessData } from "../types";
 import {
   ALIGNMENT_CATEGORY,
@@ -733,7 +737,13 @@ export class IfcPropertyProcessor {
 
     const crs = this.extractCRS(ifcApi);
 
-    const metadata = { schema, names, descriptions, crs } as any;
+    const metadata = {
+      schema,
+      names,
+      descriptions,
+      crs,
+      ...getProvenanceMetadata(),
+    } as any;
 
     const metadataOffset = this._builder.createString(JSON.stringify(metadata));
     return metadataOffset;

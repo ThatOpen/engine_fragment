@@ -9,12 +9,10 @@ import {
 } from "./src";
 import { FragmentsConnection } from "./src/multithreading/fragments-connection";
 import { ThreadHandler } from "./src/multithreading/connection-handlers";
-import { Event } from "../Utils";
+import { Event, FRAGMENTS_VERSION } from "../Utils";
 import { Editor } from "./src/edit";
 
 export * from "./src";
-
-declare const __FRAGMENTS_VERSION__: string;
 
 export interface FragmentsModelsOptions {
   /**
@@ -61,7 +59,7 @@ export class FragmentsModels {
     if (FragmentsModels._workerPromise) return FragmentsModels._workerPromise;
 
     FragmentsModels._workerPromise = (async () => {
-      const url = `https://unpkg.com/@thatopen/fragments@${__FRAGMENTS_VERSION__}/dist/worker/worker.mjs`;
+      const url = `https://unpkg.com/@thatopen/fragments@${FRAGMENTS_VERSION}/dist/worker/worker.mjs`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(

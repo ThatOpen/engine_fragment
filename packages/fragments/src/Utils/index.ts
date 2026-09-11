@@ -13,3 +13,4 @@ export * from "./worker-utils";
 export * from "./ifc-splitter";
 export * from "./ifc-parsing-utils";
 export * from "./ifc-stream";
+export * from "./version";
