@@ -505,6 +505,13 @@ export type GridData = {
   uAxes: GridAxisData[];
   vAxes: GridAxisData[];
   wAxes: GridAxisData[];
+  /**
+   * Grid axes whose curve type the importer cannot represent yet (only
+   * point-list curves like IFCPOLYLINE and IFCINDEXEDPOLYCURVE are supported;
+   * e.g. IFCCIRCLE, IFCLINE or IFCTRIMMEDCURVE axes end up here). Optional so
+   * data serialized before this field existed still matches the type.
+   */
+  unsupportedAxes?: { tag: string; curveType: string }[];
 };
 
 /** Interface representing the Coordinate Reference System (CRS) data extracted from an IFC model's IFCPROJECTEDCRS and IFCMAPCONVERSION entities. */
