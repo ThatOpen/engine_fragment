@@ -3,6 +3,7 @@ export * from "./Utils";
 // which imports Utils, does not retain web-ifc through these modules.
 export * from "./Utils/ifc-index";
 export * from "./Utils/ifc-parsing-utils";
+export * from "./Utils/ifc-resolver";
 export * from "./Utils/ifc-scanner";
 export * from "./Utils/ifc-splitter";
 export * from "./Utils/ifc-stream";

@@ -1,7 +1,13 @@
 // eslint-disable-next-line max-classes-per-file
 import * as webIfc from "web-ifc";
-import { parseStepArguments, StepArgument } from "./ifc-parsing-utils";
+import {
+  buildEntity,
+  entityFactories,
+  parseFileSchema,
+  RawFactory,
+} from "./ifc-parsing-utils";
 import { StatementRef } from "./ifc-scanner";
+import type { IfcEntityResolver } from "./ifc-resolver";
 
 const crCharCode = 13; // "\r";
 const nl = "\n";
@@ -75,8 +81,6 @@ export class IfcDecoderStream extends TransformStream<Uint8Array, string> {
   }
 }
 
-type RawFactory = (args: StepArgument[]) => webIfc.IfcLineObject;
-
 /**
  * Turns the statements of an IFC file into web-ifc entities, matching the
  * shape `IfcAPI.GetLine` returns (attributes hold typed value wrappers, refs
@@ -105,12 +109,36 @@ type RawFactory = (args: StepArgument[]) => webIfc.IfcLineObject;
  *   const type = entity.type;
  * }
  * ```
+ *
+ * @example Resolving references
+ * ```ts
+ * // needs the whole file resident, and an index of it
+ * const resolver = await IfcEntityResolver.fromBytes(bytes);
+ *
+ * for await (const entity of stream.pipeThrough(
+ *   new IfcParserStream({ resolver }),
+ * )) {
+ *   // `.value` is still the id; `.ref` parses the target on first read
+ *   const placement = entity.ObjectPlacement?.ref;
+ * }
+ * ```
  */
 export class IfcParserStream extends TransformStream<
   StatementRef,
   webIfc.IfcLineObject
 > {
-  constructor(encoding = "utf-8") {
+  constructor({
+    encoding = "utf-8",
+    resolver,
+  }: {
+    encoding?: string;
+    /**
+     * Gives every `#N` handle on the emitted entities a lazy `ref` accessor
+     * that parses the target from the source on first read. Left out, refs
+     * stay bare `{ type: REF, value: id }` handles.
+     */
+    resolver?: IfcEntityResolver;
+  } = {}) {
     let factories: Record<number, RawFactory> | null = null;
     let fileSchemas: string[] | null = null;
     let section: "header" | "data" | "between" | "end" = "header";
@@ -130,14 +158,8 @@ export class IfcParserStream extends TransformStream<
                 controller.error(new Error("Ifc schema not found"));
                 return;
               }
-              let schemaIndex = -1;
-              for (const name of fileSchemas) {
-                schemaIndex = webIfc.SchemaNames.findIndex((names) =>
-                  names?.includes(name),
-                );
-                if (schemaIndex !== -1) break;
-              }
-              if (schemaIndex === -1) {
+              factories = entityFactories(fileSchemas);
+              if (!factories) {
                 controller.error(
                   new Error(
                     `Ifc schema '${fileSchemas.join("', '")}' not found`,
@@ -145,32 +167,9 @@ export class IfcParserStream extends TransformStream<
                 );
                 return;
               }
-              factories = (
-                webIfc.FromRawLineData as Record<
-                  number,
-                  Record<number, RawFactory>
-                >
-              )[schemaIndex];
               section = "data";
             } else if (raw.startsWith("FILE_SCHEMA")) {
-              try {
-                const [names] = parseStepArguments(raw);
-                if (Array.isArray(names)) {
-                  const schemas: string[] = [];
-                  for (const item of names) {
-                    if (
-                      item &&
-                      !Array.isArray(item) &&
-                      typeof item.value === "string"
-                    ) {
-                      schemas.push(item.value);
-                    }
-                  }
-                  if (schemas.length) fileSchemas = schemas;
-                }
-              } catch {
-                // a malformed FILE_SCHEMA surfaces as "schema not found" at DATA
-              }
+              fileSchemas = parseFileSchema(raw) ?? fileSchemas;
             }
             break;
 
@@ -185,24 +184,24 @@ export class IfcParserStream extends TransformStream<
               controller.error(new Error(`Corrupted Ifc statement: ${raw}`));
               return;
             }
-            const typeCode = (webIfc as Record<string, unknown>)[
-              statement.type
-            ];
-            // entity types outside web-ifc or the declared schema are skipped,
-            // matching web-ifc's own tolerance for such lines
-            if (typeof typeCode !== "number") return;
-            const factory = factories?.[typeCode];
-            if (!factory) return;
-            let entity: webIfc.IfcLineObject;
+            let entity: webIfc.IfcLineObject | null;
             try {
-              entity = factory(parseStepArguments(raw));
+              entity = buildEntity({
+                raw,
+                id: statement.id,
+                type: statement.type,
+                factories: factories!,
+              });
             } catch (err) {
               controller.error(
                 new Error(`Corrupted Ifc statement: ${raw}`, { cause: err }),
               );
               return;
             }
-            entity.expressID = statement.id;
+            // entity types outside web-ifc or the declared schema are skipped,
+            // matching web-ifc's own tolerance for such lines
+            if (!entity) return;
+            if (resolver) resolver.attach(entity);
             controller.enqueue(entity);
             break;
           }
