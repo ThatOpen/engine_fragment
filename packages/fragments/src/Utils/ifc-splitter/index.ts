@@ -16,6 +16,37 @@ import { streamAsyncIterator } from "../ifc-stream";
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
+export interface IfcSplitterConfig {
+  /**
+   * @default {@link ELEMENT_TYPES}
+   */
+  elementTypes?: string[];
+  /**
+   * @default {@link SPATIAL_TYPES}
+   */
+  spatialTypes?: string[];
+  /**
+   * @see {@link listIdxByType}
+   * @returns the index of the argument to parse as a ref list
+   */
+  listArgIndex?: (ifcType: string) => number | undefined;
+}
+
+interface IfcSplitterResolvedConfig {
+  /**
+   * @see {@link IfcSplitterConfig.elementTypes}
+   */
+  elementTypes: Set<string>;
+  /**
+   * @see {@link IfcSplitterConfig.spatialTypes}
+   */
+  spatialTypes: Set<string>;
+  /**
+   * @see {@link IfcSplitterConfig.listArgIndex}
+   */
+  listArgIndex: (ifcType: string) => number | undefined;
+}
+
 export interface IfcSplitterIO {
   /**
    * @param path
@@ -123,7 +154,12 @@ interface RelEntry {
 // ---------------------------------------------------------------------------
 // IFC element categories we consider "splittable building elements"
 // ---------------------------------------------------------------------------
-const ELEMENT_TYPES: Set<string> = new Set([
+
+/**
+ * The default {@link IfcSplitterConfig.elementTypes}.
+ * Exported so it can be extended rather than replaced.
+ */
+export const ELEMENT_TYPES = Object.freeze([
   "IFCWALL",
   "IFCWALLSTANDARDCASE",
   "IFCWALLELEMENTEDCASE",
@@ -177,14 +213,18 @@ const ELEMENT_TYPES: Set<string> = new Set([
   "IFCGEOGRAPHICELEMENT",
   "IFCPROXY",
   "IFCMECHANICALFASTENER",
-]);
+] as const);
 
-const SPATIAL_TYPES: Set<string> = new Set([
+/**
+ * The default {@link IfcSplitterConfig.spatialTypes}.
+ * Exported so it can be extended rather than replaced.
+ */
+export const SPATIAL_TYPES = Object.freeze([
   "IFCPROJECT",
   "IFCSITE",
   "IFCBUILDING",
   "IFCBUILDINGSTOREY",
-]);
+] as const);
 
 /**
  * Returns the argument index at which a given IFC type stores its list of
@@ -192,8 +232,11 @@ const SPATIAL_TYPES: Set<string> = new Set([
  * field, end up with an empty list, and skip the line entirely — dropping all
  * its transitive dependencies (property sets, materials, styles, etc.) from
  * the split output.
+ *
+ * The default {@link IfcSplitterConfig.listArgIndex}. Exported so an override
+ * can delegate to it for the types it doesn't care about.
  */
-const listIdxByType = (type: string): number => {
+export const listIdxByType = (type: string): number => {
   switch (type) {
     case "IFCRELAGGREGATES":
       return 5;
@@ -459,11 +502,11 @@ function buildAggregateMap(
   return { parentToChildren, childToParent, aggregateRelIds };
 }
 
-function traverseSpatialStructure(index: LineIndex) {
+function traverseSpatialStructure(index: LineIndex, spatialTypes: Set<string>) {
   const spatialIds = new Set<number>();
   for (let id = 0; id <= index.maxId; id++) {
     const type = index.getType(id);
-    if (type && SPATIAL_TYPES.has(type)) spatialIds.add(id);
+    if (type && spatialTypes.has(type)) spatialIds.add(id);
   }
   const sharedIds = new Set<number>();
   for (const sid of spatialIds) {
@@ -765,10 +808,16 @@ async function abortWriters(
 
 export class IfcSplitter {
   protected readonly io: IfcSplitterIO;
+  protected readonly config: IfcSplitterResolvedConfig;
   protected readonly eventTarget: EventTarget;
 
-  constructor(ifcSplitterIO: IfcSplitterIO) {
+  constructor(ifcSplitterIO: IfcSplitterIO, config: IfcSplitterConfig = {}) {
     this.io = ifcSplitterIO;
+    this.config = {
+      elementTypes: new Set(config.elementTypes ?? ELEMENT_TYPES),
+      spatialTypes: new Set(config.spatialTypes ?? SPATIAL_TYPES),
+      listArgIndex: config.listArgIndex ?? listIdxByType,
+    };
     this.eventTarget = new EventTarget();
   }
 
@@ -809,7 +858,7 @@ export class IfcSplitter {
 
     // 2. Identify spatial structure (shared in all files)
     const spatialStart = performance.now();
-    const sharedIds = traverseSpatialStructure(index);
+    const sharedIds = traverseSpatialStructure(index, this.config.spatialTypes);
     this.emitProgressEvent("spatial", spatialStart);
 
     // 3. Build void/fill coupling map
@@ -824,7 +873,7 @@ export class IfcSplitter {
 
     // 4. Identify all building elements
     const classifyStart = performance.now();
-    const allElementIds = index.getAll(ELEMENT_TYPES);
+    const allElementIds = index.getAll(this.config.elementTypes);
     this.emitProgressEvent("classify", classifyStart);
 
     // 4b. Build aggregation map
@@ -841,11 +890,14 @@ export class IfcSplitter {
       const cluster = getCluster(eid, vfMap, aggMap);
       const elementCluster = new Set<number>();
       for (const cid of cluster) {
-        if (allElementIds.has(cid)) elementCluster.add(cid);
+        if (allElementIds.has(cid)) {
+          elementCluster.add(cid);
+          assigned.add(cid);
+        }
       }
       clusters.push(elementCluster);
-      for (const cid of elementCluster) assigned.add(cid);
     }
+    assigned.clear();
     this.emitProgressEvent("cluster", clusterStart);
 
     // 6. Distribute clusters into N groups (greedy bin packing)
@@ -879,8 +931,8 @@ export class IfcSplitter {
         const argsStr = extractArgsString(raw);
         if (!argsStr) continue;
         const args = splitIfcArgs(argsStr);
-        const listIdx = listIdxByType(type);
-        if (args.length <= listIdx) continue;
+        const listIdx = this.config.listArgIndex(type) ?? -1;
+        if (listIdx < 0 || args.length <= listIdx) continue;
         const listRefs = extractRefs(args[listIdx]);
         if (listRefs.length === 0) continue;
         const idMatch = raw!.match(/^(#\d+\s*=\s*)/);
@@ -1013,7 +1065,7 @@ export class IfcSplitter {
 
     // 2. Identify spatial structure (shared)
     const spatialStart = performance.now();
-    const sharedIds = traverseSpatialStructure(index);
+    const sharedIds = traverseSpatialStructure(index, this.config.spatialTypes);
     this.emitProgressEvent("spatial", spatialStart);
 
     // 3. Build maps
@@ -1026,7 +1078,7 @@ export class IfcSplitter {
     this.emitProgressEvent("style-maps", styleMapsStart);
 
     const classifyStart = performance.now();
-    const allElementIds = index.getAll(ELEMENT_TYPES);
+    const allElementIds = index.getAll(this.config.elementTypes);
     this.emitProgressEvent("classify", classifyStart);
 
     // 4. Cluster: expand void/fill + aggregation for requested elements
@@ -1078,8 +1130,8 @@ export class IfcSplitter {
         const argsStr = extractArgsString(raw);
         if (!argsStr) continue;
         const args = splitIfcArgs(argsStr);
-        const listIdx = listIdxByType(type);
-        if (args.length <= listIdx) continue;
+        const listIdx = this.config.listArgIndex(type) ?? -1;
+        if (listIdx < 0 || args.length <= listIdx) continue;
         const listRefs = extractRefs(args[listIdx]);
         if (listRefs.length === 0) continue;
 
