@@ -3,6 +3,7 @@ import * as THREE from "three";
 import pako from "pako";
 import * as TFB from "../../Schema";
 import { createTransform } from "./transfom-functions";
+import { getProvenanceMetadata } from "../version";
 
 export function newModel(config: { raw: boolean }) {
   const builder = new FB.Builder(1024);
@@ -107,7 +108,9 @@ export function newModel(config: { raw: boolean }) {
 
   // Metadata
 
-  const metadataOffset = builder.createString("{}");
+  const metadataOffset = builder.createString(
+    JSON.stringify(getProvenanceMetadata()),
+  );
 
   // Attributes
 

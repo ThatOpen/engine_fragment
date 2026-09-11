@@ -24,6 +24,9 @@ const generateTSNamespace = (dts: Map<string, string>) => {
 };
 
 export default defineConfig({
+  define: {
+    __FRAGMENTS_VERSION__: JSON.stringify(packageJson.version),
+  },
   build: {
     outDir: "./dist/Worker",
     minify: false,
