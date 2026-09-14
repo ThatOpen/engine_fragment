@@ -82,6 +82,23 @@ test(
   CONVERSION_TIMEOUT,
 );
 
+test(
+  "each grid carries its own IFC GlobalId as guid",
+  async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Two grids with distinct GlobalIds, so a guid read from the wrong entity
+    // (or shared between grids) would not match.
+    const grids = await convertAndGetGrids("grids-one-placementless.ifc");
+
+    expect(grids.map(({ id, guid }) => ({ id, guid }))).toEqual([
+      { id: 226, guid: "2jMlNfpwHEGgnr29aaaaa1" },
+      { id: 238, guid: "2jMlNfpwHEGgnr29aaaaa2" },
+    ]);
+  },
+  CONVERSION_TIMEOUT,
+);
+
 // Regression for https://github.com/ThatOpen/engine_fragment/issues/263:
 // IFCGRID's ObjectPlacement is optional in the schema, but the importer read
 // `ObjectPlacement.value` unguarded and its all-or-nothing catch dropped
