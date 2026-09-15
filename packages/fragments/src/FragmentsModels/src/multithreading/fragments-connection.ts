@@ -93,6 +93,15 @@ export class FragmentsConnection extends Connection {
   }
 
   /**
+   * Whether a thread is still assigned to the model. The assignment is made
+   * by the model's first request and released only once the worker has
+   * deleted the model, so it outlives the model's entry in the models list.
+   */
+  hasModel(modelId: string) {
+    return this._data.getThread(modelId) !== undefined;
+  }
+
+  /**
    * Records the threadGroup for an upcoming load. Called by FragmentsModels
    * before issuing the first request for that model so the routing in
    * setupNewThread sees the right group.
