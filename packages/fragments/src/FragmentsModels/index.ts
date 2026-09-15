@@ -168,11 +168,6 @@ export class FragmentsModels {
     (event: LoadProgressEvent) => void
   >();
 
-  /** IDs of models whose `load()` is in flight. */
-  private readonly _loadingModels = new Set<string>();
-  /** IDs of in-flight loads that have been aborted but not settled yet. */
-  private readonly _abortedLoads = new Set<string>();
-
   private _isDisposed = false;
   private _autoRedrawInterval: any = null;
   private _lastUpdate = 0;
@@ -226,7 +221,7 @@ export class FragmentsModels {
    * Loads a fragments model from an ArrayBuffer.
    * @param buffer - The ArrayBuffer containing the fragments data to load.
    * @param options - Configuration options for loading the model.
-   * @param options.modelId - Unique identifier for the model.
+   * @param options.modelId - Unique identifier for the model. Loading an ID that is already loaded or still loading throws; dispose the existing model first.
    * @param options.camera - Optional camera to use for model culling and LOD.
    * @param options.raw - Whether the buffer is raw (uncompressed) or deflated. If omitted, it is auto-detected from the buffer (see {@link isRawBuffer}).
    * @param options.userData - Optional custom data to attach to the model.
@@ -263,16 +258,25 @@ export class FragmentsModels {
        */
       threadGroup?: string;
       /**
-       * Aborts the load when the signal fires, same as calling
-       * {@link FragmentsModels.abort} with this model's ID: `load()` rejects
-       * with a {@link LoadAbortedError} and the partial model is disposed. If
-       * the signal is already aborted, `load()` rejects without doing any work.
+       * Aborts the load when the signal fires: `load()` rejects with a
+       * {@link LoadAbortedError} and the partial model is disposed. If the
+       * signal is already aborted, `load()` rejects without doing any work.
        */
       signal?: AbortSignal;
     },
   ) {
     if (signal?.aborted) {
       throw new LoadAbortedError(modelId);
+    }
+
+    // Both threads key all model state by ID, so a second load under the same
+    // ID would clobber the first. The model enters `models.list` before the
+    // first await, which covers in-flight loads. Disposal removes it from the
+    // list before the worker has deleted it, so also wait for the thread.
+    if (this.models.list.has(modelId) || this._connection.hasModel(modelId)) {
+      throw new Error(
+        `Fragments: model "${modelId}" is already in use (loaded, loading or being disposed). Await its disposal or use a different modelId.`,
+      );
     }
 
     // Record the model's group before we issue any worker request so the
@@ -316,25 +320,34 @@ export class FragmentsModels {
       buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     const raw = explicitRaw ?? isRawBuffer(bytes);
 
-    const onAbort = () => this.abort(modelId);
+    // Fire-and-forget — the worker sets an abort flag and the in-flight
+    // generate() loop throws at its next yield point. The error unwinds
+    // through the catch block below, which cleans up on the main thread.
+    const onAbort = () => {
+      this._connection.fetch({
+        class: MultiThreadingRequestClass.ABORT_MODEL,
+        modelId,
+      });
+    };
     signal?.addEventListener("abort", onAbort, { once: true });
-    this._loadingModels.add(modelId);
 
-    // The worker ignores an abort that lands after it finished its part, so
-    // re-check on the main thread after every await.
-    const throwIfAborted = () => {
-      if (this._abortedLoads.has(modelId)) {
-        throw new LoadAbortedError(modelId);
-      }
+    // Not in a `finally`: on failure this must run before disposal frees the
+    // ID, or it could remove the progress callback of the ID's next load.
+    const release = () => {
+      signal?.removeEventListener("abort", onAbort);
+      this._progressCallbacks.delete(modelId);
     };
 
     try {
       this.models.list.set(model.modelId, model);
       await model._setup(buffer, raw, virtualModelConfig);
-      throwIfAborted();
+      // The worker ignores an abort that lands after it finished its part, so
+      // re-check on the main thread after every await. The catch block turns
+      // the signal's reason into a LoadAbortedError.
+      signal?.throwIfAborted();
       if (this.settings.autoCoordinate) {
         const coordinates = await model.getCoordinates();
-        throwIfAborted();
+        signal?.throwIfAborted();
         if (this.baseCoordinates === null) {
           this.baseCoordinates = coordinates;
         } else {
@@ -349,10 +362,13 @@ export class FragmentsModels {
         }
       }
     } catch (e) {
-      // Stop accepting aborts first: disposing drops the model's thread, and
-      // an abort request sent after that would spawn a new worker for it.
-      this._loadingModels.delete(modelId);
-      this._progressCallbacks.delete(modelId);
+      // Capture the signal's state: disposing drops the model's thread, and an abort
+      // request sent after that would spawn a new worker for it. An abort that
+      // fires during disposal doesn't change why the load failed.
+      const aborted = signal?.aborted;
+      // on failure this must run before disposal frees the ID,
+      // or it could remove the progress callback of the ID's next load.
+      release();
       // Fully dispose partial state — this tears down the worker thread
       // (if this was the last model on it), clears transferred materials,
       // removes the model object from its parent, and deletes it from the
@@ -366,13 +382,10 @@ export class FragmentsModels {
       }
       // A worker-side abort arrives as its serialized error string, not as a
       // LoadAbortedError instance, so rebuild the error here.
-      throw this._abortedLoads.has(modelId) ? new LoadAbortedError(modelId) : e;
-    } finally {
-      signal?.removeEventListener("abort", onAbort);
-      this._loadingModels.delete(modelId);
-      this._abortedLoads.delete(modelId);
-      this._progressCallbacks.delete(modelId);
+      throw aborted ? new LoadAbortedError(modelId) : e;
     }
+
+    release();
 
     if (camera) {
       model.useCamera(camera);
@@ -414,32 +427,6 @@ export class FragmentsModels {
     if (model) {
       await model.dispose();
     }
-  }
-
-  /**
-   * Aborts an in-flight `load()` for the given model ID. The pending `load()`
-   * promise will reject with a `LoadAbortedError` and any partial state
-   * (on both the main thread and the worker) is disposed.
-   *
-   * Has no effect if the model finished loading or isn't currently loading.
-   * To tie a load to an `AbortController`, pass its signal to `load()` instead.
-   *
-   * @param modelId - The unique identifier of the model to abort.
-   */
-  abort(modelId: string) {
-    // Only an in-flight load can be aborted, and only once. A request for any
-    // other ID has no thread to route to, so sending it would spawn a worker.
-    if (!this._loadingModels.has(modelId) || this._abortedLoads.has(modelId)) {
-      return;
-    }
-    this._abortedLoads.add(modelId);
-    // Fire-and-forget — the worker sets an abort flag and the in-flight
-    // generate() loop throws at its next yield point. The error unwinds
-    // through load() and its catch block cleans up on the main thread.
-    this._connection.fetch({
-      class: MultiThreadingRequestClass.ABORT_MODEL,
-      modelId,
-    });
   }
 
   /**
