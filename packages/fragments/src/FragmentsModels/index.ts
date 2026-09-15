@@ -324,10 +324,11 @@ export class FragmentsModels {
     // generate() loop throws at its next yield point. The error unwinds
     // through the catch block below, which cleans up on the main thread.
     const onAbort = () => {
-      this._connection.fetch({
-        class: MultiThreadingRequestClass.ABORT_MODEL,
-        modelId,
-      });
+      this._connection
+        .fetch({ class: MultiThreadingRequestClass.ABORT_MODEL, modelId })
+        // Rejects only if the model never got a thread, so there is nothing to
+        // abort on the worker. The main-thread check below still rejects.
+        .catch(() => {});
     };
     signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -362,9 +363,8 @@ export class FragmentsModels {
         }
       }
     } catch (e) {
-      // Capture the signal's state: disposing drops the model's thread, and an abort
-      // request sent after that would spawn a new worker for it. An abort that
-      // fires during disposal doesn't change why the load failed.
+      // Capture the signal's state: an abort that fires during disposal
+      // shouldn't mask why the load failed.
       const aborted = signal?.aborted;
       // on failure this must run before disposal frees the ID,
       // or it could remove the progress callback of the ID's next load.
