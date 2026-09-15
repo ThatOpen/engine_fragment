@@ -456,10 +456,11 @@ export class FragmentsModels {
     // Fire-and-forget — the worker sets an abort flag and the in-flight
     // generate() loop throws at its next yield point. The error unwinds
     // through load() and its catch block cleans up on the main thread.
-    this._connection.fetch({
-      class: MultiThreadingRequestClass.ABORT_MODEL,
-      modelId,
-    });
+    this._connection
+      .fetch({ class: MultiThreadingRequestClass.ABORT_MODEL, modelId })
+      // Rejects only if the model never got a thread, so there is nothing to
+      // abort on the worker. The main-thread check in load() still rejects.
+      .catch(() => {});
   }
 
   /**
