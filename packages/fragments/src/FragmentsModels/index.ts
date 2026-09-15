@@ -548,8 +548,8 @@ export class FragmentsModels {
     };
   }
 
-  private newRequestEvent() {
-    return (request: ThreadHandler) => {
+  private newRequestEvent(): ThreadHandler {
+    return (request) => {
       this.manageRequest(request);
     };
   }
