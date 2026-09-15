@@ -339,8 +339,6 @@ export class FragmentsModels {
     };
     signal?.addEventListener("abort", onAbort, { once: true });
 
-    // Not in a `finally`: on failure this must run before disposal frees the
-    // ID, or it could remove the progress callback of the ID's next load.
     const release = () => {
       signal?.removeEventListener("abort", onAbort);
       this._progressCallbacks.delete(modelId);
@@ -350,8 +348,7 @@ export class FragmentsModels {
       this.models.list.set(model.modelId, model);
       await model._setup(buffer, raw, virtualModelConfig);
       // The worker ignores an abort that lands after it finished its part, so
-      // re-check on the main thread after every await. The catch block turns
-      // the signal's reason into a LoadAbortedError.
+      // re-check on the main thread after every await.
       signal?.throwIfAborted();
       if (this.settings.autoCoordinate) {
         const coordinates = await model.getCoordinates();
