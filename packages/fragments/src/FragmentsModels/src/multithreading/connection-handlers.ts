@@ -13,6 +13,10 @@ export class ConnectionHandlers {
     this._list.set(id, handler);
   }
 
+  delete(id: number) {
+    this._list.delete(id);
+  }
+
   // It resolves the awaited model.threads.fetch(...)
   run(data: any) {
     const handler = this._list.get(data.requestId) as ThreadHandler;

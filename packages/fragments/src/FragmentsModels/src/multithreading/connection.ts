@@ -21,17 +21,18 @@ export class Connection {
     this._handlers.setupInput(input);
     return new Promise<any>((resolve, reject) => {
       this._handlers.set(input.requestId, reject, resolve);
-      this.executeConnection(input, content);
+      // A request that can't be routed never reaches the other side,
+      // so nothing would ever answer it.
+      this.executeConnection(input, content).catch((error) => {
+        this._handlers.delete(input.requestId);
+        reject(error);
+      });
     });
   }
 
   init(port: MessagePort) {
     this._port = port;
     this.initConnection(port);
-  }
-
-  protected initConnection(connection: MessagePort) {
-    connection.onmessage = this.onInput;
   }
 
   protected async fetchConnection(_input: any) {
@@ -46,34 +47,28 @@ export class Connection {
     connectionPort.postMessage(input, content as any);
   }
 
-  private async manageOutput(input: any) {
-    const connection = await this.fetchConnection(input);
-    input.toMainThread = true;
-    connection.postMessage(input);
+  protected initConnection(connection: MessagePort) {
+    connection.onmessage = (input) => this.onInput(input, connection);
   }
 
-  private onInput = (input: MessageEvent) => {
-    if (input.data.toMainThread) {
-      this._handlers.run(input.data);
+  private async onInput<
+    T extends { toMainThread?: boolean; errorInfo?: string },
+  >({ data }: MessageEvent<T>, port: MessagePort) {
+    if (data.toMainThread) {
+      this._handlers.run(data);
       return;
     }
-    this.manageInput(input.data);
-  };
-
-  private async manageConnection(input: any) {
     try {
-      await this._handleInput(input);
+      await this._handleInput(data);
     } catch (error: any) {
-      input.errorInfo = error.toString();
+      data.errorInfo = error.toString();
       // Aborts are intentional — don't log them as unexpected errors.
       if (error?.name !== "LoadAbortedError") {
         console.error(error);
       }
     }
-  }
-
-  private async manageInput(input: any): Promise<void> {
-    await this.manageConnection(input);
-    await this.manageOutput(input);
+    // Answers go back through the port the request came in on.
+    data.toMainThread = true;
+    port.postMessage(data);
   }
 }

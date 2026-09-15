@@ -1,3 +1,4 @@
+import { MultiThreadingRequestClass } from "../model/model-types";
 import { Connection } from "./connection";
 import { ThreadHandler } from "./connection-handlers";
 import { MultithreadingHelper, Thread } from "./multithreading-helper";
@@ -94,7 +95,7 @@ export class FragmentsConnection extends Connection {
 
   /**
    * Whether a thread is still assigned to the model. The assignment is made
-   * by the model's first request and released only once the worker has
+   * by the model's CREATE_MODEL request and released only once the worker has
    * deleted the model, so it outlives the model's entry in the models list.
    */
   hasModel(modelId: string) {
@@ -145,6 +146,12 @@ export class FragmentsConnection extends Connection {
     const thread = this._data.getAndCheckThread(input.modelId);
     if (thread) {
       return this._data.getPort(thread);
+    }
+    // Only CREATE_MODEL assigns a thread, and only disposing the model
+    // releases it. Any other request without one is for a model that isn't
+    // loaded, and a thread assigned to it would never be released.
+    if (input.class !== MultiThreadingRequestClass.CREATE_MODEL) {
+      throw new Error(`Fragments: model "${input.modelId}" is not loaded.`);
     }
     return this.setupNewThread(input);
   }
