@@ -164,11 +164,18 @@ describe("ShellConstructor: buffer-count under-prediction", () => {
     // somewhere across the buffers - nothing silently dropped.
     expect(totalIndices).toBe(totalTriangles * 3);
     expect(totalVertices).toBe(totalTriangles * 3);
-  });
+  }, 10000);
 
   it("handles multiple consecutive under-predicted buffers, not just the last one", () => {
-    const cols = 250;
-    const rows = 250;
+    // 200x200 already produces 4 buffers (same fixture size as the first
+    // test above) - large enough to drop 3 and still exercise consecutive
+    // dynamic-buffer creation, without the extra construction cost of a
+    // bigger grid (a 250x200 grid pushed this test's own FlatBuffers
+    // construction past vitest's default 5000ms timeout on a slower CI
+    // runner, even though the fix logic itself ran in well under a
+    // second - a test-performance issue, not a correctness one).
+    const cols = 200;
+    const rows = 200;
     const shell = buildGridShell(cols, rows);
     const totalTriangles = (cols - 1) * (rows - 1) * 2;
 
@@ -207,7 +214,7 @@ describe("ShellConstructor: buffer-count under-prediction", () => {
     }
     expect(totalIndices).toBe(totalTriangles * 3);
     expect(totalVertices).toBe(totalTriangles * 3);
-  });
+  }, 20000);
 
   it("still produces exactly the predicted buffer count when the sizing pass is correct (no regression)", () => {
     const cols = 100;
