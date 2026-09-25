@@ -99,6 +99,34 @@ test(
   CONVERSION_TIMEOUT,
 );
 
+// GlobalId is mandatory in the schema but real files break that, and the guid
+// read runs inside the per-grid catch added for issues #263/#264: reading it
+// unguarded would throw and silently drop the grid, which is the very failure
+// mode that catch exists to contain.
+test(
+  "a grid without GlobalId still imports, with no guid",
+  async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const grids = await convertAndGetGrids("grids-one-guidless.ifc");
+
+    // Both grids survive; the guid-less one simply carries no guid.
+    expect(grids.map(({ id }) => id)).toEqual([226, 238]);
+    const valid = grids.find(({ id }) => id === 226) as GridData;
+    expect(valid.guid).toBe("2jMlNfpwHEGgnr29aaaaa1");
+    const guidless = grids.find(({ id }) => id === 238) as GridData;
+    expect(guidless.guid).toBeUndefined();
+
+    // Its geometry is intact, not a salvaged husk.
+    expect(guidless.uAxes.map(({ tag }) => tag)).toEqual(["X1"]);
+    expect(guidless.vAxes.map(({ tag }) => tag)).toEqual(["Y1"]);
+
+    // Nothing was skipped, so nothing is reported.
+    expect(gridWarnings(warn)).toEqual([]);
+  },
+  CONVERSION_TIMEOUT,
+);
+
 // Regression for https://github.com/ThatOpen/engine_fragment/issues/263:
 // IFCGRID's ObjectPlacement is optional in the schema, but the importer read
 // `ObjectPlacement.value` unguarded and its all-or-nothing catch dropped
