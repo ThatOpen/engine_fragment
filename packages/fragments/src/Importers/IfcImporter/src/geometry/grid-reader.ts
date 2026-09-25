@@ -44,6 +44,7 @@ export class GridReader {
 
           const data: GridData = {
             id,
+            guid: grid.GlobalId.value,
             transform: transform.elements,
             // prettier-ignore
             uAxes: this.getGridAxes(grid, webIfc, units, "UAxes", unsupportedAxes),

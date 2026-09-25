@@ -519,6 +519,7 @@ export type GridAxisData = {
 
 export type GridData = {
   id: number;
+  guid: string;
   transform: number[];
   uAxes: GridAxisData[];
   vAxes: GridAxisData[];
