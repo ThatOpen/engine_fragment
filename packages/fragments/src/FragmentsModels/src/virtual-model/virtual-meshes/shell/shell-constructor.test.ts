@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import * as flatbuffers from "flatbuffers";
 import {
   Shell,
@@ -109,17 +109,35 @@ function buildGridShell(cols: number, rows: number): Shell {
 }
 
 describe("ShellConstructor: buffer-count under-prediction", () => {
-  it("does not crash and produces correct, trimmed buffers when the sizing pass under-predicts", () => {
+  // Building a grid shell large enough to need several buffers is the
+  // expensive part of these tests (thousands of individual FlatBuffers
+  // profile/point writes - ~12s for 200x200 on a slower CI runner, per
+  // maintainer feedback on the original PR, and slow enough under
+  // parallel load to starve an unrelated test into timing out too). The
+  // two tests below both need the *same* 200x200 fixture (one needs >=2
+  // predicted buffers, the other >=4) - built once here and reused,
+  // rather than each independently paying that construction cost.
+  let sharedShell: Shell;
+  let sharedPredictedArray: TileBasicData[];
+  let sharedTotalTriangles: number;
+
+  beforeAll(() => {
     const cols = 200;
     const rows = 200;
-    const shell = buildGridShell(cols, rows);
-    const totalTriangles = (cols - 1) * (rows - 1) * 2;
+    sharedShell = buildGridShell(cols, rows);
+    sharedTotalTriangles = (cols - 1) * (rows - 1) * 2;
 
     const templates = new ShellTemplateConstructor();
-    const predicted = templates.newMeshTemplate(shell) as
+    const predicted = templates.newMeshTemplate(sharedShell) as
       | TileBasicData
       | TileBasicData[];
-    const predictedArray = Array.isArray(predicted) ? predicted : [predicted];
+    sharedPredictedArray = Array.isArray(predicted) ? predicted : [predicted];
+  }, 20000);
+
+  it("does not crash and produces correct, trimmed buffers when the sizing pass under-predicts", () => {
+    const shell = sharedShell;
+    const totalTriangles = sharedTotalTriangles;
+    const predictedArray = sharedPredictedArray;
     expect(predictedArray.length).toBeGreaterThan(1); // sanity: this fixture genuinely needs multiple buffers
 
     // Simulate ShellTemplateConstructor under-predicting: drop the last
@@ -164,26 +182,15 @@ describe("ShellConstructor: buffer-count under-prediction", () => {
     // somewhere across the buffers - nothing silently dropped.
     expect(totalIndices).toBe(totalTriangles * 3);
     expect(totalVertices).toBe(totalTriangles * 3);
-  }, 10000);
+  }, 8000);
 
   it("handles multiple consecutive under-predicted buffers, not just the last one", () => {
-    // 200x200 already produces 4 buffers (same fixture size as the first
-    // test above) - large enough to drop 3 and still exercise consecutive
-    // dynamic-buffer creation, without the extra construction cost of a
-    // bigger grid (a 250x200 grid pushed this test's own FlatBuffers
-    // construction past vitest's default 5000ms timeout on a slower CI
-    // runner, even though the fix logic itself ran in well under a
-    // second - a test-performance issue, not a correctness one).
-    const cols = 200;
-    const rows = 200;
-    const shell = buildGridShell(cols, rows);
-    const totalTriangles = (cols - 1) * (rows - 1) * 2;
-
-    const templates = new ShellTemplateConstructor();
-    const predicted = templates.newMeshTemplate(shell) as
-      | TileBasicData
-      | TileBasicData[];
-    const predictedArray = Array.isArray(predicted) ? predicted : [predicted];
+    // Reuses the same 200x200 fixture built in beforeAll (see its own
+    // comment) - this test needs >=4 predicted buffers to drop 3 and
+    // still exercise consecutive dynamic-buffer creation.
+    const shell = sharedShell;
+    const totalTriangles = sharedTotalTriangles;
+    const predictedArray = sharedPredictedArray;
     expect(predictedArray.length).toBeGreaterThan(3); // sanity: enough buffers to drop several
 
     // Drop the last THREE predicted buffers, not just one - exercises
@@ -214,7 +221,7 @@ describe("ShellConstructor: buffer-count under-prediction", () => {
     }
     expect(totalIndices).toBe(totalTriangles * 3);
     expect(totalVertices).toBe(totalTriangles * 3);
-  }, 20000);
+  }, 8000);
 
   it("still produces exactly the predicted buffer count when the sizing pass is correct (no regression)", () => {
     const cols = 100;
