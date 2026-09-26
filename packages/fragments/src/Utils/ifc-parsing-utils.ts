@@ -379,37 +379,34 @@ export function parseStepArguments(line: string): StepArgument[] {
 export type RawFactory = (args: StepArgument[]) => webIfc.IfcLineObject;
 
 /**
- * The `FromRawLineData` registry for the first of `schemaNames` web-ifc knows,
- * or `null` if it knows none of them.
+ * The `FromRawLineData` registry for `schemaName`, or `null` if web-ifc does
+ * not know it.
  */
 export function entityFactories(
-  schemaNames: string[],
+  schemaName: string,
 ): Record<number, RawFactory> | null {
-  for (const name of schemaNames) {
-    const schemaIndex = webIfc.SchemaNames.findIndex((names) =>
-      names?.includes(name),
-    );
-    if (schemaIndex !== -1) {
-      return (
-        webIfc.FromRawLineData as Record<number, Record<number, RawFactory>>
-      )[schemaIndex];
-    }
-  }
-  return null;
+  const schemaIndex = webIfc.SchemaNames.findIndex((names) =>
+    names?.includes(schemaName),
+  );
+  if (schemaIndex === -1) return null;
+  return (webIfc.FromRawLineData as Record<number, Record<number, RawFactory>>)[
+    schemaIndex
+  ];
 }
 
-/** The schema identifiers of a `FILE_SCHEMA(('IFC4'))` statement. */
-export function parseFileSchema(raw: string): string[] | null {
+/**
+ * The schema identifier of a `FILE_SCHEMA(('IFC4'))` statement.
+ *
+ * Part 21 allows a list, but only the first entry is read: that is all
+ * web-ifc reads, and it rejects a file whose first schema it does not know.
+ */
+export function parseFileSchema(raw: string): string | null {
   try {
     const [names] = parseStepArguments(raw);
-    if (!Array.isArray(names)) return null;
-    const schemas: string[] = [];
-    for (const item of names) {
-      if (item && !Array.isArray(item) && typeof item.value === "string") {
-        schemas.push(item.value);
-      }
-    }
-    return schemas.length ? schemas : null;
+    const first = Array.isArray(names) ? names[0] : null;
+    return first && !Array.isArray(first) && typeof first.value === "string"
+      ? first.value
+      : null;
   } catch {
     // a malformed FILE_SCHEMA is reported later, as "schema not found"
     return null;
@@ -417,28 +414,31 @@ export function parseFileSchema(raw: string): string[] | null {
 }
 
 /**
+ * The factory `factories` holds for the entity type named `type`, or
+ * `undefined` for a type outside web-ifc or outside that schema.
+ */
+export function entityFactory(
+  type: string,
+  factories: Record<number, RawFactory>,
+): RawFactory | undefined {
+  const typeCode = (webIfc as Record<string, unknown>)[type];
+  return typeof typeCode === "number" ? factories[typeCode] : undefined;
+}
+
+/**
  * Turn one statement into a web-ifc entity, matching `IfcAPI.GetLine`'s shape.
- *
- * Returns `null` for entity types outside web-ifc or outside the file's
- * declared schema, matching web-ifc's own tolerance for such lines.
  *
  * @throws if the arguments are malformed.
  */
 export function buildEntity({
   raw,
   id,
-  type,
-  factories,
+  factory,
 }: {
   raw: string;
   id: number;
-  type: string;
-  factories: Record<number, RawFactory>;
-}): webIfc.IfcLineObject | null {
-  const typeCode = (webIfc as Record<string, unknown>)[type];
-  if (typeof typeCode !== "number") return null;
-  const factory = factories[typeCode];
-  if (!factory) return null;
+  factory: RawFactory;
+}): webIfc.IfcLineObject {
   const entity = factory(parseStepArguments(raw));
   entity.expressID = id;
   return entity;

@@ -145,6 +145,14 @@ export class IfcLineIndex {
     return this._typeCodes.get(type) ?? 0;
   }
 
+  /**
+   * Every distinct type in the file, positioned by interned code, so that
+   * `typeNames[typeCodeAt(i)] === typeAt(i)`. Code 0 is the empty type.
+   */
+  get typeNames(): readonly string[] {
+    return this._typeNames;
+  }
+
   // --- by id ----------------------------------------------------------------
 
   getType(id: number): string | undefined {

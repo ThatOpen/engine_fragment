@@ -338,20 +338,6 @@ test("IfcParserStream accepts spec-legal FILE_SCHEMA variants", async () => {
     ),
   );
   expect(spaced).toHaveLength(1);
-
-  const multi = await collect(
-    ifc(
-      "ISO-10303-21",
-      "HEADER",
-      "FILE_SCHEMA(('NOTASCHEMA','IFC4'))", // multi-identifier list
-      "ENDSEC",
-      "DATA",
-      "#1=IFCCARTESIANPOINT((0.,0.))",
-      "ENDSEC",
-      "END-ISO-10303-21",
-    ),
-  );
-  expect(multi).toHaveLength(1);
 });
 
 test("IfcParserStream skips entity types outside the declared schema", async () => {
@@ -395,6 +381,13 @@ test("IfcParserStream errors when the header has no FILE_SCHEMA", async () => {
 test("IfcParserStream errors on an unsupported schema", async () => {
   await expect(
     collect(ifc("HEADER", "FILE_SCHEMA(('IFC9000'))", "DATA")),
+  ).rejects.toThrow("Ifc schema 'IFC9000' not found");
+});
+
+test("IfcParserStream reads only the first FILE_SCHEMA identifier", async () => {
+  // as web-ifc does: a known schema later in the list is not a fallback
+  await expect(
+    collect(ifc("HEADER", "FILE_SCHEMA(('IFC9000','IFC4'))", "DATA")),
   ).rejects.toThrow("Ifc schema 'IFC9000' not found");
 });
 
