@@ -3,6 +3,7 @@ import * as webIfc from "web-ifc";
 import {
   buildEntity,
   entityFactories,
+  entityFactory,
   parseFileSchema,
   RawFactory,
 } from "./ifc-parsing-utils";
@@ -140,7 +141,7 @@ export class IfcParserStream extends TransformStream<
     resolver?: IfcEntityResolver;
   } = {}) {
     let factories: Record<number, RawFactory> | null = null;
-    let fileSchemas: string[] | null = null;
+    let fileSchema: string | null = null;
     let section: "header" | "data" | "between" | "end" = "header";
     const decoder = new TextDecoder(encoding);
 
@@ -154,22 +155,20 @@ export class IfcParserStream extends TransformStream<
         switch (section) {
           case "header":
             if (raw === "DATA") {
-              if (!fileSchemas) {
+              if (!fileSchema) {
                 controller.error(new Error("Ifc schema not found"));
                 return;
               }
-              factories = entityFactories(fileSchemas);
+              factories = entityFactories(fileSchema);
               if (!factories) {
                 controller.error(
-                  new Error(
-                    `Ifc schema '${fileSchemas.join("', '")}' not found`,
-                  ),
+                  new Error(`Ifc schema '${fileSchema}' not found`),
                 );
                 return;
               }
               section = "data";
             } else if (raw.startsWith("FILE_SCHEMA")) {
-              fileSchemas = parseFileSchema(raw) ?? fileSchemas;
+              fileSchema = parseFileSchema(raw) ?? fileSchema;
             }
             break;
 
@@ -184,23 +183,19 @@ export class IfcParserStream extends TransformStream<
               controller.error(new Error(`Corrupted Ifc statement: ${raw}`));
               return;
             }
-            let entity: webIfc.IfcLineObject | null;
+            // entity types outside web-ifc or the declared schema are skipped,
+            // matching web-ifc's own tolerance for such lines
+            const factory = entityFactory(statement.type, factories!);
+            if (!factory) return;
+            let entity: webIfc.IfcLineObject;
             try {
-              entity = buildEntity({
-                raw,
-                id: statement.id,
-                type: statement.type,
-                factories: factories!,
-              });
+              entity = buildEntity({ raw, id: statement.id, factory });
             } catch (err) {
               controller.error(
                 new Error(`Corrupted Ifc statement: ${raw}`, { cause: err }),
               );
               return;
             }
-            // entity types outside web-ifc or the declared schema are skipped,
-            // matching web-ifc's own tolerance for such lines
-            if (!entity) return;
             if (resolver) resolver.attach(entity);
             controller.enqueue(entity);
             break;
