@@ -1,4 +1,8 @@
-import { ConnectionHandlers, ThreadHandler } from "./connection-handlers";
+import {
+  ConnectionHandlers,
+  type MessageBase,
+  type ThreadHandler,
+} from "./connection-handlers";
 import { MultithreadingHelper } from "./multithreading-helper";
 
 export class Connection {
@@ -17,11 +21,28 @@ export class Connection {
     this.fetch(input, content);
   }
 
-  fetch(input: any, content?: any[]) {
-    this._handlers.setupInput(input);
-    return new Promise<any>((resolve, reject) => {
-      this._handlers.set(input.requestId, reject, resolve);
-      this.executeConnection(input, content);
+  fetch<T extends object>(input: T, content: any[] = []) {
+    const message = this._handlers.setupInput(input);
+    return new Promise<T & MessageBase>((resolve, reject) => {
+      const handler: ThreadHandler = (response) => {
+        if (response.errorInfo) {
+          reject(response.errorInfo);
+          return;
+        }
+        // The other side answers with the message it received, results added.
+        resolve(response as T & MessageBase);
+      };
+      this._handlers.set(message.requestId, handler);
+      // A request that can't be routed never reaches the other side,
+      // so nothing would ever answer it.
+      this.fetchConnection(message)
+        .then((connectionPort) => {
+          connectionPort.postMessage(message, content);
+        })
+        .catch((error) => {
+          this._handlers.delete(message.requestId);
+          reject(error);
+        });
     });
   }
 
@@ -30,50 +51,36 @@ export class Connection {
     this.initConnection(port);
   }
 
-  protected initConnection(connection: MessagePort) {
-    connection.onmessage = this.onInput;
-  }
-
-  protected async fetchConnection(_input: any) {
+  protected async fetchConnection(_input: MessageBase) {
     if (!this._port) {
       throw new Error("Fragments: Connection not initialized");
     }
     return this._port;
   }
 
-  private async executeConnection(input: any, content?: any[]) {
-    const connectionPort = await this.fetchConnection(input);
-    connectionPort.postMessage(input, content as any);
+  protected initConnection(connection: MessagePort) {
+    connection.onmessage = (input) => this.onInput(input, connection);
   }
 
-  private async manageOutput(input: any) {
-    const connection = await this.fetchConnection(input);
-    input.toMainThread = true;
-    connection.postMessage(input);
-  }
-
-  private onInput = (input: MessageEvent) => {
-    if (input.data.toMainThread) {
-      this._handlers.run(input.data);
+  private async onInput(
+    { data }: MessageEvent<MessageBase>,
+    port: MessagePort,
+  ) {
+    if (data.toMainThread) {
+      this._handlers.run(data);
       return;
     }
-    this.manageInput(input.data);
-  };
-
-  private async manageConnection(input: any) {
     try {
-      await this._handleInput(input);
+      await this._handleInput(data);
     } catch (error: any) {
-      input.errorInfo = error.toString();
+      data.errorInfo = error.toString();
       // Aborts are intentional — don't log them as unexpected errors.
       if (error?.name !== "LoadAbortedError") {
         console.error(error);
       }
     }
-  }
-
-  private async manageInput(input: any): Promise<void> {
-    await this.manageConnection(input);
-    await this.manageOutput(input);
+    // Answers go back through the port the request came in on.
+    data.toMainThread = true;
+    port.postMessage(data);
   }
 }

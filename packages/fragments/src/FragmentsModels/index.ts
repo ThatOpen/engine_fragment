@@ -4,6 +4,7 @@ import { MeshManager, FragmentsModel } from "./src/model";
 import {
   VirtualModelConfig,
   LoadProgressEvent,
+  LoadAbortedError,
   MultiThreadingRequestClass,
   isRawBuffer,
 } from "./src";
@@ -220,18 +221,31 @@ export class FragmentsModels {
    * Loads a fragments model from an ArrayBuffer.
    * @param buffer - The ArrayBuffer containing the fragments data to load.
    * @param options - Configuration options for loading the model.
-   * @param options.modelId - Unique identifier for the model.
+   * @param options.modelId - Unique identifier for the model. Loading an ID that is already loaded or still loading throws; dispose the existing model first.
    * @param options.camera - Optional camera to use for model culling and LOD.
    * @param options.raw - Whether the buffer is raw (uncompressed) or deflated. If omitted, it is auto-detected from the buffer (see {@link isRawBuffer}).
    * @param options.userData - Optional custom data to attach to the model.
    * @param options.virtualModelConfig - Optional configuration for virtual model setup.
    * @returns Promise resolving to the loaded FragmentsModel instance.
+   * @throws {LoadAbortedError}
    */
   async load(
     buffer: ArrayBuffer | Uint8Array,
-    options: {
+    {
+      modelId,
+      camera,
+      raw: explicitRaw,
+      userData,
+      virtualModelConfig: customVirtualModelConfig,
+      onProgress,
+      threadGroup,
+      signal,
+    }: {
       modelId: string;
       camera?: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+      /**
+       * @deprecated derived from {@link buffer} bytes under the hood, @see {@link isRawBuffer}
+       */
       raw?: boolean;
       userData?: Record<string, any>;
       virtualModelConfig?: VirtualModelConfig;
@@ -243,32 +257,52 @@ export class FragmentsModels {
        * from the default pool. Throws if the group was not declared.
        */
       threadGroup?: string;
+      /**
+       * Aborts the load when the signal fires: `load()` rejects with a
+       * {@link LoadAbortedError} and the partial model is disposed. If the
+       * signal is already aborted, `load()` rejects without doing any work.
+       */
+      signal?: AbortSignal;
     },
   ) {
+    if (signal?.aborted) {
+      throw new LoadAbortedError(modelId);
+    }
+
+    // Both threads key all model state by ID, so a second load under the same
+    // ID would clobber the first. The model enters `models.list` before the
+    // first await, which covers in-flight loads. Disposal removes it from the
+    // list before the worker has deleted it, so also wait for the thread.
+    if (this.models.list.has(modelId) || this._connection.hasModel(modelId)) {
+      throw new Error(
+        `Fragments: model "${modelId}" is already in use (loaded, loading or being disposed). Await its disposal or use a different modelId.`,
+      );
+    }
+
     // Record the model's group before we issue any worker request so the
     // pool routing in fragments-connection picks the right thread.
-    this._connection.setModelThreadGroup(options.modelId, options.threadGroup);
+    this._connection.setModelThreadGroup(modelId, threadGroup);
 
     const virtualModelConfig: VirtualModelConfig = {
-      ...options.virtualModelConfig,
+      ...customVirtualModelConfig,
       multithreading: {
         meshConnectionRate: this.settings.meshConnectionRate,
         meshConnectionThreshold: this.settings.meshConnectionThreshold,
         threadUpdaterDelay: this.settings.threadUpdaterDelay,
-        ...options.virtualModelConfig?.multithreading,
+        ...customVirtualModelConfig?.multithreading,
       },
     };
 
     const model = new FragmentsModel(
-      options.modelId,
+      modelId,
       this.models,
       this._connection,
       this.editor,
-      options.threadGroup,
+      threadGroup,
     );
 
-    if (options.userData) {
-      model.object.userData = options.userData;
+    if (userData) {
+      model.object.userData = userData;
     }
 
     // Skip model updates until we have the data set
@@ -276,21 +310,42 @@ export class FragmentsModels {
 
     model.graphicsQuality = this.settings.graphicsQuality;
 
-    if (options.onProgress) {
-      this._progressCallbacks.set(options.modelId, options.onProgress);
+    if (onProgress) {
+      this._progressCallbacks.set(modelId, onProgress);
     }
 
     // Auto-detect compression when the caller did not specify it, so a raw or
     // deflated buffer both just work. An explicit `raw` always wins.
     const bytes =
       buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    const raw = options.raw ?? isRawBuffer(bytes);
+    const raw = explicitRaw ?? isRawBuffer(bytes);
+
+    // Fire-and-forget — the worker sets an abort flag and the in-flight
+    // generate() loop throws at its next yield point. The error unwinds
+    // through the catch block below, which cleans up on the main thread.
+    const onAbort = () => {
+      this._connection
+        .fetch({ class: MultiThreadingRequestClass.ABORT_MODEL, modelId })
+        // Rejects only if the model never got a thread, so there is nothing to
+        // abort on the worker. The main-thread check below still rejects.
+        .catch(() => {});
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+
+    const release = () => {
+      signal?.removeEventListener("abort", onAbort);
+      this._progressCallbacks.delete(modelId);
+    };
 
     try {
       this.models.list.set(model.modelId, model);
       await model._setup(buffer, raw, virtualModelConfig);
+      // The worker ignores an abort that lands after it finished its part, so
+      // re-check on the main thread after every await.
+      signal?.throwIfAborted();
       if (this.settings.autoCoordinate) {
         const coordinates = await model.getCoordinates();
+        signal?.throwIfAborted();
         if (this.baseCoordinates === null) {
           this.baseCoordinates = coordinates;
         } else {
@@ -305,7 +360,12 @@ export class FragmentsModels {
         }
       }
     } catch (e) {
-      this._progressCallbacks.delete(options.modelId);
+      // Capture the signal's state: an abort that fires during disposal
+      // shouldn't mask why the load failed.
+      const aborted = signal?.aborted;
+      // on failure this must run before disposal frees the ID,
+      // or it could remove the progress callback of the ID's next load.
+      release();
       // Fully dispose partial state — this tears down the worker thread
       // (if this was the last model on it), clears transferred materials,
       // removes the model object from its parent, and deletes it from the
@@ -317,12 +377,12 @@ export class FragmentsModels {
         // best-effort: if disposal fails, still ensure main-thread cleanup
         this.models.list.delete(model.modelId);
       }
-      throw e;
-    } finally {
-      this._progressCallbacks.delete(options.modelId);
+      // A worker-side abort arrives as its serialized error string, not as a
+      // LoadAbortedError instance, so rebuild the error here.
+      throw aborted ? new LoadAbortedError(modelId) : e;
     }
 
-    const { camera } = options;
+    release();
 
     if (camera) {
       model.useCamera(camera);
@@ -364,25 +424,6 @@ export class FragmentsModels {
     if (model) {
       await model.dispose();
     }
-  }
-
-  /**
-   * Aborts an in-flight `load()` for the given model ID. The pending `load()`
-   * promise will reject with a `LoadAbortedError` and any partial state
-   * (on both the main thread and the worker) is disposed.
-   *
-   * Has no effect if the model finished loading or isn't currently loading.
-   *
-   * @param modelId - The unique identifier of the model to abort.
-   */
-  abort(modelId: string) {
-    // Fire-and-forget — the worker sets an abort flag and the in-flight
-    // generate() loop throws at its next yield point. The error unwinds
-    // through load() and its catch block cleans up on the main thread.
-    this._connection.fetch({
-      class: MultiThreadingRequestClass.ABORT_MODEL,
-      modelId,
-    });
   }
 
   /**
@@ -507,8 +548,8 @@ export class FragmentsModels {
     };
   }
 
-  private newRequestEvent() {
-    return (request: ThreadHandler) => {
+  private newRequestEvent(): ThreadHandler {
+    return (request) => {
       this.manageRequest(request);
     };
   }
