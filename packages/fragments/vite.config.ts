@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 /* eslint-disable import/no-extraneous-dependencies */
 import dts from "vite-plugin-dts";
 import { defineConfig } from "vite";
@@ -79,8 +80,27 @@ export default defineConfig({
     dts({
       include: ["./src"],
       rollupTypes: true,
-      exclude: ["./src/**/example.ts", "./src/**/*.test.ts"],
+      exclude: [
+        "./src/**/example.ts",
+        "./src/**/node-example.ts",
+        "./src/**/test-indexes.ts",
+        "./src/**/*.test.ts",
+        "./src/**/*.spec.ts",
+      ],
       // afterBuild: generateTSNamespace,
     }),
   ],
+  test: {
+    // A file that needs a DOM declares `// @vitest-environment happy-dom`,
+    // which also brings in the canvas mock and the web-worker shim (see ./vitest.setup.ts).
+    environment: "node",
+    environmentOptions: { happyDOM: { url: "https://localhost" } },
+    setupFiles: ["./vitest.setup.ts"],
+    snapshotFormat: {
+      maxDepth: Infinity,
+      maxWidth: Infinity,
+      maxOutputLength: Infinity,
+    },
+    passWithNoTests: false,
+  },
 });

@@ -44,6 +44,11 @@ export class GridReader {
 
           const data: GridData = {
             id,
+            // This runs inside the per-grid catch, so an unguarded read would
+            // drop the whole grid. An unset GlobalId reads back as null, which
+            // `guid?: string` does not admit, so normalise it to undefined and
+            // let it drop out of the serialized data.
+            guid: grid.GlobalId?.value ?? undefined,
             transform: transform.elements,
             // prettier-ignore
             uAxes: this.getGridAxes(grid, webIfc, units, "UAxes", unsupportedAxes),

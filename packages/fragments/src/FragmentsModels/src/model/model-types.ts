@@ -519,6 +519,13 @@ export type GridAxisData = {
 
 export type GridData = {
   id: number;
+  /**
+   * The IFC GlobalId of the grid. Optional because `GridsController` rebuilds
+   * this type with `JSON.parse` from the "data" attribute of already-exported
+   * .frag files, which carry no guid, and because IFCGRID entities with an
+   * unset GlobalId produce no guid either.
+   */
+  guid?: string;
   transform: number[];
   uAxes: GridAxisData[];
   vAxes: GridAxisData[];
