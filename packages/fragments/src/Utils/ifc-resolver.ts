@@ -1,12 +1,13 @@
 import * as webIfc from "web-ifc";
+import { IfcLineIndex, IfcLineIndexBuilder } from "./ifc-index";
 import {
   buildEntity,
   entityFactories,
+  entityFactory,
   parseFileSchema,
   RawFactory,
   StepArgument,
 } from "./ifc-parsing-utils";
-import { IfcLineIndex, IfcLineIndexBuilder } from "./ifc-index";
 import { IfcStatementScanner } from "./ifc-scanner";
 import { streamAsyncIterator } from "./ifc-stream";
 
@@ -62,7 +63,7 @@ export class IfcEntityResolver {
   readonly index: IfcLineIndex;
 
   private readonly _source: Uint8Array;
-  private readonly _factories: Record<number, RawFactory>;
+  private readonly _factories: readonly (RawFactory | undefined)[];
   private readonly _decoder: TextDecoder;
   private readonly _cache = new Map<number, webIfc.IfcLineObject | undefined>();
 
@@ -79,7 +80,12 @@ export class IfcEntityResolver {
   }) {
     this._source = source;
     this.index = index;
-    this._factories = factories;
+    // Narrowed to the types the file contains and keyed by the index's
+    // interned code, so `get` finds a factory by array lookup instead of
+    // resolving the type name against web-ifc on every call.
+    this._factories = index.typeNames.map((type) =>
+      entityFactory(type, factories),
+    );
     this._decoder = new TextDecoder(encoding);
   }
 
@@ -107,23 +113,23 @@ export class IfcEntityResolver {
 
     const decoder = new TextDecoder(encoding);
     const builder = new IfcLineIndexBuilder();
-    let schemas: string[] | null = null;
+    let schema: string | null = null;
 
     for await (const statement of streamAsyncIterator(
       source.pipeThrough(new IfcStatementScanner()),
     )) {
       if (statement.id) {
         builder.add(statement);
-      } else if (!schemas) {
+      } else if (!schema) {
         const raw = decoder.decode(statement.bytes).slice(0, -1).trim();
-        if (raw.startsWith("FILE_SCHEMA")) schemas = parseFileSchema(raw);
+        if (raw.startsWith("FILE_SCHEMA")) schema = parseFileSchema(raw);
       }
     }
 
-    if (!schemas) throw new Error("Ifc schema not found");
-    const factories = entityFactories(schemas);
+    if (!schema) throw new Error("Ifc schema not found");
+    const factories = entityFactories(schema);
     if (!factories) {
-      throw new Error(`Ifc schema '${schemas.join("', '")}' not found`);
+      throw new Error(`Ifc schema '${schema}' not found`);
     }
 
     return new IfcEntityResolver({
@@ -146,8 +152,12 @@ export class IfcEntityResolver {
     const cached = this._cache.get(id);
     if (cached !== undefined || this._cache.has(id)) return cached;
 
+    // A dangling id, or a type with no factory: nothing to build, so the
+    // statement is never even decoded.
     const at = this.index.indexOf(id);
-    if (at === -1) {
+    const factory =
+      at === -1 ? undefined : this._factories[this.index.typeCodeAt(at)];
+    if (!factory) {
       this._cache.set(id, undefined);
       return undefined;
     }
@@ -158,24 +168,18 @@ export class IfcEntityResolver {
       .slice(0, -1)
       .trim();
 
-    let entity: webIfc.IfcLineObject | null;
+    let entity: webIfc.IfcLineObject;
     try {
-      entity = buildEntity({
-        raw,
-        id,
-        type: this.index.typeAt(at),
-        factories: this._factories,
-      });
+      entity = buildEntity({ raw, id, factory });
     } catch (err) {
       throw new Error(`Corrupted Ifc statement: ${raw}`, { cause: err });
     }
 
     // Cache before attaching, so a cycle back to this id finds the entity
     // already here instead of recursing into it.
-    const resolved = entity ?? undefined;
-    this._cache.set(id, resolved);
-    if (entity) this.attach(entity);
-    return resolved;
+    this._cache.set(id, entity);
+    this.attach(entity);
+    return entity;
   }
 
   /**
