@@ -13,6 +13,10 @@ export class VirtualMaterialController {
   private readonly _list: MaterialDefinition[] = [];
   private readonly _idsByDefinition = new Map<string, number>();
   private readonly _onTransfer: VirtualMaterialTransfer;
+  // Number of ids taken by the model's own materials. Every id at or above
+  // it was allocated by a highlight and can be reclaimed once no item
+  // references it any more.
+  private _modelMaterialCount = 0;
 
   constructor(modelId: string, onTransfer: VirtualMaterialTransfer) {
     this._modelId = modelId;
@@ -22,7 +26,23 @@ export class VirtualMaterialController {
   update(model: Model): number[] {
     const meshes = model.meshes() as Meshes;
     const matList = [] as MaterialDefinition[];
-    return this.getAll(meshes, matList);
+    const ids = this.getAll(meshes, matList);
+    this._modelMaterialCount = this._list.length;
+    return ids;
+  }
+
+  /**
+   * Drops every highlight definition, returning the id space to the model's
+   * own materials. Only call it when no item holds a highlight id any more.
+   * The main thread truncates its copy on the next transfer (`firstId`).
+   */
+  reclaimHighlights() {
+    const count = this._modelMaterialCount;
+    if (this._list.length <= count) return;
+    this._list.length = count;
+    for (const [key, id] of this._idsByDefinition) {
+      if (id >= count) this._idsByDefinition.delete(key);
+    }
   }
 
   fetch(materialId: number) {
@@ -94,10 +114,15 @@ export class VirtualMaterialController {
   }
 
   private transferMaterialData(materialDefinitions: MaterialDefinition[]) {
+    // The new definitions are always the tail of _list, so this is the id of
+    // the first one. The main thread aligns its list to it, which drops any
+    // definitions reclaimed here since the previous transfer.
+    const firstId = this._list.length - materialDefinitions.length;
     this._onTransfer({
       class: MultiThreadingRequestClass.CREATE_MATERIAL,
       modelId: this._modelId,
       materialDefinitions,
+      firstId,
     });
   }
 }

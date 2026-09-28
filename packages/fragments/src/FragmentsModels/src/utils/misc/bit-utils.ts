@@ -29,7 +29,10 @@ export class BitUtils {
   }
 
   static checkMemory(id: number) {
-    if (id > limitOf2Bytes) {
+    // Highlight ids are stored in a Uint16Array, which holds 0..65535.
+    // limitOf2Bytes is 65536 (a size), so the largest storable id is one
+    // below it: 65536 would wrap to 0 and silently clear the highlight.
+    if (id >= limitOf2Bytes) {
       throw new Error("Fragments: Memory overflow!");
     }
   }

@@ -24,11 +24,17 @@ export class HighlightHelper {
     // any model where the sample order isn't the same as the item order.
     if (!items) {
       model.itemConfig.clearHighlight();
-      model.tiles.restart();
-      return;
+    } else {
+      const itemIds = model.properties.getItemIdsFromLocalIds(items);
+      this.resetHighlightForItems(itemIds, model);
     }
-    const itemIds = model.properties.getItemIdsFromLocalIds(items);
-    this.resetHighlightForItems(itemIds, model);
+    // Highlight ids index a material list that only ever grew, so a long
+    // session could exhaust the 16-bit id space (#299). Once nothing is
+    // highlighted no item references a highlight id, and all of them can
+    // be handed back.
+    if (!model.itemConfig.hasAnyHighlight()) {
+      model.materials.reclaimHighlights();
+    }
     model.tiles.restart();
   }
 

@@ -82,9 +82,21 @@ export class MaterialManager {
     return material;
   }
 
-  addDefinitions(modelID: string, materials: MaterialDefinition[]) {
+  /**
+   * Appends material definitions for a model. `firstId`, when given, is the
+   * id the worker assigned to `materials[0]`; definitions at or above it are
+   * ones the worker has reclaimed (see #299) and are replaced.
+   */
+  addDefinitions(
+    modelID: string,
+    materials: MaterialDefinition[],
+    firstId?: number,
+  ) {
     const definitions = this._definitions.get(modelID);
     if (definitions) {
+      if (firstId !== undefined && firstId < definitions.length) {
+        definitions.length = firstId;
+      }
       definitions.push(...materials);
     } else {
       this._definitions.set(modelID, materials);

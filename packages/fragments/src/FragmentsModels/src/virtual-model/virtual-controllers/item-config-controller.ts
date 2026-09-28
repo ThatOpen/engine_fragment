@@ -27,6 +27,13 @@ export class ItemConfigController {
     this._highlightData.fill(0);
   }
 
+  hasAnyHighlight() {
+    for (let i = 0; i < this._highlightData.length; i++) {
+      if (this._highlightData[i] !== 0) return true;
+    }
+    return false;
+  }
+
   visible(id: number): boolean {
     return BitUtils.check(this._data, id, ItemConfigClass.VISIBLE);
   }

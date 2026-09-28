@@ -34,9 +34,9 @@ export class RequestsManager {
       this.add(request.list);
       request.list = undefined;
     } else if (request.class === MultiThreadingRequestClass.CREATE_MATERIAL) {
-      const { materialDefinitions, modelId } = request;
+      const { materialDefinitions, modelId, firstId } = request;
       MaterialManager.resetColors(materialDefinitions);
-      meshes.materials.addDefinitions(modelId, materialDefinitions);
+      meshes.materials.addDefinitions(modelId, materialDefinitions, firstId);
       request.materialDefinitions = undefined;
     } else if (request.class === MultiThreadingRequestClass.THROW_ERROR) {
       console.error(request);
