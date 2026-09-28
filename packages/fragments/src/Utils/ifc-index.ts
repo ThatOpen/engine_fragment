@@ -241,6 +241,11 @@ export class IfcLineIndexBuilder {
    * @throws once {@link finalize} has been called.
    */
   add({ id, type, offset, length }: IndexedStatement): void {
+    this.addStatement(id, type, offset, length);
+  }
+
+  /** {@link add}, without the object: for scanners that make none. */
+  addStatement(id: number, type: string, offset: number, length: number) {
     if (this._index) {
       throw new Error("Cannot add to a finalized IfcLineIndexBuilder");
     }

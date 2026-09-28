@@ -1,12 +1,21 @@
 // Messages exchanged between the demo page and its import worker.
 
-export type ImportMode = "legacy" | "streaming";
+/**
+ * - `parallel`: geometry in projected batches across several workers.
+ * - `streaming`: one web-ifc model of the whole file, read in place.
+ * - `legacy`: the file read into memory, and opened twice in web-ifc.
+ */
+export type ImportMode = "parallel" | "streaming" | "legacy";
 
 export interface ConvertRequest {
   type: "convert";
   file: File;
   mode: ImportMode;
   wasmPath: string;
+  /** Geometry workers for `parallel` mode. */
+  workers: number;
+  /** Batch size for `parallel` mode, in bytes of IFC. */
+  batchBytes?: number;
   /** Overrides for web-ifc's loader, e.g. `TAPE_SIZE` and `MEMORY_LIMIT`. */
   webIfcSettings?: Record<string, number | boolean>;
 }

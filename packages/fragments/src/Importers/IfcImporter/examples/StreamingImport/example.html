@@ -174,8 +174,9 @@
         <input id="file-input" type="file" accept=".ifc">
       </label>
       <select id="mode" title="Conversion pipeline">
-        <option value="streaming">Streaming</option>
-        <option value="legacy">Legacy</option>
+        <option value="parallel">Parallel batches</option>
+        <option value="streaming">Streaming, one model</option>
+        <option value="legacy">Legacy (in memory)</option>
       </select>
     </div>
     <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
