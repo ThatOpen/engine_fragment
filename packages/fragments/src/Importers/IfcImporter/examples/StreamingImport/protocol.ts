@@ -16,6 +16,8 @@ export interface ConvertRequest {
   workers: number;
   /** Batch size for `parallel` mode, in bytes of IFC. */
   batchBytes?: number;
+  /** See `IfcImporter.residentBudget`. */
+  residentBudget?: number;
   /** Overrides for web-ifc's loader, e.g. `TAPE_SIZE` and `MEMORY_LIMIT`. */
   webIfcSettings?: Record<string, number | boolean>;
 }
