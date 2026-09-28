@@ -95,7 +95,10 @@ const loadStabilized = async () => {
   return model;
 };
 
-describe("VirtualTilesController.setSample (issue #287 / PR #288)", () => {
+// Each test loads and settles a model (500 update ticks). Standalone on
+// origin/main they take 3.4-5.0 s against the 5 s default, so any parallel
+// load in the suite tips them into timeouts.
+describe("VirtualTilesController.setSample (issue #287 / PR #288)", { timeout: 30000 }, () => {
   test("hiding a non-highlighted, currently-visible sample updates the tile's real visibility buffer", async () => {
     const model = await loadStabilized();
     try {
