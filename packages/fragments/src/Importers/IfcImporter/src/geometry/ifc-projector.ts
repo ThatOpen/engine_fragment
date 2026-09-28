@@ -454,50 +454,53 @@ export class IfcProjector {
     this._cost += length * COST_PER_BYTE;
     if (this._booleanCodes.has(type)) this._cost += COST_PER_BOOLEAN;
     else if (type === this._voidsCode) this._cost += COST_PER_VOID;
-    else if (type === this._mappedItemCode) {
-      // Each instance is meshed anew, even when its map is already in
-      const found: number[] = [];
-      const [source] = this.refsAt(at, found, 0);
-      if (source !== undefined) this._cost += this.mapCost(source);
-    }
   }
 
-  /** The cost of meshing one instance of a representation map, cached. */
-  private mapCost(map: number) {
-    const cached = this._mapCosts.get(map);
-    if (cached !== undefined) return cached;
+  /**
+   * A mapped item's representation map: web-ifc meshes it again for every
+   * instance, so every instance costs it — whether or not the map is already
+   * in. What one instance costs is measured the first time the map is walked,
+   * as part of the batch's own walk, and remembered.
+   */
+  private addMap(map: number) {
     const { index } = this._resolver;
-    let cost = 0;
-    const seen = new Set<number>([map]);
-    const stack = [map];
-    while (stack.length) {
-      const at = index.indexOf(stack.pop()!);
-      if (at === -1) continue;
-      const type = index.typeCodeAt(at);
-      cost += index.lengthAt(at) * COST_PER_BYTE;
-      if (this._booleanCodes.has(type)) cost += COST_PER_BOOLEAN;
-      const found: number[] = [];
-      for (const ref of this.refsAt(at, found)) {
-        if (!seen.has(ref)) {
-          seen.add(ref);
-          stack.push(ref);
-        }
-      }
+    const at = index.indexOf(map);
+    if (at === -1) return;
+    if (this._stamp[at] === this._walk) {
+      this._cost += this._mapCosts.get(map) ?? 0;
+      return;
     }
-    this._mapCosts.set(map, cost);
-    return cost;
+    const before = this._cost;
+    this.addDown(map);
+    if (!this._mapCosts.has(map)) this._mapCosts.set(map, this._cost - before);
   }
 
   /** Adds `id` and everything it refers to, transitively. */
   private addDown(id: number) {
-    if (this.mark(id) === -1) return false;
-    const stack = [id];
+    const first = this.mark(id);
+    if (first === -1) return false;
+    const { index } = this._resolver;
+    // index positions, not ids: each statement is looked up once, when marked
+    const stack = [first];
     while (stack.length) {
-      const current = stack.pop()!;
+      const at = stack.pop()!;
       const found = this._scratch;
       found.length = 0;
-      for (const ref of this.refsOf(current, found)) {
-        if (this.mark(ref) !== -1) stack.push(ref);
+      this.refsAt(at, found);
+      if (index.typeCodeAt(at) === this._mappedItemCode) {
+        // (MappingSource, MappingTarget): the source is walked on its own, to
+        // measure it. That walk reuses the scratch array, so keep a copy.
+        const [source, ...rest] = found;
+        if (source !== undefined) this.addMap(source);
+        for (const ref of rest) {
+          const marked = this.mark(ref);
+          if (marked !== -1) stack.push(marked);
+        }
+        continue;
+      }
+      for (const ref of found) {
+        const marked = this.mark(ref);
+        if (marked !== -1) stack.push(marked);
       }
     }
     return true;
