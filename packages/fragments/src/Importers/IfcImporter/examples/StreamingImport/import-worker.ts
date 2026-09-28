@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
 import { IfcImporter } from "../..";
+import { IfcBlobSource } from "../../../../Utils/ifc-byte-source";
+import type { ProgressData } from "../../src/types";
 import type {
   ConvertRequest,
   ImportStats,
@@ -19,9 +21,11 @@ const trackInstance = (instance: WebAssembly.Instance) => {
 const instantiate = WebAssembly.instantiate;
 WebAssembly.instantiate = (async (...args: Parameters<typeof instantiate>) => {
   const result = await instantiate(...args);
-  trackInstance(
-    result instanceof WebAssembly.Instance ? result : result.instance,
-  );
+  // compiling a Module resolves to an Instance, compiling bytes to both
+  const loaded = result as
+    | WebAssembly.Instance
+    | WebAssembly.WebAssemblyInstantiatedSource;
+  trackInstance("instance" in loaded ? loaded.instance : loaded);
   return result;
 }) as typeof instantiate;
 const instantiateStreaming = WebAssembly.instantiateStreaming;
@@ -63,29 +67,50 @@ class PhaseClock {
   }
 }
 
-const convertLegacy = async (request: ConvertRequest, clock: PhaseClock) => {
-  clock.enter("read file");
-  const bytes = new Uint8Array(await request.file.arrayBuffer());
+const phaseNames: Record<ProgressData["process"], string> = {
+  conversion: "conversion",
+  opening: "open model (web-ifc)",
+  geometries: "geometry",
+  indexing: "index file",
+  attributes: "attributes",
+  relations: "relations",
+  serializing: "serialize",
+};
 
+const createImporter = (request: ConvertRequest, clock: PhaseClock) => {
   const importer = new IfcImporter();
   importer.wasm = { path: request.wasmPath, absolute: true };
+  Object.assign(importer.webIfcSettings, request.webIfcSettings);
+  const progressCallback = (fraction: number, data: ProgressData) => {
+    sampleHeap();
+    const phase = phaseNames[data.process];
+    // the closing "conversion" event marks the end, not a phase of its own
+    if (data.process !== "conversion") clock.enter(phase);
+    post({ type: "progress", phase, fraction, detail: data.class });
+  };
+  return { importer, progressCallback };
+};
 
-  const output = await importer.process({
-    bytes,
-    raw: true,
-    progressCallback: (fraction, data) => {
-      sampleHeap();
-      clock.enter(data.process);
-      post({
-        type: "progress",
-        phase: data.process,
-        fraction,
-        detail: data.class,
-      });
-    },
-  });
-  clock.close();
+/** Reads the whole file, then converts it with a second web-ifc for properties. */
+const convertInMemory = async (request: ConvertRequest, clock: PhaseClock) => {
+  clock.enter("read file");
+  const bytes = new Uint8Array(await request.file.arrayBuffer());
+  const { importer, progressCallback } = createImporter(request, clock);
+  const output = await importer.process({ bytes, raw: true, progressCallback });
   return { output, counts: {} };
+};
+
+/** Reads the `File` in place; properties come from the parsing layer. */
+const convertStreaming = async (request: ConvertRequest, clock: PhaseClock) => {
+  const { importer, progressCallback } = createImporter(request, clock);
+  const source = new IfcBlobSource(request.file);
+  const output = await importer.process({
+    file: request.file,
+    source,
+    raw: true,
+    progressCallback,
+  });
+  return { output, counts: { "file reads (geometry)": source.fileReads } };
 };
 
 onmessage = async (event: MessageEvent<ConvertRequest>) => {
@@ -94,7 +119,9 @@ onmessage = async (event: MessageEvent<ConvertRequest>) => {
   const clock = new PhaseClock();
   const start = performance.now();
   try {
-    const { output, counts } = await convertLegacy(request, clock);
+    const convert =
+      request.mode === "streaming" ? convertStreaming : convertInMemory;
+    const { output, counts } = await convert(request, clock);
     clock.close();
     sampleHeap();
     const stats: ImportStats = {

@@ -27,6 +27,9 @@ export type CircleExtrusionData = {
 
 export type GeometryData = ShellData | CircleExtrusionData;
 
+/** web-ifc's typings leave out `delete`, which every embind handle has. */
+type EmbindHandle = { delete(): void };
+
 export type IfcLocalTransform = {
   id: number;
   data: number[]; // [px, py, pz, dxx, dxy, dxz, dyx, dyy, dyz]
@@ -131,6 +134,7 @@ export class IfcFileReader {
       process: "conversion",
       state: "start",
     });
+    data.progressCallback?.(0, { process: "opening", state: "start" });
 
     this._previousGeometriesIDs.clear();
 
@@ -142,7 +146,13 @@ export class IfcFileReader {
 
     let modelID = 0;
 
-    if (data.readFromCallback && data.readCallback) {
+    if (data.source) {
+      const { source } = data;
+      modelID = this._ifcAPI.OpenModelFromCallback(
+        (offset, size) => source.read(offset, size),
+        this.webIfcSettings,
+      );
+    } else if (data.readFromCallback && data.readCallback) {
       modelID = this._ifcAPI.OpenModelFromCallback(
         data.readCallback,
         this.webIfcSettings,
@@ -169,9 +179,32 @@ export class IfcFileReader {
 
     let currentCategory = 0;
 
-    const callback = (mesh: WEBIFC.FlatMesh) => {
+    // Progress within a category, not only between them: a model whose
+    // elements are nearly all one class would otherwise sit at 0% for the
+    // whole geometry pass.
+    let meshesTotal = 0;
+    let meshesDone = 0;
+    let lastReport = performance.now();
+    const reportEvery = 250; // ms
+
+    const processMesh = (mesh: WEBIFC.FlatMesh) => {
       if (this._ifcAPI === null) {
         throw new Error("Fragments: IfcAPI not initialized");
+      }
+
+      meshesDone++;
+      if (
+        data.progressCallback &&
+        meshesTotal > 0 &&
+        performance.now() - lastReport > reportEvery
+      ) {
+        lastReport = performance.now();
+        data.progressCallback((0.5 * meshesDone) / meshesTotal, {
+          process: "geometries",
+          state: "inProgress",
+          class: ifcCategoryMap[currentCategory],
+          entitiesProcessed: meshesDone,
+        });
       }
 
       if (!this._coordinatesInitialized) {
@@ -258,6 +291,16 @@ export class IfcFileReader {
       }
     };
 
+    // `mesh.geometries` is an embind handle to a heap copy with no finalizer:
+    // left alone, every element leaks a few hundred bytes of WASM memory.
+    const callback = (mesh: WEBIFC.FlatMesh) => {
+      try {
+        processMesh(mesh);
+      } finally {
+        (mesh.geometries as unknown as EmbindHandle).delete();
+      }
+    };
+
     if (this.isolatedMeshes?.size) {
       this._ifcAPI.StreamMeshes(
         modelID,
@@ -281,7 +324,18 @@ export class IfcFileReader {
         toProcess.push(WEBIFC.IFCANNOTATION);
       }
 
-      const categoryPercentage = 0.5 / toProcess.length;
+      const idsByCategory = toProcess.map((category) => {
+        const idsVector = this._ifcAPI!.GetLineIDsWithType(modelID, category);
+        const ids: number[] = [];
+        for (let i = 0; i < idsVector.size(); i++) {
+          ids.push(idsVector.get(i));
+        }
+        (idsVector as unknown as EmbindHandle).delete();
+        meshesTotal += ids.length;
+        return ids;
+      });
+
+      data.progressCallback?.(0, { process: "geometries", state: "start" });
       for (const [index, category] of toProcess.entries()) {
         currentCategory = category;
         const state = (() => {
@@ -289,14 +343,10 @@ export class IfcFileReader {
           if (index + 1 === toProcess.length) return "finish";
           return "inProgress";
         })();
-        const idsVector = this._ifcAPI.GetLineIDsWithType(modelID, category);
-        const ids: number[] = [];
-        for (let i = 0; i < idsVector.size(); i++) {
-          ids.push(idsVector.get(i));
-        }
+        const ids = idsByCategory[index];
         if (ids.length > 0) {
           this._ifcAPI.StreamMeshes(modelID, ids, callback);
-          data.progressCallback?.(categoryPercentage * (index + 1), {
+          data.progressCallback?.((0.5 * meshesDone) / meshesTotal, {
             process: "geometries",
             state,
             class: ifcCategoryMap[category],
@@ -327,11 +377,10 @@ export class IfcFileReader {
 
     this.onNextIdFound(this._nextId);
 
+    // Dropping the instance is what releases its WASM memory, which never
+    // shrinks while the module lives.
     this._ifcAPI.Dispose();
     this._ifcAPI = null;
-    this._ifcAPI = new WEBIFC.IfcAPI();
-    this._ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
-    await this._ifcAPI.Init();
 
     this._previousGeometries.clear();
     this._previousGeometriesIDs.clear();
@@ -1141,11 +1190,14 @@ export class IfcFileReader {
         geometryRef.geometryExpressID,
       );
 
-      if (!geometry?.GetSweptDiskSolid) return false;
-
-      const swept = geometry.GetSweptDiskSolid();
-      // @ts-ignore
-      return !!swept?.axis && swept.axis.size() > 0;
+      try {
+        if (!geometry?.GetSweptDiskSolid) return false;
+        const swept = geometry.GetSweptDiskSolid();
+        // @ts-ignore
+        return !!swept?.axis && swept.axis.size() > 0;
+      } finally {
+        geometry?.delete();
+      }
     } catch {
       return false;
     }
