@@ -6,7 +6,6 @@ import {
   CircleExtrusionData,
   EncodedShell,
   GeometryData,
-  IfcElement,
   IfcFileReader,
   IfcLocalTransform,
   TransformData,
@@ -23,6 +22,46 @@ import {
 
 export { serveIfcGeometryWorker } from "./geometry-batch";
 export type { ProjectedReadStats } from "./ifc-projected-reader";
+
+/** A growable column of unsigned 32-bit integers. */
+class U32List {
+  private _data = new Uint32Array(1024);
+  length = 0;
+
+  push(value: number) {
+    if (this.length === this._data.length) {
+      const grown = new Uint32Array(this._data.length * 2);
+      grown.set(this._data);
+      this._data = grown;
+    }
+    this._data[this.length++] = value;
+  }
+
+  view() {
+    return this._data.subarray(0, this.length);
+  }
+}
+
+/** A growable column of doubles. */
+class F64List {
+  private _data = new Float64Array(1024);
+  length = 0;
+
+  push(...values: number[]) {
+    if (this.length + values.length > this._data.length) {
+      const grown = new Float64Array(
+        Math.max(this._data.length * 2, this.length + values.length),
+      );
+      grown.set(this._data);
+      this._data = grown;
+    }
+    for (const value of values) this._data[this.length++] = value;
+  }
+
+  view() {
+    return this._data.subarray(0, this.length);
+  }
+}
 
 interface GeometriesProcessData extends ProcessData {
   builder: FB.Builder;
@@ -52,8 +91,6 @@ export class IfcGeometryProcessor {
 
     let nextId = 0;
 
-    const localIDs: number[] = [];
-
     // prettier-ignore
     let coordinates: TransformData = {
       dxx: 1, dxy: 0, dxz: 0,
@@ -76,18 +113,22 @@ export class IfcGeometryProcessor {
     const alignments: AlignmentData[] = [];
     const grids: GridData[] = [];
 
-    const items: {
-      element: IfcElement;
-      position: number[];
-      xDirection: number[];
-      yDirection: number[];
-    }[] = [];
+    // Items with geometry, as columns rather than an object graph per item:
+    // kept until the end for the meshes vectors, so this is what the
+    // geometry pass holds per element of the model.
+    const itemIds = new U32List();
+    const itemTransforms = new F64List(); // 9 per item
+    const itemSamples = new U32List(); // where each item's samples start
+    const sampleGeometries = new U32List();
+    const sampleMaterials = new U32List();
+    const sampleTransforms = new U32List();
 
     const localTransforms: IfcLocalTransform[] = [];
 
-    const itemIDMap = new Map<number, number>();
     const geometryIDMap = new Map<number, number>();
-    const materialIDMap = new Map<string, { id: number; color: number[] }>();
+    // colour key -> material index, in order of first use
+    const materialIDMap = new Map<string, number>();
+    const materialColors: number[][] = [];
 
     const fileReader = new IfcFileReader(this._serializer);
     fileReader.wasm = this.wasm;
@@ -115,8 +156,21 @@ export class IfcGeometryProcessor {
       });
     };
 
-    reader.onElementLoaded = (element) => {
-      items.push(element);
+    reader.onElementLoaded = ({ element, position, xDirection, yDirection }) => {
+      itemIds.push(element.id);
+      itemTransforms.push(...position, ...xDirection, ...yDirection);
+      itemSamples.push(sampleGeometries.length);
+      for (const geometry of element.geometries) {
+        const colorID = geometry.color.toString();
+        let material = materialIDMap.get(colorID);
+        if (material === undefined) {
+          material = materialColors.push(geometry.color.map((n) => n * 255)) - 1;
+          materialIDMap.set(colorID, material);
+        }
+        sampleGeometries.push(geometry.id);
+        sampleMaterials.push(material);
+        sampleTransforms.push(geometry.localTransformID || 0);
+      }
     };
 
     reader.onLocalTransformLoaded = (localTransform) => {
@@ -149,40 +203,28 @@ export class IfcGeometryProcessor {
 
     // Create geometry
 
+    const itemCount = itemIds.length;
+    const localIDs = itemIds.view();
     const geometriesItems: number[] = [];
-    let itemCounter = 0;
 
-    TFB.Meshes.startGlobalTransformsVector(builder, items.length);
+    TFB.Meshes.startGlobalTransformsVector(builder, itemCount);
 
     // Filled back to front, like the vector itself, and reversed once after:
     // `unshift` in this loop made it quadratic in the number of items.
     const gtLocalIds: number[] = [];
 
-    for (let i = 0; i < items.length; i++) {
-      const currentItem = items[items.length - 1 - i];
-
-      geometriesItems.push(itemCounter++);
-
-      const { position, xDirection, yDirection } = currentItem;
-      const [px, py, pz] = position;
-      const [dxx, dxy, dxz] = xDirection;
-      const [dyx, dyy, dyz] = yDirection;
-
-      localIDs.push(items[i].element.id);
-
-      const itemIndex = items.length - 1 - i;
-
+    const transforms = itemTransforms.view();
+    for (let i = 0; i < itemCount; i++) {
+      geometriesItems.push(i);
       gtLocalIds.push(nextId++);
-
+      const t = (itemCount - 1 - i) * 9;
       // prettier-ignore
       TFB.Transform.createTransform(
         builder,
-        px, py, pz,
-        dxx,dxy,dxz,
-        dyx,dyy,dyz
+        transforms[t], transforms[t + 1], transforms[t + 2],
+        transforms[t + 3], transforms[t + 4], transforms[t + 5],
+        transforms[t + 6], transforms[t + 7], transforms[t + 8],
       );
-
-      itemIDMap.set(currentItem.element.id, itemIndex);
     }
     gtLocalIds.reverse();
 
@@ -239,68 +281,41 @@ export class IfcGeometryProcessor {
     const representationsOffsets = builder.endVector();
     representationsLocalIds.reverse();
 
-    let materialCounter = 0;
-    for (const item of items) {
-      for (const geometry of item.element.geometries) {
-        const colorID = geometry.color.toString();
-        if (!materialIDMap.has(colorID)) {
-          const color = geometry.color.map((n) => n * 255);
-          materialIDMap.set(colorID, { id: materialCounter++, color });
-        }
-      }
-    }
-
-    TFB.Meshes.startMaterialsVector(builder, materialIDMap.size);
+    TFB.Meshes.startMaterialsVector(builder, materialColors.length);
 
     const materialsLocalIds: number[] = [];
 
-    const materialMapKeys = Array.from(materialIDMap.keys());
+    const renderedFaces = this._serializer.doubleSidedMaterials
+      ? TFB.RenderedFaces.TWO
+      : TFB.RenderedFaces.ONE;
 
-    for (let i = 0; i < materialMapKeys.length; i++) {
-      const key = materialMapKeys[materialMapKeys.length - 1 - i];
-      const { color } = materialIDMap.get(key)!;
-      const [r, g, b, a] = color;
-
+    for (let i = materialColors.length - 1; i >= 0; i--) {
+      const [r, g, b, a] = materialColors[i];
       materialsLocalIds.push(nextId++);
-
-      const renderedFaces = this._serializer.doubleSidedMaterials
-        ? TFB.RenderedFaces.TWO
-        : TFB.RenderedFaces.ONE;
-
       TFB.Material.createMaterial(builder, r, g, b, a, renderedFaces, 0);
     }
 
     const materials = builder.endVector();
 
-    let sampleCount = 0;
-    for (const item of items) {
-      sampleCount += item.element.geometries.length;
-    }
-
+    const sampleCount = sampleGeometries.length;
     TFB.Meshes.startSamplesVector(builder, sampleCount);
 
     const samplesLocalIds: number[] = [];
+    const starts = itemSamples.view();
+    const geometriesOfSamples = sampleGeometries.view();
+    const materialsOfSamples = sampleMaterials.view();
+    const transformsOfSamples = sampleTransforms.view();
 
-    for (let g = 0; g < items.length; g++) {
-      const currentItem = items[items.length - 1 - g];
-
-      const itemID = itemIDMap.get(currentItem.element.id)!;
-
-      const geoms = currentItem.element.geometries;
-      for (let i = 0; i < geoms.length; i++) {
-        const geometry = geoms[geoms.length - i - 1];
-        const geometryID = geometryIDMap.get(geometry.id)!;
-        const materialID = materialIDMap.get(geometry.color.toString())!.id;
-        const transformID = geometry.localTransformID || 0;
-
+    for (let item = itemCount - 1; item >= 0; item--) {
+      const end = item + 1 < itemCount ? starts[item + 1] : sampleCount;
+      for (let k = end - 1; k >= starts[item]; k--) {
         samplesLocalIds.push(nextId++);
-
         TFB.Sample.createSample(
           builder,
-          itemID,
-          materialID,
-          geometryID,
-          transformID,
+          item,
+          materialsOfSamples[k],
+          geometryIDMap.get(geometriesOfSamples[k])!,
+          transformsOfSamples[k],
         );
       }
     }
