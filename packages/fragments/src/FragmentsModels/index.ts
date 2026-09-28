@@ -171,6 +171,10 @@ export class FragmentsModels {
   private _autoRedrawInterval: any = null;
   private _lastUpdate = 0;
   private _pendingForcedUpdate: Promise<void> | null = null;
+  // Handle and resolver of the coalesced forced update, kept so dispose()
+  // can cancel the timer and still release whoever is awaiting it.
+  private _pendingForcedTimer: ReturnType<typeof setTimeout> | null = null;
+  private _pendingForcedResolve: (() => void) | null = null;
 
   /**
    * Creates a new FragmentsModels instance.
@@ -346,6 +350,15 @@ export class FragmentsModels {
       clearTimeout(this._autoRedrawInterval);
       this._autoRedrawInterval = null;
     }
+    if (this._pendingForcedTimer) {
+      clearTimeout(this._pendingForcedTimer);
+      this._pendingForcedTimer = null;
+    }
+    if (this._pendingForcedResolve) {
+      this._pendingForcedResolve();
+      this._pendingForcedResolve = null;
+    }
+    this._pendingForcedUpdate = null;
     const models = Array.from(this.models.list.values());
     const promises = [];
     for (const model of models) {
@@ -416,7 +429,10 @@ export class FragmentsModels {
       if (!this._pendingForcedUpdate) {
         const delay = this.settings.maxUpdateRate - elapsed + 1;
         this._pendingForcedUpdate = new Promise<void>((resolve) => {
-          setTimeout(() => {
+          this._pendingForcedResolve = resolve;
+          this._pendingForcedTimer = setTimeout(() => {
+            this._pendingForcedTimer = null;
+            this._pendingForcedResolve = null;
             this._pendingForcedUpdate = null;
             this.performUpdate(true).then(resolve, () => resolve());
           }, delay);
@@ -495,6 +511,8 @@ export class FragmentsModels {
 
   private newUpdateEvent() {
     return () => {
+      // A tile batch can land after dispose(); it must not re-arm the loop.
+      if (this._isDisposed) return;
       // This limits the maximum update rate to the maxUpdateRate setting
       if (this._autoRedrawInterval) {
         clearTimeout(this._autoRedrawInterval);
@@ -502,6 +520,7 @@ export class FragmentsModels {
 
       const offset = this.settings.maxUpdateRate + 1;
       this._autoRedrawInterval = setTimeout(() => {
+        this._autoRedrawInterval = null;
         this.update();
       }, offset);
     };
