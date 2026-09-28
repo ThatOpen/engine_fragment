@@ -82,6 +82,11 @@ export class IfcEntityResolver {
   readonly header: ReadonlyMap<string, string>;
 
   private readonly _source: IfcByteSource;
+
+  /** The reader entities are parsed from. */
+  get source(): IfcByteSource {
+    return this._source;
+  }
   private readonly _factories: readonly (RawFactory | undefined)[];
   private readonly _decoder: TextDecoder;
   private readonly _cache = new Map<number, webIfc.IfcLineObject | undefined>();

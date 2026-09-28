@@ -55,5 +55,30 @@ export interface ProcessData {
    */
   readCallback?: ModelLoadCallback;
   raw?: boolean;
+  /**
+   * Convert geometry in batches instead of one whole-file web-ifc model. Each
+   * batch opens only the statements its elements' geometry reads, so web-ifc
+   * memory follows the batch size rather than the file size, and batches run
+   * in parallel when workers are given. The output is the same either way.
+   * Needs {@link file}, {@link source} or {@link bytes}.
+   */
+  geometryBatches?: {
+    /**
+     * Starts a worker whose script calls `serveIfcGeometryWorker()`. Left
+     * out, batches run one after another in this thread.
+     */
+    createWorker?: () => Worker;
+    /** How many workers to start. Defaults to the core count, less one. */
+    workers?: number;
+    /** Largest batch, in bytes of IFC. Defaults to 32 MB. */
+    batchBytes?: number;
+    /** Most elements per batch. Defaults to 2000. */
+    batchElements?: number;
+    /**
+     * Elements in the first batch, which runs alone because it decides the
+     * model's origin. Defaults to 32.
+     */
+    probeElements?: number;
+  };
   progressCallback?: (progress: number, data: ProgressData) => void;
 }
