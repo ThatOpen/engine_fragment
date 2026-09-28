@@ -119,6 +119,13 @@ export class IfcProjectedReader {
       }
     }
 
+    // Enough batches that every executor gets several, so none idles while
+    // another finishes a long one, but never more than asked for.
+    const batchElements = Math.min(
+      options.batchElements,
+      Math.max(64, Math.ceil(order.length / (executors.length * 4))),
+    );
+
     const planStart = performance.now();
     const projector = new IfcProjector(resolver);
     this.stats.planningMs += performance.now() - planStart;
@@ -233,7 +240,7 @@ export class IfcProjectedReader {
 
     const work = async (executor: BatchExecutor) => {
       for (;;) {
-        const request = plan(options.batchElements, batchOrigin);
+        const request = plan(batchElements, batchOrigin);
         if (!request) return;
         const result = await executor.run(request);
         results.set(result.index, result);

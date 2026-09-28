@@ -43,6 +43,11 @@ world.camera.controls.addEventListener("update", () => fragments.update());
 
 const params = new URLSearchParams(location.search);
 const loadIntoViewer = params.get("view") !== "0";
+// One core stays with the page; the import worker coordinates on another.
+const workers = Number(
+  params.get("workers") ??
+    Math.max(1, Math.min(8, (navigator.hardwareConcurrency ?? 4) - 2)),
+);
 // Loader overrides for experiments, e.g. ?TAPE_SIZE=16777216&MEMORY_LIMIT=...
 const webIfcSettings: Record<string, number> = {};
 for (const key of ["TAPE_SIZE", "MEMORY_LIMIT"]) {
@@ -161,6 +166,10 @@ const convert = (file: File, mode: ImportMode) =>
       mode,
       wasmPath,
       webIfcSettings,
+      workers,
+      batchBytes: params.has("batchBytes")
+        ? Number(params.get("batchBytes"))
+        : undefined,
     };
     worker.postMessage(request);
   });
