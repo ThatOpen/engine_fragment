@@ -178,9 +178,9 @@ const encoder = new TextEncoder();
 
 // Rough cost of meshing, in milliseconds, from what an element's closure
 // holds. Only relative costs matter — measured batch times calibrate the
-// scale — but the orders of magnitude are from measured models: CSG is what
-// makes Tekla members slow, geometry bytes what makes breps slow, and web-ifc
-// meshes a mapped representation again for every instance of it.
+// scale. Boolean operations (CSG) cost far more than plain elements, larger
+// explicit geometry costs more to tessellate, and web-ifc meshes a mapped
+// representation again for every instance of it.
 const COST_PER_ELEMENT = 0.3;
 const COST_PER_BYTE = 2e-5;
 const COST_PER_BOOLEAN = 4;
