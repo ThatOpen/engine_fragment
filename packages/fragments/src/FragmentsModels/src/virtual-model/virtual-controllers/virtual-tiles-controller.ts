@@ -197,6 +197,14 @@ export class VirtualTilesController {
     for (const [, mesh] of this._virtualMeshes) {
       mesh.dispose();
     }
+    // The tile memory counter is shared by every model on this worker and
+    // only eviction used to decrement it, so a disposed model's realized
+    // tiles stayed counted and pushed the worker toward overflow for good.
+    for (const [, tile] of this._tiles) {
+      if (!tile.notVirtual) continue;
+      tile.notVirtual = false;
+      VirtualTilesController._graphicMemoryConsumed -= tile.usedMemory!;
+    }
   }
 
   async generate(
