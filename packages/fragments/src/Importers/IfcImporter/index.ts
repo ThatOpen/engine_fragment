@@ -19,6 +19,7 @@ import {
 import {
   IfcBlobSource,
   IfcBytesSource,
+  IfcChunkedBytesSource,
 } from "../../Utils/ifc-byte-source";
 import { IfcEntityResolver } from "../../Utils/ifc-resolver";
 import { IfcResolverLineApi } from "../../Utils/ifc-line-api";
@@ -396,7 +397,7 @@ export class IfcImporter {
     let source = data.source ?? (data.bytes && new IfcBytesSource(data.bytes));
     if (!source) throw new Error("Fragments: No data provided");
     if (data.file && data.file.size <= this.residentBudget) {
-      source = new IfcBytesSource(new Uint8Array(await data.file.arrayBuffer()));
+      source = await IfcChunkedBytesSource.read(data.file);
     }
     const resolver = await IfcEntityResolver.fromSource(source, {
       stream: source === data.source ? data.file?.stream() : undefined,

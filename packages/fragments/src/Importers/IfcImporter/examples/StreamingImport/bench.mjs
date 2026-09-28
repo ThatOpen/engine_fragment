@@ -11,7 +11,7 @@
 //   node bench.mjs --file model.ifc [--mode streaming|legacy] [--view 0]
 //                  [--url http://localhost:5173/...] [--chrome <path>]
 //                  [--timeout <seconds>] [--headed] [--console]
-//                  [--query <extra page params>]
+//                  [--query <extra page params>] [--screenshot <out.png>]
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
@@ -186,6 +186,11 @@ listeners.push(({ method, params, sessionId }) => {
 
 await send("Inspector.enable", {}, page);
 await send("Page.enable", {}, page);
+await send(
+  "Emulation.setDeviceMetricsOverride",
+  { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false },
+  page,
+);
 await send("Runtime.enable", {}, page);
 await send(
   "Target.setAutoAttach",
@@ -284,6 +289,20 @@ while (!result && !crashed && Date.now() - started < timeoutMs) {
   } catch {
     // the main thread is busy; try again next tick
   }
+}
+
+if (args.screenshot && result) {
+  // let the viewer settle on the fitted camera first
+  await sleep(1500);
+  const { data } = await send(
+    "Page.captureScreenshot",
+    { format: "png" },
+    page,
+    30000,
+  );
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(args.screenshot, Buffer.from(data, "base64"));
+  console.error(`screenshot written to ${args.screenshot}`);
 }
 
 if (args.profile) {
