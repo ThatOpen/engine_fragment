@@ -25,6 +25,7 @@ export interface IfcIdVector extends Iterable<number> {
  */
 export interface IfcLineApi {
   GetLine(modelID: number, expressID: number): any;
+  GetRawLineData(modelID: number, expressID: number): webIfc.RawLineData;
   GetLineIDsWithType(modelID: number, type: number): IfcIdVector;
   GetAllTypesOfModel(modelID: number): { typeID: number; typeName: string }[];
   GetModelSchema(modelID: number): string;
@@ -65,6 +66,26 @@ export class IfcResolverLineApi implements IfcLineApi {
 
   GetLine(_modelID: number, expressID: number) {
     return this.resolver.parse(expressID);
+  }
+
+  /**
+   * The statement as web-ifc's raw tape, which keeps what `GetLine` drops:
+   * the type of an inline typed value, as its `typecode`.
+   *
+   * @throws if the file defines no such statement.
+   */
+  GetRawLineData(_modelID: number, expressID: number): webIfc.RawLineData {
+    const { index } = this.resolver;
+    const at = index.indexOf(expressID);
+    if (at === -1) {
+      throw new Error(`Fragments: the file has no statement #${expressID}`);
+    }
+    const type = (webIfc as Record<string, unknown>)[index.typeAt(at)];
+    return {
+      ID: expressID,
+      type: typeof type === "number" ? type : 0,
+      arguments: parseStepArguments(this.resolver.readStatement(at)),
+    };
   }
 
   GetLineIDsWithType(_modelID: number, type: number): IfcIdVector {
