@@ -74,6 +74,14 @@ export class IfcGeometryAssembler {
     });
   }
 
+  /** Geometry whose data this assembler will never need again. */
+  readonly known = {
+    shell: (hash: string) =>
+      this._previousGeometries.has(hash) ||
+      this._problematicGeometriesHashes.has(hash),
+    extrusion: (gid: number) => this._previousGeometriesIDs.has(gid),
+  };
+
   /** Assemble a batch's elements, in order. */
   addBatch(batch: ExtractedBatch) {
     for (const element of batch.elements) this.add(element, batch);

@@ -145,10 +145,16 @@ export class IfcFileReader {
           this.onLocalTransformLoaded(transform),
       },
     );
-    const extractor = new IfcGeometryExtractor(ifcAPI, modelID, hasher, {
-      geometryProcessSettings: this._serializer.geometryProcessSettings,
-      distanceThreshold: this._serializer.distanceThreshold,
-    });
+    const extractor = new IfcGeometryExtractor(
+      ifcAPI,
+      modelID,
+      hasher,
+      {
+        geometryProcessSettings: this._serializer.geometryProcessSettings,
+        distanceThreshold: this._serializer.distanceThreshold,
+      },
+      assembler.known,
+    );
 
     let coordinatesInitialized = false;
     let currentCategory = 0;

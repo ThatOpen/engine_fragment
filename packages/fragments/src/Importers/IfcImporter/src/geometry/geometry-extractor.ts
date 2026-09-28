@@ -23,6 +23,15 @@ export interface ExtractorOptions {
   distanceThreshold: number | null;
 }
 
+/**
+ * What assembly already holds, when it runs in the same thread: geometry it
+ * has is never needed again, so there is no point building it.
+ */
+export interface KnownGeometry {
+  shell(hash: string): boolean;
+  extrusion(gid: number): boolean;
+}
+
 const rawCategories = new Set<number>([
   WEBIFC.IFCEARTHWORKSFILL,
   WEBIFC.IFCEARTHWORKSCUT,
@@ -55,6 +64,7 @@ export class IfcGeometryExtractor {
     private readonly _modelID: number,
     private readonly _hasher: Hasher,
     private readonly _options: ExtractorOptions,
+    private readonly _known: KnownGeometry | null = null,
   ) {}
 
   /**
@@ -185,6 +195,7 @@ export class IfcGeometryExtractor {
       : "";
     const key = `${record.hash}|${raw ? 1 : 0}|${thresholdCategory}`;
     let data = this._shells.get(key);
+    if (data === undefined && this._known?.shell(record.hash)) return record;
     if (data === undefined) {
       try {
         const shell = GeomsFbUtils.getShellData({
@@ -305,6 +316,7 @@ export class IfcGeometryExtractor {
     };
 
     let data = this._extrusions.get(record.gid);
+    if (data === undefined && this._known?.extrusion(record.gid)) return record;
     if (data === undefined) {
       const extrusion = this.buildExtrusion(geometryRef, units);
       data = extrusion ? this._batch.extrusions.push(extrusion) - 1 : -1;
