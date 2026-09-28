@@ -3,20 +3,70 @@ import * as THREE from "three";
 import * as WEBIFC from "web-ifc";
 import * as TFB from "../../../../Schema";
 import {
+  CircleExtrusionData,
+  EncodedShell,
   GeometryData,
-  IfcElement,
   IfcFileReader,
   IfcLocalTransform,
   TransformData,
 } from "./ifc-file-reader";
-import { ifcCategoryMap } from "../../../../Utils";
 import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GeomsFbUtils } from "../../../../Utils/shells";
+import {
+  IfcProjectedReader,
+  ProjectedReadOptions,
+  ProjectedReadStats,
+} from "./ifc-projected-reader";
+
+export { serveIfcGeometryWorker } from "./geometry-batch";
+export type { ProjectedReadStats } from "./ifc-projected-reader";
+
+/** A growable column of unsigned 32-bit integers. */
+class U32List {
+  private _data = new Uint32Array(1024);
+  length = 0;
+
+  push(value: number) {
+    if (this.length === this._data.length) {
+      const grown = new Uint32Array(this._data.length * 2);
+      grown.set(this._data);
+      this._data = grown;
+    }
+    this._data[this.length++] = value;
+  }
+
+  view() {
+    return this._data.subarray(0, this.length);
+  }
+}
+
+/** A growable column of doubles. */
+class F64List {
+  private _data = new Float64Array(1024);
+  length = 0;
+
+  push(...values: number[]) {
+    if (this.length + values.length > this._data.length) {
+      const grown = new Float64Array(
+        Math.max(this._data.length * 2, this.length + values.length),
+      );
+      grown.set(this._data);
+      this._data = grown;
+    }
+    for (const value of values) this._data[this.length++] = value;
+  }
+
+  view() {
+    return this._data.subarray(0, this.length);
+  }
+}
 
 interface GeometriesProcessData extends ProcessData {
   builder: FB.Builder;
+  /** Read geometry as projections instead of one whole-file model. */
+  projected?: ProjectedReadOptions;
 }
 
 export class IfcGeometryProcessor {
@@ -26,6 +76,9 @@ export class IfcGeometryProcessor {
   };
 
   webIfcSettings: WEBIFC.LoaderSettings = {};
+
+  /** Set after a projected read. */
+  projectedStats: ProjectedReadStats | null = null;
 
   private _serializer: IfcImporter;
 
@@ -38,8 +91,6 @@ export class IfcGeometryProcessor {
 
     let nextId = 0;
 
-    const localIDs: number[] = [];
-
     // prettier-ignore
     let coordinates: TransformData = {
       dxx: 1, dxy: 0, dxz: 0,
@@ -47,39 +98,79 @@ export class IfcGeometryProcessor {
       px: 0, py: 0, pz: 0,
     };
 
-    const geometries: {
-      geometry: GeometryData;
-      id: number;
+    // Geometry is written to the builder as it arrives rather than held until
+    // the end: a shell's points and profiles are JS arrays, and holding every
+    // one of them is what made the importer's heap grow with the model. What
+    // the representations vector needs later is kept per geometry instead.
+    const shellsOffsets: number[] = [];
+    const circleExtrusionsOffsets: number[] = [];
+    const representations: {
+      type: TFB.RepresentationClass;
+      classIndex: number;
+      bbox: GeometryData["bbox"];
     }[] = [];
 
     const alignments: AlignmentData[] = [];
     const grids: GridData[] = [];
 
-    const items: {
-      element: IfcElement;
-      position: number[];
-      xDirection: number[];
-      yDirection: number[];
-    }[] = [];
+    // Items with geometry, as columns rather than an object graph per item:
+    // kept until the end for the meshes vectors, so this is what the
+    // geometry pass holds per element of the model.
+    const itemIds = new U32List();
+    const itemTransforms = new F64List(); // 9 per item
+    const itemSamples = new U32List(); // where each item's samples start
+    const sampleGeometries = new U32List();
+    const sampleMaterials = new U32List();
+    const sampleTransforms = new U32List();
 
     const localTransforms: IfcLocalTransform[] = [];
 
-    const itemIDMap = new Map<number, number>();
     const geometryIDMap = new Map<number, number>();
-    const materialIDMap = new Map<string, { id: number; color: number[] }>();
+    // colour key -> material index, in order of first use
+    const materialIDMap = new Map<string, number>();
+    const materialColors: number[][] = [];
 
-    const reader = new IfcFileReader(this._serializer);
-    reader.wasm = this.wasm;
-    reader.webIfcSettings = this.webIfcSettings;
+    const fileReader = new IfcFileReader(this._serializer);
+    fileReader.wasm = this.wasm;
+    fileReader.webIfcSettings = this.webIfcSettings;
+    // fileReader.isolatedMeshes = new Set([22835]);
+    const projectedReader = new IfcProjectedReader(this._serializer);
+    const reader = data.projected ? projectedReader : fileReader;
 
-    // reader.isolatedMeshes = new Set([22835]);
-
-    reader.onGeometryLoaded = (geometry) => {
-      geometries.push(geometry);
+    reader.onGeometryLoaded = ({ id, geometry }) => {
+      geometryIDMap.set(id, representations.length);
+      let classIndex: number;
+      if (geometry.type === TFB.RepresentationClass.SHELL) {
+        classIndex = shellsOffsets.length;
+        shellsOffsets.push(this.writeShell(builder, geometry));
+      } else {
+        classIndex = circleExtrusionsOffsets.length;
+        circleExtrusionsOffsets.push(
+          this.writeCircleExtrusion(builder, geometry),
+        );
+      }
+      representations.push({
+        type: geometry.type,
+        classIndex,
+        bbox: geometry.bbox,
+      });
     };
 
-    reader.onElementLoaded = (element) => {
-      items.push(element);
+    reader.onElementLoaded = ({ element, position, xDirection, yDirection }) => {
+      itemIds.push(element.id);
+      itemTransforms.push(...position, ...xDirection, ...yDirection);
+      itemSamples.push(sampleGeometries.length);
+      for (const geometry of element.geometries) {
+        const colorID = geometry.color.toString();
+        let material = materialIDMap.get(colorID);
+        if (material === undefined) {
+          material = materialColors.push(geometry.color.map((n) => n * 255)) - 1;
+          materialIDMap.set(colorID, material);
+        }
+        sampleGeometries.push(geometry.id);
+        sampleMaterials.push(material);
+        sampleTransforms.push(geometry.localTransformID || 0);
+      }
     };
 
     reader.onLocalTransformLoaded = (localTransform) => {
@@ -106,271 +197,42 @@ export class IfcGeometryProcessor {
       }
     };
 
-    await reader.load(data);
+    if (data.projected) await projectedReader.load(data, data.projected);
+    else await fileReader.load(data);
+    this.projectedStats = data.projected ? projectedReader.stats : null;
 
     // Create geometry
 
+    const itemCount = itemIds.length;
+    const localIDs = itemIds.view();
     const geometriesItems: number[] = [];
-    let itemCounter = 0;
 
-    TFB.Meshes.startGlobalTransformsVector(builder, items.length);
+    TFB.Meshes.startGlobalTransformsVector(builder, itemCount);
 
+    // Filled back to front, like the vector itself, and reversed once after:
+    // `unshift` in this loop made it quadratic in the number of items.
     const gtLocalIds: number[] = [];
 
-    const itemCategories = new Map<string, number>();
-    const categoriesIds: number[] = [];
-    const localIds: number[] = [];
-
-    for (let i = 0; i < items.length; i++) {
-      const currentItem = items[items.length - 1 - i];
-
-      geometriesItems.push(itemCounter++);
-
-      const { position, xDirection, yDirection } = currentItem;
-      const [px, py, pz] = position;
-      const [dxx, dxy, dxz] = xDirection;
-      const [dyx, dyy, dyz] = yDirection;
-
-      localIDs.push(items[i].element.id);
-
-      const itemIndex = items.length - 1 - i;
-
-      const categoryId = currentItem.element.type;
-
-      const category = ifcCategoryMap[categoryId];
-      if (!itemCategories.has(category)) {
-        itemCategories.set(category, itemCategories.size);
-      }
-
-      gtLocalIds.unshift(nextId++);
-
+    const transforms = itemTransforms.view();
+    for (let i = 0; i < itemCount; i++) {
+      geometriesItems.push(i);
+      gtLocalIds.push(nextId++);
+      const t = (itemCount - 1 - i) * 9;
       // prettier-ignore
       TFB.Transform.createTransform(
         builder,
-        px, py, pz,
-        dxx,dxy,dxz,
-        dyx,dyy,dyz
+        transforms[t], transforms[t + 1], transforms[t + 2],
+        transforms[t + 3], transforms[t + 4], transforms[t + 5],
+        transforms[t + 6], transforms[t + 7], transforms[t + 8],
       );
-
-      const categoryIndex = itemCategories.get(category)!;
-      categoriesIds.unshift(categoryIndex);
-      localIds.unshift(currentItem.element.id);
-      itemIDMap.set(currentItem.element.id, itemIndex);
     }
+    gtLocalIds.reverse();
 
     const globalTransforms = builder.endVector();
-
-    // Create Shells
-
-    const shellsOffsets: number[] = [];
-
-    for (let g = 0; g < geometries.length; g++) {
-      const geometryData = geometries[g];
-
-      if (geometryData.geometry.type !== TFB.RepresentationClass.SHELL) {
-        continue;
-      }
-
-      const { points, profiles, holes, profilesFaceIds } =
-        geometryData.geometry;
-
-      const isBigShell = points.length > GeomsFbUtils.ushortMaxValue;
-
-      const shellType = isBigShell ? TFB.ShellType.BIG : TFB.ShellType.NONE;
-
-      TFB.Shell.startPointsVector(builder, points.length);
-      for (let i = 0; i < points.length; i++) {
-        const [x, y, z] = points[points.length - 1 - i];
-        TFB.FloatVector.createFloatVector(builder, x, y, z);
-      }
-      const pointsOffset = builder.endVector();
-
-      const profilesOffsets: number[] = [];
-      const holesOffsets: number[] = [];
-      const bigProfilesOffsets: number[] = [];
-      const bigHolesOffsets: number[] = [];
-
-      for (const [, indices] of profiles) {
-        if (isBigShell) {
-          const indicesOffset = TFB.BigShellProfile.createIndicesVector(
-            builder,
-            indices,
-          );
-          const bigProfileOffset = TFB.BigShellProfile.createBigShellProfile(
-            builder,
-            indicesOffset,
-          );
-          bigProfilesOffsets.push(bigProfileOffset);
-          continue;
-        }
-
-        const indicesOffset = TFB.ShellProfile.createIndicesVector(
-          builder,
-          indices,
-        );
-        const profileOffset = TFB.ShellProfile.createShellProfile(
-          builder,
-          indicesOffset,
-        );
-        profilesOffsets.push(profileOffset);
-      }
-
-      const bigShellProfilesOffset = TFB.Shell.createBigProfilesVector(
-        builder,
-        bigProfilesOffsets,
-      );
-
-      const shellProfilesOffset = TFB.Shell.createProfilesVector(
-        builder,
-        profilesOffsets,
-      );
-
-      for (const [holeId, indicesSets] of holes) {
-        if (isBigShell) {
-          for (const indices of indicesSets) {
-            const indicesOffset = TFB.BigShellHole.createIndicesVector(
-              builder,
-              indices,
-            );
-
-            const holeOffset = TFB.BigShellHole.createBigShellHole(
-              builder,
-              indicesOffset,
-              holeId,
-            );
-
-            bigHolesOffsets.push(holeOffset); // Flattening the structure
-          }
-          continue;
-        }
-
-        for (const indices of indicesSets) {
-          const indicesOffset = TFB.ShellHole.createIndicesVector(
-            builder,
-            indices,
-          );
-
-          const holeOffset = TFB.ShellHole.createShellHole(
-            builder,
-            indicesOffset,
-            holeId,
-          );
-
-          holesOffsets.push(holeOffset); // Flattening the structure
-        }
-      }
-
-      const bigShellHolesOffset = TFB.Shell.createBigHolesVector(
-        builder,
-        bigHolesOffsets,
-      );
-
-      const shellHolesOffset = TFB.Shell.createHolesVector(
-        builder,
-        holesOffsets,
-      );
-
-      const shellFaceIdsOffset = TFB.Shell.createProfilesFaceIdsVector(
-        builder,
-        profilesFaceIds,
-      );
-
-      const shellOffset = TFB.Shell.createShell(
-        builder,
-        shellProfilesOffset,
-        shellHolesOffset,
-        pointsOffset,
-        bigShellProfilesOffset,
-        bigShellHolesOffset,
-        shellType,
-        shellFaceIdsOffset,
-      );
-
-      shellsOffsets.push(shellOffset);
-    }
 
     const shells = TFB.Meshes.createShellsVector(builder, shellsOffsets);
 
     // Create circle extrusions
-
-    const circleExtrusionsOffsets: number[] = [];
-
-    for (let g = 0; g < geometries.length; g++) {
-      const geometryData = geometries[g];
-
-      if (
-        geometryData.geometry.type !== TFB.RepresentationClass.CIRCLE_EXTRUSION
-      ) {
-        continue;
-      }
-
-      const axisOffsets: number[] = [];
-      const { radius, indicesArray, typesArray, segments, circleCurveData } =
-        geometryData.geometry;
-
-      TFB.Axis.startCircleCurvesVector(builder, circleCurveData.length);
-      for (let i = 0; i < circleCurveData.length; i++) {
-        const [x1, y1, z1, radius, angle, dx1, dy1, dz1, dx3, dy3, dz3] =
-          circleCurveData[i];
-
-        TFB.CircleCurve.createCircleCurve(
-          builder,
-          (angle / 360) * 2 * Math.PI,
-          x1,
-          y1,
-          z1,
-          radius,
-          dx3,
-          dy3,
-          dz3,
-          dx1,
-          dy1,
-          dz1,
-        );
-      }
-
-      const circleCurvesOffset = builder.endVector();
-
-      TFB.Axis.startWiresVector(builder, segments.length);
-
-      for (let i = 0; i < segments.length; i++) {
-        const [x1, y1, z1, x2, y2, z2] = segments[i];
-        TFB.Wire.createWire(builder, x1, y1, z1, x2, y2, z2);
-      }
-
-      const wiresOffset = builder.endVector();
-
-      const ordersOffset = TFB.Axis.createOrderVector(builder, indicesArray);
-      const axisPartsOffset = TFB.Axis.createPartsVector(builder, typesArray);
-
-      TFB.Axis.startWireSetsVector(builder, 0);
-      const wireSetOffset = builder.endVector();
-
-      TFB.Axis.startAxis(builder);
-      TFB.Axis.addCircleCurves(builder, circleCurvesOffset);
-      TFB.Axis.addOrder(builder, ordersOffset);
-      TFB.Axis.addWires(builder, wiresOffset);
-      TFB.Axis.addWireSets(builder, wireSetOffset);
-      TFB.Axis.addParts(builder, axisPartsOffset);
-      const axisOffset = TFB.Axis.endAxis(builder);
-      axisOffsets.push(axisOffset);
-
-      const axisVectorOffset = TFB.CircleExtrusion.createAxesVector(
-        builder,
-        axisOffsets,
-      );
-
-      const radiusOffset = TFB.CircleExtrusion.createRadiusVector(builder, [
-        radius,
-      ]);
-
-      TFB.CircleExtrusion.startCircleExtrusion(builder);
-      TFB.CircleExtrusion.addAxes(builder, axisVectorOffset);
-      TFB.CircleExtrusion.addRadius(builder, radiusOffset);
-      const ceOffset = TFB.CircleExtrusion.endCircleExtrusion(builder);
-
-      circleExtrusionsOffsets.push(ceOffset);
-    }
 
     const circleExtrusions = TFB.Meshes.createCircleExtrusionsVector(
       builder,
@@ -381,37 +243,13 @@ export class IfcGeometryProcessor {
 
     const representationsLocalIds: number[] = [];
 
-    TFB.Meshes.startRepresentationsVector(builder, geometries.length);
-
-    const geometryClassesCounter = new Map<number, number>();
-
-    for (let g = 0; g < geometries.length; g++) {
-      const index = geometries.length - 1 - g;
-      const currentGeometry = geometries[index];
-      const geometryClass = currentGeometry.geometry.type;
-
-      let previousCount = geometryClassesCounter.get(geometryClass);
-      if (previousCount === undefined) {
-        previousCount = -1;
-      }
-      geometryClassesCounter.set(geometryClass, previousCount + 1);
-    }
+    TFB.Meshes.startRepresentationsVector(builder, representations.length);
 
     const tempMin = new THREE.Vector3();
     const tempMax = new THREE.Vector3();
 
-    for (let g = 0; g < geometries.length; g++) {
-      const index = geometries.length - 1 - g;
-      const currentGeometry = geometries[index];
-      const { bbox } = currentGeometry.geometry;
-      geometryIDMap.set(currentGeometry.id, index);
-
-      const geometryClass = currentGeometry.geometry.type;
-      const geomIndex = geometryClassesCounter.get(geometryClass);
-      if (geomIndex === undefined) {
-        throw new Error("Fragments: Malformed geometry definition");
-      }
-      geometryClassesCounter.set(geometryClass, geomIndex - 1);
+    for (let g = representations.length - 1; g >= 0; g--) {
+      const { type, classIndex, bbox } = representations[g];
 
       tempMin.set(bbox.min.x, bbox.min.y, bbox.min.z);
       tempMax.set(bbox.max.x, bbox.max.y, bbox.max.z);
@@ -419,7 +257,7 @@ export class IfcGeometryProcessor {
 
       // 1000 kilometers as max bounding box
       if (distance > 999999) {
-        console.log(`Infinity bounding box: ${currentGeometry.id}`);
+        console.log(`Infinity bounding box: representation ${g}`);
         bbox.min.x = 0;
         bbox.min.y = 0;
         bbox.min.z = 0;
@@ -428,82 +266,56 @@ export class IfcGeometryProcessor {
         bbox.max.z = 0.1;
       }
 
-      representationsLocalIds.unshift(nextId++);
+      representationsLocalIds.push(nextId++);
 
       // prettier-ignore
       TFB.Representation.createRepresentation(
         builder,
-        geomIndex, 
+        classIndex,
         bbox.min.x, bbox.min.y, bbox.min.z,
-        bbox.max.x, bbox.max.y, bbox.max.z,  
-        currentGeometry.geometry.type,
+        bbox.max.x, bbox.max.y, bbox.max.z,
+        type,
       );
     }
 
     const representationsOffsets = builder.endVector();
+    representationsLocalIds.reverse();
 
-    let materialCounter = 0;
-    for (const item of items) {
-      for (const geometry of item.element.geometries) {
-        const colorID = geometry.color.toString();
-        if (!materialIDMap.has(colorID)) {
-          const color = geometry.color.map((n) => n * 255);
-          materialIDMap.set(colorID, { id: materialCounter++, color });
-        }
-      }
-    }
-
-    TFB.Meshes.startMaterialsVector(builder, materialIDMap.size);
+    TFB.Meshes.startMaterialsVector(builder, materialColors.length);
 
     const materialsLocalIds: number[] = [];
 
-    const materialMapKeys = Array.from(materialIDMap.keys());
+    const renderedFaces = this._serializer.doubleSidedMaterials
+      ? TFB.RenderedFaces.TWO
+      : TFB.RenderedFaces.ONE;
 
-    for (let i = 0; i < materialMapKeys.length; i++) {
-      const key = materialMapKeys[materialMapKeys.length - 1 - i];
-      const { color } = materialIDMap.get(key)!;
-      const [r, g, b, a] = color;
-
+    for (let i = materialColors.length - 1; i >= 0; i--) {
+      const [r, g, b, a] = materialColors[i];
       materialsLocalIds.push(nextId++);
-
-      const renderedFaces = this._serializer.doubleSidedMaterials
-        ? TFB.RenderedFaces.TWO
-        : TFB.RenderedFaces.ONE;
-
       TFB.Material.createMaterial(builder, r, g, b, a, renderedFaces, 0);
     }
 
     const materials = builder.endVector();
 
-    let sampleCount = 0;
-    for (const item of items) {
-      sampleCount += item.element.geometries.length;
-    }
-
+    const sampleCount = sampleGeometries.length;
     TFB.Meshes.startSamplesVector(builder, sampleCount);
 
     const samplesLocalIds: number[] = [];
+    const starts = itemSamples.view();
+    const geometriesOfSamples = sampleGeometries.view();
+    const materialsOfSamples = sampleMaterials.view();
+    const transformsOfSamples = sampleTransforms.view();
 
-    for (let g = 0; g < items.length; g++) {
-      const currentItem = items[items.length - 1 - g];
-
-      const itemID = itemIDMap.get(currentItem.element.id)!;
-
-      const geoms = currentItem.element.geometries;
-      for (let i = 0; i < geoms.length; i++) {
-        const geometry = geoms[geoms.length - i - 1];
-        const geometryID = geometryIDMap.get(geometry.id)!;
-        const materialID = materialIDMap.get(geometry.color.toString())!.id;
-        const transformID = geometry.localTransformID || 0;
-
+    for (let item = itemCount - 1; item >= 0; item--) {
+      const end = item + 1 < itemCount ? starts[item + 1] : sampleCount;
+      for (let k = end - 1; k >= starts[item]; k--) {
         samplesLocalIds.push(nextId++);
-
         TFB.Sample.createSample(
           builder,
-          itemID,
-          materialID,
-          geometryID,
-          transformID,
+          item,
+          materialsOfSamples[k],
+          geometryIDMap.get(geometriesOfSamples[k])!,
+          transformsOfSamples[k],
         );
       }
     }
@@ -597,5 +409,200 @@ export class IfcGeometryProcessor {
       alignments,
       grids,
     };
+  }
+
+  private writeShell(builder: FB.Builder, shell: EncodedShell) {
+    const { points, profiles, profileSizes, holeIds, holeCounts } = shell;
+    const { holes, holeSizes, faceIds } = shell;
+
+    const pointCount = points.length / 3;
+    const isBigShell = pointCount > GeomsFbUtils.ushortMaxValue;
+
+    const shellType = isBigShell ? TFB.ShellType.BIG : TFB.ShellType.NONE;
+
+    TFB.Shell.startPointsVector(builder, pointCount);
+    for (let i = pointCount - 1; i >= 0; i--) {
+      TFB.FloatVector.createFloatVector(
+        builder,
+        points[i * 3],
+        points[i * 3 + 1],
+        points[i * 3 + 2],
+      );
+    }
+    const pointsOffset = builder.endVector();
+
+    const profilesOffsets: number[] = [];
+    const holesOffsets: number[] = [];
+    const bigProfilesOffsets: number[] = [];
+    const bigHolesOffsets: number[] = [];
+
+    let offset = 0;
+    for (const size of profileSizes) {
+      const indices = profiles.subarray(offset, offset + size);
+      offset += size;
+      if (isBigShell) {
+        const indicesOffset = TFB.BigShellProfile.createIndicesVector(
+          builder,
+          indices,
+        );
+        const bigProfileOffset = TFB.BigShellProfile.createBigShellProfile(
+          builder,
+          indicesOffset,
+        );
+        bigProfilesOffsets.push(bigProfileOffset);
+        continue;
+      }
+
+      const indicesOffset = TFB.ShellProfile.createIndicesVector(
+        builder,
+        indices as unknown as Uint16Array,
+      );
+      const profileOffset = TFB.ShellProfile.createShellProfile(
+        builder,
+        indicesOffset,
+      );
+      profilesOffsets.push(profileOffset);
+    }
+
+    const bigShellProfilesOffset = TFB.Shell.createBigProfilesVector(
+      builder,
+      bigProfilesOffsets,
+    );
+
+    const shellProfilesOffset = TFB.Shell.createProfilesVector(
+      builder,
+      profilesOffsets,
+    );
+
+    offset = 0;
+    let set = 0;
+    for (let h = 0; h < holeIds.length; h++) {
+      const holeId = holeIds[h];
+      for (let k = 0; k < holeCounts[h]; k++) {
+        const size = holeSizes[set++];
+        const indices = holes.subarray(offset, offset + size);
+        offset += size;
+        if (isBigShell) {
+          const indicesOffset = TFB.BigShellHole.createIndicesVector(
+            builder,
+            indices,
+          );
+          const holeOffset = TFB.BigShellHole.createBigShellHole(
+            builder,
+            indicesOffset,
+            holeId,
+          );
+          bigHolesOffsets.push(holeOffset); // Flattening the structure
+          continue;
+        }
+
+        const indicesOffset = TFB.ShellHole.createIndicesVector(
+          builder,
+          indices as unknown as Uint16Array,
+        );
+        const holeOffset = TFB.ShellHole.createShellHole(
+          builder,
+          indicesOffset,
+          holeId,
+        );
+        holesOffsets.push(holeOffset); // Flattening the structure
+      }
+    }
+
+    const bigShellHolesOffset = TFB.Shell.createBigHolesVector(
+      builder,
+      bigHolesOffsets,
+    );
+
+    const shellHolesOffset = TFB.Shell.createHolesVector(
+      builder,
+      holesOffsets,
+    );
+
+    const shellFaceIdsOffset = TFB.Shell.createProfilesFaceIdsVector(
+      builder,
+      faceIds as unknown as number[],
+    );
+
+    return TFB.Shell.createShell(
+      builder,
+      shellProfilesOffset,
+      shellHolesOffset,
+      pointsOffset,
+      bigShellProfilesOffset,
+      bigShellHolesOffset,
+      shellType,
+      shellFaceIdsOffset,
+    );
+  }
+
+  private writeCircleExtrusion(
+    builder: FB.Builder,
+    extrusion: CircleExtrusionData,
+  ) {
+    const axisOffsets: number[] = [];
+    const { radius, indicesArray, typesArray, segments, circleCurveData } =
+      extrusion;
+
+    TFB.Axis.startCircleCurvesVector(builder, circleCurveData.length);
+    for (let i = 0; i < circleCurveData.length; i++) {
+      const [x1, y1, z1, radius, angle, dx1, dy1, dz1, dx3, dy3, dz3] =
+        circleCurveData[i];
+
+      TFB.CircleCurve.createCircleCurve(
+        builder,
+        (angle / 360) * 2 * Math.PI,
+        x1,
+        y1,
+        z1,
+        radius,
+        dx3,
+        dy3,
+        dz3,
+        dx1,
+        dy1,
+        dz1,
+      );
+    }
+
+    const circleCurvesOffset = builder.endVector();
+
+    TFB.Axis.startWiresVector(builder, segments.length);
+
+    for (let i = 0; i < segments.length; i++) {
+      const [x1, y1, z1, x2, y2, z2] = segments[i];
+      TFB.Wire.createWire(builder, x1, y1, z1, x2, y2, z2);
+    }
+
+    const wiresOffset = builder.endVector();
+
+    const ordersOffset = TFB.Axis.createOrderVector(builder, indicesArray);
+    const axisPartsOffset = TFB.Axis.createPartsVector(builder, typesArray);
+
+    TFB.Axis.startWireSetsVector(builder, 0);
+    const wireSetOffset = builder.endVector();
+
+    TFB.Axis.startAxis(builder);
+    TFB.Axis.addCircleCurves(builder, circleCurvesOffset);
+    TFB.Axis.addOrder(builder, ordersOffset);
+    TFB.Axis.addWires(builder, wiresOffset);
+    TFB.Axis.addWireSets(builder, wireSetOffset);
+    TFB.Axis.addParts(builder, axisPartsOffset);
+    const axisOffset = TFB.Axis.endAxis(builder);
+    axisOffsets.push(axisOffset);
+
+    const axisVectorOffset = TFB.CircleExtrusion.createAxesVector(
+      builder,
+      axisOffsets,
+    );
+
+    const radiusOffset = TFB.CircleExtrusion.createRadiusVector(builder, [
+      radius,
+    ]);
+
+    TFB.CircleExtrusion.startCircleExtrusion(builder);
+    TFB.CircleExtrusion.addAxes(builder, axisVectorOffset);
+    TFB.CircleExtrusion.addRadius(builder, radiusOffset);
+    return TFB.CircleExtrusion.endCircleExtrusion(builder);
   }
 }

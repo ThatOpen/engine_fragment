@@ -2,12 +2,14 @@ import * as WEBIFC from "web-ifc";
 import { Builder } from "flatbuffers";
 import * as TFB from "../../../../Schema";
 import { RawEntityAttrs } from "./types";
+import { RelationEdges } from "./relation-edges";
 import { IfcImporter } from "../..";
 import {
   FragmentsIfcUtils,
   ifcCategoryMap,
   getProvenanceMetadata,
 } from "../../../../Utils";
+import type { IfcLineApi } from "../../../../Utils/ifc-line-api";
 import { ProcessData } from "../types";
 import {
   ALIGNMENT_CATEGORY,
@@ -16,29 +18,68 @@ import {
   GridData,
 } from "../../../../FragmentsModels";
 
-export interface PropertiesProcessData extends ProcessData {
-  geometryProcessedLocalIDs: number[];
+export interface PropertiesPrepareData extends ProcessData {
+  /**
+   * Where to read entities from. Left out, the pass opens the file in a
+   * web-ifc instance of its own.
+   */
+  lineApi?: IfcLineApi;
+  /**
+   * Hand the thread back every so many milliseconds, for a pass that runs
+   * while something else on this thread needs it (the geometry batches'
+   * results, typically).
+   */
+  yieldEvery?: number;
+}
+
+export interface PropertiesFinishData extends ProcessData {
+  geometryProcessedLocalIDs: Iterable<number>;
   alignments?: AlignmentData[];
   grids?: GridData[];
   maxLocalID: number;
 }
 
+export type PropertiesProcessData = PropertiesPrepareData &
+  PropertiesFinishData;
+
+/** Resolves on a later turn of the event loop, unclamped unlike setTimeout. */
+const nextTask = () =>
+  new Promise<void>((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
+
 export class IfcPropertyProcessor {
   private _lengthUnitsFactor = 1;
   private _attributesOffsets: number[] = [];
-  private _relationsMap: Record<number, { [name: string]: number[] }> = {};
+  private _relations = new RelationEdges();
 
   // Tracks entities already placed in the spatial structure so an item
   // reachable by more than one relation (e.g. an alignment aggregated to the
   // project and also referenced by a bridge) is listed once, not duplicated.
   private _spatialVisited = new Set<number>();
+  // What `prepare` serialized, by express id, and the order it went in.
+  private _entries = new Map<number, { className: string; offset: number }>();
+  private _preparedOrder: number[] = [];
+  private _yieldEvery = 0;
+  private _lastYield = 0;
+
+  // expressID -> position in `expressIDs`, built once for the spatial walk,
+  // which would otherwise search `expressIDs` for every child it visits.
+  private _expressIDIndex = new Map<number, number>();
   private _guids: string[] = [];
   private _guidsItems: number[] = [];
   private _uniqueAttributes = new Set<string>();
   private _uniqueRelNames = new Set<string>();
   private _maxLocalID = 0;
 
-  private _ifcApi: WEBIFC.IfcAPI | null = null;
+  private _ifcApi: IfcLineApi | null = null;
+  // Only set when this pass opened web-ifc itself, and so has to dispose it.
+  private _webIfc: WEBIFC.IfcAPI | null = null;
   wasm = {
     path: "/node_modules/web-ifc/",
     absolute: false,
@@ -50,15 +91,27 @@ export class IfcPropertyProcessor {
 
   readonly classes: string[] = [];
 
-  async getIfcApi() {
+  async getIfcApi(): Promise<IfcLineApi> {
     if (!this._ifcApi) {
-      const ifcApi = new WEBIFC.IfcAPI();
-      ifcApi.SetWasmPath(this.wasm.path, this.wasm.absolute);
-      await ifcApi.Init();
-      ifcApi.SetLogLevel(WEBIFC.LogLevel.LOG_LEVEL_OFF);
-      this._ifcApi = ifcApi;
+      throw new Error("Fragments: the property pass has no IFC source");
     }
     return this._ifcApi;
+  }
+
+  private async openWebIfc(data: ProcessData) {
+    const ifcApi = new WEBIFC.IfcAPI();
+    ifcApi.SetWasmPath(this.wasm.path, this.wasm.absolute);
+    await ifcApi.Init();
+    ifcApi.SetLogLevel(WEBIFC.LogLevel.LOG_LEVEL_OFF);
+    this._webIfc = ifcApi;
+    if (data.readFromCallback && data.readCallback) {
+      ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
+    } else if (data.bytes) {
+      await ifcApi.OpenModel(data.bytes, this.webIfcSettings);
+    } else {
+      throw new Error("Fragments: No data provided");
+    }
+    return ifcApi;
   }
 
   private async getSchema(modelId = 0) {
@@ -94,18 +147,26 @@ export class IfcPropertyProcessor {
     return value;
   }
 
+  /**
+   * Everything that doesn't depend on geometry, then the layout that does.
+   * `prepare` and `finish` separately let the first run alongside geometry.
+   */
   async process(data: PropertiesProcessData) {
-    // Open the IFC
-    const ifcApi = await this.getIfcApi();
-    this._maxLocalID = data.maxLocalID + 1;
+    await this.prepare(data);
+    return this.finish(data);
+  }
 
-    if (data.readFromCallback && data.readCallback) {
-      ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
-    } else if (data.bytes) {
-      await ifcApi.OpenModel(data.bytes, this.webIfcSettings);
-    } else {
-      throw new Error("Fragments: No data provided");
-    }
+  /**
+   * Serialize the attributes of every entity the importer keeps, and collect
+   * every relation. Needs nothing from geometry, so it can run while geometry
+   * does; {@link finish} then lays the results out.
+   */
+  async prepare(data: PropertiesPrepareData) {
+    // Open the IFC
+    const ifcApi = data.lineApi ?? (await this.openWebIfc(data));
+    this._ifcApi = ifcApi;
+    this._yieldEvery = data.yieldEvery ?? 0;
+    this._lastYield = performance.now();
 
     if (this._serializer.replaceStoreyElevation) {
       await this.setLengthUnitsFactor();
@@ -121,18 +182,7 @@ export class IfcPropertyProcessor {
       throw new Error(`Fragments: Model schema not recognized.`);
     }
 
-    // First process items that been processed by geometry processor
-
-    const itemsWithGeom = data.geometryProcessedLocalIDs;
-    await this.processItems(itemsWithGeom);
-    const visitedItems = new Set(itemsWithGeom);
-    data.progressCallback?.(0.6, {
-      process: "attributes",
-      state: "start",
-      entitiesProcessed: itemsWithGeom.length,
-    });
-
-    // Now process the rest of items
+    data.progressCallback?.(0.6, { process: "attributes", state: "start" });
 
     const classes = new Set([
       ...this._serializer.classes.abstract,
@@ -147,11 +197,8 @@ export class IfcPropertyProcessor {
       if (classEntities.size() === 0) continue;
       const items: number[] = [];
       for (let index = 0; index < classEntities.size(); index++) {
-        const id = classEntities.get(index);
-        if (visitedItems.has(id)) continue;
-        items.push(id);
+        items.push(classEntities.get(index));
       }
-      if (items.length === 0) continue;
       await this.processItems(items);
       data.progressCallback?.(categoryPercentage * (index + 1) + 0.6, {
         process: "attributes",
@@ -159,19 +206,6 @@ export class IfcPropertyProcessor {
         class: ifcCategoryMap[entityClass],
         entitiesProcessed: items.length,
       });
-    }
-
-    // Now process alignments
-
-    const alignments = data.alignments;
-    if (alignments) {
-      this.processCustomItems(alignments, ALIGNMENT_CATEGORY);
-    }
-
-    // Now process grids
-    const grids = data.grids;
-    if (grids) {
-      this.processCustomItems(grids, GRID_CATEGORY);
     }
 
     const relations = new Set([...this._serializer.relations.keys()]);
@@ -191,7 +225,45 @@ export class IfcPropertyProcessor {
         class: ifcCategoryMap[rel],
       });
     }
+  }
 
+  /**
+   * Lay out what {@link prepare} serialized: items with geometry first, in the
+   * order geometry wrote them (mesh items refer to them by position), then
+   * the rest, then alignments and grids; and write the model's vectors.
+   */
+  async finish(data: PropertiesFinishData) {
+    this._maxLocalID = data.maxLocalID + 1;
+
+    const itemsWithGeom = data.geometryProcessedLocalIDs;
+    const placed = new Set<number>();
+    const place = (id: number) => {
+      const entry = this._entries.get(id);
+      if (!entry || placed.has(id)) return;
+      placed.add(id);
+      this.expressIDs.push(id);
+      this.classes.push(entry.className);
+      this._attributesOffsets.push(entry.offset);
+    };
+    for (const id of itemsWithGeom) place(id);
+    for (const id of this._preparedOrder) place(id);
+    this._entries = new Map();
+    this._preparedOrder = [];
+
+    // Now process alignments
+
+    const alignments = data.alignments;
+    if (alignments) {
+      this.processCustomItems(alignments, ALIGNMENT_CATEGORY);
+    }
+
+    // Now process grids
+    const grids = data.grids;
+    if (grids) {
+      this.processCustomItems(grids, GRID_CATEGORY);
+    }
+
+    data.progressCallback?.(0.9, { process: "serializing", state: "start" });
     const { relIndicesVector, relsVector } = this.getRelationsVector();
     const { guidsVector, guidsItemsVector } = this.getGuidsVector();
     const metadataOffset = await this.getMetadataOffset();
@@ -226,19 +298,34 @@ export class IfcPropertyProcessor {
     };
   }
 
+  /** Whether this pass has held the thread long enough to hand it back. */
+  private shouldYield() {
+    return (
+      this._yieldEvery > 0 &&
+      performance.now() - this._lastYield >= this._yieldEvery
+    );
+  }
+
+  private async yieldThread() {
+    await nextTask();
+    this._lastYield = performance.now();
+  }
+
   private async processItems(items: number[]) {
     const ifcApi = await this.getIfcApi();
     for (let index = 0; index < items.length; index++) {
       const expressID = items[index];
+      if (this.shouldYield()) await this.yieldThread();
+      if (this._entries.has(expressID)) continue;
       try {
         const attrs = ifcApi.GetLine(0, expressID) as RawEntityAttrs;
         if (!attrs) continue;
 
         // @ts-ignore
         const className = ifcCategoryMap[attrs.type];
-        this.classes.push(className);
-        this.expressIDs.push(expressID);
-        await this.serializeAttributes(expressID, attrs);
+        const offset = await this.serializeAttributes(expressID, attrs);
+        this._entries.set(expressID, { className, offset });
+        this._preparedOrder.push(expressID);
         if (this._serializer.includeMaterialProperties) {
           this.addMaterialPropertiesInverse(expressID, attrs);
         }
@@ -317,12 +404,7 @@ export class IfcPropertyProcessor {
   }
 
   private addRelation(expressID: number, relName: string, ids: number[]) {
-    if (!this._relationsMap[expressID]) this._relationsMap[expressID] = {};
-    if (!this._relationsMap[expressID][relName])
-      this._relationsMap[expressID][relName] = [];
-    for (const id of ids) {
-      this._relationsMap[expressID][relName].push(id);
-    }
+    this._relations.add(expressID, relName, ids);
     if (this._serializer.includeRelationNames) {
       this._uniqueRelNames.add(relName);
     }
@@ -553,11 +635,11 @@ export class IfcPropertyProcessor {
       dataVector,
     );
 
-    this._attributesOffsets.push(attributeOffset);
     if (guid) {
       this._guids.push(guid);
       this._guidsItems.push(expressID);
     }
+    return attributeOffset;
   }
 
   getAttributesVector() {
@@ -618,6 +700,7 @@ export class IfcPropertyProcessor {
       if (classEntities.size() === 0) continue;
       for (let index = 0; index < classEntities.size(); index++) {
         const expressID = classEntities.get(index);
+        if (this.shouldYield()) await this.yieldThread();
         try {
           const attrs = ifcApi.GetLine(0, expressID) as Record<string, any>;
           if (!attrs) continue;
@@ -680,29 +763,29 @@ export class IfcPropertyProcessor {
   getRelationsVector(clean = false) {
     const rels: number[] = [];
     const ids: number[] = [];
-    for (const [expressID, entityRels] of Object.entries(this._relationsMap)) {
-      if (clean && !this.expressIDs.includes(Number(expressID))) continue; // very expensive
+    const kept = clean ? new Set(this.expressIDs) : null;
+    this._relations.forEach((expressID, entityRels) => {
+      if (kept && !kept.has(expressID)) return;
       const definitions: number[] = [];
-      for (const [attrName, _rels] of Object.entries(entityRels)) {
+      for (const [attrName, _rels] of entityRels) {
         let rels = _rels;
-        if (clean) {
-          rels = _rels.filter((id) => this.expressIDs.includes(id)); // very expensive
+        if (kept) {
+          rels = _rels.filter((id) => kept.has(id));
           if (rels.length === 0) continue;
         }
         const hash = JSON.stringify([attrName, ...rels]);
         const offset = this._builder.createSharedString(hash);
         definitions.push(offset);
       }
-      if (clean && definitions.length === 0) continue;
-      // ids.push(this._expressIDs.indexOf(Number(expressID)))
-      ids.push(Number(expressID));
+      if (kept && definitions.length === 0) return;
+      ids.push(expressID);
       const dataVector = TFB.Relation.createDataVector(
         this._builder,
         definitions,
       );
       const relOffset = TFB.Relation.createRelation(this._builder, dataVector);
       rels.push(relOffset);
-    }
+    });
     const relsVector = TFB.Model.createRelationsVector(this._builder, rels);
     const relIndicesVector = TFB.Model.createRelationsItemsVector(
       this._builder,
@@ -749,7 +832,7 @@ export class IfcPropertyProcessor {
     return metadataOffset;
   }
 
-  private extractCRS(ifcApi: WEBIFC.IfcAPI) {
+  private extractCRS(ifcApi: IfcLineApi) {
     // Try IFCPROJECTEDCRS first, then fall back to IFCCOORDINATEREFERENCESYSTEM
     let crsEntity: any = null;
     try {
@@ -853,14 +936,14 @@ export class IfcPropertyProcessor {
     const offsets: number[] = [];
 
     for (const attrName of inverseAttributes) {
-      const relations = this._relationsMap[expressID]?.[attrName];
+      const relations = this._relations.get(expressID, attrName);
       if (!relations) continue;
 
       const entityGroups: { [type: string]: number[] } = {};
       for (const relatedID of relations) {
         if (this._spatialVisited.has(relatedID)) continue;
-        const entityIndex = this.expressIDs.indexOf(relatedID);
-        if (entityIndex === -1) continue;
+        const entityIndex = this._expressIDIndex.get(relatedID);
+        if (entityIndex === undefined) continue;
         const entityClass = this.classes[entityIndex];
         if (!entityClass) continue;
         this._spatialVisited.add(relatedID);
@@ -903,6 +986,13 @@ export class IfcPropertyProcessor {
     const ifcApi = await this.getIfcApi();
     const ifcClass = WEBIFC.IFCPROJECT;
     const classEntities = [...ifcApi.GetLineIDsWithType(0, ifcClass)];
+    this._expressIDIndex = new Map();
+    for (let i = 0; i < this.expressIDs.length; i++) {
+      // first wins, as `indexOf` did
+      if (!this._expressIDIndex.has(this.expressIDs[i])) {
+        this._expressIDIndex.set(this.expressIDs[i], i);
+      }
+    }
     // The project roots are the entry points; mark them visited so a stray
     // reference back to them can't re-nest the whole tree.
     this._spatialVisited = new Set<number>(classEntities);
@@ -937,12 +1027,16 @@ export class IfcPropertyProcessor {
   }
 
   clean() {
-    this._ifcApi?.Dispose();
+    this._webIfc?.Dispose();
+    this._webIfc = null;
     this._ifcApi = null;
+    this._expressIDIndex = new Map();
+    this._entries = new Map();
+    this._preparedOrder = [];
     this._guids = [];
     this._guidsItems = [];
     this._attributesOffsets = [];
-    this._relationsMap = {};
+    this._relations = new RelationEdges();
     this._uniqueAttributes.clear();
     this._uniqueRelNames.clear();
     (this.expressIDs as any) = [];

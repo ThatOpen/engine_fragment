@@ -1,14 +1,19 @@
 import * as THREE from "three";
 import * as WEBIFC from "web-ifc";
 import { GridAxisData, GridData } from "../../../../FragmentsModels";
-import { FragmentsIfcUtils } from "../../../../Utils";
+import { FragmentsIfcUtils, ifcCategoryMap } from "../../../../Utils";
+import type { IfcLineApi } from "../../../../Utils/ifc-line-api";
 
 export class GridReader {
-  read(webIfc: WEBIFC.IfcAPI) {
+  /**
+   * @param coordMatrixValues The model's coordination matrix, as web-ifc's
+   * `GetCoordinationMatrix` returns it. Taken as an argument so grids can be
+   * read from the parsing layer, with no web-ifc model open.
+   */
+  read(webIfc: IfcLineApi, coordMatrixValues: number[]) {
     try {
       const result: GridData[] = [];
 
-      const coordMatrixValues = webIfc.GetCoordinationMatrix(0);
       const coordMatrix = new THREE.Matrix4();
       coordMatrix.fromArray(coordMatrixValues);
 
@@ -86,7 +91,7 @@ export class GridReader {
 
   private getGridAxes(
     ifcGrid: any,
-    webIfc: WEBIFC.IfcAPI,
+    webIfc: IfcLineApi,
     units: number,
     ifcKey: "UAxes" | "VAxes" | "WAxes",
     unsupportedAxes: NonNullable<GridData["unsupportedAxes"]>
@@ -144,7 +149,7 @@ export class GridReader {
         // dropping it silently.
         unsupportedAxes.push({
           tag: axisData.tag,
-          curveType: this.getCurveTypeName(webIfc, curve),
+          curveType: this.getCurveTypeName(curve),
         });
         continue;
       }
@@ -154,14 +159,10 @@ export class GridReader {
     return axisDataArr;
   }
 
-  private getCurveTypeName(webIfc: WEBIFC.IfcAPI, curve: any) {
-    try {
-      // Uppercase to match the STEP spelling used in IFC files (IFCCIRCLE...).
-      const name = webIfc.GetNameFromTypeCode(curve.type);
-      if (name) return name.toUpperCase();
-    } catch {
-      // Fall through to the numeric type code below.
-    }
+  private getCurveTypeName(curve: any) {
+    // The STEP spelling used in IFC files (IFCCIRCLE...).
+    const name = ifcCategoryMap[curve.type];
+    if (name) return name;
     return `IFC type ${curve.type}`;
   }
 }
