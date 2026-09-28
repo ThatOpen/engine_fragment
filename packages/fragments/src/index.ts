@@ -1,7 +1,9 @@
 export * from "./Utils";
 // Exported directly (not through the Utils barrel) so the worker bundle,
 // which imports Utils, does not retain web-ifc through these modules.
+export * from "./Utils/ifc-byte-source";
 export * from "./Utils/ifc-index";
+export * from "./Utils/ifc-line-api";
 export * from "./Utils/ifc-parsing-utils";
 export * from "./Utils/ifc-resolver";
 export * from "./Utils/ifc-scanner";

@@ -7,6 +7,8 @@ export interface ConvertRequest {
   file: File;
   mode: ImportMode;
   wasmPath: string;
+  /** Overrides for web-ifc's loader, e.g. `TAPE_SIZE` and `MEMORY_LIMIT`. */
+  webIfcSettings?: Record<string, number | boolean>;
 }
 
 export interface PhaseTiming {

@@ -16,6 +16,12 @@ import {
   ifcRelationsMap,
   geometryTypes,
 } from "../../Utils";
+import {
+  IfcBlobSource,
+  IfcBytesSource,
+} from "../../Utils/ifc-byte-source";
+import { IfcEntityResolver } from "../../Utils/ifc-resolver";
+import { IfcResolverLineApi } from "../../Utils/ifc-line-api";
 
 /**
  * An objet to convert IFC files into fragments.
@@ -172,6 +178,12 @@ export class IfcImporter {
    */
   distanceThreshold: number | null = 100000;
 
+  /**
+   * Largest `file` (in bytes) the property pass reads into memory rather than
+   * through the file reader. See {@link ProcessData.file}.
+   */
+  residentPropertiesBudget = 1024 * 1024 * 1024;
+
   private get builder() {
     if (!this._builder) {
       throw new Error("Fragments: Builder not initialized");
@@ -187,7 +199,12 @@ export class IfcImporter {
    * @param data.readFromCallback Whether to read data from a callback function. Useful for node.js.
    * @param data.readCallback Callback function to read IFC data. Useful for node.js.
    */
-  async process(data: ProcessData) {
+  async process(input: ProcessData) {
+    // A `file` is read in place; everything downstream sees its reader.
+    const data: ProcessData = input.file
+      ? { ...input, source: input.source ?? new IfcBlobSource(input.file) }
+      : input;
+
     this._builder = new fb.Builder(1024);
 
     // Opt-in material property sets (issue #249). Added here rather than in the
@@ -209,6 +226,26 @@ export class IfcImporter {
 
     // Get properties
 
+    // With a reader, properties come from the parsing layer: the file is
+    // indexed once, now that web-ifc and its copy of the file are gone, and
+    // entities are parsed from it on demand. Without one, the pass opens the
+    // file in a second web-ifc instance, as it always has.
+    let lineApi: IfcResolverLineApi | undefined;
+    if (data.source) {
+      data.progressCallback?.(0.5, { process: "indexing", state: "start" });
+      const source = await this.propertiesSource(data);
+      const resolver = await IfcEntityResolver.fromSource(source, {
+        stream: source === data.source ? data.file?.stream() : undefined,
+        onProgress: (scanned) =>
+          data.progressCallback?.(0.5 + (0.1 * scanned) / source.size, {
+            process: "indexing",
+            state: "inProgress",
+          }),
+      });
+      lineApi = new IfcResolverLineApi(resolver);
+      data.progressCallback?.(0.6, { process: "indexing", state: "finish" });
+    }
+
     const properties = new IfcPropertyProcessor(this, this.builder);
     properties.wasm = this.wasm;
     properties.webIfcSettings = this.webIfcSettings;
@@ -218,6 +255,7 @@ export class IfcImporter {
       alignments,
       grids,
       maxLocalID,
+      lineApi,
     };
     const propsData = await properties.process(propsArgs);
     const {
@@ -288,6 +326,20 @@ export class IfcImporter {
    */
   addAllRelations() {
     this.relations = new Map(ifcRelationsMap);
+  }
+
+  /**
+   * Where the property pass reads from. It visits entities class by class, so
+   * its reads jump around the file; a file that fits the resident budget is
+   * read into memory once, since web-ifc is gone by then and its memory
+   * with it.
+   */
+  private async propertiesSource(data: ProcessData) {
+    const source = data.source!;
+    if (!data.file || data.file.size > this.residentPropertiesBudget) {
+      return source;
+    }
+    return new IfcBytesSource(new Uint8Array(await data.file.arrayBuffer()));
   }
 
   private clean() {

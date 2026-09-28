@@ -43,6 +43,11 @@ world.camera.controls.addEventListener("update", () => fragments.update());
 
 const params = new URLSearchParams(location.search);
 const loadIntoViewer = params.get("view") !== "0";
+// Loader overrides for experiments, e.g. ?TAPE_SIZE=16777216&MEMORY_LIMIT=...
+const webIfcSettings: Record<string, number> = {};
+for (const key of ["TAPE_SIZE", "MEMORY_LIMIT"]) {
+  if (params.has(key)) webIfcSettings[key] = Number(params.get(key));
+}
 const wasmPath =
   params.get("wasm") ??
   (import.meta.env.DEV
@@ -141,7 +146,8 @@ const convert = (file: File, mode: ImportMode) =>
         setProgress(message.fraction, `${message.phase}${detail}`);
         return;
       }
-      worker.terminate();
+      // ?keepWorker=1 leaves it alive for a profiler to collect from
+      if (!params.has("keepWorker")) worker.terminate();
       if (message.type === "done") resolve(message);
       else reject(Object.assign(new Error(message.message), message));
     };
@@ -149,7 +155,13 @@ const convert = (file: File, mode: ImportMode) =>
       worker.terminate();
       reject(new Error(event.message || "Import worker crashed"));
     };
-    const request: ConvertRequest = { type: "convert", file, mode, wasmPath };
+    const request: ConvertRequest = {
+      type: "convert",
+      file,
+      mode,
+      wasmPath,
+      webIfcSettings,
+    };
     worker.postMessage(request);
   });
 

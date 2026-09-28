@@ -9,6 +9,7 @@ import {
   ifcCategoryMap,
   getProvenanceMetadata,
 } from "../../../../Utils";
+import type { IfcLineApi } from "../../../../Utils/ifc-line-api";
 import { ProcessData } from "../types";
 import {
   ALIGNMENT_CATEGORY,
@@ -22,6 +23,11 @@ export interface PropertiesProcessData extends ProcessData {
   alignments?: AlignmentData[];
   grids?: GridData[];
   maxLocalID: number;
+  /**
+   * Where to read entities from. Left out, the pass opens the file in a
+   * web-ifc instance of its own.
+   */
+  lineApi?: IfcLineApi;
 }
 
 export class IfcPropertyProcessor {
@@ -33,13 +39,18 @@ export class IfcPropertyProcessor {
   // reachable by more than one relation (e.g. an alignment aggregated to the
   // project and also referenced by a bridge) is listed once, not duplicated.
   private _spatialVisited = new Set<number>();
+  // expressID -> position in `expressIDs`, built once for the spatial walk,
+  // which would otherwise search `expressIDs` for every child it visits.
+  private _expressIDIndex = new Map<number, number>();
   private _guids: string[] = [];
   private _guidsItems: number[] = [];
   private _uniqueAttributes = new Set<string>();
   private _uniqueRelNames = new Set<string>();
   private _maxLocalID = 0;
 
-  private _ifcApi: WEBIFC.IfcAPI | null = null;
+  private _ifcApi: IfcLineApi | null = null;
+  // Only set when this pass opened web-ifc itself, and so has to dispose it.
+  private _webIfc: WEBIFC.IfcAPI | null = null;
   wasm = {
     path: "/node_modules/web-ifc/",
     absolute: false,
@@ -51,15 +62,27 @@ export class IfcPropertyProcessor {
 
   readonly classes: string[] = [];
 
-  async getIfcApi() {
+  async getIfcApi(): Promise<IfcLineApi> {
     if (!this._ifcApi) {
-      const ifcApi = new WEBIFC.IfcAPI();
-      ifcApi.SetWasmPath(this.wasm.path, this.wasm.absolute);
-      await ifcApi.Init();
-      ifcApi.SetLogLevel(WEBIFC.LogLevel.LOG_LEVEL_OFF);
-      this._ifcApi = ifcApi;
+      throw new Error("Fragments: the property pass has no IFC source");
     }
     return this._ifcApi;
+  }
+
+  private async openWebIfc(data: ProcessData) {
+    const ifcApi = new WEBIFC.IfcAPI();
+    ifcApi.SetWasmPath(this.wasm.path, this.wasm.absolute);
+    await ifcApi.Init();
+    ifcApi.SetLogLevel(WEBIFC.LogLevel.LOG_LEVEL_OFF);
+    this._webIfc = ifcApi;
+    if (data.readFromCallback && data.readCallback) {
+      ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
+    } else if (data.bytes) {
+      await ifcApi.OpenModel(data.bytes, this.webIfcSettings);
+    } else {
+      throw new Error("Fragments: No data provided");
+    }
+    return ifcApi;
   }
 
   private async getSchema(modelId = 0) {
@@ -97,16 +120,9 @@ export class IfcPropertyProcessor {
 
   async process(data: PropertiesProcessData) {
     // Open the IFC
-    const ifcApi = await this.getIfcApi();
+    const ifcApi = data.lineApi ?? (await this.openWebIfc(data));
+    this._ifcApi = ifcApi;
     this._maxLocalID = data.maxLocalID + 1;
-
-    if (data.readFromCallback && data.readCallback) {
-      ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
-    } else if (data.bytes) {
-      await ifcApi.OpenModel(data.bytes, this.webIfcSettings);
-    } else {
-      throw new Error("Fragments: No data provided");
-    }
 
     if (this._serializer.replaceStoreyElevation) {
       await this.setLengthUnitsFactor();
@@ -125,11 +141,12 @@ export class IfcPropertyProcessor {
     // First process items that been processed by geometry processor
 
     const itemsWithGeom = data.geometryProcessedLocalIDs;
+    data.progressCallback?.(0.6, { process: "attributes", state: "start" });
     await this.processItems(itemsWithGeom);
     const visitedItems = new Set(itemsWithGeom);
     data.progressCallback?.(0.6, {
       process: "attributes",
-      state: "start",
+      state: "inProgress",
       entitiesProcessed: itemsWithGeom.length,
     });
 
@@ -193,6 +210,7 @@ export class IfcPropertyProcessor {
       });
     }
 
+    data.progressCallback?.(0.9, { process: "serializing", state: "start" });
     const { relIndicesVector, relsVector } = this.getRelationsVector();
     const { guidsVector, guidsItemsVector } = this.getGuidsVector();
     const metadataOffset = await this.getMetadataOffset();
@@ -736,7 +754,7 @@ export class IfcPropertyProcessor {
     return metadataOffset;
   }
 
-  private extractCRS(ifcApi: WEBIFC.IfcAPI) {
+  private extractCRS(ifcApi: IfcLineApi) {
     // Try IFCPROJECTEDCRS first, then fall back to IFCCOORDINATEREFERENCESYSTEM
     let crsEntity: any = null;
     try {
@@ -846,8 +864,8 @@ export class IfcPropertyProcessor {
       const entityGroups: { [type: string]: number[] } = {};
       for (const relatedID of relations) {
         if (this._spatialVisited.has(relatedID)) continue;
-        const entityIndex = this.expressIDs.indexOf(relatedID);
-        if (entityIndex === -1) continue;
+        const entityIndex = this._expressIDIndex.get(relatedID);
+        if (entityIndex === undefined) continue;
         const entityClass = this.classes[entityIndex];
         if (!entityClass) continue;
         this._spatialVisited.add(relatedID);
@@ -890,6 +908,13 @@ export class IfcPropertyProcessor {
     const ifcApi = await this.getIfcApi();
     const ifcClass = WEBIFC.IFCPROJECT;
     const classEntities = [...ifcApi.GetLineIDsWithType(0, ifcClass)];
+    this._expressIDIndex = new Map();
+    for (let i = 0; i < this.expressIDs.length; i++) {
+      // first wins, as `indexOf` did
+      if (!this._expressIDIndex.has(this.expressIDs[i])) {
+        this._expressIDIndex.set(this.expressIDs[i], i);
+      }
+    }
     // The project roots are the entry points; mark them visited so a stray
     // reference back to them can't re-nest the whole tree.
     this._spatialVisited = new Set<number>(classEntities);
@@ -924,8 +949,10 @@ export class IfcPropertyProcessor {
   }
 
   clean() {
-    this._ifcApi?.Dispose();
+    this._webIfc?.Dispose();
+    this._webIfc = null;
     this._ifcApi = null;
+    this._expressIDIndex = new Map();
     this._guids = [];
     this._guidsItems = [];
     this._attributesOffsets = [];
