@@ -30,6 +30,14 @@ export class Hasher {
    * to the nearest 1/10000.
    * @returns An unsigned 64-bit integer.
    */
+  /**
+   * A 64-bit digest of `text`, as 16 hex characters: a short stand-in for a
+   * long key that has to be stored or sent many times.
+   */
+  hashString(text: string) {
+    return this.hasher.h64ToString(text);
+  }
+
   hashCoordinates(coordinates: ArrayLike<number>, precision: number) {
     const quantized = new Int32Array(coordinates.length);
 
