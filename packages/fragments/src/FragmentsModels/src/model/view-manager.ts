@@ -5,6 +5,10 @@ import { MeshManager } from "./mesh-manager";
 import { CameraUtils, GPU } from "../utils";
 
 export class ViewManager {
+  /**
+   * Returns the planes to clip against. Read on every view refresh, so it
+   * may return an array that the caller mutates in place.
+   */
   getClippingPlanesEvent: () => THREE.Plane[] = () => [];
 
   currentCamera: THREE.PerspectiveCamera | THREE.OrthographicCamera | null =

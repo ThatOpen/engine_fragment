@@ -226,6 +226,7 @@ export class FragmentsModels {
    * @param options - Configuration options for loading the model.
    * @param options.modelId - Unique identifier for the model.
    * @param options.camera - Optional camera to use for model culling and LOD.
+   * @param options.clippingPlanes - Optional clipping planes (world space) to cull against. The array is kept by reference and read on every view refresh; see {@link FragmentsModel.useClippingPlanes}.
    * @param options.raw - Whether the buffer is raw (uncompressed) or deflated. If omitted, it is auto-detected from the buffer (see {@link isRawBuffer}).
    * @param options.userData - Optional custom data to attach to the model.
    * @param options.virtualModelConfig - Optional configuration for virtual model setup.
@@ -236,6 +237,7 @@ export class FragmentsModels {
     options: {
       modelId: string;
       camera?: THREE.PerspectiveCamera | THREE.OrthographicCamera;
+      clippingPlanes?: THREE.Plane[];
       raw?: boolean;
       userData?: Record<string, any>;
       virtualModelConfig?: VirtualModelConfig;
@@ -326,10 +328,14 @@ export class FragmentsModels {
       this._progressCallbacks.delete(options.modelId);
     }
 
-    const { camera } = options;
+    const { camera, clippingPlanes } = options;
 
     if (camera) {
       model.useCamera(camera);
+    }
+
+    if (clippingPlanes) {
+      model.useClippingPlanes(clippingPlanes);
     }
 
     // Model has all the data, so it can start updating
