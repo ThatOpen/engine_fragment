@@ -109,15 +109,24 @@ export class IfcProjectedReader {
     });
 
     // Processing order: the one a single pass uses, element by element
-    const order: [category: number, id: number][] = [];
-    for (const category of elementClasses(
+    const classes = elementClasses(
       lines.GetAllTypesOfModel(0).map(({ typeID }) => typeID),
       this._serializer.classes.elements,
-    )) {
+    );
+    let total = 0;
+    for (const category of classes) {
+      total += lines.GetLineIDsWithType(0, category).size();
+    }
+    const orderIds = new Uint32Array(total);
+    const orderCategories = new Uint32Array(total);
+    let filled = 0;
+    for (const category of classes) {
       for (const id of lines.GetLineIDsWithType(0, category)) {
-        order.push([category, id]);
+        orderIds[filled] = id;
+        orderCategories[filled++] = category;
       }
     }
+    const order = { length: total };
 
     // Enough batches that every executor gets several, so none idles while
     // another finishes a long one, but never more than asked for.
@@ -150,7 +159,8 @@ export class IfcProjectedReader {
         count < maxElements &&
         (count === 0 || projector.size < options.batchBytes)
       ) {
-        const [category, id] = order[next++];
+        const id = orderIds[next];
+        const category = orderCategories[next++];
         let group = groups[groups.length - 1];
         if (!group || group.category !== category) {
           group = { category, ids: [] };

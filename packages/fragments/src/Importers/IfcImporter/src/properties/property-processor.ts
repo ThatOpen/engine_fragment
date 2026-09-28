@@ -1,22 +1,23 @@
-import * as WEBIFC from "web-ifc";
 import { Builder } from "flatbuffers";
-import * as TFB from "../../../../Schema";
-import { RawEntityAttrs } from "./types";
-import { ifcValueTypeName } from "./value-type-name";
+import * as WEBIFC from "web-ifc";
 import { IfcImporter } from "../..";
-import {
-  FragmentsIfcUtils,
-  ifcCategoryMap,
-  getProvenanceMetadata,
-} from "../../../../Utils";
-import type { IfcLineApi } from "../../../../Utils/ifc-line-api";
-import { ProcessData } from "../types";
 import {
   ALIGNMENT_CATEGORY,
   AlignmentData,
   GRID_CATEGORY,
   GridData,
 } from "../../../../FragmentsModels";
+import * as TFB from "../../../../Schema";
+import {
+  FragmentsIfcUtils,
+  getProvenanceMetadata,
+  ifcCategoryMap,
+} from "../../../../Utils";
+import type { IfcLineApi } from "../../../../Utils/ifc-line-api";
+import { ProcessData } from "../types";
+import { RelationEdges } from "./relation-edges";
+import { RawEntityAttrs } from "./types";
+import { ifcValueTypeName } from "./value-type-name";
 
 export interface PropertiesPrepareData extends ProcessData {
   /**
@@ -33,7 +34,7 @@ export interface PropertiesPrepareData extends ProcessData {
 }
 
 export interface PropertiesFinishData extends ProcessData {
-  geometryProcessedLocalIDs: number[];
+  geometryProcessedLocalIDs: Iterable<number>;
   alignments?: AlignmentData[];
   grids?: GridData[];
   maxLocalID: number;
@@ -56,7 +57,7 @@ const nextTask = () =>
 export class IfcPropertyProcessor {
   private _lengthUnitsFactor = 1;
   private _attributesOffsets: number[] = [];
-  private _relationsMap: Record<number, { [name: string]: number[] }> = {};
+  private _relations = new RelationEdges();
 
   // Tracks entities already placed in the spatial structure so an item
   // reachable by more than one relation (e.g. an alignment aggregated to the
@@ -404,12 +405,7 @@ export class IfcPropertyProcessor {
   }
 
   private addRelation(expressID: number, relName: string, ids: number[]) {
-    if (!this._relationsMap[expressID]) this._relationsMap[expressID] = {};
-    if (!this._relationsMap[expressID][relName])
-      this._relationsMap[expressID][relName] = [];
-    for (const id of ids) {
-      this._relationsMap[expressID][relName].push(id);
-    }
+    this._relations.add(expressID, relName, ids);
     if (this._serializer.includeRelationNames) {
       this._uniqueRelNames.add(relName);
     }
@@ -754,29 +750,29 @@ export class IfcPropertyProcessor {
   getRelationsVector(clean = false) {
     const rels: number[] = [];
     const ids: number[] = [];
-    for (const [expressID, entityRels] of Object.entries(this._relationsMap)) {
-      if (clean && !this.expressIDs.includes(Number(expressID))) continue; // very expensive
+    const kept = clean ? new Set(this.expressIDs) : null;
+    this._relations.forEach((expressID, entityRels) => {
+      if (kept && !kept.has(expressID)) return;
       const definitions: number[] = [];
-      for (const [attrName, _rels] of Object.entries(entityRels)) {
+      for (const [attrName, _rels] of entityRels) {
         let rels = _rels;
-        if (clean) {
-          rels = _rels.filter((id) => this.expressIDs.includes(id)); // very expensive
+        if (kept) {
+          rels = _rels.filter((id) => kept.has(id));
           if (rels.length === 0) continue;
         }
         const hash = JSON.stringify([attrName, ...rels]);
         const offset = this._builder.createSharedString(hash);
         definitions.push(offset);
       }
-      if (clean && definitions.length === 0) continue;
-      // ids.push(this._expressIDs.indexOf(Number(expressID)))
-      ids.push(Number(expressID));
+      if (kept && definitions.length === 0) return;
+      ids.push(expressID);
       const dataVector = TFB.Relation.createDataVector(
         this._builder,
         definitions,
       );
       const relOffset = TFB.Relation.createRelation(this._builder, dataVector);
       rels.push(relOffset);
-    }
+    });
     const relsVector = TFB.Model.createRelationsVector(this._builder, rels);
     const relIndicesVector = TFB.Model.createRelationsItemsVector(
       this._builder,
@@ -927,7 +923,7 @@ export class IfcPropertyProcessor {
     const offsets: number[] = [];
 
     for (const attrName of inverseAttributes) {
-      const relations = this._relationsMap[expressID]?.[attrName];
+      const relations = this._relations.get(expressID, attrName);
       if (!relations) continue;
 
       const entityGroups: { [type: string]: number[] } = {};
@@ -1027,7 +1023,7 @@ export class IfcPropertyProcessor {
     this._guids = [];
     this._guidsItems = [];
     this._attributesOffsets = [];
-    this._relationsMap = {};
+    this._relations = new RelationEdges();
     this._uniqueAttributes.clear();
     this._uniqueRelNames.clear();
     (this.expressIDs as any) = [];

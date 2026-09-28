@@ -290,7 +290,11 @@ export class IfcGeometryExtractor {
     // are quantized and why the fold is order-sensitive.
     const vertexKey = this._hasher.hashCoordinates(position, p);
 
-    return `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`;
+    // Digested: the full key is ~150 characters, and it is sent from a worker
+    // and held by assembly once per geometry.
+    return this._hasher.hashString(
+      `${vertexCount}-${triangleCount}-${hashAreaSum}-${hashBigArea}-${hashVolume}-${cx}-${cy}-${cz}-${minX}-${minY}-${minZ}-${maxX}-${maxY}-${maxZ}-${vertexKey}`,
+    );
   }
 
   private extractExtrusion(

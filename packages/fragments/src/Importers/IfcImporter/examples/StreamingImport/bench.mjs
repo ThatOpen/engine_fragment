@@ -133,6 +133,11 @@ const { sessionId: page } = await send("Target.attachToTarget", {
 
 const workers = new Map(); // sessionId -> { url, peakUsed, peakTotal }
 const profiled = []; // worker sessions being CPU-profiled (--profile <out>)
+// Import worker sessions whose live allocations are sampled (--heap <out>).
+// The largest sample seen approximates the heap at its peak.
+const heapSampled = [];
+let heapPeak = { total: 0, profile: null, at: 0 };
+let lastHeapSample = 0;
 let crashed = false;
 listeners.push(({ method, params, sessionId }) => {
   if (method === "Target.attachedToTarget") {
@@ -152,6 +157,18 @@ listeners.push(({ method, params, sessionId }) => {
       { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
       child,
     ).catch(() => {});
+    if (args.heap && targetInfo.url.includes("import-worker")) {
+      heapSampled.push(child);
+      send("HeapProfiler.enable", {}, child)
+        .then(() =>
+          send(
+            "HeapProfiler.startSampling",
+            { samplingInterval: 256 * 1024 },
+            child,
+          ),
+        )
+        .catch(() => {});
+    }
     if (args.profile && targetInfo.url.includes("import-worker")) {
       profiled.push(child);
       send("Profiler.enable", {}, child)
@@ -275,6 +292,31 @@ while (!result && !crashed && Date.now() - started < timeoutMs) {
     }),
   );
 
+  if (heapSampled.length && Date.now() - lastHeapSample > 2000) {
+    lastHeapSample = Date.now();
+    for (const sessionId of heapSampled) {
+      try {
+        const { profile } = await send(
+          "HeapProfiler.getSamplingProfile",
+          {},
+          sessionId,
+          10000,
+        );
+        let total = 0;
+        const walk = (node) => {
+          total += node.selfSize;
+          node.children.forEach(walk);
+        };
+        walk(profile.head);
+        if (total > heapPeak.total) {
+          heapPeak = { total, profile, at: (Date.now() - started) / 1000 };
+        }
+      } catch {
+        // busy or gone
+      }
+    }
+  }
+
   try {
     const { result: value } = await send(
       "Runtime.evaluate",
@@ -289,6 +331,14 @@ while (!result && !crashed && Date.now() - started < timeoutMs) {
   } catch {
     // the main thread is busy; try again next tick
   }
+}
+
+if (args.heap && heapPeak.profile) {
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(args.heap, JSON.stringify(heapPeak.profile));
+  console.error(
+    `heap sample (${Math.round(heapPeak.total / 1048576)} MB live at ${heapPeak.at} s) written to ${args.heap}`,
+  );
 }
 
 if (args.screenshot && result) {
