@@ -1,0 +1,115 @@
+/// <reference lib="webworker" />
+import { IfcImporter } from "../..";
+import type {
+  ConvertRequest,
+  ImportStats,
+  PhaseTiming,
+  WorkerMessage,
+} from "./protocol";
+
+// WebAssembly memories only grow, so the size each one ends at is its peak.
+// Recording every memory the worker instantiates gives the WASM peak without
+// reaching into web-ifc's internals.
+const wasmMemories: WebAssembly.Memory[] = [];
+const trackInstance = (instance: WebAssembly.Instance) => {
+  for (const value of Object.values(instance.exports)) {
+    if (value instanceof WebAssembly.Memory) wasmMemories.push(value);
+  }
+};
+const instantiate = WebAssembly.instantiate;
+WebAssembly.instantiate = (async (...args: Parameters<typeof instantiate>) => {
+  const result = await instantiate(...args);
+  trackInstance(
+    result instanceof WebAssembly.Instance ? result : result.instance,
+  );
+  return result;
+}) as typeof instantiate;
+const instantiateStreaming = WebAssembly.instantiateStreaming;
+WebAssembly.instantiateStreaming = async (...args) => {
+  const result = await instantiateStreaming(...args);
+  trackInstance(result.instance);
+  return result;
+};
+
+const post = (message: WorkerMessage, transfer: Transferable[] = []) =>
+  postMessage(message, transfer);
+
+let peakJsHeap: number | null = null;
+const sampleHeap = () => {
+  const memory = (performance as any).memory;
+  if (!memory) return;
+  peakJsHeap = Math.max(peakJsHeap ?? 0, memory.usedJSHeapSize);
+};
+
+class PhaseClock {
+  readonly phases: PhaseTiming[] = [];
+  private _current: string | null = null;
+  private _start = 0;
+
+  enter(phase: string) {
+    if (phase === this._current) return;
+    this.close();
+    this._current = phase;
+    this._start = performance.now();
+  }
+
+  close() {
+    if (this._current === null) return;
+    this.phases.push({
+      phase: this._current,
+      ms: performance.now() - this._start,
+    });
+    this._current = null;
+  }
+}
+
+const convertLegacy = async (request: ConvertRequest, clock: PhaseClock) => {
+  clock.enter("read file");
+  const bytes = new Uint8Array(await request.file.arrayBuffer());
+
+  const importer = new IfcImporter();
+  importer.wasm = { path: request.wasmPath, absolute: true };
+
+  const output = await importer.process({
+    bytes,
+    raw: true,
+    progressCallback: (fraction, data) => {
+      sampleHeap();
+      clock.enter(data.process);
+      post({
+        type: "progress",
+        phase: data.process,
+        fraction,
+        detail: data.class,
+      });
+    },
+  });
+  clock.close();
+  return { output, counts: {} };
+};
+
+onmessage = async (event: MessageEvent<ConvertRequest>) => {
+  const request = event.data;
+  if (request.type !== "convert") return;
+  const clock = new PhaseClock();
+  const start = performance.now();
+  try {
+    const { output, counts } = await convertLegacy(request, clock);
+    clock.close();
+    sampleHeap();
+    const stats: ImportStats = {
+      mode: request.mode,
+      fileBytes: request.file.size,
+      outputBytes: output.byteLength,
+      totalMs: performance.now() - start,
+      phases: clock.phases,
+      wasmMemories: wasmMemories.map((memory) => memory.buffer.byteLength),
+      peakJsHeap,
+      counts,
+    };
+    post({ type: "done", bytes: output, stats }, [output.buffer]);
+  } catch (error) {
+    const err = error as Error;
+    post({ type: "error", message: String(err?.message ?? err), stack: err?.stack });
+  }
+};
