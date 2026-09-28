@@ -263,6 +263,7 @@ export class IfcImporter {
         batchBytes: batches.batchBytes ?? 32 * 1024 * 1024,
         batchElements: batches.batchElements ?? 2000,
         probeElements: batches.probeElements ?? 32,
+        targetBatchMs: batches.targetBatchMs ?? 1000,
         coordinateToOrigin: this.webIfcSettings.COORDINATE_TO_ORIGIN === true,
       };
     }

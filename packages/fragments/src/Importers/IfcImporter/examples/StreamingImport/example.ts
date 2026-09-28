@@ -214,15 +214,33 @@ const onFile = async (file: File) => {
 
     let viewerMs: number | undefined;
     if (loadIntoViewer) {
-      setProgress(1, "Loading into the viewer…");
       const start = performance.now();
+      // The bar starts over for the viewer: the fragments worker reports
+      // parsing the model, then generating its meshes.
+      const showViewerProgress = (fraction: number, stage: string) => {
+        const elapsed = formatMs(performance.now() - start);
+        const percent = Math.round(fraction * 100);
+        setProgress(
+          fraction,
+          `${elapsed} · loading into the viewer · ${stage} ${percent}%`,
+        );
+      };
+      showViewerProgress(0, "sending");
       // `load` transfers its buffer to the fragments worker, so hand it a copy
       // and keep the original for the download button.
       const model = await fragments.load(bytes.slice(), {
         modelId: `model-${modelCount++}`,
         camera: world.camera.three,
+        onProgress: ({ stage, progress }) => {
+          if (stage === "decompressing") showViewerProgress(0.05 * progress, stage);
+          else if (stage === "parsing") showViewerProgress(0.1, stage);
+          else if (stage === "generating") {
+            showViewerProgress(0.1 + 0.85 * progress, stage);
+          }
+        },
       });
       world.scene.three.add(model.object);
+      showViewerProgress(0.95, "first render");
       await fragments.update(true);
       viewerMs = performance.now() - start;
       clearButton.disabled = false;

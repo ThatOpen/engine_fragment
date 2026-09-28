@@ -12,6 +12,7 @@
 //                  [--url http://localhost:5173/...] [--chrome <path>]
 //                  [--timeout <seconds>] [--headed] [--console]
 //                  [--query <extra page params>] [--screenshot <out.png>]
+//                  [--status]   # print the page's status line as it changes
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
@@ -258,6 +259,7 @@ const rssOf = (pids) => {
 };
 
 let peakRss = 0;
+const statusTrace = []; // [seconds, status line] as it changes (--status)
 const rssSeries = [];
 const started = Date.now();
 await send("DOM.setFileInputFiles", { files: [file], nodeId: input }, page);
@@ -314,6 +316,26 @@ while (!result && !crashed && Date.now() - started < timeoutMs) {
       } catch {
         // busy or gone
       }
+    }
+  }
+
+  if (args.status) {
+    try {
+      const { result: status } = await send(
+        "Runtime.evaluate",
+        {
+          expression: "document.getElementById('status')?.textContent",
+          returnByValue: true,
+        },
+        page,
+        2000,
+      );
+      const text = status.value;
+      if (text && text !== statusTrace[statusTrace.length - 1]?.[1]) {
+        statusTrace.push([(Date.now() - started) / 1000, text]);
+      }
+    } catch {
+      // busy
     }
   }
 
@@ -406,6 +428,7 @@ const summary = {
   cores: (await import("node:os")).cpus().length,
 };
 console.log(JSON.stringify(summary, null, 2));
+if (args.status) console.error(JSON.stringify(statusTrace));
 if (args.series) {
   console.log(
     JSON.stringify(rssSeries.map(([t, rss]) => [t / 1000, mb(rss)])),

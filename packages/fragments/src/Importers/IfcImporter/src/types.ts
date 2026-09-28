@@ -79,6 +79,12 @@ export interface ProcessData {
      * model's origin. Defaults to 32.
      */
     probeElements?: number;
+    /**
+     * How long a batch should take, in ms: batches are sized from the time
+     * recent ones took per element, so costly runs of elements spread over
+     * the workers. 0 sizes by element count only. Defaults to 1000.
+     */
+    targetBatchMs?: number;
   };
   progressCallback?: (progress: number, data: ProgressData) => void;
 }

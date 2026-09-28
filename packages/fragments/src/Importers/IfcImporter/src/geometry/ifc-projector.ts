@@ -176,6 +176,16 @@ function argumentSpan(bytes: Uint8Array, argument: number) {
 
 const encoder = new TextEncoder();
 
+// Rough cost of meshing, in milliseconds, from what an element's closure
+// holds. Only relative costs matter — measured batch times calibrate the
+// scale — but the orders of magnitude are from measured models: CSG is what
+// makes Tekla members slow, geometry bytes what makes breps slow, and web-ifc
+// meshes a mapped representation again for every instance of it.
+const COST_PER_ELEMENT = 0.3;
+const COST_PER_BYTE = 2e-5;
+const COST_PER_BOOLEAN = 4;
+const COST_PER_VOID = 3;
+
 /**
  * Plans and writes {@link Projection}s of one file.
  *
@@ -212,6 +222,14 @@ export class IfcProjector {
   // How far `closeStyles` has swept `_positions`
   private _closedUpTo = 0;
 
+  // Estimated meshing cost of what was added since `takeCost`
+  private _cost = 0;
+  private readonly _booleanCodes = new Set<number>();
+  private readonly _voidsCode: number;
+  private readonly _mappedItemCode: number;
+  // IfcRepresentationMap -> the cost of meshing one instance of it
+  private readonly _mapCosts = new Map<number, number>();
+
   constructor(private readonly _resolver: IfcEntityResolver) {
     const { index } = _resolver;
     this._stamp = new Uint32Array(index.count);
@@ -225,6 +243,11 @@ export class IfcProjector {
     const materialDefs = code("IFCMATERIALDEFINITIONREPRESENTATION");
     const project = code("IFCPROJECT");
     const alignment = code("IFCALIGNMENT");
+    for (const type of ["IFCBOOLEANRESULT", "IFCBOOLEANCLIPPINGRESULT"]) {
+      if (index.codeOf(type)) this._booleanCodes.add(index.codeOf(type));
+    }
+    this._voidsCode = voids;
+    this._mappedItemCode = code("IFCMAPPEDITEM");
 
     const found: number[] = [];
     for (let at = 0; at < index.count; at++) {
@@ -308,8 +331,19 @@ export class IfcProjector {
     return this._bytes;
   }
 
+  /**
+   * Estimated cost of meshing what was added since the last call, in rough
+   * milliseconds; see the weights above.
+   */
+  takeCost() {
+    const cost = this._cost;
+    this._cost = 0;
+    return cost;
+  }
+
   /** Adds an element and everything its geometry reads. */
   addElement(id: number) {
+    this._cost += COST_PER_ELEMENT;
     this.addWithReverse(id);
     this.addInheritedVoids(id);
     this.closeStyles();
@@ -404,12 +438,54 @@ export class IfcProjector {
 
   /** Marks `id`; false when it is dangling or already in. */
   private mark(id: number) {
-    const at = this._resolver.index.indexOf(id);
+    const { index } = this._resolver;
+    const at = index.indexOf(id);
     if (at === -1 || this._stamp[at] === this._walk) return -1;
     this._stamp[at] = this._walk;
     this._positions.push(at);
-    this._bytes += this._resolver.index.lengthAt(at) + 1;
+    const length = index.lengthAt(at);
+    this._bytes += length + 1;
+    this.addCost(at, length);
     return at;
+  }
+
+  private addCost(at: number, length: number) {
+    const type = this._resolver.index.typeCodeAt(at);
+    this._cost += length * COST_PER_BYTE;
+    if (this._booleanCodes.has(type)) this._cost += COST_PER_BOOLEAN;
+    else if (type === this._voidsCode) this._cost += COST_PER_VOID;
+    else if (type === this._mappedItemCode) {
+      // Each instance is meshed anew, even when its map is already in
+      const found: number[] = [];
+      const [source] = this.refsAt(at, found, 0);
+      if (source !== undefined) this._cost += this.mapCost(source);
+    }
+  }
+
+  /** The cost of meshing one instance of a representation map, cached. */
+  private mapCost(map: number) {
+    const cached = this._mapCosts.get(map);
+    if (cached !== undefined) return cached;
+    const { index } = this._resolver;
+    let cost = 0;
+    const seen = new Set<number>([map]);
+    const stack = [map];
+    while (stack.length) {
+      const at = index.indexOf(stack.pop()!);
+      if (at === -1) continue;
+      const type = index.typeCodeAt(at);
+      cost += index.lengthAt(at) * COST_PER_BYTE;
+      if (this._booleanCodes.has(type)) cost += COST_PER_BOOLEAN;
+      const found: number[] = [];
+      for (const ref of this.refsAt(at, found)) {
+        if (!seen.has(ref)) {
+          seen.add(ref);
+          stack.push(ref);
+        }
+      }
+    }
+    this._mapCosts.set(map, cost);
+    return cost;
   }
 
   /** Adds `id` and everything it refers to, transitively. */
