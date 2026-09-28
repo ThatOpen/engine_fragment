@@ -170,6 +170,9 @@ const convert = (file: File, mode: ImportMode) =>
       batchBytes: params.has("batchBytes")
         ? Number(params.get("batchBytes"))
         : undefined,
+      residentBudget: params.has("resident")
+        ? Number(params.get("resident"))
+        : undefined,
     };
     worker.postMessage(request);
   });

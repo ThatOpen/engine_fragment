@@ -81,6 +81,9 @@ const createImporter = (request: ConvertRequest, clock: PhaseClock) => {
   const importer = new IfcImporter();
   importer.wasm = { path: request.wasmPath, absolute: true };
   Object.assign(importer.webIfcSettings, request.webIfcSettings);
+  if (request.residentBudget !== undefined) {
+    importer.residentBudget = request.residentBudget;
+  }
   const progressCallback = (fraction: number, data: ProgressData) => {
     sampleHeap();
     const phase = phaseNames[data.process];
@@ -103,7 +106,9 @@ const convertInMemory = async (request: ConvertRequest, clock: PhaseClock) => {
 /** Reads the `File` in place; properties come from the parsing layer. */
 const convertStreaming = async (request: ConvertRequest, clock: PhaseClock) => {
   const { importer, progressCallback } = createImporter(request, clock);
-  const source = new IfcBlobSource(request.file);
+  const source = new IfcBlobSource(request.file, {
+    cacheBytes: 128 * 1024 * 1024,
+  });
   const parallel = request.mode === "parallel";
   const output = await importer.process({
     file: request.file,
