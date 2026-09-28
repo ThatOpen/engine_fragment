@@ -65,6 +65,18 @@ Breaking changes were allowed; the ones made:
 
 Also fixed on the way: embind handles leaked per element (`mesh.geometries`, id vectors, a swept-disk probe), an unused web-ifc instance created after every geometry pass, quadratic `unshift` loops over items, and an `indexOf` per child in the spatial walk.
 
+## Answers to the plan's questions for web-ifc's source
+
+From reading web-ifc 0.0.77 (tag `0.77`):
+
+1. **What persists after `StreamMeshes`?** Per element, nothing: it calls `IfcGeometryProcessor::Clear()` after each one. What leaks are embind handles JS never deletes (`mesh.geometries`, `GetGeometry` copies, id vectors), fixed here. `ResetCache` is defined in C++ but never bound, hence "is not a function".
+2. **What does open cost per statement?** About 48–52 bytes of line index (a heap `IfcLine`, a hash-map entry, a per-type id), plus the tape at ~0.9× the file. `MEMORY_LIMIT` can page the tape but never the index. The six relation maps are built lazily with the geometry processor, at ~52–56 bytes per key.
+3. **How is the origin picked?** From vertex 0 of the first geometry with any vertices, in the first element flattened. `SetGeometryTransformation` does not reproduce it exactly: it multiplies in a different order, and rounding then flips a few stored transforms (seen on 10 of 231k items). Streaming the element that set it first does reproduce it exactly.
+4. **Which reverse edges does geometry follow?** `IfcRelVoidsElement` (also given to aggregated children of a voided parent), `IfcStyledItem`, `IfcRelAssociatesMaterial`, `IfcMaterialDefinitionRepresentation`; `IfcRelNests`/`IfcRelAggregates` only for alignments. The project's units are read once.
+5. **Does geometry read lines only through the loader's id API, and could the index be supplied?** It reads through the loader's id-based API; the index and maps are built by scanning and cannot be supplied without a change (D2).
+6. **Which calls can page?** `GetLine`, `GetHeaderLine`, `StreamMeshes`/`GetFlatMesh`, and building the geometry processor; not `GetLineIDsWithType`/`GetAllTypesOfModel`. Eviction drops the oldest chunk, not the least recently used, and with the defaults (64 MB tape chunks, 2 GiB limit) nothing pages below a ~2.2 GB file.
+7. **Can the tokenizer append to a model?** No; opening reads the file twice (a newline count to size the index, then tokenizing). Projections sidestep D3's asks: each batch is a small file opened as usual.
+
 ## Limits and next steps
 
 - **The coordinating thread plans batches serially.** Computing each projection reads statements through the index; for a paged 2.4 GB file that is 31 s (16 s held in memory) of a 68 s conversion, and the workers wait on it. Next: record references during indexing (an adjacency list alongside the index), so planning is a graph walk with no reads, or let workers plan their own batches from a shared index.
