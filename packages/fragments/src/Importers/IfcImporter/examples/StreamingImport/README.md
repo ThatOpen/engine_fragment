@@ -50,7 +50,7 @@ File ──> index (scan once) ──┬──> plan projections ──> geometr
 
 ## Correctness
 
-The output is compared semantically with the original importer's: every item's category, GUID, attributes, relations, its place in the spatial tree, and every sample's geometry (hashed point for point), material and transforms (`parity.ts`). Across eight real models (38–148 MB, IFC2X3 and IFC4, from Tekla, AutoCAD Architecture and two IFC4 exporters, 99k–516k items each) projected batches match the original exactly, and `ifc-projector.test.ts` pins that batches of 1, 7 and 500 elements match a single pass on every fixture. `ifc-line-api.test.ts` pins the parsing layer against `IfcAPI.GetLine` for every line of every fixture.
+The output is compared semantically with the original importer's: every item's category, GUID, attributes, relations, its place in the spatial tree, and every sample's geometry (hashed point for point), material and transforms (`parity.ts`). Across nine real models (38–586 MB, IFC2X3 and IFC4, from Tekla, AutoCAD Architecture and two IFC4 exporters, 99k–516k items each) projected batches match the original exactly, and `ifc-projector.test.ts` pins that batches of 1, 7 and 500 elements match a single pass on every fixture. `ifc-line-api.test.ts` pins the parsing layer against `IfcAPI.GetLine` for every line of every fixture.
 
 ## What changed in the library
 
