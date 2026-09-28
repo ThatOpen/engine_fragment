@@ -154,7 +154,9 @@ export class IfcEntityResolver {
     } = {},
   ): Promise<IfcEntityResolver> {
     const decoder = new TextDecoder(encoding);
-    const builder = new IfcLineIndexBuilder();
+    // Real files average 50-80 bytes a statement; erring low only costs one
+    // growth step.
+    const builder = new IfcLineIndexBuilder(source.size / 80);
     const header = new Map<string, string>();
     let inHeader = true;
     let reported = 0;

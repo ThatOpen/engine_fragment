@@ -216,10 +216,23 @@ export class IfcLineIndex {
  * ```
  */
 export class IfcLineIndexBuilder {
-  private _ids = new Uint32Array(initialCapacity);
-  private _offsets = new Float64Array(initialCapacity);
-  private _lengths = new Uint32Array(initialCapacity);
-  private _types = new Uint16Array(initialCapacity);
+  private _ids: Uint32Array;
+  private _offsets: Float64Array;
+  private _lengths: Uint32Array;
+  private _types: Uint16Array;
+
+  /**
+   * @param expectedCount How many statements to make room for up front. A
+   * good guess saves the copies growing costs, which for a large file are the
+   * index's peak memory.
+   */
+  constructor(expectedCount = initialCapacity) {
+    const capacity = Math.max(initialCapacity, Math.ceil(expectedCount));
+    this._ids = new Uint32Array(capacity);
+    this._offsets = new Float64Array(capacity);
+    this._lengths = new Uint32Array(capacity);
+    this._types = new Uint16Array(capacity);
+  }
 
   // code 0 is the empty type, so a zeroed slot reads as "no type"
   private _typeNames: string[] = [""];
@@ -271,7 +284,8 @@ export class IfcLineIndexBuilder {
   }
 
   private _grow(): void {
-    const size = this._ids.length * 2;
+    // 1.5x rather than 2x: at millions of statements the slack is memory
+    const size = Math.ceil(this._ids.length * 1.5);
     const ids = new Uint32Array(size);
     const offsets = new Float64Array(size);
     const lengths = new Uint32Array(size);
@@ -303,10 +317,16 @@ export class IfcLineIndexBuilder {
     let types: Uint16Array;
 
     if (this._ascending) {
-      ids = this._ids.slice(0, n);
-      offsets = this._offsets.slice(0, n);
-      lengths = this._lengths.slice(0, n);
-      types = this._types.slice(0, n);
+      // Views when little would be saved by trimming, so the index is never
+      // held twice; copies when the arrays are mostly slack.
+      const trim = n < this._ids.length * 0.75;
+      const take = <T extends Uint32Array | Float64Array | Uint16Array>(
+        column: T,
+      ) => (trim ? column.slice(0, n) : column.subarray(0, n)) as T;
+      ids = take(this._ids);
+      offsets = take(this._offsets);
+      lengths = take(this._lengths);
+      types = take(this._types);
     } else {
       // Sort a permutation and gather, so the four columns stay aligned.
       const source = this._ids;

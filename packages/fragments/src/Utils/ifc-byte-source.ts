@@ -47,6 +47,56 @@ export class IfcBytesSource implements IfcByteSource {
 }
 
 /**
+ * An {@link IfcByteSource} over bytes held in memory as several buffers, for
+ * files larger than one `ArrayBuffer` may be (browsers cap a single read of a
+ * `Blob` at 2 GB).
+ */
+export class IfcChunkedBytesSource implements IfcByteSource {
+  private _scratch = new Uint8Array(0);
+  readonly size: number;
+
+  constructor(
+    private readonly _chunks: Uint8Array[],
+    private readonly _chunkSize: number,
+  ) {
+    this.size = _chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+  }
+
+  /** Reads all of `blob` into memory, `chunkSize` bytes per buffer. */
+  static async read(blob: Blob, chunkSize = 256 * 1024 * 1024) {
+    const chunks: Uint8Array[] = [];
+    for (let offset = 0; offset < blob.size; offset += chunkSize) {
+      const slice = blob.slice(offset, offset + chunkSize);
+      chunks.push(new Uint8Array(await slice.arrayBuffer()));
+    }
+    return new IfcChunkedBytesSource(chunks, chunkSize);
+  }
+
+  read(offset: number, length: number): Uint8Array {
+    const end = Math.min(offset + length, this.size);
+    if (end <= offset) return new Uint8Array(0);
+    const first = Math.floor(offset / this._chunkSize);
+    const last = Math.floor((end - 1) / this._chunkSize);
+    if (first === last) {
+      const start = offset - first * this._chunkSize;
+      return this._chunks[first].subarray(start, start + end - offset);
+    }
+    if (this._scratch.length < end - offset) {
+      this._scratch = new Uint8Array(end - offset);
+    }
+    const out = this._scratch.subarray(0, end - offset);
+    let written = 0;
+    for (let c = first; c <= last; c++) {
+      const from = c === first ? offset - c * this._chunkSize : 0;
+      const to = Math.min(this._chunkSize, end - c * this._chunkSize);
+      out.set(this._chunks[c].subarray(from, to), written);
+      written += to - from;
+    }
+    return out;
+  }
+}
+
+/**
  * An {@link IfcByteSource} over a `Blob` (a `File` from an upload, typically),
  * read synchronously with `FileReaderSync`, so it only works in a worker.
  *
@@ -69,8 +119,8 @@ export class IfcBlobSource implements IfcByteSource {
   constructor(
     private readonly _blob: Blob,
     {
-      pageSize = 1024 * 1024,
-      cacheBytes = 64 * 1024 * 1024,
+      pageSize = 4 * 1024 * 1024,
+      cacheBytes = 128 * 1024 * 1024,
     }: { pageSize?: number; cacheBytes?: number } = {},
   ) {
     const Reader = (globalThis as any).FileReaderSync;

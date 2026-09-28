@@ -118,8 +118,13 @@ const renderMetrics = (stats: ImportStats, viewerMs?: number) => {
     ["Conversion", formatMs(stats.totalMs)],
   ];
   if (viewerMs !== undefined) rows.push(["Viewer load", formatMs(viewerMs)]);
-  const wasmPeak = stats.wasmMemories.reduce((a, b) => Math.max(a, b), 0);
-  rows.push(["Largest WASM heap", formatBytes(wasmPeak)]);
+  // web-ifc's heap: this worker's for one whole-file model, the largest
+  // geometry worker's for batches
+  const wasmPeak = Math.max(
+    stats.workerWasmHeap ?? 0,
+    ...stats.wasmMemories,
+  );
+  rows.push(["Largest web-ifc heap", formatBytes(wasmPeak)]);
   if (stats.peakJsHeap !== null) {
     rows.push(["Worker JS heap (peak seen)", formatBytes(stats.peakJsHeap)]);
   }
@@ -144,11 +149,13 @@ const convert = (file: File, mode: ImportMode) =>
     const worker = new Worker(new URL("./import-worker.ts", import.meta.url), {
       type: "module",
     });
+    const started = performance.now();
     worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
       const message = event.data;
       if (message.type === "progress") {
         const detail = message.detail ? ` · ${message.detail}` : "";
-        setProgress(message.fraction, `${message.phase}${detail}`);
+        const elapsed = formatMs(performance.now() - started);
+        setProgress(message.fraction, `${elapsed} · ${message.phase}${detail}`);
         return;
       }
       // ?keepWorker=1 leaves it alive for a profiler to collect from
@@ -173,6 +180,14 @@ const convert = (file: File, mode: ImportMode) =>
       residentBudget: params.has("resident")
         ? Number(params.get("resident"))
         : undefined,
+      pages: {
+        pageSize: params.has("pageMB")
+          ? Number(params.get("pageMB")) * 1024 * 1024
+          : undefined,
+        cacheBytes: params.has("cacheMB")
+          ? Number(params.get("cacheMB")) * 1024 * 1024
+          : undefined,
+      },
     };
     worker.postMessage(request);
   });

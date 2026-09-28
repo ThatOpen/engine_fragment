@@ -18,6 +18,8 @@ export interface ConvertRequest {
   batchBytes?: number;
   /** See `IfcImporter.residentBudget`. */
   residentBudget?: number;
+  /** Page size and cache for reading the file in place. */
+  pages?: { pageSize?: number; cacheBytes?: number };
   /** Overrides for web-ifc's loader, e.g. `TAPE_SIZE` and `MEMORY_LIMIT`. */
   webIfcSettings?: Record<string, number | boolean>;
 }
@@ -35,6 +37,8 @@ export interface ImportStats {
   phases: PhaseTiming[];
   /** Final size of every WebAssembly memory the worker created. */
   wasmMemories: number[];
+  /** Largest web-ifc heap in any geometry worker, for `parallel` mode. */
+  workerWasmHeap?: number;
   /** Largest `performance.memory.usedJSHeapSize` seen, when the API exists. */
   peakJsHeap: number | null;
   counts: Record<string, number>;

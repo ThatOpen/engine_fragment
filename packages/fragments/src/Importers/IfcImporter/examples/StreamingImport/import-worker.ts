@@ -94,8 +94,17 @@ const createImporter = (request: ConvertRequest, clock: PhaseClock) => {
   return { importer, progressCallback };
 };
 
+interface Converted {
+  output: Uint8Array;
+  counts: Record<string, number>;
+  workerWasmHeap?: number;
+}
+
 /** Reads the whole file, then converts it with a second web-ifc for properties. */
-const convertInMemory = async (request: ConvertRequest, clock: PhaseClock) => {
+const convertInMemory = async (
+  request: ConvertRequest,
+  clock: PhaseClock,
+): Promise<Converted> => {
   clock.enter("read file");
   const bytes = new Uint8Array(await request.file.arrayBuffer());
   const { importer, progressCallback } = createImporter(request, clock);
@@ -104,11 +113,12 @@ const convertInMemory = async (request: ConvertRequest, clock: PhaseClock) => {
 };
 
 /** Reads the `File` in place; properties come from the parsing layer. */
-const convertStreaming = async (request: ConvertRequest, clock: PhaseClock) => {
+const convertStreaming = async (
+  request: ConvertRequest,
+  clock: PhaseClock,
+): Promise<Converted> => {
   const { importer, progressCallback } = createImporter(request, clock);
-  const source = new IfcBlobSource(request.file, {
-    cacheBytes: 128 * 1024 * 1024,
-  });
+  const source = new IfcBlobSource(request.file, request.pages);
   const parallel = request.mode === "parallel";
   const output = await importer.process({
     file: request.file,
@@ -136,12 +146,9 @@ const convertStreaming = async (request: ConvertRequest, clock: PhaseClock) => {
     counts["largest batch (KB of IFC)"] = Math.round(
       projected.largestProjection / 1024,
     );
-    counts["largest worker WASM heap (MB)"] = Math.round(
-      projected.largestWasmHeap / 1024 / 1024,
-    );
     counts["batch planning (ms)"] = Math.round(projected.planningMs);
   }
-  return { output, counts };
+  return { output, counts, workerWasmHeap: projected?.largestWasmHeap };
 };
 
 onmessage = async (event: MessageEvent<ConvertRequest>) => {
@@ -152,7 +159,7 @@ onmessage = async (event: MessageEvent<ConvertRequest>) => {
   try {
     const convert =
       request.mode === "legacy" ? convertInMemory : convertStreaming;
-    const { output, counts } = await convert(request, clock);
+    const { output, counts, workerWasmHeap } = await convert(request, clock);
     clock.close();
     sampleHeap();
     const stats: ImportStats = {
@@ -164,6 +171,7 @@ onmessage = async (event: MessageEvent<ConvertRequest>) => {
       wasmMemories: wasmMemories.map((memory) => memory.buffer.byteLength),
       peakJsHeap,
       counts,
+      workerWasmHeap,
     };
     post({ type: "done", bytes: output, stats }, [output.buffer]);
   } catch (error) {
