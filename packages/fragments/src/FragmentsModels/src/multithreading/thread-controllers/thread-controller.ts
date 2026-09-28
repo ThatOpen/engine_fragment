@@ -1,4 +1,4 @@
-import { FragmentsThread } from "../fragments-thread";
+import type { FragmentsThread } from "../fragments-thread";
 
 export abstract class ThreadController {
   private readonly id: number;

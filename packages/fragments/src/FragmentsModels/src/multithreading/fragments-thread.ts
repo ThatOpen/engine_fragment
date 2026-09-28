@@ -1,6 +1,7 @@
 import { VirtualFragmentsModel } from "../virtual-model";
 import { Connection } from "./connection";
 import { ThreadControllerManager } from "./thread-controllers/thread-controller-manager";
+import { threadSeq } from "./thread-seq";
 
 export class FragmentsThread {
   readonly actions: { [index: number]: any } = {};
@@ -21,8 +22,17 @@ export class FragmentsThread {
    * the worker — a single FINISH from any model carries the highest
    * seq the worker has acknowledged, which is what main needs for
    * the fence semantics ("everything I've sent up to N is done").
+   *
+   * Stored in `thread-seq.ts` so the tile controller can read it without
+   * importing this module (see there).
    */
-  lastSeenSeq = 0;
+  get lastSeenSeq() {
+    return threadSeq.lastSeen;
+  }
+
+  set lastSeenSeq(value: number) {
+    threadSeq.lastSeen = value;
+  }
 
   // It registers all actions from multithreadingRequestClass
   readonly controllerManager = new ThreadControllerManager(this);
@@ -69,11 +79,11 @@ export class FragmentsThread {
  * side code (e.g. tile-controllers emitting FINISH) can read the
  * current `lastSeenSeq` to stamp outgoing tile requests with.
  *
- * Importing this module is now safe from the main bundle (e.g. from
- * `virtual-tiles-controller.ts`) because the `onmessage` registration
- * below is gated on actually being in a worker context. Without that
- * gate, the main thread would have its own `onmessage` clobbered the
- * moment any code in the main bundle pulled in this file.
+ * This module is the worker entry point and has side effects on
+ * evaluation (the singleton below and the `onmessage` registration), so it
+ * must not be reachable from the package's main entry: code there reads the
+ * seq from `thread-seq.ts` instead (#298). The `window` gate remains as a
+ * second line of defence.
  */
 export const thread = new FragmentsThread();
 // `window` is undefined in workers; guarding on it avoids the main

@@ -1,4 +1,4 @@
-import { FragmentsThread } from "../fragments-thread";
+import type { FragmentsThread } from "../fragments-thread";
 
 export class ThreadUpdater {
   private readonly _thread: FragmentsThread;

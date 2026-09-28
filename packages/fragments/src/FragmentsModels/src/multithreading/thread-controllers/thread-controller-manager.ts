@@ -1,4 +1,4 @@
-import { FragmentsThread } from "../fragments-thread";
+import type { FragmentsThread } from "../fragments-thread";
 import { ThreadModelCreator } from "./thread-model-creator";
 import { ThreadRaycaster } from "./thread-raycaster";
 import { ThreadModelDeleter } from "./thread-model-deleter";

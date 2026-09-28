@@ -37,7 +37,7 @@ import {
 } from "../../../../Schema";
 import { ItemConfigController } from "./item-config-controller";
 import { MeshConnection } from "../../multithreading/mesh-connection";
-import { thread } from "../../multithreading/fragments-thread";
+import { threadSeq } from "../../multithreading/thread-seq";
 import { RaycastController } from "./raycast-controller";
 import { VirtualMemoryController } from "./virtual-memory-controller";
 
@@ -492,7 +492,7 @@ export class VirtualTilesController {
       // any tile updates emitted in this batch reflect those RPCs'
       // effects. Main uses the stamp to resolve `forceUpdateFinish`
       // waiters precisely, no buffer / poll required.
-      seq: thread.lastSeenSeq,
+      seq: threadSeq.lastSeen,
     });
   }
 
