@@ -4,6 +4,7 @@ import * as WEBIFC from "web-ifc";
 import * as TFB from "../../../../Schema";
 import {
   CircleExtrusionData,
+  EncodedShell,
   GeometryData,
   IfcElement,
   IfcFileReader,
@@ -13,7 +14,7 @@ import {
 import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
-import { GeomsFbUtils, ShellData } from "../../../../Utils/shells";
+import { GeomsFbUtils } from "../../../../Utils/shells";
 
 interface GeometriesProcessData extends ProcessData {
   builder: FB.Builder;
@@ -379,17 +380,23 @@ export class IfcGeometryProcessor {
     };
   }
 
-  private writeShell(builder: FB.Builder, shell: ShellData) {
-    const { points, profiles, holes, profilesFaceIds } = shell;
+  private writeShell(builder: FB.Builder, shell: EncodedShell) {
+    const { points, profiles, profileSizes, holeIds, holeCounts } = shell;
+    const { holes, holeSizes, faceIds } = shell;
 
-    const isBigShell = points.length > GeomsFbUtils.ushortMaxValue;
+    const pointCount = points.length / 3;
+    const isBigShell = pointCount > GeomsFbUtils.ushortMaxValue;
 
     const shellType = isBigShell ? TFB.ShellType.BIG : TFB.ShellType.NONE;
 
-    TFB.Shell.startPointsVector(builder, points.length);
-    for (let i = 0; i < points.length; i++) {
-      const [x, y, z] = points[points.length - 1 - i];
-      TFB.FloatVector.createFloatVector(builder, x, y, z);
+    TFB.Shell.startPointsVector(builder, pointCount);
+    for (let i = pointCount - 1; i >= 0; i--) {
+      TFB.FloatVector.createFloatVector(
+        builder,
+        points[i * 3],
+        points[i * 3 + 1],
+        points[i * 3 + 2],
+      );
     }
     const pointsOffset = builder.endVector();
 
@@ -398,7 +405,10 @@ export class IfcGeometryProcessor {
     const bigProfilesOffsets: number[] = [];
     const bigHolesOffsets: number[] = [];
 
-    for (const [, indices] of profiles) {
+    let offset = 0;
+    for (const size of profileSizes) {
+      const indices = profiles.subarray(offset, offset + size);
+      offset += size;
       if (isBigShell) {
         const indicesOffset = TFB.BigShellProfile.createIndicesVector(
           builder,
@@ -414,7 +424,7 @@ export class IfcGeometryProcessor {
 
       const indicesOffset = TFB.ShellProfile.createIndicesVector(
         builder,
-        indices,
+        indices as unknown as Uint16Array,
       );
       const profileOffset = TFB.ShellProfile.createShellProfile(
         builder,
@@ -433,37 +443,37 @@ export class IfcGeometryProcessor {
       profilesOffsets,
     );
 
-    for (const [holeId, indicesSets] of holes) {
-      if (isBigShell) {
-        for (const indices of indicesSets) {
+    offset = 0;
+    let set = 0;
+    for (let h = 0; h < holeIds.length; h++) {
+      const holeId = holeIds[h];
+      for (let k = 0; k < holeCounts[h]; k++) {
+        const size = holeSizes[set++];
+        const indices = holes.subarray(offset, offset + size);
+        offset += size;
+        if (isBigShell) {
           const indicesOffset = TFB.BigShellHole.createIndicesVector(
             builder,
             indices,
           );
-
           const holeOffset = TFB.BigShellHole.createBigShellHole(
             builder,
             indicesOffset,
             holeId,
           );
-
           bigHolesOffsets.push(holeOffset); // Flattening the structure
+          continue;
         }
-        continue;
-      }
 
-      for (const indices of indicesSets) {
         const indicesOffset = TFB.ShellHole.createIndicesVector(
           builder,
-          indices,
+          indices as unknown as Uint16Array,
         );
-
         const holeOffset = TFB.ShellHole.createShellHole(
           builder,
           indicesOffset,
           holeId,
         );
-
         holesOffsets.push(holeOffset); // Flattening the structure
       }
     }
@@ -480,7 +490,7 @@ export class IfcGeometryProcessor {
 
     const shellFaceIdsOffset = TFB.Shell.createProfilesFaceIdsVector(
       builder,
-      profilesFaceIds,
+      faceIds as unknown as number[],
     );
 
     return TFB.Shell.createShell(
