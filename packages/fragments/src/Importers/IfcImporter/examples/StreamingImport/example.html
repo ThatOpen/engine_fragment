@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/x-icon" href="https://thatopen.github.io/engine_components/resources/favicon.ico">
+  <title>Streaming IFC Import</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --panel: #ffffff;
+      --text: #1d2330;
+      --muted: #5d6679;
+      --border: #d9dde5;
+      --accent: #2f6fde;
+      --accent-soft: #dbe6fb;
+      --error: #c0392b;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16181d;
+        --panel: #20232b;
+        --text: #e8eaf0;
+        --muted: #9aa3b5;
+        --border: #343945;
+        --accent: #6f9ef5;
+        --accent-soft: #28344d;
+        --error: #ff7b6b;
+      }
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    #container {
+      position: fixed;
+      inset: 0;
+    }
+
+    .panel {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      width: min(360px, calc(100vw - 24px));
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 6px 24px rgb(0 0 0 / 0.12);
+    }
+
+    h1 {
+      font-size: 15px;
+      margin: 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .upload {
+      flex: 1;
+      display: inline-flex;
+      justify-content: center;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .upload[aria-disabled="true"] {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    select,
+    button {
+      font: inherit;
+      color: var(--text);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 8px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+    }
+
+    .progress {
+      height: 8px;
+      border-radius: 4px;
+      background: var(--accent-soft);
+      overflow: hidden;
+    }
+
+    .progress > div {
+      height: 100%;
+      width: 0;
+      background: var(--accent);
+      transition: width 120ms linear;
+    }
+
+    .status {
+      color: var(--muted);
+      min-height: 1.45em;
+      overflow-wrap: anywhere;
+    }
+
+    .status.error {
+      color: var(--error);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th {
+      text-align: left;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    td {
+      text-align: right;
+    }
+
+    th,
+    td {
+      padding: 3px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-title {
+      font-weight: 600;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="container"></div>
+  <div class="panel">
+    <h1>Streaming IFC import</h1>
+    <div class="row">
+      <label class="upload" id="upload-label">
+        Upload IFC
+        <input id="file-input" type="file" accept=".ifc">
+      </label>
+      <select id="mode" title="Conversion pipeline">
+        <option value="streaming">Streaming</option>
+        <option value="legacy">Legacy</option>
+      </select>
+    </div>
+    <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
+      <div id="progress-bar"></div>
+    </div>
+    <div class="status" id="status">Choose an IFC file to convert it in a worker.</div>
+    <div id="metrics"></div>
+    <div class="row">
+      <button id="download" disabled>Download .frag</button>
+      <button id="clear" disabled>Clear viewer</button>
+    </div>
+  </div>
+  <script type="module" src="./example.ts"></script>
+</body>
+
+</html>
