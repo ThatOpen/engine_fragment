@@ -270,35 +270,48 @@ export class IfcImporter {
     geometryProcessor.wasm = this.wasm;
     geometryProcessor.webIfcSettings = this.webIfcSettings;
     const geomData = { ...data, builder: this.builder, projected };
+
+    const properties = new IfcPropertyProcessor(this, this.builder);
+    properties.wasm = this.wasm;
+    properties.webIfcSettings = this.webIfcSettings;
+
     let geoms: Awaited<ReturnType<IfcGeometryProcessor["process"]>>;
     try {
-      geoms = await geometryProcessor.process(geomData);
+      if (projected) {
+        // Properties need nothing from geometry until they are laid out, so
+        // with the geometry in workers they are read here meanwhile, handing
+        // the thread back often enough to keep the workers fed.
+        [geoms] = await Promise.all([
+          geometryProcessor.process(geomData),
+          properties.prepare({
+            ...data,
+            lineApi,
+            yieldEvery: 8,
+            progressCallback: undefined,
+          }),
+        ]);
+      } else {
+        geoms = await geometryProcessor.process(geomData);
+        // With a reader, properties come from the parsing layer: the file is
+        // indexed once, now that web-ifc and its copy of the file are gone,
+        // and entities are parsed from it on demand. Without one, the pass
+        // opens the file in a second web-ifc instance, as it always has.
+        if (!lineApi && data.source) lineApi = await this.index(data, 0.5, 0.6);
+        await properties.prepare({ ...data, lineApi });
+      }
     } finally {
       for (const executor of executors) executor.dispose();
     }
     this.stats = { projected: geometryProcessor.projectedStats };
     const { modelMesh, maxLocalID, localIDs, alignments, grids } = geoms;
 
-    // Get properties
-
-    // With a reader, properties come from the parsing layer: the file is
-    // indexed once, now that web-ifc and its copy of the file are gone, and
-    // entities are parsed from it on demand. Without one, the pass opens the
-    // file in a second web-ifc instance, as it always has.
-    if (!lineApi && data.source) lineApi = await this.index(data, 0.5, 0.6);
-
-    const properties = new IfcPropertyProcessor(this, this.builder);
-    properties.wasm = this.wasm;
-    properties.webIfcSettings = this.webIfcSettings;
-    const propsArgs = {
+    const propsData = await properties.finish({
       ...data,
       geometryProcessedLocalIDs: localIDs,
       alignments,
       grids,
       maxLocalID,
-      lineApi,
-    };
-    const propsData = await properties.process(propsArgs);
+    });
     const {
       relIndicesVector,
       relsVector,
