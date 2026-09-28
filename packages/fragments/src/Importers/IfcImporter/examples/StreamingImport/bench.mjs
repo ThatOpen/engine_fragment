@@ -392,6 +392,9 @@ const summary = {
     Math.round(ms) / 1000,
   ]),
   wasmHeapsMB: result?.stats?.wasmMemories.map(mb),
+  workerWasmHeapMB: result?.stats?.workerWasmHeap
+    ? mb(result.stats.workerWasmHeap)
+    : null,
   counts: result?.stats?.counts,
   peakRendererRssMB: mb(peakRss),
   workerHeapsMB: [...workers.values()].map((w) => ({

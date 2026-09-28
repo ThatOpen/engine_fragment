@@ -103,12 +103,12 @@ export class IfcBatchRunner {
         };
       }
 
-      const extractor = new IfcGeometryExtractor(
+      const extractor = new IfcGeometryExtractor({
         api,
         modelID,
-        this._hasher!,
-        this._options.extractor,
-      );
+        hasher: this._hasher!,
+        options: this._options.extractor,
+      });
       let meshCount = 0;
       const onMesh = (category: number) => (mesh: WEBIFC.FlatMesh) => {
         meshCount++;

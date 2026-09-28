@@ -1,8 +1,16 @@
 /// <reference types="vite/client" />
 /* MD
-  ## Streaming IFC import in a worker
+  ## Converting large IFC files in workers
   ---
-  Converts an uploaded IFC file to Fragments inside a Web Worker, reports progress and timings as it goes, and shows the result in a viewer. The worker reads the `File` straight from disk, so the page never holds the IFC in memory.
+  Converts an uploaded IFC file to Fragments in Web Workers, without splitting it into several models, and shows the result in a viewer. The page reports progress and timings as it goes.
+
+  Three pipelines can be compared from the dropdown:
+
+  - **Parallel batches**: the file is indexed once, and its geometry is converted as many small, standalone IFC "projections", each holding only the statements its elements' geometry reads, in a pool of workers. Every web-ifc instance holds one batch rather than the whole file, so no single WASM heap grows with the file, and batches run in parallel. Properties are read from the index at the same time. The output matches a single whole-file pass exactly.
+  - **Streaming, one model**: the file is read in place and opened in one web-ifc model; properties come from the index rather than a second web-ifc.
+  - **Legacy**: the file is read into memory and opened twice in web-ifc, as `IfcImporter` always did.
+
+  In all three, the `File` itself is handed to a worker, so the page never holds the IFC.
 */
 
 import * as OBC from "@thatopen/components";

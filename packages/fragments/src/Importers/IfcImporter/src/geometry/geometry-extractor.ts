@@ -59,13 +59,35 @@ export class IfcGeometryExtractor {
   private _tempObject2 = new THREE.Object3D();
   private _tempMatrix1 = new THREE.Matrix4();
 
-  constructor(
-    private readonly _api: WEBIFC.IfcAPI,
-    private readonly _modelID: number,
-    private readonly _hasher: Hasher,
-    private readonly _options: ExtractorOptions,
-    private readonly _known: KnownGeometry | null = null,
-  ) {}
+  private readonly _api: WEBIFC.IfcAPI;
+  private readonly _modelID: number;
+  private readonly _hasher: Hasher;
+  private readonly _options: ExtractorOptions;
+  private readonly _known: KnownGeometry | null;
+
+  /**
+   * @param known What assembly already holds, when it runs in this thread;
+   * see {@link KnownGeometry}.
+   */
+  constructor({
+    api,
+    modelID,
+    hasher,
+    options,
+    known = null,
+  }: {
+    api: WEBIFC.IfcAPI;
+    modelID: number;
+    hasher: Hasher;
+    options: ExtractorOptions;
+    known?: KnownGeometry | null;
+  }) {
+    this._api = api;
+    this._modelID = modelID;
+    this._hasher = hasher;
+    this._options = options;
+    this._known = known;
+  }
 
   /**
    * The elements extracted since the last call, and the geometry they point
@@ -121,8 +143,14 @@ export class IfcGeometryExtractor {
         type === WEBIFC.IFCREINFORCINGBAR && this.hasSweptDiskDirectrix(mesh, i);
       geometries.push(
         isExtrusion
-          ? this.extractExtrusion(mesh, i, elementTransform)
-          : this.extractShell(mesh, i, elementTransform, type, category),
+          ? this.extractExtrusion({ mesh, geometryIndex: i, elementTransform })
+          : this.extractShell({
+              mesh,
+              geometryIndex: i,
+              elementTransform,
+              elementType: type,
+              category,
+            }),
       );
     }
 
@@ -143,13 +171,19 @@ export class IfcGeometryExtractor {
     return element;
   }
 
-  private extractShell(
-    mesh: WEBIFC.FlatMesh,
-    geometryIndex: number,
-    elementTransform: number[],
-    elementType: number,
-    category: number,
-  ): ExtractedGeometry {
+  private extractShell({
+    mesh,
+    geometryIndex,
+    elementTransform,
+    elementType,
+    category,
+  }: {
+    mesh: WEBIFC.FlatMesh;
+    geometryIndex: number;
+    elementTransform: number[];
+    elementType: number;
+    category: number;
+  }): ExtractedGeometry {
     const geometryRef = mesh.geometries.get(geometryIndex);
 
     // We need to get the units here because each geometry can have different units
@@ -297,11 +331,15 @@ export class IfcGeometryExtractor {
     );
   }
 
-  private extractExtrusion(
-    mesh: WEBIFC.FlatMesh,
-    geometryIndex: number,
-    elementTransform: number[],
-  ): ExtractedGeometry {
+  private extractExtrusion({
+    mesh,
+    geometryIndex,
+    elementTransform,
+  }: {
+    mesh: WEBIFC.FlatMesh;
+    geometryIndex: number;
+    elementTransform: number[];
+  }): ExtractedGeometry {
     const geometryRef = mesh.geometries.get(geometryIndex);
 
     // We need to get the units here because each geometry can have different units
