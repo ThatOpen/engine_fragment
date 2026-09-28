@@ -36,7 +36,7 @@ if (!file || !existsSync(file)) {
   console.error("--file <path to .ifc> is required");
   process.exit(2);
 }
-const mode = args.mode ?? "streaming";
+const mode = args.mode ?? "parallel";
 const view = args.view ?? "1";
 const timeoutMs = Number(args.timeout ?? 1800) * 1000;
 const pageUrl = new URL(
@@ -146,6 +146,12 @@ listeners.push(({ method, params, sessionId }) => {
       });
     }
     if (args.console) send("Runtime.enable", {}, child).catch(() => {});
+    // workers the import worker starts are its children, not the page's
+    send(
+      "Target.setAutoAttach",
+      { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
+      child,
+    ).catch(() => {});
     if (args.profile && targetInfo.url.includes("import-worker")) {
       profiled.push(child);
       send("Profiler.enable", {}, child)
@@ -325,6 +331,7 @@ const summary = {
     peakTotal: mb(w.peakTotal),
     peakArrayBuffers: mb(w.peakBacking),
   })),
+  cores: (await import("node:os")).cpus().length,
 };
 console.log(JSON.stringify(summary, null, 2));
 if (args.series) {

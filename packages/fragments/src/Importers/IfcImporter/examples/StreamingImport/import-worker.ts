@@ -104,13 +104,39 @@ const convertInMemory = async (request: ConvertRequest, clock: PhaseClock) => {
 const convertStreaming = async (request: ConvertRequest, clock: PhaseClock) => {
   const { importer, progressCallback } = createImporter(request, clock);
   const source = new IfcBlobSource(request.file);
+  const parallel = request.mode === "parallel";
   const output = await importer.process({
     file: request.file,
     source,
     raw: true,
     progressCallback,
+    geometryBatches: parallel
+      ? {
+          createWorker: () =>
+            new Worker(new URL("./geometry-worker.ts", import.meta.url), {
+              type: "module",
+            }),
+          workers: request.workers,
+          batchBytes: request.batchBytes,
+        }
+      : undefined,
   });
-  return { output, counts: { "file reads (geometry)": source.fileReads } };
+  const counts: Record<string, number> = {
+    "file reads (FileReaderSync)": source.fileReads,
+  };
+  const projected = importer.stats.projected;
+  if (projected) {
+    counts["geometry workers"] = request.workers;
+    counts.batches = projected.batches;
+    counts["largest batch (KB of IFC)"] = Math.round(
+      projected.largestProjection / 1024,
+    );
+    counts["largest worker WASM heap (MB)"] = Math.round(
+      projected.largestWasmHeap / 1024 / 1024,
+    );
+    counts["batch planning (ms)"] = Math.round(projected.planningMs);
+  }
+  return { output, counts };
 };
 
 onmessage = async (event: MessageEvent<ConvertRequest>) => {
@@ -120,7 +146,7 @@ onmessage = async (event: MessageEvent<ConvertRequest>) => {
   const start = performance.now();
   try {
     const convert =
-      request.mode === "streaming" ? convertStreaming : convertInMemory;
+      request.mode === "legacy" ? convertInMemory : convertStreaming;
     const { output, counts } = await convert(request, clock);
     clock.close();
     sampleHeap();

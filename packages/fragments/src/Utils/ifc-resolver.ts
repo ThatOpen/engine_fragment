@@ -8,13 +8,9 @@ import {
   RawFactory,
   StepArgument,
 } from "./ifc-parsing-utils";
-import { IfcStatementScanner } from "./ifc-scanner";
+import { IfcStatementCursor, StatementSink } from "./ifc-scanner";
 import { streamAsyncIterator } from "./ifc-stream";
-import {
-  byteSourceStream,
-  IfcByteSource,
-  IfcBytesSource,
-} from "./ifc-byte-source";
+import { IfcByteSource, IfcBytesSource } from "./ifc-byte-source";
 
 // ---------------------------------------------------------------------------
 // On-demand reference resolution
@@ -31,7 +27,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** Chunk size used when scanning through an {@link IfcByteSource}. */
-const scanChunkSize = 64 * 1024;
+const scanChunkSize = 16 * 1024 * 1024;
 
 /** Bytes between two scan progress reports. */
 const progressStep = 16 * 1024 * 1024;
@@ -157,33 +153,53 @@ export class IfcEntityResolver {
       onProgress?: (bytesScanned: number) => void;
     } = {},
   ): Promise<IfcEntityResolver> {
-    // Fed in chunks, not as one buffer: a single transform call that enqueues
-    // every statement at once builds the whole readable queue in one tick,
-    // which measures ~30x slower than letting the reader interleave.
-    const bytes = stream ?? byteSourceStream(source, scanChunkSize);
-
     const decoder = new TextDecoder(encoding);
     const builder = new IfcLineIndexBuilder();
     const header = new Map<string, string>();
     let inHeader = true;
     let reported = 0;
 
-    for await (const statement of streamAsyncIterator(
-      bytes.pipeThrough(new IfcStatementScanner()),
-    )) {
-      if (statement.id) {
-        builder.add(statement);
-        if (onProgress && statement.offset - reported > progressStep) {
-          reported = statement.offset;
-          onProgress(reported);
-        }
-      } else if (inHeader) {
-        const raw = decoder.decode(statement.bytes).slice(0, -1).trim();
-        if (raw === "DATA") inHeader = false;
-        const keyword = /^[A-Z_]+/.exec(raw)?.[0];
-        if (keyword && raw.length > keyword.length) header.set(keyword, raw);
+    // The cursor calls back per statement with positions only, so indexing
+    // allocates nothing per statement; only header statements are decoded.
+    const cursor = new IfcStatementCursor();
+    const sink: StatementSink = (offset, length, id, type, chunk, start, carry) => {
+      if (id) {
+        builder.addStatement(id, type, offset, length);
+        return;
+      }
+      if (!inHeader) return;
+      const bytes =
+        start >= 0 ? chunk.subarray(start, start + length) : carry!;
+      const raw = decoder.decode(bytes).slice(0, -1).trim();
+      if (raw === "DATA") inHeader = false;
+      const keyword = /^[A-Z_]+/.exec(raw)?.[0];
+      if (keyword && raw.length > keyword.length) header.set(keyword, raw);
+    };
+    const scan = (chunk: Uint8Array, scanned: number) => {
+      cursor.write(chunk, sink);
+      if (onProgress && scanned - reported > progressStep) {
+        reported = scanned;
+        onProgress(reported);
+      }
+    };
+
+    let scanned = 0;
+    if (stream) {
+      for await (const chunk of streamAsyncIterator(stream)) {
+        scanned += chunk.length;
+        scan(chunk, scanned);
+      }
+    } else {
+      // Synchronous, a chunk at a time; a resident source hands out views,
+      // so this copies nothing.
+      while (scanned < source.size) {
+        const chunk = source.read(scanned, scanChunkSize);
+        if (chunk.length === 0) break;
+        scanned += chunk.length;
+        scan(chunk, scanned);
       }
     }
+    if (cursor.open) throw new Error("Unexpected end of Ifc stream");
 
     const fileSchema = header.get("FILE_SCHEMA");
     const schema = fileSchema ? parseFileSchema(fileSchema) : null;
