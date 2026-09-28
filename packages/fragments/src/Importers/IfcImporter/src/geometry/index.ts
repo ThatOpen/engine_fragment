@@ -15,9 +15,19 @@ import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
 import { GeomsFbUtils } from "../../../../Utils/shells";
+import {
+  IfcProjectedReader,
+  ProjectedReadOptions,
+  ProjectedReadStats,
+} from "./ifc-projected-reader";
+
+export { serveIfcGeometryWorker } from "./geometry-batch";
+export type { ProjectedReadStats } from "./ifc-projected-reader";
 
 interface GeometriesProcessData extends ProcessData {
   builder: FB.Builder;
+  /** Read geometry as projections instead of one whole-file model. */
+  projected?: ProjectedReadOptions;
 }
 
 export class IfcGeometryProcessor {
@@ -27,6 +37,9 @@ export class IfcGeometryProcessor {
   };
 
   webIfcSettings: WEBIFC.LoaderSettings = {};
+
+  /** Set after a projected read. */
+  projectedStats: ProjectedReadStats | null = null;
 
   private _serializer: IfcImporter;
 
@@ -76,11 +89,12 @@ export class IfcGeometryProcessor {
     const geometryIDMap = new Map<number, number>();
     const materialIDMap = new Map<string, { id: number; color: number[] }>();
 
-    const reader = new IfcFileReader(this._serializer);
-    reader.wasm = this.wasm;
-    reader.webIfcSettings = this.webIfcSettings;
-
-    // reader.isolatedMeshes = new Set([22835]);
+    const fileReader = new IfcFileReader(this._serializer);
+    fileReader.wasm = this.wasm;
+    fileReader.webIfcSettings = this.webIfcSettings;
+    // fileReader.isolatedMeshes = new Set([22835]);
+    const projectedReader = new IfcProjectedReader(this._serializer);
+    const reader = data.projected ? projectedReader : fileReader;
 
     reader.onGeometryLoaded = ({ id, geometry }) => {
       geometryIDMap.set(id, representations.length);
@@ -129,7 +143,9 @@ export class IfcGeometryProcessor {
       }
     };
 
-    await reader.load(data);
+    if (data.projected) await projectedReader.load(data, data.projected);
+    else await fileReader.load(data);
+    this.projectedStats = data.projected ? projectedReader.stats : null;
 
     // Create geometry
 
