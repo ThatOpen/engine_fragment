@@ -132,6 +132,12 @@ export class VirtualTilesController {
   };
 
   private _currentSample = 0;
+  /**
+   * Whether the sweep may rewind to the largest samples on the next big
+   * view change. Cleared by a rewind, set again when the cursor wraps, so
+   * the sweep rewinds at most once per full lap (see {@link rewindSweep}).
+   */
+  private _rewindArmed = true;
   private _virtualPlanes: THREE.Plane[] = [];
   private _changedSamples = 0;
   private _virtualView: any;
@@ -254,6 +260,10 @@ export class VirtualTilesController {
       }
       return;
     }
+    // FINISH means "the latest view is complete", so the pass count
+    // starts over and a FINISH still queued for the superseded view is
+    // dropped. The sweep itself carries on from where it is: tile state
+    // is kept, and a rewind to the largest samples is rate-limited.
     this.restart();
     this.updateOrientationIfNeeded();
     this.updatePositionIfNeeded();
@@ -548,16 +558,33 @@ export class VirtualTilesController {
     const pos = this._virtualView.cameraPosition;
     const positionChange = pos.distanceToSquared(this._lastView.location);
     const positionNeedsUpdate = positionChange > positionThreshold;
-    if (positionNeedsUpdate) {
-      this._currentSample = 0;
+    if (positionNeedsUpdate && this.rewindSweep()) {
       this._lastView.location.copy(pos);
     }
+  }
+
+  /**
+   * Restarts the sweep at the largest samples, so a big view change
+   * repaints what dominates the screen first. At most once per full lap:
+   * under continuous motion (#300) every refresh crossed a threshold, the
+   * sweep kept going back to the start and the smaller samples were never
+   * revisited until the camera stopped. Returns whether the cursor is now
+   * at the start of the sweep.
+   */
+  private rewindSweep() {
+    if (!this._rewindArmed && this._currentSample !== 0) {
+      return false;
+    }
+    this._currentSample = 0;
+    this._rewindArmed = false;
+    return true;
   }
 
   private updateCurrentSample() {
     this._currentSample++;
     if (this._currentSample >= this._sampleAmount) {
       this._currentSample = 0;
+      this._rewindArmed = true;
     }
     this._changedSamples++;
   }
@@ -605,8 +632,7 @@ export class VirtualTilesController {
     const orientationThreshold = this._params.updateviewOrientation;
     const orientationChange = orientation.angleTo(this._lastView.rotation);
     const orientationNeedsUpdate = orientationChange > orientationThreshold;
-    if (orientationNeedsUpdate) {
-      this._currentSample = 0;
+    if (orientationNeedsUpdate && this.rewindSweep()) {
       this._lastView.rotation.copy(orientation);
     }
   }
