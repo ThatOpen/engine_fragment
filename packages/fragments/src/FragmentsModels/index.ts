@@ -11,6 +11,7 @@ import { FragmentsConnection } from "./src/multithreading/fragments-connection";
 import { ThreadHandler } from "./src/multithreading/connection-handlers";
 import { Event, FRAGMENTS_VERSION } from "../Utils";
 import { Editor } from "./src/edit";
+import { getBundledWorkerUrl } from "../bundled-worker-url";
 
 export * from "./src";
 
@@ -186,8 +187,7 @@ export class FragmentsModels {
    * @param options - Optional configuration.
    */
   constructor(workerURL?: string, options?: FragmentsModelsOptions) {
-    const url =
-      workerURL ?? new URL("./Worker/worker.mjs", import.meta.url).href;
+    const url = workerURL ?? getBundledWorkerUrl();
     const requestEvent = this.newRequestEvent();
     const updateEvent = this.newUpdateEvent();
     this._connection = new FragmentsConnection(requestEvent, url, {

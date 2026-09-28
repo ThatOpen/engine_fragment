@@ -42,9 +42,21 @@ export default defineConfig({
       },
       output: [
         {
-          entryFileNames: `index.mjs`,
+          // One file per source module instead of a single bundle, so that
+          // with the `sideEffects` field in package.json a consumer's bundler
+          // can drop whole modules the app does not use. In a single file,
+          // the top-level `import ... from "web-ifc"` is kept by esbuild and
+          // webpack as long as the file is, so every app bundled web-ifc
+          // even if it only displays models (#298). `dist/index.mjs` stays
+          // the entry and exports exactly the same names.
           format: "es",
           sourcemap: true,
+          preserveModules: true,
+          preserveModulesRoot: "src",
+          // Bundled dependencies would otherwise land under
+          // `dist/node_modules`, which npm never publishes.
+          entryFileNames: (chunk) =>
+            `${chunk.name.replace(/(^|\/)node_modules\//g, "$1vendor/")}.mjs`,
           globals: {
             three: "THREE",
           },
