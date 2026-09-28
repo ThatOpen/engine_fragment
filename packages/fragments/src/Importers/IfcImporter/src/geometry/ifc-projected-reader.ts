@@ -34,6 +34,13 @@ export interface ProjectedReadOptions {
   batchElements: number;
   /** Elements in the first projection, which fixes the origin alone. */
   probeElements: number;
+  /**
+   * How long a batch should take in its worker, in ms. Batches are sized
+   * from the time recent ones took per element, so a run of costly elements
+   * — which exporters tend to write next to each other — is spread over
+   * many batches instead of landing in one. 0 sizes by element count only.
+   */
+  targetBatchMs: number;
   coordinateToOrigin: boolean;
 }
 
@@ -44,6 +51,8 @@ export interface ProjectedReadStats {
   largestProjection: number;
   largestWasmHeap: number;
   planningMs: number;
+  /** Per batch, in batch order: elements, bytes of IFC, and time in its worker. */
+  batchLog: { elements: number; bytes: number; ms: number }[];
 }
 
 /**
@@ -63,6 +72,7 @@ export class IfcProjectedReader {
     largestProjection: 0,
     largestWasmHeap: 0,
     planningMs: 0,
+    batchLog: [],
   };
 
   constructor(private _serializer: IfcImporter) {}
@@ -135,6 +145,24 @@ export class IfcProjectedReader {
       Math.max(64, Math.ceil(order.length / (executors.length * 4))),
     );
 
+    // The projector estimates each element's meshing cost as it walks the
+    // element's closure (CSG, geometry bytes, instances of mapped geometry),
+    // and batches finished so far say how many ms that estimate is worth.
+    // Batches are cut at a cost worth `targetBatchMs`, so a run of costly
+    // elements — exporters write them next to each other — spreads over many
+    // batches instead of landing in one.
+    let msPerCost = 1;
+    let calibrated = false;
+    const observe = (result: BatchResult) => {
+      const cost = batchCosts[result.index];
+      if (!cost) return;
+      const observed = result.durationMs / cost;
+      msPerCost = calibrated ? (msPerCost + observed) / 2 : observed;
+      calibrated = true;
+    };
+    const costBudget = () =>
+      options.targetBatchMs ? options.targetBatchMs / msPerCost : Infinity;
+
     const planStart = performance.now();
     const projector = new IfcProjector(resolver);
     this.stats.planningMs += performance.now() - planStart;
@@ -143,21 +171,25 @@ export class IfcProjectedReader {
     let batchCount = 0;
     // elements per batch, for progress by what has been assembled
     const batchSizes: number[] = [];
+    const batchBytesLog: number[] = [];
+    const batchCosts: number[] = [];
     let assembledElements = 0;
     const plan = (
       maxElements: number,
       origin: BatchRequest["origin"],
+      budget: number,
     ): BatchRequest | null => {
       if (next >= order.length) return null;
       const start = performance.now();
       projector.begin();
       if (typeof origin === "number") projector.addElement(origin);
+      let cost = projector.takeCost();
       const groups: ProjectedGroup[] = [];
       let count = 0;
       while (
         next < order.length &&
         count < maxElements &&
-        (count === 0 || projector.size < options.batchBytes)
+        (count === 0 || (projector.size < options.batchBytes && cost < budget))
       ) {
         const id = orderIds[next];
         const category = orderCategories[next++];
@@ -168,10 +200,13 @@ export class IfcProjectedReader {
         }
         group.ids.push(id);
         projector.addElement(id);
+        cost += projector.takeCost();
         count++;
       }
       const projection = projector.finish(groups);
       batchSizes.push(count);
+      batchBytesLog.push(projection.bytes.length);
+      batchCosts.push(cost);
       this.stats.planningMs += performance.now() - start;
       this.stats.projectedBytes += projection.bytes.length;
       this.stats.largestProjection = Math.max(
@@ -201,6 +236,11 @@ export class IfcProjectedReader {
         this.stats.largestWasmHeap,
         result.wasmHeap,
       );
+      this.stats.batchLog[result.index] = {
+        elements: batchSizes[result.index] ?? 0,
+        bytes: batchBytesLog[result.index] ?? 0,
+        ms: result.durationMs,
+      };
       if (result.meshCount > 0 && !coordinatesReported) {
         this.onCoordinatesLoaded(decomposeCoordinates(result.coordination));
         coordinatesReported = true;
@@ -220,9 +260,10 @@ export class IfcProjectedReader {
 
     let coordination: number[] | null = null;
     while (origin === null) {
-      const probe = plan(options.probeElements, "probe");
+      const probe = plan(options.probeElements, "probe", Infinity);
       if (!probe) break;
       const result = await executors[0].run(probe);
+      observe(result);
       consume(result);
       if (result.primer !== undefined) {
         origin = result.primer;
@@ -250,9 +291,10 @@ export class IfcProjectedReader {
 
     const work = async (executor: BatchExecutor) => {
       for (;;) {
-        const request = plan(batchElements, batchOrigin);
+        const request = plan(batchElements, batchOrigin, costBudget());
         if (!request) return;
         const result = await executor.run(request);
+        observe(result);
         results.set(result.index, result);
         drain();
       }

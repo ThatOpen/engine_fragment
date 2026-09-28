@@ -52,6 +52,8 @@ export interface BatchResult {
   alignments?: AlignmentData[];
   /** Size of the worker's WASM heap after the batch, in bytes. */
   wasmHeap: number;
+  /** Time the batch took in its worker, opening included, in ms. */
+  durationMs: number;
 }
 
 const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
@@ -76,6 +78,11 @@ export class IfcBatchRunner {
   }
 
   run(request: BatchRequest): BatchResult {
+    const start = performance.now();
+    return { ...this.runTimed(request), durationMs: performance.now() - start };
+  }
+
+  private runTimed(request: BatchRequest): Omit<BatchResult, "durationMs"> {
     const api = this._api!;
     const modelID = api.OpenModel(request.projection, {
       ...this._options.loaderSettings,
