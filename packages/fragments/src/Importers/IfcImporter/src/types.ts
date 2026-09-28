@@ -1,7 +1,15 @@
 import type { ModelLoadCallback } from "web-ifc";
+import type { IfcByteSource } from "../../../Utils/ifc-byte-source";
 
 export interface ProgressData {
-  process: "geometries" | "attributes" | "relations" | "conversion";
+  process:
+    | "conversion"
+    | "opening"
+    | "geometries"
+    | "indexing"
+    | "attributes"
+    | "relations"
+    | "serializing";
   state: "start" | "inProgress" | "finish";
   class?: string;
   entitiesProcessed?: number;
@@ -9,6 +17,18 @@ export interface ProgressData {
 
 export interface ProcessData {
   id?: string;
+  /**
+   * An IFC file to read in place, such as an uploaded `File`. Read with
+   * `FileReaderSync`, so this only works in a worker, and the file is never
+   * held in memory: web-ifc and the property pass both read the slices they
+   * need, when they need them.
+   */
+  file?: Blob;
+  /**
+   * Synchronous random-access reader over the IFC file; the general form of
+   * {@link file}. Takes precedence over {@link bytes} and {@link readCallback}.
+   */
+  source?: IfcByteSource;
   bytes?: Uint8Array;
   /**
    * @see {@link readCallback}

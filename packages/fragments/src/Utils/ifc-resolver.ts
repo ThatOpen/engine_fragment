@@ -10,6 +10,11 @@ import {
 } from "./ifc-parsing-utils";
 import { IfcStatementScanner } from "./ifc-scanner";
 import { streamAsyncIterator } from "./ifc-stream";
+import {
+  byteSourceStream,
+  IfcByteSource,
+  IfcBytesSource,
+} from "./ifc-byte-source";
 
 // ---------------------------------------------------------------------------
 // On-demand reference resolution
@@ -25,8 +30,11 @@ import { streamAsyncIterator } from "./ifc-stream";
 // recursing.
 // ---------------------------------------------------------------------------
 
-/** Chunk size used when scanning a resident buffer. */
+/** Chunk size used when scanning through an {@link IfcByteSource}. */
 const scanChunkSize = 64 * 1024;
+
+/** Bytes between two scan progress reports. */
+const progressStep = 16 * 1024 * 1024;
 
 /** A `{ type: REF, value: id }` handle with lazy access to its target. */
 export interface ResolvedRef {
@@ -45,11 +53,13 @@ const isRef = (
   typeof item.value === "number";
 
 /**
- * Resolves `#N` handles against an indexed, in-memory IFC file.
+ * Resolves `#N` handles against an indexed IFC file.
  *
- * The whole source must be resident: `.ref` is a plain property read, so it
- * cannot await a `Blob` slice or a file handle. Index a buffer with
- * {@link IfcEntityResolver.fromBytes}.
+ * `.ref` is a plain property read, so it cannot await: the source is read
+ * through a synchronous {@link IfcByteSource}. That is either a resident buffer
+ * ({@link IfcEntityResolver.fromBytes}) or, in a worker, a `File` read with
+ * `FileReaderSync` ({@link IfcEntityResolver.fromSource} with an
+ * `IfcBlobSource`), which never holds the file in memory.
  *
  * @example
  * ```ts
@@ -62,7 +72,16 @@ const isRef = (
 export class IfcEntityResolver {
   readonly index: IfcLineIndex;
 
-  private readonly _source: Uint8Array;
+  /** The schema named by the file's `FILE_SCHEMA`, e.g. `IFC4`. */
+  readonly schema: string;
+
+  /**
+   * Raw text of the header statements (`FILE_DESCRIPTION`, `FILE_NAME`,
+   * `FILE_SCHEMA`), keyed by keyword, without the trailing `;`.
+   */
+  readonly header: ReadonlyMap<string, string>;
+
+  private readonly _source: IfcByteSource;
   private readonly _factories: readonly (RawFactory | undefined)[];
   private readonly _decoder: TextDecoder;
   private readonly _cache = new Map<number, webIfc.IfcLineObject | undefined>();
@@ -71,15 +90,22 @@ export class IfcEntityResolver {
     source,
     index,
     factories,
+    schema = "",
+    header = new Map(),
     encoding = "utf-8",
   }: {
-    source: Uint8Array;
+    source: Uint8Array | IfcByteSource;
     index: IfcLineIndex;
     factories: Record<number, RawFactory>;
+    schema?: string;
+    header?: ReadonlyMap<string, string>;
     encoding?: string;
   }) {
-    this._source = source;
+    this._source =
+      source instanceof Uint8Array ? new IfcBytesSource(source) : source;
     this.index = index;
+    this.schema = schema;
+    this.header = header;
     // Narrowed to the types the file contains and keyed by the index's
     // interned code, so `get` finds a factory by array lookup instead of
     // resolving the type name against web-ifc on every call.
@@ -99,33 +125,63 @@ export class IfcEntityResolver {
     bytes: Uint8Array,
     encoding = "utf-8",
   ): Promise<IfcEntityResolver> {
+    return IfcEntityResolver.fromSource(new IfcBytesSource(bytes), {
+      encoding,
+    });
+  }
+
+  /**
+   * Scan `source` once to locate every statement and read the declared
+   * schema, without parsing any entity. Entities are read back through
+   * `source` on demand.
+   *
+   * @param options.stream The same bytes as a stream, when one is cheaper to
+   * scan than chunked reads of `source` — `blob.stream()` for a `Blob`.
+   * @param options.onProgress Called with the number of bytes scanned so far.
+   * @throws if the file declares no schema, or one web-ifc does not know.
+   */
+  static async fromSource(
+    source: IfcByteSource,
+    {
+      stream,
+      encoding = "utf-8",
+      onProgress,
+    }: {
+      stream?: ReadableStream<Uint8Array>;
+      encoding?: string;
+      onProgress?: (bytesScanned: number) => void;
+    } = {},
+  ): Promise<IfcEntityResolver> {
     // Fed in chunks, not as one buffer: a single transform call that enqueues
     // every statement at once builds the whole readable queue in one tick,
     // which measures ~30x slower than letting the reader interleave.
-    const source = new ReadableStream<Uint8Array>({
-      start(controller) {
-        for (let i = 0; i < bytes.length; i += scanChunkSize) {
-          controller.enqueue(bytes.subarray(i, i + scanChunkSize));
-        }
-        controller.close();
-      },
-    });
+    const bytes = stream ?? byteSourceStream(source, scanChunkSize);
 
     const decoder = new TextDecoder(encoding);
     const builder = new IfcLineIndexBuilder();
-    let schema: string | null = null;
+    const header = new Map<string, string>();
+    let inHeader = true;
+    let reported = 0;
 
     for await (const statement of streamAsyncIterator(
-      source.pipeThrough(new IfcStatementScanner()),
+      bytes.pipeThrough(new IfcStatementScanner()),
     )) {
       if (statement.id) {
         builder.add(statement);
-      } else if (!schema) {
+        if (onProgress && statement.offset - reported > progressStep) {
+          reported = statement.offset;
+          onProgress(reported);
+        }
+      } else if (inHeader) {
         const raw = decoder.decode(statement.bytes).slice(0, -1).trim();
-        if (raw.startsWith("FILE_SCHEMA")) schema = parseFileSchema(raw);
+        if (raw === "DATA") inHeader = false;
+        const keyword = /^[A-Z_]+/.exec(raw)?.[0];
+        if (keyword && raw.length > keyword.length) header.set(keyword, raw);
       }
     }
 
+    const fileSchema = header.get("FILE_SCHEMA");
+    const schema = fileSchema ? parseFileSchema(fileSchema) : null;
     if (!schema) throw new Error("Ifc schema not found");
     const factories = entityFactories(schema);
     if (!factories) {
@@ -133,9 +189,11 @@ export class IfcEntityResolver {
     }
 
     return new IfcEntityResolver({
-      source: bytes,
+      source,
       index: builder.finalize(),
       factories,
+      schema,
+      header,
       encoding,
     });
   }
@@ -152,34 +210,52 @@ export class IfcEntityResolver {
     const cached = this._cache.get(id);
     if (cached !== undefined || this._cache.has(id)) return cached;
 
+    const entity = this.parse(id);
+    // Cache before attaching, so a cycle back to this id finds the entity
+    // already here instead of recursing into it.
+    this._cache.set(id, entity);
+    if (entity) this.attach(entity);
+    return entity;
+  }
+
+  /**
+   * The entity `id` names, parsed fresh from the source: uncached, and with
+   * bare `{ type: REF, value }` handles and no `.ref` accessors, exactly like
+   * `IfcAPI.GetLine`. For sweeps that visit each entity once, where a cache
+   * would only end up holding the whole file.
+   *
+   * `undefined` when the file defines no such statement, or when its type is
+   * outside the declared schema.
+   *
+   * @throws if the statement's arguments are malformed.
+   */
+  parse(id: number): webIfc.IfcLineObject | undefined {
     // A dangling id, or a type with no factory: nothing to build, so the
     // statement is never even decoded.
     const at = this.index.indexOf(id);
     const factory =
       at === -1 ? undefined : this._factories[this.index.typeCodeAt(at)];
-    if (!factory) {
-      this._cache.set(id, undefined);
-      return undefined;
-    }
+    if (!factory) return undefined;
 
-    const offset = this.index.offsetAt(at);
-    const raw = this._decoder
-      .decode(this._source.subarray(offset, offset + this.index.lengthAt(at)))
-      .slice(0, -1)
-      .trim();
-
-    let entity: webIfc.IfcLineObject;
+    const raw = this.readStatement(at);
     try {
-      entity = buildEntity({ raw, id, factory });
+      return buildEntity({ raw, id, factory });
     } catch (err) {
       throw new Error(`Corrupted Ifc statement: ${raw}`, { cause: err });
     }
+  }
 
-    // Cache before attaching, so a cycle back to this id finds the entity
-    // already here instead of recursing into it.
-    this._cache.set(id, entity);
-    this.attach(entity);
-    return entity;
+  /**
+   * The text of the statement at index position `at`, without its trailing
+   * `;` — for callers that only need a field or two and can skip building
+   * the entity.
+   */
+  readStatement(at: number): string {
+    const bytes = this._source.read(
+      this.index.offsetAt(at),
+      this.index.lengthAt(at),
+    );
+    return this._decoder.decode(bytes).slice(0, -1).trim();
   }
 
   /**

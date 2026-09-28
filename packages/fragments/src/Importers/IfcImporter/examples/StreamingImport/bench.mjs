@@ -10,7 +10,8 @@
 //   yarn dev   # repo root, serves the example
 //   node bench.mjs --file model.ifc [--mode streaming|legacy] [--view 0]
 //                  [--url http://localhost:5173/...] [--chrome <path>]
-//                  [--timeout <seconds>] [--headed]
+//                  [--timeout <seconds>] [--headed] [--console]
+//                  [--query <extra page params>]
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
@@ -44,6 +45,10 @@ const pageUrl = new URL(
 );
 pageUrl.searchParams.set("mode", mode);
 pageUrl.searchParams.set("view", view);
+// extra page parameters, e.g. --query TAPE_SIZE=16777216&MEMORY_LIMIT=268435456
+for (const [key, value] of new URLSearchParams(args.query ?? "")) {
+  pageUrl.searchParams.set(key, value);
+}
 const chromePath =
   args.chrome ??
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -127,6 +132,7 @@ const { sessionId: page } = await send("Target.attachToTarget", {
 });
 
 const workers = new Map(); // sessionId -> { url, peakUsed, peakTotal }
+const profiled = []; // worker sessions being CPU-profiled (--profile <out>)
 let crashed = false;
 listeners.push(({ method, params, sessionId }) => {
   if (method === "Target.attachedToTarget") {
@@ -140,6 +146,15 @@ listeners.push(({ method, params, sessionId }) => {
       });
     }
     if (args.console) send("Runtime.enable", {}, child).catch(() => {});
+    if (args.profile && targetInfo.url.includes("import-worker")) {
+      profiled.push(child);
+      send("Profiler.enable", {}, child)
+        .then(() =>
+          send("Profiler.setSamplingInterval", { interval: 1000 }, child),
+        )
+        .then(() => send("Profiler.start", {}, child))
+        .catch(() => {});
+    }
     send("Runtime.runIfWaitingForDebugger", {}, child).catch(() => {});
   }
   if (method === "Target.detachedFromTarget" && workers.has(params.sessionId)) {
@@ -265,11 +280,27 @@ while (!result && !crashed && Date.now() - started < timeoutMs) {
   }
 }
 
+if (args.profile) {
+  // The import worker is terminated once it posts its result, which ends its
+  // session, so the page is told to keep it alive only when profiling.
+  for (const sessionId of profiled) {
+    try {
+      const { profile } = await send("Profiler.stop", {}, sessionId, 30000);
+      const { writeFileSync } = await import("node:fs");
+      writeFileSync(args.profile, JSON.stringify(profile));
+      console.error(`profile written to ${args.profile}`);
+    } catch (error) {
+      console.error(`profile lost: ${error.message}`);
+    }
+  }
+}
+
 const mb = (bytes) => Math.round(bytes / 1024 / 1024);
 const summary = {
   file,
   fileMB: mb(Number(execFileSync("stat", ["-f", "%z", file], { encoding: "utf8" }))),
   mode,
+  query: args.query ?? "",
   outcome: crashed
     ? "renderer crashed"
     : result?.error
