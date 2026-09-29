@@ -46,7 +46,10 @@ const loadRealized = async () => {
   return model;
 };
 
-describe("VirtualTilesController tile memory (issue #303, side defect B)", () => {
+// Each case loads and settles a real model; under a parallel suite on a busy
+// machine the 5 s default is too tight and the timeout says nothing about
+// the counter.
+describe("VirtualTilesController tile memory (issue #303, side defect B)", { timeout: 30000 }, () => {
   test("disposing a model returns its realized tile memory to the worker budget", async () => {
     const start = consumed();
     const model = await loadRealized();

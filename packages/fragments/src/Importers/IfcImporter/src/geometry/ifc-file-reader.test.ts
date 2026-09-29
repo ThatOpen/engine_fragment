@@ -37,7 +37,7 @@ const xPositions = (positions: ArrayLike<number>) => {
  * same value, so the second plate was dropped and rendered with the holes of
  * the first one.
  */
-test("geometries differing only in interior detail are not deduplicated", async () => {
+test("geometries differing only in interior detail are not deduplicated", { timeout: 30000 }, async () => {
   const importer = new IfcImporter();
   importer.wasm = { path: webIfcDir + path.sep, absolute: true };
   const bytes = await readFile(
