@@ -437,6 +437,19 @@ test("tiles for a disposed model aren't copied back to the worker", async () => 
   expect(request.list).toEqual([]);
 });
 
+test("a call on a disposed model rejects naming its modelId", async () => {
+  const load = fragments.load(buffer(), { modelId: "arq" });
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const model = await load;
+  const item = model.getItem(1);
+  model.dispose();
+
+  await expect(item.getAttributes()).rejects.toThrow(
+    'Fragments: model "arq" is disposed.',
+  );
+});
+
 test("disposing twice deletes the model once and returns the same promise", async () => {
   const deleteModel = vi.spyOn((fragments as any)._connection, "delete");
   const load = fragments.load(buffer(), { modelId: "m" });
