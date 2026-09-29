@@ -147,7 +147,8 @@ test("concurrent edits keep only the latest delta model", async () => {
   expect(model.deltaModelId).toBe(deltaModels()[0].modelId);
 });
 
-test("save keeps the old delta models in the scene until the new model is in", async () => {
+// Lets editor.save() get a model's requests and its saved buffer.
+const stubSave = () => {
   vi.spyOn(FragmentsModel.prototype, "_getRequests").mockResolvedValue({
     requests: [],
     undoneRequests: [],
@@ -155,6 +156,10 @@ test("save keeps the old delta models in the scene until the new model is in", a
   vi.spyOn(FragmentsModel.prototype, "_save").mockResolvedValue(
     new Uint8Array([1, 2, 3, 4]),
   );
+};
+
+test("save keeps the old delta models in the scene until the new model is in", async () => {
+  stubSave();
   const scene = new THREE.Object3D();
   const old = await load();
   scene.add(old.object);
@@ -175,13 +180,7 @@ test("save keeps the old delta models in the scene until the new model is in", a
 });
 
 test("save tears down the old model and its delta models if the reload fails", async () => {
-  vi.spyOn(FragmentsModel.prototype, "_getRequests").mockResolvedValue({
-    requests: [],
-    undoneRequests: [],
-  });
-  vi.spyOn(FragmentsModel.prototype, "_save").mockResolvedValue(
-    new Uint8Array([1, 2, 3, 4]),
-  );
+  stubSave();
   const scene = new THREE.Object3D();
   const old = await load();
   scene.add(old.object);
@@ -194,6 +193,23 @@ test("save tears down the old model and its delta models if the reload fails", a
   expect(old.object.parent).toBeNull();
   expect(disposeOrder(delta)).toBeDefined();
   expect(fragments.models.list.size).toBe(0);
+});
+
+test("save carries the element requests not applied yet over to the reloaded model", async () => {
+  stubSave();
+  await load();
+  const material = new THREE.MeshLambertMaterial();
+  const tempId = fragments.editor.createMaterial("m", material);
+
+  await fragments.editor.save("m");
+
+  // Temp ids go on from where they were, so they can't clash.
+  expect(fragments.editor.createMaterial("m", material)).not.toBe(tempId);
+  const requests = fragments.editor.clearElementsRequests("m");
+  expect(requests?.map((request) => request.tempId)).toEqual([
+    tempId,
+    expect.any(String),
+  ]);
 });
 
 test("element requests can't be queued for a model that isn't loaded", () => {

@@ -25,8 +25,8 @@ export class Editor {
   private _elementsHelper: ElementsHelper;
 
   constructor(core: FragmentsModels) {
-    this._editHelper = new EditHelper(core);
     this._elementsHelper = new ElementsHelper(core);
+    this._editHelper = new EditHelper(core, this._elementsHelper);
   }
 
   /**

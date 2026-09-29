@@ -4,6 +4,7 @@ import { isIndexRequest } from "../../../Utils/edit";
 import { EditRequestType } from "../../../Utils/edit/edit-types";
 import { EditUtils } from "../../../Utils/edit/edit-utils";
 import { ModelUid, VirtualModelConfig } from "../model/model-types";
+import type { ElementsHelper } from "./elements-helper";
 
 // Request types that change what is rendered (geometry, materials,
 // transforms or whole elements). Requests outside this set (items without
@@ -33,10 +34,12 @@ export class EditHelper {
   // with it, see setDeltaModels().
   private readonly _deltaModels = new Map<ModelUid, FragmentsModel[]>();
   private readonly _fragments: FragmentsModels;
+  private readonly _elements: ElementsHelper;
   private _lastDeltaId = 0;
 
-  constructor(core: FragmentsModels) {
+  constructor(core: FragmentsModels, elements: ElementsHelper) {
     this._fragments = core;
+    this._elements = elements;
   }
 
   async edit(
@@ -129,6 +132,8 @@ export class EditHelper {
     // delta models stay in the scene with it.
     const deltaModels = this._deltaModels.get(model._uid) ?? [];
     this._deltaModels.delete(model._uid);
+    // Element requests not applied yet carry over to the reloaded model.
+    const queued = this._elements.takeQueued(model);
     model.dispose({ keepInScene: true });
 
     try {
@@ -138,6 +143,7 @@ export class EditHelper {
         raw: true,
         camera,
       });
+      this._elements.queue(newModel, queued);
 
       if (parent) {
         parent.add(newModel.object);

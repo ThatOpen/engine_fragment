@@ -45,6 +45,13 @@ type ModelRequests = {
   };
 };
 
+/** The requests queued for a model, see ElementsHelper.takeQueued(). */
+export type QueuedRequests = {
+  requests?: ModelRequests;
+  indexRequests?: ET.IndexRequest[];
+  nextTempId?: number;
+};
+
 export class ElementsHelper {
   // Queued requests of each model, by the model's uid. They are dropped when
   // it is disposed, so a model loaded later under the same modelId starts
@@ -70,6 +77,32 @@ export class ElementsHelper {
   getRequests(modelId: string) {
     const model = this._fragments.models.list.get(modelId);
     return model ? this.takeRequests(this.track(model)) : null;
+  }
+
+  /**
+   * Takes the requests queued for a model, for the model that replaces it
+   * (see EditHelper.save()). Disposing the model would drop them.
+   */
+  takeQueued(model: FragmentsModel): QueuedRequests {
+    const uid = model._uid;
+    const queued = {
+      requests: this._requests.get(uid),
+      indexRequests: this._indexRequests.get(uid),
+      nextTempId: this._nextTempIds.get(uid),
+    };
+    this._requests.delete(uid);
+    this._indexRequests.delete(uid);
+    this._nextTempIds.delete(uid);
+    return queued;
+  }
+
+  /** Queues the requests taken from the model `model` replaces. */
+  queue(model: FragmentsModel, queued: QueuedRequests) {
+    const uid = this.track(model);
+    const { requests, indexRequests, nextTempId } = queued;
+    if (requests) this._requests.set(uid, requests);
+    if (indexRequests) this._indexRequests.set(uid, indexRequests);
+    if (nextTempId !== undefined) this._nextTempIds.set(uid, nextTempId);
   }
 
   private takeRequests(uid: ModelUid) {
