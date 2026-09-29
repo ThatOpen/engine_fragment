@@ -12,12 +12,14 @@ import {
 
 import {
   AttributesUniqueValuesParams,
+  CRSData,
   CurrentLod,
   Identifier,
   ItemsDataConfig,
   IndexArrayType,
   IndexEntry,
   IndexInfo,
+  InformationResultType,
   ItemInformationType,
   ItemSelectionType,
   ItemsQueryConfig,
@@ -26,6 +28,7 @@ import {
   MaterialDefinition,
   MeshData,
   SnappingClass,
+  SpatialTreeItem,
   VirtualModelConfig,
 } from "../model/model-types";
 import {
@@ -222,7 +225,7 @@ export class VirtualFragmentsModel {
     return this.properties.getItemRelations(id);
   }
 
-  getSpatialStructure() {
+  getSpatialStructure(): SpatialTreeItem {
     // If there are any changes to the spatial structure, return the changed spatial structure
     const found = EditUtils.applyChangesToSpecialData(
       this.requests,
@@ -242,7 +245,7 @@ export class VirtualFragmentsModel {
     return this.properties.getCategories();
   }
 
-  getMetadata() {
+  getMetadata(): Record<string, any> | null {
     // If there are any changes to the metadata, return the changed metadata
     const found = EditUtils.applyChangesToSpecialData(
       this.requests,
@@ -256,7 +259,7 @@ export class VirtualFragmentsModel {
     return this.properties.getMetadata();
   }
 
-  getCRS() {
+  getCRS(): CRSData | null {
     // If there are any changes to the metadata, check there too
     const found = EditUtils.applyChangesToSpecialData(
       this.requests,
@@ -294,7 +297,7 @@ export class VirtualFragmentsModel {
       selector?: Partial<Record<ItemSelectionType, any>>;
       result?: any;
     },
-  ) {
+  ): InformationResultType<ItemInformationType> | null {
     return this._sequenceHelper.getSequenced(result, fromItems, inputs);
   }
 
