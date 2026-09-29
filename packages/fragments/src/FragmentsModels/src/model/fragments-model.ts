@@ -23,6 +23,7 @@ import {
   VirtualModelConfig,
 } from "./model-types";
 
+import { Cloned } from "../multithreading/cloned";
 import { FragmentsConnection } from "../multithreading/fragments-connection";
 import type { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 import { MiscHelper } from "../utils";
@@ -1121,7 +1122,8 @@ export class FragmentsModel implements IFragmentsModel<true> {
   /**
    * Internal method to call a method of the model on its worker. Don't use
    * this directly. The arguments and the result are copied between threads,
-   * so class instances in the result arrive as plain objects.
+   * so class instances in the result arrive as plain objects, see
+   * {@link Cloned}.
    */
   _invoke<K extends keyof VirtualMethods>(
     method: K,
@@ -1129,8 +1131,12 @@ export class FragmentsModel implements IFragmentsModel<true> {
     ...[args]: [] extends Parameters<VirtualMethods[K]>
       ? [args?: Parameters<VirtualMethods[K]>]
       : [args: Parameters<VirtualMethods[K]>]
-  ): Promise<Awaited<ReturnType<VirtualMethods[K]>>> {
-    return this.threads.invoke(this._uid, method, args);
+  ): Promise<Cloned<Awaited<ReturnType<VirtualMethods[K]>>>> {
+    return this.threads.invoke<Awaited<ReturnType<VirtualMethods[K]>>>(
+      this._uid,
+      method,
+      args,
+    );
   }
 
   /**

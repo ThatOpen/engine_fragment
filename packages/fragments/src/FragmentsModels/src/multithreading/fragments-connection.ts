@@ -3,6 +3,7 @@ import {
   MultiThreadingRequestClass,
   WorkerRequest,
 } from "../model/model-types";
+import { Cloned } from "./cloned";
 import { Connection } from "./connection";
 import { ThreadHandler } from "./connection-handlers";
 import { MultithreadingHelper, Thread } from "./multithreading-helper";
@@ -130,11 +131,15 @@ export class FragmentsConnection extends Connection<WorkerRequest> {
     this._data.setModelGroup(uid, group);
   }
 
-  async invoke(uid: ModelUid, method: string, args: any[] = []) {
+  /**
+   * Calls a method of the model's worker-side counterpart. `R` is what the
+   * method returns there, which reaches this thread as a copy.
+   */
+  async invoke<R = any>(uid: ModelUid, method: string, args: any[] = []) {
     const helper = MultithreadingHelper;
     const requestData = helper.getExecuteRequest(uid, method, args);
     const response = await this.fetch(requestData);
-    return response.result;
+    return response.result as Cloned<R>;
   }
 
   /**
@@ -149,7 +154,10 @@ export class FragmentsConnection extends Connection<WorkerRequest> {
    * RPC type — EXECUTE, REFRESH_VIEW, GET_BOXES, etc. — is covered
    * uniformly.
    */
-  override fetch(input: any, content?: any[]) {
+  override fetch<T extends object>(
+    input: T & { seq?: number },
+    content?: any[],
+  ) {
     if (input.seq === undefined) {
       input.seq = MultithreadingHelper.nextSeq();
     }

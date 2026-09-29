@@ -9,6 +9,16 @@ import {
 
 export type Thread = Worker;
 
+/** A call of a method of a model's worker-side counterpart. */
+export type ExecuteRequest = {
+  class: MultiThreadingRequestClass.EXECUTE;
+  uid: ModelUid;
+  function: string;
+  parameters: unknown[];
+  /** Set by the worker: what the method returned. */
+  result?: unknown;
+};
+
 export class MultithreadingHelper {
   static newThread(url: string, classic?: boolean) {
     return classic ? new Worker(url) : new Worker(url, { type: "module" });
@@ -103,7 +113,11 @@ export class MultithreadingHelper {
     return MultithreadingHelper._seq;
   }
 
-  static getExecuteRequest(uid: ModelUid, method: string, args: any) {
+  static getExecuteRequest(
+    uid: ModelUid,
+    method: string,
+    args: any,
+  ): ExecuteRequest {
     const parameters = Array.from(args);
     const className = MultiThreadingRequestClass.EXECUTE;
     // `seq` is attached at the FragmentsConnection.fetch level so every
