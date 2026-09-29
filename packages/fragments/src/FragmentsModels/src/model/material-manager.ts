@@ -9,17 +9,25 @@ import {
   BIMMaterial,
   MaterialData,
   ModelUid,
+  CreateTileRequest,
+  UpdateTileRequest,
 } from "./model-types";
 import { CRC } from "../utils";
 import { LodMaterial } from "../lod";
 import { DataMap } from "../../../Utils";
 import type { Cloned } from "../multithreading/cloned";
 
+// The tile a material is for.
+type TileRequest = Cloned<CreateTileRequest | UpdateTileRequest>;
+
+// What a tile's material depends on, besides its definition.
+type MaterialKey = Pick<TileRequest, "uid" | "objectClass" | "currentLod">;
+
 export class MaterialManager {
   readonly list = new DataMap<number, BIMMaterial>();
 
   private readonly _modelMaterialMapping = new Map<ModelUid, Set<number>>();
-  private readonly _definitions = new Map<ModelUid, MaterialDefinition[]>();
+  private readonly _definitions = new Map<ModelUid, HighlightDefinition[]>();
   private readonly _idGenerator = new CRC();
   private readonly white = 0xffffffff;
 
@@ -54,8 +62,8 @@ export class MaterialManager {
     this._modelMaterialMapping.delete(uid);
   }
 
-  get(data: MaterialDefinition, request: any) {
-    const { uid, objectClass, currentLod, templateId } = request;
+  get(data: MaterialDefinition, request: MaterialKey) {
+    const { uid, objectClass, currentLod } = request;
     if (
       uid === undefined ||
       objectClass === undefined ||
@@ -70,7 +78,6 @@ export class MaterialManager {
       uid,
       objectClass,
       currentLod,
-      templateId,
       ...data,
     });
 
@@ -87,7 +94,7 @@ export class MaterialManager {
    */
   addDefinitions(
     uid: ModelUid,
-    materials: MaterialDefinition[],
+    materials: HighlightDefinition[],
     firstId?: number,
   ) {
     const definitions = this._definitions.get(uid);
@@ -101,7 +108,7 @@ export class MaterialManager {
     }
   }
 
-  createHighlights(mesh: BIMMesh, request: any) {
+  createHighlights(mesh: BIMMesh, request: TileRequest) {
     const {
       tileData: { highlightData, highlightIds },
       uid,
@@ -113,7 +120,9 @@ export class MaterialManager {
     const localMap = new Map<number, number>();
 
     const materialDefinitions = this._definitions.get(uid);
-    if (!materialDefinitions) return materials;
+    if (!materialDefinitions || !highlightData || !highlightIds) {
+      return materials;
+    }
 
     for (let i = 0; i < highlightData.position.length; i++) {
       const highlightIndex = highlightIds[i];
@@ -142,7 +151,10 @@ export class MaterialManager {
   ) {
     const materialDefinitions = this._definitions.get(uid);
     if (!materialDefinitions) return undefined;
-    const originalDefinition = materialDefinitions[originalIndex];
+    const originalDefinition = MaterialManager.modelMaterial(
+      materialDefinitions,
+      originalIndex,
+    );
     const newDefinition = materialDefinitions[highlightIndex];
     if (!newDefinition || !originalDefinition) return undefined;
     const {
@@ -163,10 +175,11 @@ export class MaterialManager {
     return combined;
   }
 
-  getFromRequest(request: any) {
+  getFromRequest(request: TileRequest) {
     const { material: index, uid } = request;
     const modelMaterials = this._definitions.get(uid);
-    const definition = modelMaterials?.[index];
+    const definition =
+      modelMaterials && MaterialManager.modelMaterial(modelMaterials, index);
     if (!definition) {
       throw new Error(`Fragments: Missing mesh material for index ${index}`);
     }
@@ -174,7 +187,17 @@ export class MaterialManager {
     return material;
   }
 
-  private newLODMaterial(data: MaterialData, request: any) {
+  // A model's first definitions are its own materials, which tiles are drawn
+  // with, and they are complete. Only highlights, after them, may hold just
+  // some properties.
+  private static modelMaterial(
+    definitions: HighlightDefinition[],
+    index: number,
+  ) {
+    return definitions[index] as MaterialDefinition;
+  }
+
+  private newLODMaterial(data: MaterialData, request: MaterialKey) {
     const { data: definition } = data;
     const color = new THREE.Color(definition.color);
     if (request.currentLod === CurrentLod.WIRES) {
@@ -202,8 +225,8 @@ export class MaterialManager {
     return parameters;
   }
 
-  private new(data: MaterialDefinition, request: any) {
-    const { objectClass, templateId } = request;
+  private new(data: MaterialDefinition, request: MaterialKey) {
+    const { objectClass } = request;
     let material: BIMMaterial;
 
     if (objectClass === ObjectClass.SHELL) {
@@ -223,7 +246,8 @@ export class MaterialManager {
       });
     } else if (objectClass === ObjectClass.LINE) {
       material = this.newLODMaterial(
-        { data, instancing: templateId !== undefined },
+        // No worker sends a templateId, so no tile is instanced.
+        { data, instancing: false },
         request
       );
     } else {
@@ -244,14 +268,17 @@ export class MaterialManager {
 
   private processHighlight(
     localMap: Map<number, number>,
-    highlightIndex: any,
-    materialDefinitions: MaterialDefinition[],
-    index: any,
-    request: any,
+    highlightIndex: number,
+    materialDefinitions: HighlightDefinition[],
+    index: number,
+    request: TileRequest,
     materials: THREE.Material[]
   ) {
     if (!localMap.has(highlightIndex)) {
-      const originalDefinition = materialDefinitions[index];
+      const originalDefinition = MaterialManager.modelMaterial(
+        materialDefinitions,
+        index,
+      );
       const newDefinition = materialDefinitions[highlightIndex];
       const { preserveOriginalMaterial, _explicitProps, ...highlightDefinition } = newDefinition;
       const combinedDefinition: MaterialDefinition = { ...originalDefinition };
@@ -273,7 +300,7 @@ export class MaterialManager {
   private getUniqueMaterial(
     id: number,
     data: MaterialDefinition,
-    request: any
+    request: MaterialKey
   ) {
     const uid = request.uid;
     const material = this.list.get(id);

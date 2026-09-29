@@ -4,6 +4,7 @@ import {
   type ThreadHandler,
 } from "./connection-handlers";
 import { MultithreadingHelper } from "./multithreading-helper";
+import type { Cloned } from "./cloned";
 import type { ModelUid, TileRequest } from "../model/model-types";
 
 /**
@@ -30,7 +31,7 @@ export class Connection<TInput extends object = object> {
 
   fetch<T extends object>(input: T, content: any[] = []) {
     const message = this._handlers.setupInput(input);
-    return new Promise<T & MessageBase>((resolve, reject) => {
+    return new Promise<Cloned<T> & MessageBase>((resolve, reject) => {
       // Routing and sending happen before this returns, so a caller that
       // frees a route right after (see FragmentsConnection.delete) still
       // sends through it. If either throws, the promise rejects: nothing
@@ -42,8 +43,9 @@ export class Connection<TInput extends object = object> {
           reject(response.errorInfo);
           return;
         }
-        // The other side answers with the message it received, results added.
-        resolve(response as T & MessageBase);
+        // The other side answers with a copy of the message it received,
+        // results added.
+        resolve(response as Cloned<T> & MessageBase);
       });
     });
   }
@@ -83,7 +85,7 @@ export class Connection<TInput extends object = object> {
     try {
       // Anything that isn't an answer is a request, which the other side
       // sends as a TInput.
-      await this._handleInput(data as TInput & MessageBase);
+      await this._handleInput(data as Cloned<TInput> & MessageBase);
     } catch (error: any) {
       data.errorInfo = error.toString();
       // Aborts are intentional — don't log them as unexpected errors.

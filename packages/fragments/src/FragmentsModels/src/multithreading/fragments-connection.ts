@@ -154,12 +154,10 @@ export class FragmentsConnection extends Connection<WorkerRequest> {
    * RPC type — EXECUTE, REFRESH_VIEW, GET_BOXES, etc. — is covered
    * uniformly.
    */
-  override fetch<T extends object>(
-    input: T & { seq?: number },
-    content?: any[],
-  ) {
-    if (input.seq === undefined) {
-      input.seq = MultithreadingHelper.nextSeq();
+  override fetch<T extends object>(input: T, content?: any[]) {
+    const request = input as { seq?: number };
+    if (request.seq === undefined) {
+      request.seq = MultithreadingHelper.nextSeq();
     }
     return super.fetch(input, content);
   }

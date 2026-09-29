@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { MeshManager } from "./mesh-manager";
 import { FragmentsModel } from "./fragments-model";
-import { TileRequestClass } from "./model-types";
+import { ModelUid, TileRequestClass } from "./model-types";
 import { MultithreadingHelper } from "../multithreading/multithreading-helper";
 
 function model(uid: number, modelId: string) {
@@ -49,7 +49,7 @@ describe("update fences when models are removed", () => {
     await Promise.resolve();
     expect(finished).toBe(false);
     meshes.requests.add([
-      { uid: 2, tileRequestClass: TileRequestClass.FINISH, seq },
+      { uid: 2 as ModelUid, tileRequestClass: TileRequestClass.FINISH, seq },
     ]);
     await pending;
     expect(finished).toBe(true);
@@ -68,7 +68,7 @@ describe("update fences when models are removed", () => {
     await Promise.resolve();
     expect(finished).toBe(false);
     meshes.requests.add([
-      { uid: 3, tileRequestClass: TileRequestClass.FINISH, seq },
+      { uid: 3 as ModelUid, tileRequestClass: TileRequestClass.FINISH, seq },
     ]);
     await pending;
     expect(finished).toBe(true);
@@ -86,7 +86,7 @@ describe("update fences when models are removed", () => {
     expect(finished).toBe(false);
     // Model 2 was disposed, but its worker got through the fenced requests.
     meshes._dropRequests([
-      { uid: 2, tileRequestClass: TileRequestClass.FINISH, seq },
+      { uid: 2 as ModelUid, tileRequestClass: TileRequestClass.FINISH, seq },
     ]);
     await pending;
     expect(finished).toBe(true);
