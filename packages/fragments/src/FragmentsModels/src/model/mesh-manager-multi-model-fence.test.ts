@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import Pako from "pako";
 import { MeshManager } from "./mesh-manager";
 import { ViewManager } from "./view-manager";
-import { TileRequestClass } from "./model-types";
+import { ModelUid, TileRequestClass } from "./model-types";
 import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 import { MultithreadingHelper } from "../multithreading/multithreading-helper";
 import { threadSeq } from "../multithreading/thread-seq";
@@ -29,39 +29,45 @@ const STR_TICKS_PER_PASS = 4;
 
 const setup = async () => {
   const meshes = new MeshManager(() => {});
-  const applied = new Map<string, number>();
+  const applied = new Map<ModelUid, number>();
   (meshes as any).processTileRequest = (request: any) => {
     if (request.tileRequestClass === TileRequestClass.FINISH) return;
-    applied.set(request.modelId, (applied.get(request.modelId) ?? 0) + 1);
+    applied.set(request.uid, (applied.get(request.uid) ?? 0) + 1);
   };
 
-  const worker = new Map<string, VirtualFragmentsModel>();
+  const worker = new Map<ModelUid, VirtualFragmentsModel>();
   const inbox: any[] = [];
   const toMain: any = {
     fetch: async () => {},
-    fetchMeshCompute: (_modelId: string, list: any[]) => meshes.requests.add(list),
+    fetchMeshCompute: (_uid: ModelUid, list: any[]) => meshes.requests.add(list),
   };
 
   const camera = new THREE.PerspectiveCamera(60, 1.5, 0.01, 1e7);
   const views = new Map<string, ViewManager>();
   const mains = new Map<string, any>();
 
-  const load = async (id: string, file: string, ticksPerPass: number) => {
+  const load = async (
+    uid: ModelUid,
+    id: string,
+    file: string,
+    ticksPerPass: number,
+  ) => {
     const inflated = Pako.inflate(readFileSync(frag(file)));
     const data = inflated.buffer.slice(
       inflated.byteOffset,
       inflated.byteOffset + inflated.byteLength,
     );
-    const model = new VirtualFragmentsModel(id, data, toMain, {
+    const model = new VirtualFragmentsModel(uid, data, toMain, {
       multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 1e6 },
     });
     await model.setupData();
     const tiles = model.tiles as any;
     tiles._params.updateTime = 0;
     tiles._params.updateSamples = Math.ceil(tiles._sampleAmount / ticksPerPass);
-    worker.set(id, model);
+    worker.set(uid, model);
 
     const main: any = {
+      _uid: uid,
       modelId: id,
       object: new THREE.Object3D(),
       box: tiles._boxes.fullBox.clone(),
@@ -77,14 +83,14 @@ const setup = async () => {
       _finishProcessing() {},
     };
     mains.set(id, main);
-    meshes.list.set(id, main);
+    meshes._add(main);
     const view = new ViewManager();
     view.useCamera(camera);
     views.set(id, view);
   };
 
-  await load("arq", "school_arq", 1);
-  await load("str", "school_str", STR_TICKS_PER_PASS);
+  await load(1 as ModelUid, "arq", "school_arq", 1);
+  await load(2 as ModelUid, "str", "school_str", STR_TICKS_PER_PASS);
 
   const box = new THREE.Box3();
   for (const m of worker.values()) box.union((m.tiles as any)._boxes.fullBox);
@@ -108,7 +114,7 @@ const setup = async () => {
     for (const input of inbox.splice(0)) {
       if (input.seq > threadSeq.lastSeen) threadSeq.lastSeen = input.seq;
       const v = input.view;
-      worker.get(input.modelId)!.refreshView({
+      worker.get(input.uid)!.refreshView({
         ...v,
         cameraFrustum: MultithreadingHelper.frustum(v.cameraFrustum),
         cameraPosition: MultithreadingHelper.array(v.cameraPosition),
@@ -121,7 +127,8 @@ const setup = async () => {
     const start = performance.now();
     for (const m of worker.values()) m.update(start);
   };
-  const passDone = (id: string) => (worker.get(id)!.tiles as any).tilesUpdated;
+  const passDone = (id: string) =>
+    (worker.get(mains.get(id)._uid)!.tiles as any).tilesUpdated;
 
   // FragmentsModels.update(true): a forced refresh per model, then the fence.
   const forcedUpdate = async (ids = [...mains.keys()]) => {

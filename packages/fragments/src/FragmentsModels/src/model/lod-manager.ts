@@ -46,7 +46,7 @@ export class LODManager {
   applyHighlight(mesh: LODMesh, request: any) {
     const {
       tileData: { highlightIds, highlightData },
-      modelId,
+      uid,
       material: index,
     } = request;
 
@@ -67,7 +67,7 @@ export class LODManager {
       const definition = this._materials.getHighlightProps(
         highlightIds[i],
         index,
-        modelId,
+        uid,
       );
       if (!definition) {
         colors.push(undefined);

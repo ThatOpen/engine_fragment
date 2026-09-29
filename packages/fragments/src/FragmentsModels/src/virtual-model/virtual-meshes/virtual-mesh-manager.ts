@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { ObjectClass, CurrentLod } from "../../model/model-types";
+import { ObjectClass, CurrentLod, ModelUid } from "../../model/model-types";
 import { CRC, MiscHelper } from "../../utils";
 import { Meshes, RepresentationClass } from "../../../../Schema";
 import { LodClass, AnyTileData, AnyTileBasicData } from "./types";
@@ -16,9 +16,9 @@ export abstract class VirtualMeshManager {
   private readonly _idGenerator = new CRC();
   private readonly _modelCode: number;
 
-  constructor(modelId: string, meshes: Meshes) {
+  constructor(uid: ModelUid, meshes: Meshes) {
     this.meshes = meshes;
-    this._modelCode = this.getModelCode(modelId);
+    this._modelCode = this.getModelCode(uid);
   }
 
   abstract setupTemplates(): void;
@@ -81,7 +81,10 @@ export abstract class VirtualMeshManager {
     return this._idGenerator.generate(data);
   }
 
-  private getModelCode(modelId: string) {
-    return this._idGenerator.generate([modelId]);
+  // The mesh cache is shared by every model on the worker, so its keys are
+  // seeded by the uid: a model loaded under a disposed model's modelId must
+  // neither read nor evict the disposed model's meshes.
+  private getModelCode(uid: ModelUid) {
+    return this._idGenerator.generate([uid]);
   }
 }

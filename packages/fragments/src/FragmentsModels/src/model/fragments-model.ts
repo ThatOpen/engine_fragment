@@ -13,6 +13,7 @@ import {
   ItemsQueryParams,
   LodMode,
   MaterialDefinition,
+  ModelUid,
   RaycastData,
   RectangleRaycastData,
   RelsChange,
@@ -212,6 +213,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
   private _frozen = false;
   private _isSetup = false;
 
+  private readonly _modelId: string;
   // Aborted as soon as dispose() is called; an in-flight load listens to it.
   private readonly _lifetime = new AbortController();
   private _disposal: Promise<void> | null = null;
@@ -223,8 +225,13 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * The ID of the model.
    */
   get modelId() {
-    return this.object.name;
+    return this._modelId;
   }
+
+  /**
+   * Internal key of the model, see {@link ModelUid}. Don't use this directly.
+   */
+  readonly _uid: ModelUid;
 
   /**
    * Internal signal, aborted as soon as {@link dispose} is called. Don't use
@@ -322,13 +329,23 @@ export class FragmentsModel implements IFragmentsModel<true> {
   /**
    * The constructor of the fragments model. Don't use this directly. Use the {@link FragmentsModels.load} instead.
    */
-  constructor(
-    modelId: string,
-    meshManager: MeshManager,
-    threads: FragmentsConnection,
-    editor: Editor,
-    threadGroup?: string,
-  ) {
+  constructor({
+    modelId,
+    uid,
+    meshManager,
+    threads,
+    editor,
+    threadGroup,
+  }: {
+    modelId: string;
+    uid: ModelUid;
+    meshManager: MeshManager;
+    threads: FragmentsConnection;
+    editor: Editor;
+    threadGroup?: string;
+  }) {
+    this._modelId = modelId;
+    this._uid = uid;
     this.object.name = modelId;
     this.object.up.set(0, 0, 1);
     this._meshManager = meshManager;
@@ -349,15 +366,17 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Dispose the model. Use this when you're done with the model.
    * If you use the {@link FragmentsModels.dispose} method, this will be called automatically for all models.
    *
-   * Disposing a model that is still loading aborts its load. Calling it
-   * again returns the same promise.
+   * It takes effect before it returns: the model leaves
+   * {@link FragmentsModels.models}, its load (if still in flight) is
+   * aborted, later requests to it reject, and its modelId can be loaded
+   * again right away. The returned promise resolves once the worker has
+   * deleted the model too. Calling it again returns the same promise.
    *
-   * @param options.keepInScene - If true, frees the model's worker slot,
-   *   registry entries and shared MaterialManager slot but leaves the THREE
-   *   object, tiles, materials in `list`, alignments and grids in place.
-   *   Caller must finalize the visual cleanup later via
-   *   {@link finalizeDispose}. Used by `editor.save()` to swap in a freshly
-   *   loaded model without a blank frame.
+   * @param options.keepInScene - If true, frees the model's worker slot
+   *   and registry entries but leaves the THREE object, tiles, materials,
+   *   alignments and grids in place. Caller must finalize the visual
+   *   cleanup later via {@link finalizeDispose}. Used by `editor.save()` to
+   *   swap in a freshly loaded model without a blank frame.
    */
   dispose(options?: { keepInScene?: boolean }): Promise<void> {
     if (!this._disposal) {
@@ -378,27 +397,18 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   /**
    * Finalize a deferred dispose. Removes the THREE object from its parent,
-   * tears down tile meshes (geometry only — materials are shared via the
-   * MaterialManager and may be reused by a replacement model under the
-   * same modelId), and disposes the model's alignments and grids.
+   * tears down the tile meshes and the model's materials, and disposes the
+   * model's alignments and grids.
    *
-   * Only call this after `dispose({ keepInScene: true })`. The tile map
-   * is cleared with events disabled to bypass the onBeforeDelete listener
-   * registered in the constructor (which would otherwise dispose tile
-   * materials).
+   * Only call this after `dispose({ keepInScene: true })`.
    */
   finalizeDispose() {
-    this.object.removeFromParent();
-
-    this.tiles.eventsEnabled = false;
-    for (const [, mesh] of this.tiles) {
-      this.object.remove(mesh);
-      mesh.geometry.dispose();
-    }
-    this.tiles.clear();
-
-    this._alignmentsManager.dispose();
-    this._gridsManager.dispose();
+    this._dataManager.disposeScene({
+      model: this,
+      meshes: this._meshManager,
+      alignments: this._alignmentsManager,
+      grids: this._gridsManager,
+    });
   }
 
   /**
@@ -893,7 +903,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param data - The data of the rectangle raycast.
    */
   rectangleRaycast(data: RectangleRaycastData) {
-    return this._raycastManager.rectangleRaycast(this, this._meshManager, data);
+    return this._raycastManager.rectangleRaycast(this, data);
   }
 
   /**
@@ -1204,7 +1214,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
       : [args: Parameters<RemoteMethods[K]>]
   ): Promise<Cloned<Awaited<ReturnType<RemoteMethods[K]>>>> {
     return this.threads.invoke<Awaited<ReturnType<RemoteMethods[K]>>>(
-      this.modelId,
+      this._uid,
       method,
       args,
     );
@@ -1249,7 +1259,9 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Internal method to refresh the view of the model. You shouldn't call this directly. Instead, use {@link FragmentsModels.update}.
    */
   async _refreshView(force = false) {
-    if (this.frozen) return;
+    // A disposed model has nothing left to show.
+    const disposed = this._lifetime.signal;
+    if (this.frozen || disposed.aborted) return;
     // Only mark the model busy when a REFRESH_VIEW was actually
     // dispatched — a skipped (unchanged-view) refresh produces no
     // FINISH, so setting the flag would leave `isBusy` stuck. The
@@ -1262,7 +1274,13 @@ export class FragmentsModel implements IFragmentsModel<true> {
         if (sent) this._isProcessing = true;
       });
     const deltaPromise = this._editor._update(this.modelId);
-    await Promise.all([mainPromise, deltaPromise]);
+    try {
+      await Promise.all([mainPromise, deltaPromise]);
+    } catch (error) {
+      // Disposing the model mid-refresh rejects the refresh if it drops the
+      // model's worker. Callers often don't await refreshes (see `frozen`).
+      if (!disposed.aborted) throw error;
+    }
   }
 
   /**

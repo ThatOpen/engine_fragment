@@ -5,7 +5,7 @@ import { describe, expect, test } from "vitest";
 import { VirtualFragmentsModel } from "./virtual-fragments-model";
 import { ThreadExecutor } from "../multithreading/thread-controllers/thread-executor";
 import { MultithreadingHelper } from "../multithreading/multithreading-helper";
-import { MultiThreadingRequestClass } from "../model/model-types";
+import { ModelUid, MultiThreadingRequestClass } from "../model/model-types";
 
 /**
  * Regression test for https://github.com/ThatOpen/engine_fragment/issues/267
@@ -25,7 +25,7 @@ const fixture = path.resolve(
 function loadModel() {
   const data = pako.inflate(new Uint8Array(readFileSync(fixture)));
   const model = new VirtualFragmentsModel(
-    "get-item-category-test",
+    1 as ModelUid,
     data as any,
     undefined as any,
   );
@@ -66,7 +66,7 @@ describe("VirtualFragmentsModel.getItemCategory", () => {
     new ThreadExecutor(thread as any);
 
     const input: any = MultithreadingHelper.getExecuteRequest(
-      "get-item-category-test",
+      1 as ModelUid,
       "getItemCategory",
       [localId],
     );

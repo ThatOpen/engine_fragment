@@ -1,6 +1,7 @@
 import Pako from "pako";
 import {
   LoadAbortedError,
+  ModelUid,
   MultiThreadingRequestClass,
 } from "../../model/model-types";
 import { ThreadController } from "./thread-controller";
@@ -12,11 +13,11 @@ export class ThreadModelCreator extends ThreadController {
   }
 
   protected async execute(input: any) {
-    const { modelId } = input;
+    const { uid } = input;
     const load = this.load(input);
     // A DELETE that lands mid-load aborts it and waits for it to unwind.
     this.thread.loading.set(
-      modelId,
+      uid,
       load.then(
         () => {},
         () => {},
@@ -25,17 +26,18 @@ export class ThreadModelCreator extends ThreadController {
     try {
       await load;
     } finally {
-      this.thread.aborting.delete(modelId);
-      this.thread.loading.delete(modelId);
+      this.thread.aborting.delete(uid);
+      this.thread.loading.delete(uid);
     }
   }
 
   private async load(input: any) {
-    const { modelId } = input;
-    const notify = this.createProgressNotifier(modelId);
+    const { uid } = input;
+    const notify = this.createProgressNotifier(uid);
     const throwIfAborted = () => {
-      if (this.thread.aborting.has(modelId)) {
-        throw new LoadAbortedError(modelId);
+      if (this.thread.aborting.has(uid)) {
+        // The main thread rebuilds this error with the model's modelId.
+        throw new LoadAbortedError(String(uid));
       }
     };
 
@@ -56,14 +58,14 @@ export class ThreadModelCreator extends ThreadController {
       notify("done", 1);
     } catch (e) {
       // Clean up any partial state the worker allocated for this model.
-      const partial = this.thread.list.get(modelId);
+      const partial = this.thread.list.get(uid);
       if (partial) {
         try {
           partial.dispose();
         } catch {
           // swallow — best-effort disposal of partial state
         }
-        this.thread.list.delete(modelId);
+        this.thread.list.delete(uid);
       }
       throw e;
     }
@@ -79,17 +81,12 @@ export class ThreadModelCreator extends ThreadController {
     notify: (stage: string, progress: number) => void,
     throwIfAborted: () => void,
   ) {
-    const { modelId, modelData, config } = input;
+    const { uid, modelData, config } = input;
     const { connection } = this.thread;
-    const model = new VirtualFragmentsModel(
-      modelId,
-      modelData,
-      connection,
-      config,
-    );
+    const model = new VirtualFragmentsModel(uid, modelData, connection, config);
 
     // Register early so the catch block can dispose the partial model.
-    this.thread.list.set(modelId, model);
+    this.thread.list.set(uid, model);
 
     // Resume the update loop now that there is a model to drive. The loop stops
     // itself when the model list empties, so this re-arms it after idle (#234).
@@ -111,13 +108,13 @@ export class ThreadModelCreator extends ThreadController {
     }
   }
 
-  private createProgressNotifier(modelId: string) {
+  private createProgressNotifier(uid: ModelUid) {
     const { connection } = this.thread;
     return (stage: string, progress: number) => {
       // Fire-and-forget (same pattern as CREATE_MATERIAL transfer)
       connection.fetch({
         class: MultiThreadingRequestClass.LOAD_PROGRESS,
-        modelId,
+        uid,
         stage,
         progress,
       });

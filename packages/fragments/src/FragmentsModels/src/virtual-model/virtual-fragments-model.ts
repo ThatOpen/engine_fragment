@@ -27,6 +27,7 @@ import {
   LodMode,
   MaterialDefinition,
   MeshData,
+  ModelUid,
   SnappingClass,
   SpatialTreeItem,
   VirtualModelConfig,
@@ -86,7 +87,7 @@ export class VirtualFragmentsModel {
   private _sequenceHelper = new SequenceHelper(this);
 
   private _config: VirtualModelConfig = {};
-  private _modelId: string;
+  private _uid: ModelUid;
 
   private _alignments: AlignmentsController;
   private _grids: GridsController;
@@ -98,17 +99,17 @@ export class VirtualFragmentsModel {
   private _requestsForRedo: EditRequest[] = [];
 
   constructor(
-    modelId: string,
+    uid: ModelUid,
     data: ArrayBuffer,
     connection: Connection,
     config?: VirtualModelConfig,
   ) {
-    this._modelId = modelId;
+    this._uid = uid;
     this._connection = connection;
     this._config = { ...this._config, ...config };
     this.data = this.setupModel(data);
     this.boxes = new VirtualBoxController(this.data);
-    this.materials = this.setupMaterials(modelId);
+    this.materials = this.setupMaterials(uid);
     this._alignments = new AlignmentsController(this);
     this._grids = new GridsController(this);
     this.itemConfig = this.setupItemsConfig();
@@ -859,14 +860,14 @@ export class VirtualFragmentsModel {
     );
   }
 
-  private setupMaterials(modelId: string) {
-    return new VirtualMaterialController(modelId, this._onTransferMaterial);
+  private setupMaterials(uid: ModelUid) {
+    return new VirtualMaterialController(uid, this._onTransferMaterial);
   }
 
   private setupTiles() {
     const materials = this.materials.update(this.data);
     return new VirtualTilesController({
-      modelId: this._modelId,
+      uid: this._uid,
       connection: this._connection,
       multithreading: this._config.multithreading,
       model: this.data,

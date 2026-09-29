@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test, vi } from "vitest";
 import {
   LoadAbortedError,
+  ModelUid,
   MultiThreadingRequestClass,
 } from "../../model/model-types";
 import { ThreadModelCreator } from "./thread-model-creator";
@@ -36,9 +37,9 @@ const stubThread = () => {
   return thread;
 };
 
-const createModel = (thread: any, modelId: string) =>
+const createModel = (thread: any, uid: ModelUid) =>
   thread.actions[MultiThreadingRequestClass.CREATE_MODEL]({
-    modelId,
+    uid,
     modelData: readFileSync(FRAG),
     raw: false,
     config: {
@@ -46,18 +47,19 @@ const createModel = (thread: any, modelId: string) =>
     },
   });
 
-const deleteModel = (thread: any, modelId: string) =>
-  thread.actions[MultiThreadingRequestClass.DELETE_MODEL]({ modelId });
+const deleteModel = (thread: any, uid: ModelUid) =>
+  thread.actions[MultiThreadingRequestClass.DELETE_MODEL]({ uid });
 
 test("a DELETE_MODEL mid-load aborts the load and answers once it has unwound", async () => {
   const thread = stubThread();
-  const create = createModel(thread, "m");
+  const uid = 1 as ModelUid;
+  const create = createModel(thread, uid);
   // The load registered its model before generating it.
-  const partial = thread.list.get("m");
+  const partial = thread.list.get(uid);
   expect(partial).toBeDefined();
   const dispose = vi.spyOn(partial, "dispose");
 
-  const deleted = deleteModel(thread, "m");
+  const deleted = deleteModel(thread, uid);
 
   await expect(create).rejects.toBeInstanceOf(LoadAbortedError);
   await deleted;
@@ -70,11 +72,12 @@ test("a DELETE_MODEL mid-load aborts the load and answers once it has unwound", 
 
 test("a DELETE_MODEL for a loaded model disposes it", async () => {
   const thread = stubThread();
-  await createModel(thread, "m");
-  const model = thread.list.get("m");
+  const uid = 1 as ModelUid;
+  await createModel(thread, uid);
+  const model = thread.list.get(uid);
   const dispose = vi.spyOn(model, "dispose");
 
-  await deleteModel(thread, "m");
+  await deleteModel(thread, uid);
 
   expect(dispose).toHaveBeenCalledTimes(1);
   expect(thread.list.size).toBe(0);

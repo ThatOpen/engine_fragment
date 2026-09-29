@@ -1,6 +1,5 @@
 import {
   CRSData,
-  MultiThreadingRequestClass,
   ItemsQueryParams,
   SpatialTreeItem,
   ItemsQueryConfig,
@@ -14,28 +13,46 @@ import { MeshManager } from "./mesh-manager";
 import { GridsManager } from "./grids-manager";
 
 export class DataManager {
-  async dispose(
+  /**
+   * Everything on the main thread happens before this returns; the returned
+   * promise resolves once the worker has deleted the model too.
+   */
+  dispose(
     model: FragmentsModel,
     meshes: MeshManager,
     alignments: AlignmentsManager,
     grids: GridsManager,
     options?: { keepInScene?: boolean },
   ) {
-    meshes.list.delete(model.modelId);
-    await this.requestModelDelete(model);
-    model.threads.delete(model.modelId);
-    if (options?.keepInScene) {
-      // Free the modelId slot in the shared MaterialManager so the
-      // replacement model can register its own definitions without
-      // appending to ours (which would corrupt material indices). The
-      // actual THREE materials in `list` stay alive so the outgoing
-      // tiles keep rendering until `finalizeDispose` runs.
-      meshes.materials.releaseModelSlot(model.modelId);
-      return;
+    meshes._remove(model);
+    const deleted = model.threads.delete(model._uid);
+    // Otherwise the outgoing tiles keep rendering until `finalizeDispose`
+    // runs. Materials are keyed by uid, so a replacement model registers its
+    // own next to them.
+    if (!options?.keepInScene) {
+      this.disposeScene({ model, meshes, alignments, grids });
     }
+    return deleted;
+  }
+
+  /**
+   * Takes the model out of the scene and frees its tiles, materials,
+   * alignments and grids.
+   */
+  disposeScene({
+    model,
+    meshes,
+    alignments,
+    grids,
+  }: {
+    model: FragmentsModel;
+    meshes: MeshManager;
+    alignments: AlignmentsManager;
+    grids: GridsManager;
+  }) {
     model.object.removeFromParent();
     this.deleteAllTiles(model);
-    meshes.materials.dispose(model.modelId);
+    meshes.materials.dispose(model._uid);
     alignments.dispose();
     grids.dispose();
   }
@@ -184,13 +201,6 @@ export class DataManager {
 
   async getGuidsByLocalIds(model: FragmentsModel, localIds: number[]) {
     return model._invoke("getGuidsByLocalIds", [localIds]);
-  }
-
-  private async requestModelDelete(model: FragmentsModel) {
-    await model.threads.fetch({
-      class: MultiThreadingRequestClass.DELETE_MODEL,
-      modelId: model.modelId,
-    });
   }
 
   private deleteAllTiles(model: FragmentsModel) {

@@ -1,3 +1,4 @@
+import type { ModelUid } from "../model/model-types";
 import { VirtualFragmentsModel } from "../virtual-model";
 import { Connection } from "./connection";
 import { ThreadControllerManager } from "./thread-controllers/thread-controller-manager";
@@ -5,14 +6,14 @@ import { threadSeq } from "./thread-seq";
 
 export class FragmentsThread {
   readonly actions: { [index: number]: any } = {};
-  readonly list = new Map<string, VirtualFragmentsModel>();
+  readonly list = new Map<ModelUid, VirtualFragmentsModel>();
   /**
    * Models currently being loaded (CREATE_MODEL in flight), each with a
    * promise that settles once its load has finished or unwound.
    */
-  readonly loading = new Map<string, Promise<void>>();
+  readonly loading = new Map<ModelUid, Promise<void>>();
   /** Models whose in-flight load should abort at the next yield. */
-  readonly aborting = new Set<string>();
+  readonly aborting = new Set<ModelUid>();
 
   /**
    * Highest `seq` this worker has seen on any incoming RPC. Each
@@ -68,10 +69,10 @@ export class FragmentsThread {
     this.connection.init(connection);
   }
 
-  getModel(id: string) {
-    const model = this.list.get(id);
+  getModel(uid: ModelUid) {
+    const model = this.list.get(uid);
     if (!model) {
-      throw new Error(`Fragments: Model not found: ${id}`);
+      throw new Error(`Fragments: Model not found: ${uid}`);
     }
     return model;
   }

@@ -1,4 +1,5 @@
 import {
+  ModelUid,
   MultiThreadingRequestClass,
   MaterialDefinition,
 } from "../../model/model-types";
@@ -9,7 +10,7 @@ import { MaterialUtils } from "../../utils/geometry/material-utils";
 type VirtualMaterialTransfer = (data: any, trans?: any[]) => void;
 
 export class VirtualMaterialController {
-  private readonly _modelId: string;
+  private readonly _uid: ModelUid;
   private readonly _list: MaterialDefinition[] = [];
   private readonly _idsByDefinition = new Map<string, number>();
   private readonly _onTransfer: VirtualMaterialTransfer;
@@ -18,8 +19,8 @@ export class VirtualMaterialController {
   // references it any more.
   private _modelMaterialCount = 0;
 
-  constructor(modelId: string, onTransfer: VirtualMaterialTransfer) {
-    this._modelId = modelId;
+  constructor(uid: ModelUid, onTransfer: VirtualMaterialTransfer) {
+    this._uid = uid;
     this._onTransfer = onTransfer;
   }
 
@@ -120,7 +121,7 @@ export class VirtualMaterialController {
     const firstId = this._list.length - materialDefinitions.length;
     this._onTransfer({
       class: MultiThreadingRequestClass.CREATE_MATERIAL,
-      modelId: this._modelId,
+      uid: this._uid,
       materialDefinitions,
       firstId,
     });

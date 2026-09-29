@@ -13,7 +13,7 @@ class RoutingConnection extends Connection {
     this.initConnection(port);
   }
 
-  protected override async fetchConnection() {
+  protected override fetchConnection() {
     if (!this.route) {
       throw new Error("Fragments: no route");
     }
