@@ -25,9 +25,9 @@ export class RequestsManager {
    * `TileRequestClass.FINISH` is added. Receives the FINISH's `seq`
    * stamp (the highest RPC seq the worker had processed when emitting
    * this FINISH); used by the fence-based `forceUpdateFinish` to
-   * resolve waiters whose target seq has now settled.
+   * resolve waiters whose target seq has now settled, per model.
    */
-  onFinish: (seq: number | undefined) => void = () => {};
+  onFinish: (seq: number | undefined, modelId: string) => void = () => {};
 
   async handleRequest(meshes: MeshManager, request: any) {
     if (request.class === MultiThreadingRequestClass.RECOMPUTE_MESHES) {
@@ -53,7 +53,7 @@ export class RequestsManager {
     for (const request of requests) {
       if (!this.insert(request)) this.list.push(request);
       if (request.tileRequestClass === TileRequestClass.FINISH) {
-        this.onFinish(request.seq);
+        this.onFinish(request.seq, request.modelId);
       }
     }
   }

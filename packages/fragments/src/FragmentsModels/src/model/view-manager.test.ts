@@ -171,7 +171,7 @@ const placedHarness = (placement: THREE.Matrix4, localBox: THREE.Box3) => {
       },
     },
   };
-  const meshes: any = { requests: { clean: () => {} } };
+  const meshes: any = { requests: { clean: () => {} }, viewDispatched: () => {} };
   return { model, meshes, requests };
 };
 
@@ -195,7 +195,7 @@ const viewManagerHarness = () => {
       },
     },
   };
-  const meshes: any = { requests: { clean: () => {} } };
+  const meshes: any = { requests: { clean: () => {} }, viewDispatched: () => {} };
   return { model, meshes, requests };
 };
 

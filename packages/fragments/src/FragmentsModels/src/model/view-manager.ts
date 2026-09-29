@@ -80,7 +80,11 @@ export class ViewManager {
     }
     this._lastViewSignature = signature;
     meshes.requests.clean(model.modelId);
-    await model.threads.fetch(request);
+    // `fetch` stamps the seq synchronously; record it before any FINISH
+    // for this view can land.
+    const sent = model.threads.fetch(request);
+    meshes.viewDispatched(model.modelId, request.seq);
+    await sent;
     return true;
   }
 

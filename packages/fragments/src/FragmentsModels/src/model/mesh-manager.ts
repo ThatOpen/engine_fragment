@@ -13,6 +13,14 @@ import { LODManager } from "./lod-manager";
 import { LODMesh } from "../lod";
 import { MultithreadingHelper } from "../multithreading/multithreading-helper";
 
+type FenceWaiter = {
+  /** Last seq dispatched to any worker when the fence was requested. */
+  targetSeq: number;
+  /** Per model, the seq of the refresh whose FINISH is still missing. */
+  views: Map<string, number>;
+  resolve: () => void;
+};
+
 /**
  * A class that manages the creation and updating of meshes in a Fragments model.
  */
@@ -42,15 +50,44 @@ export class MeshManager {
    * to completion and resolve. Sorted insertion order isn't needed
    * — we walk the whole list on each FINISH.
    */
-  private _fenceWaiters: { targetSeq: number; resolve: () => void }[] = [];
+  private _fenceWaiters: FenceWaiter[] = [];
+
+  /**
+   * Per model, the seq of the last REFRESH_VIEW sent and the highest seq
+   * stamped on one of its FINISHes. The global seq above is not enough
+   * with several models: the stamp is the worker's latest seq, so the
+   * FINISH of a model with a short pass carries the seq of the refresh
+   * sent to the next model and released the fence while that one was
+   * still sweeping.
+   */
+  private readonly _viewSeq = new Map<string, number>();
+  private readonly _finishSeq = new Map<string, number>();
 
   private _onUpdate: () => void;
 
   constructor(onUpdate: () => void) {
     this._onUpdate = onUpdate;
-    this.requests.onFinish = (seq) => this.handleFinish(seq);
-    this.list.onItemDeleted.add(() => this.finishEmptyScene());
-    this.list.onCleared.add(() => this.finishEmptyScene());
+    this.requests.onFinish = (seq, modelId) => this.handleFinish(seq, modelId);
+    this.list.onItemDeleted.add((modelId) => {
+      this._viewSeq.delete(modelId);
+      this._finishSeq.delete(modelId);
+      this.finishEmptyScene();
+      this.resolveReadyWaiters();
+    });
+    this.list.onCleared.add(() => {
+      this._viewSeq.clear();
+      this._finishSeq.clear();
+      this.finishEmptyScene();
+    });
+  }
+
+  /**
+   * Records that a REFRESH_VIEW with `seq` was sent for `modelId`. The
+   * worker answers every refresh with a FINISH once that view is done
+   * (right away if it was already), so fences wait for it.
+   */
+  viewDispatched(modelId: string, seq: number | undefined) {
+    if (typeof seq === "number") this._viewSeq.set(modelId, seq);
   }
 
   /**
@@ -72,16 +109,33 @@ export class MeshManager {
    */
   async forceUpdateFinish() {
     const targetSeq = MultithreadingHelper.lastDispatchedSeq;
+    // Models whose last view has not been answered yet. Models with no
+    // refresh in flight have nothing to finish and are not waited on.
+    const views = new Map<string, number>();
+    for (const [modelId, seq] of this._viewSeq) {
+      if ((this._finishSeq.get(modelId) ?? 0) < seq) views.set(modelId, seq);
+    }
+    const waiter: FenceWaiter = { targetSeq, views, resolve: () => {} };
     // No outbound RPCs have been issued yet, or everything we've sent
     // has already settled — nothing to wait for. Drain whatever's in
     // the queue (may be empty) and return.
-    if (this.list.size === 0 || this._lastSettledSeq >= targetSeq) {
+    if (this.list.size === 0 || this.isSettled(waiter)) {
       this.drainAll();
       return;
     }
     await new Promise<void>((resolve) => {
-      this._fenceWaiters.push({ targetSeq, resolve });
+      waiter.resolve = resolve;
+      this._fenceWaiters.push(waiter);
     });
+  }
+
+  private isSettled(waiter: FenceWaiter) {
+    if (waiter.targetSeq > this._lastSettledSeq) return false;
+    for (const [modelId, seq] of waiter.views) {
+      if (!this.list.has(modelId)) continue;
+      if ((this._finishSeq.get(modelId) ?? 0) < seq) return false;
+    }
+    return true;
   }
 
   private finishEmptyScene() {
@@ -105,9 +159,14 @@ export class MeshManager {
    * has now settled, draining the request queue first so the visual
    * effects are on screen by the time the awaiter wakes up.
    */
-  private handleFinish(seq: number | undefined) {
+  private handleFinish(seq: number | undefined, modelId?: string) {
     if (typeof seq === "number" && seq > this._lastSettledSeq) {
       this._lastSettledSeq = seq;
+    }
+    if (typeof seq === "number" && modelId !== undefined) {
+      if (seq > (this._finishSeq.get(modelId) ?? 0)) {
+        this._finishSeq.set(modelId, seq);
+      }
     }
     // Drain on every FINISH, whether or not anyone is awaiting a
     // fence. FINISH is the worker's "I'm done with this batch"
@@ -118,11 +177,15 @@ export class MeshManager {
     // Bounded cost: FINISH only fires once per worker batch, not
     // per tile request, so this isn't a per-message ripple.
     this.drainAll();
+    this.resolveReadyWaiters();
+  }
+
+  private resolveReadyWaiters() {
     if (this._fenceWaiters.length === 0) return;
     const ready: (() => void)[] = [];
-    const remaining: { targetSeq: number; resolve: () => void }[] = [];
+    const remaining: FenceWaiter[] = [];
     for (const w of this._fenceWaiters) {
-      if (w.targetSeq <= this._lastSettledSeq) ready.push(w.resolve);
+      if (this.isSettled(w)) ready.push(w.resolve);
       else remaining.push(w);
     }
     if (ready.length === 0) return;
