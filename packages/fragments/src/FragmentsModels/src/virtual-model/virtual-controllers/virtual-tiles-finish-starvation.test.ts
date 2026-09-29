@@ -161,6 +161,44 @@ describe("tile FINISH under continuous view refreshes (issue #300)", () => {
     t.model.dispose();
   }, 60000);
 
+  test("FINISH is the last request of its pass: no tile request follows it", async () => {
+    // Main resolves `update(true)` when FINISH lands. Tile requests the
+    // worker sends after it sit in the queue until the next timed update,
+    // so they reach the screen ~100 ms after the awaiter was released.
+    const t = await setup();
+    // A whole pass in one tick, as in the browser for a small model: the
+    // tick that completes the pass is the one that sends all its updates.
+    t.tiles._params.updateSamples = t.samples;
+    const sent: number[] = [];
+    const process = t.tiles._meshConnection.process.bind(t.tiles._meshConnection);
+    t.tiles._meshConnection.process = (request: any) => {
+      sent.push(request.tileRequestClass);
+      return process(request);
+    };
+    let requestsInFinishTicks = 0;
+    const views = [t.viewAt(0), t.viewAt(0.8, 0.3), t.viewAt(2), t.viewAt(3, 0.5)];
+    for (const view of views) {
+      t.model.refreshView(view);
+      sent.length = 0;
+      let finishes = 0;
+      for (let i = 0; i < TICKS_PER_PASS * 3; i++) {
+        const before = sent.length;
+        t.tick();
+        if (!finishes && sent.includes(TileRequestClass.FINISH)) {
+          requestsInFinishTicks += sent.length - before - 1;
+        }
+        finishes = sent.filter((c) => c === TileRequestClass.FINISH).length;
+      }
+      expect(finishes).toBe(1);
+      const finishAt = sent.indexOf(TileRequestClass.FINISH);
+      expect(sent.slice(finishAt + 1)).toEqual([]);
+    }
+    // The ticks that completed the passes did send tile work, so the
+    // ordering above was actually exercised.
+    expect(requestsInFinishTicks).toBeGreaterThan(0);
+    t.model.dispose();
+  }, 60000);
+
   test("FINISH is not emitted for a pass whose view was superseded", async () => {
     const t = await setup();
     t.model.refreshView(t.viewAt(0));
