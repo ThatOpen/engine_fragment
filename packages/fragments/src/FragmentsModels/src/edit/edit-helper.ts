@@ -33,9 +33,14 @@ export class EditHelper {
   // The delta models of each model, by the model's uid. They are disposed
   // with it, see setDeltaModels().
   private readonly _deltaModels = new Map<ModelUid, FragmentsModel[]>();
+  // The edit (or reset) whose delta models each model shows, by the model's
+  // uid. Edits are numbered in the order they reach the worker, see
+  // setDeltaModels().
+  private readonly _shownEdits = new Map<ModelUid, number>();
   private readonly _fragments: FragmentsModels;
   private readonly _elements: ElementsHelper;
   private _lastDeltaId = 0;
+  private _lastEdit = 0;
 
   constructor(core: FragmentsModels, elements: ElementsHelper) {
     this._fragments = core;
@@ -72,6 +77,7 @@ export class EditHelper {
       model._setRequests({ undoneRequests: [] });
     }
 
+    const edit = ++this._lastEdit;
     const { deltaModelBuffer, ids } = await model._edit(actions);
 
     // Add local ids to actions.
@@ -101,7 +107,7 @@ export class EditHelper {
     // Load new delta models
     // For now we just generate one, maybe we want to generate multiple in the future?
     const deltaModel = await this.load(deltaModelBuffer as any, model);
-    this.setDeltaModels(model, [deltaModel]);
+    this.setDeltaModels(model, [deltaModel], edit);
 
     //  Return the local ids of the requests as an array
 
@@ -171,8 +177,9 @@ export class EditHelper {
       return;
     }
 
+    const edit = ++this._lastEdit;
     await model._reset();
-    this.setDeltaModels(model, []);
+    this.setDeltaModels(model, [], edit);
   }
 
   async getRequests(modelId: string) {
@@ -203,13 +210,21 @@ export class EditHelper {
   }
 
   /**
-   * Replaces the model's delta models and disposes the outgoing ones, which
-   * takes them out of the scene right away. A model disposed meanwhile (its
-   * deltas went with it) takes none: the given ones are disposed instead.
+   * Replaces the model's delta models with those of `edit` and disposes the
+   * outgoing ones, which takes them out of the scene right away. The given
+   * ones are disposed instead if the model was disposed meanwhile (its
+   * deltas went with it), or if it shows a later edit's already: delta
+   * models load concurrently, so an earlier edit's can finish last, and it
+   * lacks the later edit's changes.
    */
-  private setDeltaModels(model: FragmentsModel, deltaModels: FragmentsModel[]) {
+  private setDeltaModels(
+    model: FragmentsModel,
+    deltaModels: FragmentsModel[],
+    edit: number,
+  ) {
     const uid = model._uid;
-    if (model._disposedSignal.aborted) {
+    const shown = this._shownEdits.get(uid) ?? 0;
+    if (model._disposedSignal.aborted || edit < shown) {
       for (const deltaModel of deltaModels) {
         deltaModel.dispose();
       }
@@ -223,12 +238,14 @@ export class EditHelper {
             deltaModel.dispose();
           }
           this._deltaModels.delete(uid);
+          this._shownEdits.delete(uid);
         },
         { once: true },
       );
     }
     const outgoing = this._deltaModels.get(uid) ?? [];
     this._deltaModels.set(uid, deltaModels);
+    this._shownEdits.set(uid, edit);
     model.deltaModelId = deltaModels[0]?.modelId ?? null;
     for (const deltaModel of outgoing) {
       if (!deltaModels.includes(deltaModel)) {

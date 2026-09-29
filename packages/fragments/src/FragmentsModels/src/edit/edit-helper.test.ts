@@ -127,7 +127,25 @@ test("an edit whose model is disposed meanwhile leaves no delta model behind", a
   expect(fragments.models.list.size).toBe(0);
 });
 
-test("concurrent edits keep only the latest delta model", async () => {
+// Records the buffer each model is set up with, to tell delta models apart.
+const recordBuffers = () => {
+  const buffers = new Map<FragmentsModel, unknown>();
+  vi.mocked(FragmentsModel.prototype._setup).mockImplementation(async function (
+    this: FragmentsModel,
+    data,
+  ) {
+    buffers.set(this, data);
+  });
+  return buffers;
+};
+
+const deltaOf = (id: number) => ({
+  deltaModelBuffer: new Uint8Array([id]),
+  ids: [],
+});
+
+test("concurrent edits keep the delta model of the last one, whichever loads last", async () => {
+  const buffers = recordBuffers();
   const first = deferred<ReturnType<typeof edited>>();
   const second = deferred<ReturnType<typeof edited>>();
   vi.mocked(FragmentsModel.prototype._edit)
@@ -139,12 +157,31 @@ test("concurrent edits keep only the latest delta model", async () => {
     fragments.editor.edit("m", []),
     fragments.editor.edit("m", []),
   ];
-  second.resolve(edited());
-  first.resolve(edited());
+  // The first edit's delta model starts loading last, so it finishes last.
+  second.resolve(deltaOf(2));
+  first.resolve(deltaOf(1));
   await Promise.all(edits);
 
+  const [delta] = deltaModels();
   expect(deltaModels()).toHaveLength(1);
-  expect(model.deltaModelId).toBe(deltaModels()[0].modelId);
+  expect(model.deltaModelId).toBe(delta.modelId);
+  expect(buffers.get(delta)).toEqual(new Uint8Array([2]));
+});
+
+test("an edit's delta model that finishes loading after a reset isn't shown", async () => {
+  const worker = deferred<ReturnType<typeof edited>>();
+  vi.mocked(FragmentsModel.prototype._edit).mockReturnValueOnce(
+    worker.promise as any,
+  );
+  const model = await load();
+
+  const edit = fragments.editor.edit("m", []);
+  await fragments.editor.reset("m");
+  worker.resolve(edited());
+  await edit;
+
+  expect(deltaModels()).toEqual([]);
+  expect(model.deltaModelId).toBeNull();
 });
 
 // Lets editor.save() get a model's requests and its saved buffer.
