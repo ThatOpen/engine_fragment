@@ -1281,7 +1281,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
       .then((sent) => {
         if (sent) this._isProcessing = true;
       });
-    const deltaPromise = this._editor._update(this.modelId);
+    const deltaPromise = this._editor._update(this);
     try {
       await Promise.all([mainPromise, deltaPromise]);
     } catch (error) {
