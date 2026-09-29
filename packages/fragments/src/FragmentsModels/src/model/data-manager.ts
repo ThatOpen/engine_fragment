@@ -41,7 +41,7 @@ export class DataManager {
   }
 
   async getBuffer(model: FragmentsModel, raw: boolean) {
-    return model._invoke("getBuffer", [raw]) as Promise<ArrayBuffer>;
+    return model._invoke("getBuffer", [raw]);
   }
 
   async getCategories(model: FragmentsModel) {
