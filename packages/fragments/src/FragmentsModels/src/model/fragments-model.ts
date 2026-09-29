@@ -22,6 +22,7 @@ import {
   SelectionInputType,
   SnappingRaycastData,
   VirtualModelConfig,
+  WorkerRequest,
 } from "./model-types";
 
 import { Cloned } from "../multithreading/cloned";
@@ -1200,7 +1201,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
     return this._sequenceManager.getSequenced(this, result, fromItems, inputs);
   }
 
-  async handleRequest(request: any) {
+  async handleRequest(request: Cloned<WorkerRequest>) {
     await this._meshManager.requests.handleRequest(this._meshManager, request);
   }
 

@@ -1,10 +1,13 @@
 import {
   ModelUid,
   MultiThreadingRequestClass,
+  TileRequest,
   TileRequestClass,
+  WorkerRequest,
 } from "./model-types";
 import { MaterialManager } from "./material-manager";
 import { MeshManager } from "./mesh-manager";
+import type { Cloned } from "../multithreading/cloned";
 
 /**
  * Manages a list of requests for the MeshManager.
@@ -13,7 +16,7 @@ export class RequestsManager {
   /**
    * List of requests.
    */
-  readonly list: any[] = [];
+  readonly list: Cloned<TileRequest>[] = [];
 
   /**
    * Checks if there are any pending requests.
@@ -33,17 +36,19 @@ export class RequestsManager {
    */
   onFinish: (seq: number | undefined, uid: ModelUid) => void = () => {};
 
-  async handleRequest(meshes: MeshManager, request: any) {
+  // The answer is the request: its payload is emptied once taken, so it
+  // isn't copied back to the worker.
+  async handleRequest(meshes: MeshManager, request: Cloned<WorkerRequest>) {
     if (request.class === MultiThreadingRequestClass.RECOMPUTE_MESHES) {
       this.add(request.list);
-      request.list = undefined;
+      request.list = [];
     } else if (request.class === MultiThreadingRequestClass.CREATE_MATERIAL) {
       const { materialDefinitions, uid, firstId } = request;
-      const definitions = materialDefinitions.map(MaterialManager.restoreColor);
+      const definitions = materialDefinitions.map((definition) =>
+        MaterialManager.restoreColor(definition),
+      );
       meshes.materials.addDefinitions(uid, definitions, firstId);
-      request.materialDefinitions = undefined;
-    } else if (request.class === MultiThreadingRequestClass.THROW_ERROR) {
-      console.error(request);
+      request.materialDefinitions = [];
     }
   }
 
@@ -53,7 +58,7 @@ export class RequestsManager {
    *
    * @param requests - Array of requests to be added.
    */
-  add(requests: any[]) {
+  add(requests: Cloned<TileRequest>[]) {
     for (const request of requests) {
       if (!this.insert(request)) this.list.push(request);
       if (request.tileRequestClass === TileRequestClass.FINISH) {
@@ -82,9 +87,9 @@ export class RequestsManager {
    * @param request - The request to be inserted.
    * @returns `true` if the request was successfully inserted, otherwise `false`.
    */
-  insert(request: any) {
-    const { uid, tileId, tileRequestClass, tileData } = request;
-    if (tileId === undefined) return false;
+  insert(request: Cloned<TileRequest>) {
+    if (request.tileRequestClass === TileRequestClass.FINISH) return false;
+    const { uid, tileId, tileRequestClass } = request;
 
     if (tileRequestClass === TileRequestClass.DELETE) {
       const list = this.list.filter(
@@ -111,16 +116,19 @@ export class RequestsManager {
       (this.list as any) = list;
     }
 
-    if (tileRequestClass === TileRequestClass.UPDATE) {
+    if (request.tileRequestClass === TileRequestClass.UPDATE) {
       const overriddenRequest = this.list.find(
-        (request) => request.uid === uid && request.tileId === tileId,
+        (listed) =>
+          listed.tileRequestClass !== TileRequestClass.FINISH &&
+          listed.uid === uid &&
+          listed.tileId === tileId,
       );
       if (overriddenRequest) {
         if (
           overriddenRequest.tileRequestClass === TileRequestClass.CREATE ||
           overriddenRequest.tileRequestClass === TileRequestClass.UPDATE
         )
-          overriddenRequest.tileData = tileData;
+          overriddenRequest.tileData = request.tileData;
         return true;
       }
     }

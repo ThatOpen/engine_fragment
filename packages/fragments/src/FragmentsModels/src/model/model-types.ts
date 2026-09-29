@@ -303,7 +303,7 @@ export type CreateTileRequest = {
   itemId: undefined;
   tileData: TileStatus;
   indices: DataBuffer | undefined;
-  positions: DataBuffer | undefined;
+  positions: Float32Array | undefined;
   normals: DataBuffer | undefined;
   faceIds: Float32Array;
   itemIds: DataBuffer | undefined;

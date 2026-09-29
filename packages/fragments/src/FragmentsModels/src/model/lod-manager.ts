@@ -1,8 +1,15 @@
 import * as THREE from "three";
 import { LODGeometry, LODMesh } from "../lod";
 import { LodHelper } from "../lod/lod-helper";
-import { BIMMesh, CurrentLod } from "./model-types";
+import {
+  BIMMesh,
+  CreateTileRequest,
+  CurrentLod,
+  TileStatus,
+  UpdateTileRequest,
+} from "./model-types";
 import { MaterialManager } from "./material-manager";
+import type { Cloned } from "../multithreading/cloned";
 
 export class LODManager {
   private _materials: MaterialManager;
@@ -13,7 +20,10 @@ export class LODManager {
     this._materials = materials;
   }
 
-  createMesh(geometry: THREE.BufferGeometry, request: any) {
+  createMesh(
+    geometry: THREE.BufferGeometry,
+    request: Cloned<CreateTileRequest>,
+  ) {
     const material = this._materials.getFromRequest(request);
     if (!("isLodMaterial" in material && material.isLodMaterial)) {
       throw new Error("Fragments: material is not an instance of LodMaterial.");
@@ -33,7 +43,7 @@ export class LODManager {
     return mesh;
   }
 
-  updateVisibility(mesh: LODMesh, status: any) {
+  updateVisibility(mesh: LODMesh, status: Cloned<TileStatus>) {
     const { geometry } = mesh;
     const { visibilityData, highlightData } = status;
     LodHelper.setLodVisibility(geometry, visibilityData);
@@ -43,7 +53,10 @@ export class LODManager {
     geometry.addGroup(0, Infinity, 0);
   }
 
-  applyHighlight(mesh: LODMesh, request: any) {
+  applyHighlight(
+    mesh: LODMesh,
+    request: Cloned<CreateTileRequest | UpdateTileRequest>,
+  ) {
     const {
       tileData: { highlightIds, highlightData },
       uid,
@@ -88,7 +101,10 @@ export class LODManager {
     material.transparent = transparent;
   }
 
-  processMesh(mesh: BIMMesh, request: any) {
+  processMesh(
+    mesh: BIMMesh,
+    request: Cloned<CreateTileRequest | UpdateTileRequest>,
+  ) {
     const { geometry } = mesh;
     const {
       tileData: { visibilityData },

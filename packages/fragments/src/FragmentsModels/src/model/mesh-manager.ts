@@ -6,6 +6,9 @@ import {
   CurrentLod,
   BIMMesh,
   ModelUid,
+  CreateTileRequest,
+  TileRequest,
+  UpdateTileRequest,
 } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 import { DataMap } from "../../../Utils";
@@ -13,6 +16,7 @@ import { RequestsManager } from "./requests-manager";
 import { LODManager } from "./lod-manager";
 import { LODMesh } from "../lod";
 import { MultithreadingHelper } from "../multithreading/multithreading-helper";
+import type { Cloned } from "../multithreading/cloned";
 
 /**
  * Since three r185, `updateWorldMatrix()` only recomputes an object whose
@@ -152,7 +156,7 @@ export class MeshManager {
    * which a {@link forceUpdateFinish} caller may be waiting on. Don't use
    * this directly.
    */
-  _dropRequests(requests: any[]) {
+  _dropRequests(requests: Cloned<TileRequest>[]) {
     for (const request of requests) {
       if (MultithreadingHelper.isFinishRequest(request)) {
         this.handleFinish(request.seq);
@@ -290,18 +294,17 @@ export class MeshManager {
     }
   }
 
-  private setTileData(mesh: BIMMesh, request: any) {
+  private setTileData(mesh: BIMMesh, request: Cloned<CreateTileRequest>) {
     const { tileId, itemId, matrix, aabb } = request;
     this.setMeshData(mesh, tileId, itemId, matrix);
     this.setupBoundings(mesh, aabb);
     this.updateStatus(mesh, request);
   }
 
-  private processTileRequest(request: any) {
-    const { tileRequestClass, tileId, uid } = request;
-    const model = this._models.get(uid);
+  private processTileRequest(request: Cloned<TileRequest>) {
+    const model = this._models.get(request.uid);
     if (!model) return;
-    if (tileRequestClass === TileRequestClass.CREATE) {
+    if (request.tileRequestClass === TileRequestClass.CREATE) {
       if (request.objectClass === undefined) return;
       const tile = this.create(request);
       this.setTileData(tile, request);
@@ -309,16 +312,16 @@ export class MeshManager {
       tile.userData.itemIds = uniqueIds;
       this.trackVisibleItems(model, uniqueIds, true);
       model.tiles.set(tile.userData.tileId, tile);
-    } else if (tileRequestClass === TileRequestClass.DELETE) {
-      const tile = model.tiles.get(tileId);
+    } else if (request.tileRequestClass === TileRequestClass.DELETE) {
+      const tile = model.tiles.get(request.tileId);
       if (tile?.userData.itemIds) {
         this.trackVisibleItems(model, tile.userData.itemIds, false);
       }
-      model.tiles.delete(tileId);
-    } else if (tileRequestClass === TileRequestClass.UPDATE) {
-      const tileObject = model.tiles.get(tileId);
+      model.tiles.delete(request.tileId);
+    } else if (request.tileRequestClass === TileRequestClass.UPDATE) {
+      const tileObject = model.tiles.get(request.tileId);
       if (tileObject) this.updateStatus(tileObject, request);
-    } else if (tileRequestClass === TileRequestClass.FINISH) {
+    } else if (request.tileRequestClass === TileRequestClass.FINISH) {
       model._finishProcessing();
     }
   }
@@ -346,7 +349,7 @@ export class MeshManager {
     }
   }
 
-  private createMesh(request: any) {
+  private createMesh(request: Cloned<CreateTileRequest>) {
     const { indices, positions, normals, itemIds, faceIds } = request;
     const geometry = new THREE.BufferGeometry();
     this.setIndex(geometry, indices);
@@ -358,16 +361,19 @@ export class MeshManager {
     return new THREE.Mesh(geometry, [material]);
   }
 
-  private setupBoundings(mesh: BIMMesh, aabb: any) {
+  private setupBoundings(mesh: BIMMesh, aabb: Cloned<THREE.Box3>) {
     const { geometry } = mesh;
-    const box = new THREE.Box3().copy(aabb);
+    // A copy without its prototype, see Cloned.
+    const box = new THREE.Box3();
+    box.min.copy(aabb.min);
+    box.max.copy(aabb.max);
     const sphere = new THREE.Sphere();
     box.getBoundingSphere(sphere);
     geometry.boundingBox = box;
     geometry.boundingSphere = sphere;
   }
 
-  private create(request: any): BIMMesh {
+  private create(request: Cloned<CreateTileRequest>): BIMMesh {
     if (request.objectClass === ObjectClass.SHELL)
       return this.createMesh(request);
     if (request.objectClass === ObjectClass.LINE) {
@@ -379,7 +385,10 @@ export class MeshManager {
     );
   }
 
-  private updateStatus(mesh: BIMMesh, request: any) {
+  private updateStatus(
+    mesh: BIMMesh,
+    request: Cloned<CreateTileRequest | UpdateTileRequest>,
+  ) {
     const {
       tileData: { highlightData, visibilityData },
       currentLod,
@@ -539,7 +548,14 @@ export class MeshManager {
     return callback;
   }
 
-  private setMeshData(mesh: BIMMesh, tileId: any, itemId: any, matrix: any) {
+  private setMeshData(
+    mesh: BIMMesh,
+    tileId: number,
+    itemId: number | undefined,
+    copy: Cloned<THREE.Matrix4>,
+  ) {
+    // A copy without its prototype, see Cloned.
+    const matrix = new THREE.Matrix4().fromArray(copy.elements);
     mesh.userData = { tileId, itemId };
     mesh.matrixAutoUpdate = false;
     mesh.applyMatrix4(matrix);

@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { ModelUid, MultiThreadingRequestClass } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
-import { Cloned } from "../multithreading/cloned";
 
 export class BoxManager {
   async getBoxes(model: FragmentsModel, localIds?: number[]) {
@@ -54,7 +53,7 @@ export class BoxManager {
     uid: ModelUid;
     localIds: number[][] | undefined;
     /** Set by the worker: one box per entry of `localIds`. */
-    boxes?: Cloned<THREE.Box3>[];
+    boxes?: THREE.Box3[];
   } {
     return {
       class: MultiThreadingRequestClass.FETCH_BOXES,

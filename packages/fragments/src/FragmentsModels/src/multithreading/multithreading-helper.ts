@@ -211,7 +211,9 @@ export class MultithreadingHelper {
     return Math.max(capacity, 2);
   }
 
-  static isFinishRequest(request: { tileRequestClass: TileRequestClass }) {
+  static isFinishRequest<T extends { tileRequestClass: TileRequestClass }>(
+    request: T,
+  ): request is Extract<T, { tileRequestClass: TileRequestClass.FINISH }> {
     return request.tileRequestClass === TileRequestClass.FINISH;
   }
 
