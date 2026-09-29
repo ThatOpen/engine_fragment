@@ -495,11 +495,13 @@ export class VirtualFragmentsModel {
     return this._grids.getGrids();
   }
 
-  getBuffer(raw: boolean) {
+  // Compressed, the buffer is a Uint8Array, not an ArrayBuffer.
+  getBuffer(raw: boolean): ArrayBuffer | Uint8Array {
     const bb = this.data.bb as ByteBuffer;
     const bytes = bb.bytes();
-    const buffer = bytes.buffer;
-    return raw ? buffer : pako.deflate(buffer as ArrayBuffer);
+    // The model is read from an ArrayBuffer, see setupModel().
+    const buffer = bytes.buffer as ArrayBuffer;
+    return raw ? buffer : pako.deflate(buffer);
   }
 
   getSubsetBuffer(localIds: number[], raw: boolean) {
