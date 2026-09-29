@@ -95,7 +95,7 @@ const model = await fragments.load(buffer, { modelId: "example" });
 // It uniquely identifies an item within Fragments Model
 // We will assign the localId a value based on the result given by the raycasting
 let localId: number | null = null;
-let previousDefinition: FRAGS.MaterialDefinition | null = null;
+let previousDefinition: FRAGS.HighlightDefinition | null = null;
 
 /* MD
   :::info What is a material definition?

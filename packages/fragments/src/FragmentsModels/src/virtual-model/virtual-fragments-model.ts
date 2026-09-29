@@ -14,6 +14,7 @@ import {
   AttributesUniqueValuesParams,
   CRSData,
   CurrentLod,
+  HighlightDefinition,
   Identifier,
   ItemsDataConfig,
   IndexArrayType,
@@ -304,7 +305,7 @@ export class VirtualFragmentsModel {
 
   highlight(
     items: number[] | undefined,
-    highlightMaterial: MaterialDefinition,
+    highlightMaterial: HighlightDefinition,
   ) {
     this._highlightHelper.highlight(this, items, highlightMaterial);
   }

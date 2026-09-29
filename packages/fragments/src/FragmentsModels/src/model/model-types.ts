@@ -158,6 +158,16 @@ export type MaterialDefinition = {
    */
   _explicitProps?: string[];
 };
+
+/**
+ * An item's highlight, see {@link FragmentsModel.getHighlight}. A highlight
+ * that preserves the item's original material, like the ones
+ * {@link FragmentsModel.setColor} and {@link FragmentsModel.setOpacity} make,
+ * only holds the properties it changes.
+ */
+export type HighlightDefinition =
+  | MaterialDefinition
+  | (Partial<MaterialDefinition> & { preserveOriginalMaterial: true });
 export interface MaterialData {
   data: MaterialDefinition;
   transparent?: boolean;
@@ -280,7 +290,8 @@ export type WorkerRequest =
   | {
       class: MultiThreadingRequestClass.CREATE_MATERIAL;
       uid: ModelUid;
-      materialDefinitions: MaterialDefinition[];
+      /** The model's materials, then the highlights added since. */
+      materialDefinitions: HighlightDefinition[];
       /** The id the worker assigned to `materialDefinitions[0]`. */
       firstId: number;
     }
@@ -738,9 +749,9 @@ export interface MappedInformationResult {
    */
   guid: (string | null)[];
   /**
-   * An array of highlight materials for the item.
+   * The highlight of each item, or undefined for an item without one.
    */
-  highlight: MaterialDefinition[];
+  highlight: (HighlightDefinition | undefined)[];
   /**
    * An array of relation records for the item.
    */

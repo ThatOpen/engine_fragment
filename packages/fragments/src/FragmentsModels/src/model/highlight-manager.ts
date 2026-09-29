@@ -1,17 +1,20 @@
-import { MaterialDefinition } from "./model-types";
+import { HighlightDefinition, MaterialDefinition } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 import { MaterialManager } from "./material-manager";
 
 export class HighlightManager {
   async getHighlight(model: FragmentsModel, localIds?: number[]) {
     const materials = await model._invoke("getHighlight", [localIds]);
-    return materials.map((material) => MaterialManager.restoreColor(material));
+    // Items without a highlight have none to restore.
+    return materials.map(
+      (material) => material && MaterialManager.restoreColor(material),
+    );
   }
 
   async highlight(
     model: FragmentsModel,
     localIds: number[] | undefined,
-    highlightMaterial: MaterialDefinition,
+    highlightMaterial: HighlightDefinition,
   ) {
     await model._invoke("highlight", [localIds, highlightMaterial]);
   }

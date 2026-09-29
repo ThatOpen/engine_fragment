@@ -29,9 +29,18 @@ test("getHighlight() returns colors as THREE.Color", async () => {
 
   const [highlight, none] = await new HighlightManager().getHighlight(model);
 
-  expect(highlight.color).toBeInstanceOf(THREE.Color);
-  expect(highlight.color.getHex()).toBe(0x808080);
+  expect(highlight!.color).toBeInstanceOf(THREE.Color);
+  expect(highlight!.color!.getHex()).toBe(0x808080);
   expect(none).toBeUndefined();
+});
+
+test("getHighlight() returns a highlight that keeps the item's color without one", async () => {
+  const opacity = { opacity: 0.5, preserveOriginalMaterial: true };
+  const model = stubModel([opacity]);
+
+  const [highlight] = await new HighlightManager().getHighlight(model);
+
+  expect(highlight).toEqual(opacity);
 });
 
 test("getItemsMaterialDefinition() returns colors as THREE.Color", async () => {

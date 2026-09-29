@@ -4,6 +4,7 @@ import {
   AttrsChange,
   BIMMesh,
   CurrentLod,
+  HighlightDefinition,
   Identifier,
   IndexEntry,
   ItemInformationType,
@@ -973,11 +974,11 @@ export class FragmentsModel implements IFragmentsModel<true> {
   /**
    * Highlights the specified items.
    * @param localIds - The local IDs of the items to highlight. If undefined, all items will be highlighted.
-   * @param highlightMaterial - The material to use for the highlight.
+   * @param highlightMaterial - The material to use for the highlight, or a highlight {@link getHighlight} returned.
    */
   highlight(
     localIds: number[] | undefined,
-    highlightMaterial: MaterialDefinition,
+    highlightMaterial: HighlightDefinition,
   ) {
     return this._highlightManager.highlight(this, localIds, highlightMaterial);
   }
@@ -1017,7 +1018,10 @@ export class FragmentsModel implements IFragmentsModel<true> {
   }
 
   /**
-   * Gets the highlight of the specified items.
+   * Gets the highlight of the specified items: one entry per item, undefined
+   * for an item without a highlight. A highlight that preserves the item's
+   * original material only holds the properties it changes, see
+   * {@link HighlightDefinition}.
    * @param localIds - The local IDs of the items to get the highlight of. If undefined, it will return the highlight of all items.
    */
   getHighlight(localIds?: number[]) {
