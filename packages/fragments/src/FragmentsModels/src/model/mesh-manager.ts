@@ -13,6 +13,29 @@ import { LODManager } from "./lod-manager";
 import { LODMesh } from "../lod";
 import { MultithreadingHelper } from "../multithreading/multithreading-helper";
 
+/**
+ * Since three r185, `updateWorldMatrix()` only recomputes an object whose
+ * own flag is set, and a parent's move reaches children only on the
+ * downward pass. A tile never sets its flag after creation, so moving an
+ * already-rendered model left getWorldPosition, Box3.setFromObject... on
+ * the old placement until the next render (#309). Tiles always recompute
+ * here, as every three version up to r184 did. Renders use
+ * `updateMatrixWorld()`, not this, so their cost does not change.
+ */
+function updateTileWorldMatrix(
+  this: THREE.Object3D,
+  updateParents?: boolean,
+  updateChildren?: boolean,
+) {
+  // The third argument (`force`) exists since r185; older versions ignore it.
+  (THREE.Object3D.prototype.updateWorldMatrix as any).call(
+    this,
+    updateParents,
+    updateChildren,
+    true,
+  );
+}
+
 type FenceWaiter = {
   /** Last seq dispatched to any worker when the fence was requested. */
   targetSeq: number;
@@ -479,5 +502,6 @@ export class MeshManager {
     // without this flag, and getWorldPosition, Box3.setFromObject, attach...
     // would read the identity until the next render (#309).
     mesh.matrixWorldNeedsUpdate = true;
+    mesh.updateWorldMatrix = updateTileWorldMatrix;
   }
 }

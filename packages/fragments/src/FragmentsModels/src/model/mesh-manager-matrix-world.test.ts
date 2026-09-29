@@ -50,3 +50,39 @@ describe(`tile world matrix before the next render (three r${THREE.REVISION})`, 
     expect(box.min.toArray()).toEqual([109.5, -0.5, -0.5]);
   });
 });
+
+// r185 also stopped carrying a parent's move to a child whose flag is not
+// set when the child is asked for its world matrix, so a model moved after
+// its tiles were rendered kept them at the old placement (#309, steps d/e/h).
+describe(`tile world matrix after moving a rendered model (three r${THREE.REVISION})`, () => {
+  const matrix = new THREE.Matrix4().makeTranslation(10, 0, 0);
+
+  function renderedTile() {
+    const model = placedModel();
+    const tile = streamTileInto(model, matrix);
+    model.parent!.updateMatrixWorld(); // the tile has been rendered
+    return { model, tile };
+  }
+
+  test("getWorldPosition follows the moved model", () => {
+    const { model, tile } = renderedTile();
+    model.position.set(200, 0, 0);
+    const position = tile.getWorldPosition(new THREE.Vector3());
+    expect(position.toArray()).toEqual([210, 0, 0]);
+  });
+
+  test("Box3.setFromObject follows the moved model", () => {
+    const { model } = renderedTile();
+    model.position.set(200, 0, 0);
+    const box = new THREE.Box3().setFromObject(model);
+    expect(box.min.toArray()).toEqual([209.5, -0.5, -0.5]);
+  });
+
+  test("tile.updateWorldMatrix(true, false) follows the moved model", () => {
+    const { model, tile } = renderedTile();
+    model.position.set(300, 0, 0);
+    tile.updateWorldMatrix(true, false);
+    const expected = model.matrixWorld.clone().multiply(matrix);
+    expect(tile.matrixWorld.elements).toEqual(expected.elements);
+  });
+});
