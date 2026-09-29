@@ -55,9 +55,31 @@ Before adding any `Map<number, number>` or `Uint32Array` inverse index inside th
 
 - `.frag` files are FlatBuffers. The schema lives at `packages/fragments/flatbuffers/index.fbs` and is generated into `src/Schema/`. Run `yarn fb` after changing it.
 - **Main thread** (`src/FragmentsModels/src/model/`) exposes the public API (`model.raycast()`, `model.highlight()`, etc.) and forwards most calls to the worker.
-- **Worker** (`src/FragmentsModels/src/virtual-model/` + `multithreading/`) holds the flatbuffer, builds tiles, runs raycasts, serves queries. Messages flow as `model.threads.invoke(modelId, "methodName", args)`.
+- **Worker** (`src/FragmentsModels/src/virtual-model/` + `multithreading/`) holds the flatbuffer, builds tiles, runs raycasts, serves queries. Messages flow as `model._invoke("methodName", args)`, addressed to the model's uid (see [Design patterns](#design-patterns)).
 - **Edits produce a delta model.** `editor.edit()` generates a separate `.frag` delta buffer that's loaded as its own `FragmentsModel` alongside the base. Reads must consider both (raycast, highlight, etc.). `editor.save()` flattens delta into a new committed buffer and reloads.
 - **The IfcImporter is separable.** It runs independently of the runtime and can be used in Node (`node-example.ts`). It produces `.frag` bytes, nothing else.
+
+## Design patterns
+
+### A consumer-facing ID, an internal uid
+
+A model has two identities, each with one job:
+
+| Identity | What it is | Used by |
+|---|---|---|
+| **`modelId`** | The consumer's name for the model. Unique among live models, but reusable: dispose a model and another can be loaded under the same `modelId`. | The public API: `load({ modelId })`, `models.list`, `disposeModel()`, `abort()`, the `Editor` |
+| **uid** (`ModelUid`, `model._uid`) | An internal key from a counter in `FragmentsModels`, assigned when the model is created (`_createModel()`). Never reused. | Everything internal: messages between threads, worker assignment, the tile queue, materials, the worker's mesh cache, progress callbacks, editor state |
+
+**Why:** loads, disposals and worker round trips are async, so work for a model can still be in flight after the model is gone: a worker reply, a queued tile, a material transfer, a load or an edit resuming after an `await`. Keyed by `modelId`, that work lands on whichever model holds the name by then. Keyed by uid, it finds no model and is dropped.
+
+**Rules:**
+
+- Resolve a `modelId` to its model once, where the public call comes in, and carry the model (or its uid) from there. Never look a `modelId` up again after an `await`: by then it may name another model.
+- Key per-model state by uid (`Map<ModelUid, …>`), and drop it when the model is disposed. `model._disposedSignal` aborts at that moment.
+- Code that resumes after an `await` checks that its model is still alive (`model._disposedSignal.aborted`) before it changes shared state.
+- Anything addressed to a uid that is no longer live is dropped silently: its model is gone, so there is nothing left for it to change.
+- `dispose()` takes effect before it returns: the model leaves `models.list`, its uid stops routing, and its `modelId` is free right away. The promise it returns only covers the worker's cleanup.
+- `models.list` holds the live models by `modelId`. `MeshManager` holds the same models by uid (`_get(uid)`) for routing; add and remove models only through `_add()` and `_remove()`, which keep both in sync.
 
 ## Setting up
 
