@@ -1213,6 +1213,14 @@ export class FragmentsModel implements IFragmentsModel<true> {
       ? [args?: Parameters<RemoteMethods[K]>]
       : [args: Parameters<RemoteMethods[K]>]
   ): Promise<Cloned<Awaited<ReturnType<RemoteMethods[K]>>>> {
+    // Otherwise the connection rejects it naming the uid, which means nothing
+    // to whoever holds the model (or one of its items).
+    if (this._lifetime.signal.aborted) {
+      const error = new Error(
+        `Fragments: model "${this.modelId}" is disposed.`,
+      );
+      return Promise.reject(error);
+    }
     return this.threads.invoke<Awaited<ReturnType<RemoteMethods[K]>>>(
       this._uid,
       method,
