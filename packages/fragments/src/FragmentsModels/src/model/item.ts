@@ -50,9 +50,7 @@ export class Item {
     const localId = await this.getLocalId();
     if (localId === null) return null;
 
-    const data = (await this.model._invoke("getItemAttributes", [localId])) as {
-      [name: string]: { value: any; type?: number };
-    } | null;
+    const data = await this.model._invoke("getItemAttributes", [localId]);
 
     this._attributes = new ItemAttributes(localId);
 
