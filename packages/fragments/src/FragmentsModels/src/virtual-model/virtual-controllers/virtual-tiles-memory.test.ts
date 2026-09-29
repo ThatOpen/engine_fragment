@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import Pako from "pako";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
 import { VirtualTilesController } from "./virtual-tiles-controller";
+import type { ModelUid } from "../../model/model-types";
 import { CameraUtils } from "../../utils/geometry/camera-utils";
 
 // Side defect of #303: the per-worker tile memory counter is incremented on
@@ -26,7 +27,7 @@ const loadRealized = async () => {
     inflated.byteOffset,
     inflated.byteOffset + inflated.byteLength,
   );
-  const model = new VirtualFragmentsModel("m", data, connection, {
+  const model = new VirtualFragmentsModel(1 as ModelUid, data, connection, {
     multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 0 },
   });
   await model.setupData();

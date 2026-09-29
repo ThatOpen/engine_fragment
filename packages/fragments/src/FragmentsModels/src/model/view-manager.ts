@@ -79,7 +79,7 @@ export class ViewManager {
       return false;
     }
     this._lastViewSignature = signature;
-    meshes.requests.clean(model.modelId);
+    meshes.requests.clean(model._uid);
     await model.threads.fetch(request);
     return true;
   }
@@ -94,9 +94,7 @@ export class ViewManager {
   }
 
   async setLodMode(model: FragmentsModel, lodMode: LodMode) {
-    return model.threads.invoke(model.modelId, "setLodMode", [
-      lodMode,
-    ]) as Promise<void>;
+    return model._invoke("setLodMode", [lodMode]) as Promise<void>;
   }
 
   private getOrthoSize() {
@@ -185,7 +183,7 @@ export class ViewManager {
     const view: any = this.newView(frustum, fov, model);
     const request: any = {};
     request.class = MultiThreadingRequestClass.REFRESH_VIEW;
-    request.modelId = model.modelId;
+    request.uid = model._uid;
     request.cameraFrustum = frustum;
     request.view = view;
     return request;

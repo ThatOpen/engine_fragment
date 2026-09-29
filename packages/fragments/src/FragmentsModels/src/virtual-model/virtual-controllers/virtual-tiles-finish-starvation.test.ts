@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import Pako from "pako";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
-import { TileRequestClass } from "../../model/model-types";
+import { ModelUid, TileRequestClass } from "../../model/model-types";
 
 // Issue #300: a view refresh that differs from the previous one (a moving
 // camera) restarts the tile pass, which zeroes its progress and drops any
@@ -27,7 +27,7 @@ const run = async (moving: boolean, passesOfBudget: number) => {
     inflated.byteOffset,
     inflated.byteOffset + inflated.byteLength,
   );
-  const model = new VirtualFragmentsModel("m", data, connection, {
+  const model = new VirtualFragmentsModel(1 as ModelUid, data, connection, {
     multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 0 },
   });
   await model.setupData();

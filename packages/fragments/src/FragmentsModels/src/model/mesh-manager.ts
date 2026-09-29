@@ -5,6 +5,7 @@ import {
   ObjectClass,
   CurrentLod,
   BIMMesh,
+  ModelUid,
 } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 import { DataMap } from "../../../Utils";
@@ -21,6 +22,11 @@ export class MeshManager {
    * A map of FragmentsModel instances by their model ID.
    */
   readonly list = new DataMap<string, FragmentsModel>();
+
+  // The same models by uid, which is what the workers' messages carry. A
+  // modelId can be reused by a newer model before a disposed one's last
+  // messages arrive, a uid can't.
+  private readonly _models = new Map<ModelUid, FragmentsModel>();
   readonly materials = new MaterialManager();
   readonly lod = new LODManager(this.materials);
   readonly requests = new RequestsManager();
@@ -51,6 +57,47 @@ export class MeshManager {
     this.requests.onFinish = (seq) => this.handleFinish(seq);
     this.list.onItemDeleted.add(() => this.finishEmptyScene());
     this.list.onCleared.add(() => this.finishEmptyScene());
+  }
+
+  /**
+   * Internal method to register a model. Don't use this directly.
+   */
+  _add(model: FragmentsModel) {
+    this._models.set(model._uid, model);
+    this.list.set(model.modelId, model);
+  }
+
+  /**
+   * Internal method to unregister a model. Its {@link list} entry is only
+   * removed while it is still this model's. Don't use this directly.
+   */
+  _remove(model: FragmentsModel) {
+    this._models.delete(model._uid);
+    if (this.list.get(model.modelId) === model) {
+      this.list.delete(model.modelId);
+    }
+  }
+
+  /**
+   * Internal method to get a registered model by its uid. Don't use this
+   * directly.
+   */
+  _get(uid: ModelUid) {
+    return this._models.get(uid);
+  }
+
+  /**
+   * Internal method for the tile requests of a model that is gone. Its tiles
+   * are dropped, but a FINISH among them still tells how far its worker got,
+   * which a {@link forceUpdateFinish} caller may be waiting on. Don't use
+   * this directly.
+   */
+  _dropRequests(requests: any[]) {
+    for (const request of requests) {
+      if (MultithreadingHelper.isFinishRequest(request)) {
+        this.handleFinish(request.seq);
+      }
+    }
   }
 
   /**
@@ -165,8 +212,8 @@ export class MeshManager {
   }
 
   private processTileRequest(request: any) {
-    const { tileRequestClass, tileId, modelId } = request;
-    const model = this.list.get(modelId);
+    const { tileRequestClass, tileId, uid } = request;
+    const model = this._models.get(uid);
     if (!model) return;
     if (tileRequestClass === TileRequestClass.CREATE) {
       if (request.objectClass === undefined) return;

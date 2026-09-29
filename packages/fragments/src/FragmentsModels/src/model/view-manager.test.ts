@@ -84,7 +84,7 @@ const cameraFrustum = () => {
 const refreshViewThroughWorker = (frustum: THREE.Frustum | null) => {
   let received: any;
   const model = { refreshView: (view: any) => (received = view) };
-  const thread: any = { actions: {}, list: new Map([["m", model]]) };
+  const thread: any = { actions: {}, list: new Map([[1, model]]) };
   // Constructing registers execute() under REFRESH_VIEW on the stub thread.
   // eslint-disable-next-line no-new
   new ThreadViewRefresher(thread);
@@ -94,7 +94,7 @@ const refreshViewThroughWorker = (frustum: THREE.Frustum | null) => {
     cameraPosition: new THREE.Vector3(0, 0, 0),
     clippingPlanes: [],
   };
-  return action({ modelId: "m", view }).then(() => received);
+  return action({ uid: 1, view }).then(() => received);
 };
 
 /**

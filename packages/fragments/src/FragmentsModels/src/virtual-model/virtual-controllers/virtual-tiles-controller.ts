@@ -8,6 +8,7 @@ import {
   VirtualCircleExtrusionManager,
 } from "../virtual-meshes";
 import {
+  ModelUid,
   ObjectClass,
   CurrentLod,
   DataBuffer,
@@ -44,7 +45,7 @@ import { VirtualMemoryController } from "./virtual-memory-controller";
 type VirtualMeshes = Map<RepresentationClass, VirtualMeshManager>;
 
 export type VirtualTileData = {
-  modelId: string;
+  uid: ModelUid;
   connection: Connection;
   multithreading?: VirtualMultithreadingConfig;
   model: Model;
@@ -83,7 +84,7 @@ export class VirtualTilesController {
   private readonly _boxes: VirtualBoxController;
   private readonly _items: ItemConfigController;
   private readonly _materials: number[];
-  private readonly _modelId: string;
+  private readonly _uid: ModelUid;
 
   private readonly _lastView = {
     rotation: new THREE.Vector3(),
@@ -150,12 +151,12 @@ export class VirtualTilesController {
   private _lodMode = LodMode.DEFAULT;
 
   constructor(data: VirtualTileData) {
-    this._modelId = data.modelId;
+    this._uid = data.uid;
     this._boxes = data.boxes;
     this._items = data.items;
     this._materials = data.materials;
     this._meshConnection = new MeshConnection(
-      data.modelId,
+      data.uid,
       data.connection,
       data.multithreading,
     );
@@ -375,7 +376,7 @@ export class VirtualTilesController {
       const tile = this._tiles.get(tileId) as TileData;
       this._meshConnection.process({
         tileRequestClass: TileRequestClass.UPDATE,
-        modelId: this._modelId,
+        uid: this._uid,
         tileId,
         objectClass: tile.objectClass,
         material: tile.materialId as number,
@@ -405,10 +406,10 @@ export class VirtualTilesController {
   }
 
   private init() {
-    const shells = new VirtualShellManager(this._modelId, this.meshes);
+    const shells = new VirtualShellManager(this._uid, this.meshes);
     const shellsRepresentation = shells.getRepresentation();
     this._virtualMeshes.set(shellsRepresentation, shells);
-    const ces = new VirtualCircleExtrusionManager(this._modelId, this.meshes);
+    const ces = new VirtualCircleExtrusionManager(this._uid, this.meshes);
     const cesRepresentation = ces.getRepresentation();
     this._virtualMeshes.set(cesRepresentation, ces);
     this.processSamplesDimension();
@@ -484,7 +485,7 @@ export class VirtualTilesController {
   private emitFinish() {
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.FINISH,
-      modelId: this._modelId,
+      uid: this._uid,
       // Stamp with the highest seq this worker has seen on incoming
       // RPCs. Because RPC handlers serialize with the update tick on
       // the worker (single-threaded JS), any RPC that finished before
@@ -1147,7 +1148,7 @@ export class VirtualTilesController {
   private deleteGeometry(tileId: number) {
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.DELETE,
-      modelId: this._modelId,
+      uid: this._uid,
       tileId,
     });
   }
@@ -1467,7 +1468,7 @@ export class VirtualTilesController {
     const faceIds = this.getFaceIds(tile);
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.CREATE,
-      modelId: this._modelId,
+      uid: this._uid,
       objectClass: tile.objectClass,
       tileId,
       itemId: undefined,

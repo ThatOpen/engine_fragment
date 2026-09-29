@@ -51,7 +51,7 @@ export class BoxManager {
   ) {
     return {
       class: MultiThreadingRequestClass.FETCH_BOXES,
-      modelId: model.modelId,
+      uid: model._uid,
       localIds,
     };
   }

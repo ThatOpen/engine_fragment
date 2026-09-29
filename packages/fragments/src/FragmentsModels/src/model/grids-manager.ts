@@ -270,10 +270,7 @@ export class GridsManager {
   }
 
   private async constructGrids() {
-    const result = (await this.model.threads.invoke(
-      this.model.modelId,
-      "getGrids",
-    )) as GridData[];
+    const result = (await this.model._invoke("getGrids")) as GridData[];
 
     const tempMatrix = new THREE.Matrix4();
 

@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { describe, expect, test } from "vitest";
 import { CameraUtils } from "../utils/geometry/camera-utils";
 import { VirtualFragmentsModel } from "../virtual-model";
-import { CurrentLod, TileRequestClass } from "./model-types";
+import { CurrentLod, ModelUid, TileRequestClass } from "./model-types";
 
 /**
  * End-to-end companion to view-manager.test.ts, for
@@ -78,7 +78,7 @@ const renderModel = async (spec: THREE.Frustum | typeof CONTAINING) => {
   const requests: any[] = [];
   const connection: any = {
     fetch: async () => {},
-    fetchMeshCompute: (_modelId: string, list: any[]) => requests.push(...list),
+    fetchMeshCompute: (_uid: ModelUid, list: any[]) => requests.push(...list),
   };
 
   const inflated = Pako.inflate(readFileSync(FRAG));
@@ -86,7 +86,7 @@ const renderModel = async (spec: THREE.Frustum | typeof CONTAINING) => {
     inflated.byteOffset,
     inflated.byteOffset + inflated.byteLength,
   );
-  const model = new VirtualFragmentsModel("m", data, connection, {
+  const model = new VirtualFragmentsModel(1 as ModelUid, data, connection, {
     // Flush every queued mesh request immediately instead of on a timer.
     multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 0 },
   });
