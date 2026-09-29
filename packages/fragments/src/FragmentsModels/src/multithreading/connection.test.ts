@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { Connection } from "./connection";
 
 // Contract of the message layer shared by the main thread and the workers:
@@ -76,4 +76,26 @@ test("an answer goes back through the port the request came in on, not the route
     port: "asking",
     data: { requestId: 7, toMainThread: true },
   });
+});
+
+test("an answer that can't be copied rejects the request instead of leaving it pending", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => {});
+  const asking = channel();
+  const connection = new RoutingConnection((input: any) => {
+    input.result = () => {};
+  });
+  connection.listen(asking.port1);
+
+  const answer = Promise.race([
+    nextMessage(asking.port2),
+    new Promise((resolve) => setTimeout(() => resolve("pending"), 100)),
+  ]);
+  asking.port2.postMessage({ requestId: 7 });
+
+  expect(await answer).toEqual({
+    requestId: 7,
+    toMainThread: true,
+    errorInfo: expect.stringContaining("could not be cloned"),
+  });
+  vi.restoreAllMocks();
 });
