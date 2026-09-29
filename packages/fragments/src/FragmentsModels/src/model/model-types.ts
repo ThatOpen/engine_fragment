@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { LodMaterial, LODMesh } from "../lod";
 import { RenderedFaces, RepresentationClass } from "../../../Schema";
+import { LodMaterial, LODMesh } from "../lod";
 import { FragmentsModel } from "./fragments-model";
 
 /**
@@ -265,6 +265,31 @@ export enum SnappingClass {
 export interface ModelIdMap {
   [key: string]: number[] | undefined;
 }
+
+/**
+ * A request a worker sends to the main thread, which routes it to the model
+ * with that uid.
+ */
+export type WorkerRequest =
+  | {
+      class: MultiThreadingRequestClass.RECOMPUTE_MESHES;
+      uid: ModelUid;
+      /** Tile requests, see {@link TileRequestClass}. */
+      list: any[];
+    }
+  | {
+      class: MultiThreadingRequestClass.CREATE_MATERIAL;
+      uid: ModelUid;
+      materialDefinitions: MaterialDefinition[];
+      /** The id the worker assigned to `materialDefinitions[0]`. */
+      firstId: number;
+    }
+  | {
+      class: MultiThreadingRequestClass.LOAD_PROGRESS;
+      uid: ModelUid;
+      stage: LoadProgressEvent["stage"];
+      progress: number;
+    };
 
 /**
  * Union type representing all possible data buffer types.

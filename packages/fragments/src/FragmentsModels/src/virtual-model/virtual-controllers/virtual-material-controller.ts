@@ -2,6 +2,7 @@ import {
   ModelUid,
   MultiThreadingRequestClass,
   MaterialDefinition,
+  WorkerRequest,
 } from "../../model/model-types";
 import { Material, Meshes, Model } from "../../../../Schema";
 import { ParserHelper } from "../../utils/geometry/parser-helper";
@@ -124,6 +125,6 @@ export class VirtualMaterialController {
       uid: this._uid,
       materialDefinitions,
       firstId,
-    });
+    } satisfies WorkerRequest);
   }
 }

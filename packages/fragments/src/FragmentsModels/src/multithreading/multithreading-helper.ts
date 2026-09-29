@@ -4,6 +4,7 @@ import {
   ModelUid,
   MultiThreadingRequestClass,
   TileRequestClass,
+  WorkerRequest,
 } from "../model/model-types";
 
 export type Thread = Worker;
@@ -19,7 +20,7 @@ export class MultithreadingHelper {
 
   static getMeshComputeRequest(uid: ModelUid, list: any[]) {
     const className = MultiThreadingRequestClass.RECOMPUTE_MESHES;
-    return { class: className, uid, list };
+    return { class: className, uid, list } satisfies WorkerRequest;
   }
 
   static planeSet(planes: THREE.Plane[]) {
