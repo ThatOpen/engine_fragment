@@ -23,6 +23,7 @@ import {
 } from "./model-types";
 
 import { FragmentsConnection } from "../multithreading/fragments-connection";
+import type { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 import { MiscHelper } from "../utils";
 import { MeshManager } from "./mesh-manager";
 
@@ -43,6 +44,15 @@ import { SequenceManager } from "./sequence-manager";
 import { SetupManager } from "./setup-manager";
 import { ViewManager } from "./view-manager";
 import { VisibilityManager } from "./visibility-manager";
+
+// The methods of a model's worker-side counterpart, see FragmentsModel._invoke.
+type VirtualMethods = {
+  [K in keyof VirtualFragmentsModel as VirtualFragmentsModel[K] extends (
+    ...args: any[]
+  ) => any
+    ? K
+    : never]: VirtualFragmentsModel[K];
+};
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -815,8 +825,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param visible - Whether the items should be visible.
    */
   async setVisible(localIds: number[] | undefined, visible: boolean) {
-    const args = [localIds, visible];
-    await this._invoke("setVisible", args);
+    await this._invoke("setVisible", [localIds, visible]);
   }
 
   /**
@@ -824,8 +833,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param localIds - The local IDs of the items to toggle the visibility of.
    */
   async toggleVisible(localIds?: number[]) {
-    const args = [localIds];
-    await this._invoke("toggleVisible", args);
+    await this._invoke("toggleVisible", [localIds]);
   }
 
   /**
@@ -1083,9 +1091,16 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   /**
    * Internal method to call a method of the model on its worker. Don't use
-   * this directly.
+   * this directly. The arguments and the result are copied between threads,
+   * so class instances in the result arrive as plain objects.
    */
-  _invoke(method: string, args?: any[]) {
+  _invoke<K extends keyof VirtualMethods>(
+    method: K,
+    // Optional only when every parameter of the method is.
+    ...[args]: [] extends Parameters<VirtualMethods[K]>
+      ? [args?: Parameters<VirtualMethods[K]>]
+      : [args: Parameters<VirtualMethods[K]>]
+  ): Promise<Awaited<ReturnType<VirtualMethods[K]>>> {
     return this.threads.invoke(this.modelId, method, args);
   }
 
