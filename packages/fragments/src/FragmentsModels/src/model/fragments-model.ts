@@ -39,6 +39,7 @@ import { IFragmentsModel } from "./fragments-model-interface";
 import { GridsConfig, GridsManager } from "./grids-manager";
 import { HighlightManager } from "./highlight-manager";
 import { ItemsManager } from "./items-manager";
+import { MaterialManager } from "./material-manager";
 import { RaycastManager } from "./raycast-manager";
 import { SectionManager } from "./section-manager";
 import { SequenceManager } from "./sequence-manager";
@@ -576,10 +577,11 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   // TODO: Fix, this is wrong
   async getItemsMaterialDefinition(localIds: number[]) {
-    const result = (await this._invoke("getItemsMaterialDefinition", [
+    const result = await this._invoke("getItemsMaterialDefinition", [localIds]);
+    return result.map(({ definition, localIds }) => ({
+      definition: MaterialManager.restoreColor(definition),
       localIds,
-    ])) as { definition: MaterialDefinition; localIds: number[] }[];
-    return result;
+    }));
   }
 
   /**

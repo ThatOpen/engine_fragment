@@ -4,11 +4,8 @@ import { MaterialManager } from "./material-manager";
 
 export class HighlightManager {
   async getHighlight(model: FragmentsModel, localIds?: number[]) {
-    const materials = (await model._invoke("getHighlight", [
-      localIds,
-    ])) as MaterialDefinition[];
-    MaterialManager.resetColors(materials);
-    return materials;
+    const materials = await model._invoke("getHighlight", [localIds]);
+    return materials.map((material) => MaterialManager.restoreColor(material));
   }
 
   async highlight(
