@@ -246,7 +246,7 @@ export class VirtualFragmentsModel {
     return this.properties.getCategories();
   }
 
-  getMetadata(): Record<string, any> | null {
+  getMetadata(): Record<string, any> {
     // If there are any changes to the metadata, return the changed metadata
     const found = EditUtils.applyChangesToSpecialData(
       this.requests,
