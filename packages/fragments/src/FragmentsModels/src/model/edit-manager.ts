@@ -4,6 +4,7 @@ import * as EDIT from "../../../Utils/edit";
 import { EditRequest } from "../../../Utils";
 import { Element } from "../edit";
 import { CurrentLod, MeshData } from "./model-types";
+import type { Cloned } from "../multithreading/cloned";
 
 export class EditManager {
   async edit(model: FragmentsModel, requests: EditRequest[]) {
@@ -26,13 +27,9 @@ export class EditManager {
     localIds: number[],
     lod: CurrentLod,
   ) {
-    const originalGeometries = (await model._invoke("getItemsGeometry", [
-      localIds,
-      lod,
-    ])) as MeshData[][];
-    for (const geometries of originalGeometries) {
-      this.restoreTransforms(geometries);
-    }
+    const originalGeometries = (
+      await model._invoke("getItemsGeometry", [localIds, lod])
+    ).map(EditManager.restoreTransforms);
 
     const deltaModel = model._getDeltaModel();
     if (!deltaModel) {
@@ -41,12 +38,9 @@ export class EditManager {
 
     // If there are edited geometries, return them instead of the original ones
 
-    const deltaGeometries = (await deltaModel._invoke("getItemsGeometry", [
-      localIds,
-    ])) as MeshData[][];
-    for (const geometries of deltaGeometries) {
-      this.restoreTransforms(geometries);
-    }
+    const deltaGeometries = (
+      await deltaModel._invoke("getItemsGeometry", [localIds])
+    ).map(EditManager.restoreTransforms);
 
     const geomsByLocalId = new Map<number, MeshData[]>();
     for (const geometry of originalGeometries) {
@@ -63,10 +57,9 @@ export class EditManager {
   }
 
   async getGeometries(model: FragmentsModel, ids: number[]) {
-    const originalGeometries = (await model._invoke("getGeometries", [
-      ids,
-    ])) as MeshData[];
-    this.restoreTransforms(originalGeometries);
+    const originalGeometries = EditManager.restoreTransforms(
+      await model._invoke("getGeometries", [ids]),
+    );
 
     const deltaModel = model._getDeltaModel();
     if (!deltaModel) {
@@ -75,10 +68,9 @@ export class EditManager {
 
     // If there are edited geometries, return them instead of the original ones
 
-    const deltaGeometries = (await deltaModel._invoke("getGeometries", [
-      ids,
-    ])) as MeshData[];
-    this.restoreTransforms(deltaGeometries);
+    const deltaGeometries = EditManager.restoreTransforms(
+      await deltaModel._invoke("getGeometries", [ids]),
+    );
 
     const geomsByReprId = new Map<number, MeshData>();
     for (const geometry of originalGeometries) {
@@ -243,11 +235,10 @@ export class EditManager {
 
   // Geometries reach the main thread as copies without their prototypes, so
   // their transform is no longer a THREE.Matrix4.
-  private restoreTransforms(geometries: MeshData[]) {
-    for (const geometry of geometries) {
-      geometry.transform = new THREE.Matrix4().fromArray(
-        geometry.transform.elements,
-      );
-    }
+  static restoreTransforms(geometries: Cloned<MeshData>[]): MeshData[] {
+    return geometries.map((geometry) => ({
+      ...geometry,
+      transform: new THREE.Matrix4().fromArray(geometry.transform.elements),
+    }));
   }
 }
