@@ -190,17 +190,19 @@ export class VirtualPropertiesController {
     return this._model.maxLocalId();
   }
 
-  getMetadata() {
+  getMetadata(): Record<string, any> {
     const metadata = this._model.metadata();
+    // A model saved without metadata has none, rather than no object: the
+    // main thread's getMetadata() promises one.
     if (!metadata) {
-      return null;
+      return {};
     }
     return JSON.parse(metadata);
   }
 
   getCRS(): CRSData | null {
     const metadata = this.getMetadata();
-    if (!metadata || !metadata.crs) {
+    if (!metadata.crs) {
       return null;
     }
     return metadata.crs as CRSData;
