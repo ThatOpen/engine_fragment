@@ -9,55 +9,72 @@ import {
   RawItemData,
   isIndexRequest,
 } from "../../../Utils";
-import { FragmentsModels, ItemAttribute, ItemData } from "../..";
+import {
+  FragmentsModel,
+  FragmentsModels,
+  ItemAttribute,
+  ItemData,
+  ModelUid,
+} from "../..";
 import { Element } from "./element";
 import * as TFB from "../../../Schema";
 import * as ET from "../../../Utils/edit/edit-types";
 
-export class ElementsHelper {
-  private _nextTempIds: { [modelId: string]: number } = {};
+type ModelRequests = {
+  update: {
+    [localId: number | string]: EditRequest;
+  };
 
-  private _requests: {
-    [modelId: string]: {
-      update: {
-        [localId: number | string]: EditRequest;
-      };
+  create: {
+    [localId: number | string]: EditRequest;
+  };
 
-      create: {
-        [localId: number | string]: EditRequest;
-      };
-
-      remove: {
-        [localId: number | string]: EditRequest;
-      };
-      relations: {
-        create: {
-          [localId: number | string]: EditRequest;
-        };
-        update: {
-          [localId: number | string]: EditRequest;
-        };
-        remove: {
-          [localId: number | string]: EditRequest;
-        };
-      };
+  remove: {
+    [localId: number | string]: EditRequest;
+  };
+  relations: {
+    create: {
+      [localId: number | string]: EditRequest;
     };
-  } = {};
+    update: {
+      [localId: number | string]: EditRequest;
+    };
+    remove: {
+      [localId: number | string]: EditRequest;
+    };
+  };
+};
+
+export class ElementsHelper {
+  // Queued requests of each model, by the model's uid. They are dropped when
+  // it is disposed, so a model loaded later under the same modelId starts
+  // with none.
+  private readonly _nextTempIds = new Map<ModelUid, number>();
+
+  private readonly _requests = new Map<ModelUid, ModelRequests>();
 
   private _fragments: FragmentsModels;
 
   // Indexes are name-keyed, not localId-keyed, so they don't fit cleanly
   // into the create/update/remove maps above. They get their own queue,
   // appended to the request list at applyChanges time.
-  private _indexRequests: { [modelId: string]: ET.IndexRequest[] } = {};
+  private readonly _indexRequests = new Map<ModelUid, ET.IndexRequest[]>();
+
+  // Models whose queued requests are dropped once they are disposed.
+  private readonly _tracked = new Set<ModelUid>();
 
   constructor(fragments: FragmentsModels) {
     this._fragments = fragments;
   }
 
   getRequests(modelId: string) {
-    const modelRequests = this.getModelRequests(modelId);
-    this._requests[modelId] = this.newRequests();
+    const model = this._fragments.models.list.get(modelId);
+    return model ? this.takeRequests(this.track(model)) : null;
+  }
+
+  private takeRequests(uid: ModelUid) {
+    const modelRequests = this.getModelRequests(uid);
+    this._requests.set(uid, this.newRequests());
 
     const {
       create,
@@ -73,8 +90,8 @@ export class ElementsHelper {
     const relUpdateRequests = Object.values(relUpdate);
     const relRemoveRequests = Object.values(relRemove);
 
-    const indexRequests = this._indexRequests[modelId] ?? [];
-    this._indexRequests[modelId] = [];
+    const indexRequests = this._indexRequests.get(uid) ?? [];
+    this._indexRequests.set(uid, []);
 
     const requests = [
       ...removeRequests,
@@ -126,14 +143,18 @@ export class ElementsHelper {
   }
 
   private queueIndexRequest(modelId: string, request: ET.IndexRequest) {
-    if (!this._indexRequests[modelId]) {
-      this._indexRequests[modelId] = [];
+    const uid = this.uidOf(modelId);
+    let requests = this._indexRequests.get(uid);
+    if (!requests) {
+      requests = [];
+      this._indexRequests.set(uid, requests);
     }
-    this._indexRequests[modelId].push(request);
+    requests.push(request);
   }
 
   createMaterial(modelId: string, material: THREE.MeshLambertMaterial) {
-    const tempId = this.getNextTempId(modelId);
+    const uid = this.uidOf(modelId);
+    const tempId = this.getNextTempId(uid);
     const data: RawMaterial = {
       r: material.color.r * 255,
       g: material.color.g * 255,
@@ -142,7 +163,7 @@ export class ElementsHelper {
       renderedFaces: material.side === THREE.DoubleSide ? 1 : 0,
       stroke: 0,
     };
-    this.addRequest(modelId, tempId, "create", {
+    this.addRequest(uid, tempId, "create", {
       type: EditRequestType.CREATE_MATERIAL,
       tempId,
       data,
@@ -151,9 +172,10 @@ export class ElementsHelper {
   }
 
   createLocalTransform(modelId: string, transform: THREE.Matrix4) {
-    const tempId = this.getNextTempId(modelId);
+    const uid = this.uidOf(modelId);
+    const tempId = this.getNextTempId(uid);
     const data = GeomsFbUtils.transformFromMatrix(transform);
-    this.addRequest(modelId, tempId, "create", {
+    this.addRequest(uid, tempId, "create", {
       type: EditRequestType.CREATE_LOCAL_TRANSFORM,
       tempId,
       data,
@@ -162,9 +184,10 @@ export class ElementsHelper {
   }
 
   createShell(modelId: string, geometry: THREE.BufferGeometry) {
-    const tempId = this.getNextTempId(modelId);
+    const uid = this.uidOf(modelId);
+    const tempId = this.getNextTempId(uid);
     const shell = GeomsFbUtils.representationFromGeometry(geometry);
-    this.addRequest(modelId, tempId, "create", {
+    this.addRequest(uid, tempId, "create", {
       type: EditRequestType.CREATE_REPRESENTATION,
       tempId,
       data: shell,
@@ -173,10 +196,11 @@ export class ElementsHelper {
   }
 
   createCircleExtrusion(modelId: string, data: ET.RawCircleExtrusion) {
+    const uid = this.uidOf(modelId);
     const bbox = GeomsFbUtils.bboxFromCircleExtrusion(data);
 
-    const tempId = this.getNextTempId(modelId);
-    this.addRequest(modelId, tempId, "create", {
+    const tempId = this.getNextTempId(uid);
+    this.addRequest(uid, tempId, "create", {
       type: EditRequestType.CREATE_REPRESENTATION,
       tempId,
       data: {
@@ -193,9 +217,10 @@ export class ElementsHelper {
     transform: THREE.Matrix4,
     itemId: number | string,
   ) {
-    const tempId = this.getNextTempId(modelId);
+    const uid = this.uidOf(modelId);
+    const tempId = this.getNextTempId(uid);
     const data = GeomsFbUtils.transformFromMatrix(transform);
-    this.addRequest(modelId, tempId, "create", {
+    this.addRequest(uid, tempId, "create", {
       type: EditRequestType.CREATE_GLOBAL_TRANSFORM,
       tempId,
       data: {
@@ -216,8 +241,9 @@ export class ElementsHelper {
     },
   ) {
     const { localTransform, representation, material, globalTransform } = data;
-    const tempId = this.getNextTempId(modelId);
-    this.addRequest(modelId, tempId, "create", {
+    const uid = this.uidOf(modelId);
+    const tempId = this.getNextTempId(uid);
+    this.addRequest(uid, tempId, "create", {
       type: EditRequestType.CREATE_SAMPLE,
       tempId,
       data: {
@@ -231,8 +257,9 @@ export class ElementsHelper {
   }
 
   createItem(modelId: string, item: RawItemData) {
-    const tempId = this.getNextTempId(modelId);
-    this.addRequest(modelId, tempId, "create", {
+    const uid = this.uidOf(modelId);
+    const tempId = this.getNextTempId(uid);
+    this.addRequest(uid, tempId, "create", {
       type: EditRequestType.CREATE_ITEM,
       tempId,
       data: item,
@@ -249,7 +276,7 @@ export class ElementsHelper {
     const localId = localIdAttr.value;
     const data = EditUtils.itemDataToRawItemData(item);
 
-    this.addRequest(modelId, localIdAttr.value, "update", {
+    this.addRequest(this.uidOf(modelId), localIdAttr.value, "update", {
       type: EditRequestType.UPDATE_ITEM,
       localId,
       data,
@@ -264,16 +291,16 @@ export class ElementsHelper {
   ) {
     // Get the relation of the item
 
-    const model = this._fragments.models.list.get(modelId);
-    if (!model) {
-      throw new Error(`Model ${modelId} not found`);
-    }
+    const model = this.modelOf(modelId);
+    const uid = model._uid;
 
     const relations = await model.getRelations([itemId]);
+    // Disposed meanwhile: its queued requests are gone.
+    if (model._disposedSignal.aborted) return;
     const relationData = relations.get(itemId);
     if (!relationData) {
       // Item not related: create relation and add given items
-      this.addRelationRequest(modelId, itemId, "create", {
+      this.addRelationRequest(uid, itemId, "create", {
         type: EditRequestType.CREATE_RELATION,
         localId: itemId,
         data: {
@@ -298,7 +325,7 @@ export class ElementsHelper {
       relationData.data[relationName] = Array.from(uniqueRels);
     }
 
-    this.addRelationRequest(modelId, itemId, "update", {
+    this.addRelationRequest(uid, itemId, "update", {
       type: EditRequestType.UPDATE_RELATION,
       localId: itemId,
       data: relationData,
@@ -313,12 +340,12 @@ export class ElementsHelper {
   ) {
     // Get the relation of the item
 
-    const model = this._fragments.models.list.get(modelId);
-    if (!model) {
-      throw new Error(`Model ${modelId} not found`);
-    }
+    const model = this.modelOf(modelId);
+    const uid = model._uid;
 
     const relations = await model.getRelations([itemId]);
+    // Disposed meanwhile: its queued requests are gone.
+    if (model._disposedSignal.aborted) return;
     const relationData = relations.get(itemId);
     if (!relationData) {
       // Item not related: just return
@@ -339,7 +366,7 @@ export class ElementsHelper {
     }
     relationData.data[relationName] = Array.from(uniqueRels);
 
-    this.addRelationRequest(modelId, itemId, "update", {
+    this.addRelationRequest(uid, itemId, "update", {
       type: EditRequestType.UPDATE_RELATION,
       localId: itemId,
       data: relationData,
@@ -355,13 +382,15 @@ export class ElementsHelper {
   }
 
   async create(modelId: string, elements: NewElementData[]) {
+    const model = this.modelOf(modelId);
+    const uid = model._uid;
     for (const element of elements) {
       const { attributes, samples, globalTransform } = element;
 
       // Create the item
-      const tempId = this.getNextTempId(modelId);
+      const tempId = this.getNextTempId(uid);
       const data = EditUtils.itemDataToRawItemData(attributes);
-      this.addRequest(modelId, tempId, "create", {
+      this.addRequest(uid, tempId, "create", {
         type: EditRequestType.CREATE_ITEM,
         tempId,
         data,
@@ -404,7 +433,7 @@ export class ElementsHelper {
       }
     }
 
-    const requests = this.getRequests(modelId);
+    const requests = this.takeRequests(uid);
     if (!requests) {
       console.log("Something went wrong, no requests sent");
       return null;
@@ -421,10 +450,11 @@ export class ElementsHelper {
 
     const itemIds = itemIndices.map((index) => result[index]);
 
-    return this.get(modelId, itemIds);
+    return model._getElements(itemIds);
   }
 
   delete(modelId: string, elements: Element[]) {
+    const uid = this.uidOf(modelId);
     for (const element of elements) {
       element.delete();
       const currentRequests = element.getRequests();
@@ -433,7 +463,7 @@ export class ElementsHelper {
           if (isIndexRequest(request)) continue;
           const id = request.localId as number;
           if (id) {
-            this.addRequest(modelId, id, "remove", request);
+            this.addRequest(uid, id, "remove", request);
           }
         }
       }
@@ -469,10 +499,8 @@ export class ElementsHelper {
       filterInUse?: boolean;
     },
   ) {
-    const model = this._fragments.models.list.get(modelId);
-    if (!model) {
-      throw new Error(`Model ${modelId} not found`);
-    }
+    const model = this.modelOf(modelId);
+    const uid = model._uid;
 
     const filterInUse = data.filterInUse ?? true;
 
@@ -491,6 +519,8 @@ export class ElementsHelper {
 
     if (filterInUse) {
       const samples = await model.getSamples();
+      // Disposed meanwhile: its queued requests are gone.
+      if (model._disposedSignal.aborted) return;
       for (const sample of samples.values()) {
         usedMaterials.add(sample.material);
         usedLocalTransforms.add(sample.localTransform);
@@ -505,12 +535,12 @@ export class ElementsHelper {
           console.log(`Material ${materialId} is used, skipping`);
           continue;
         }
-        if (this.isBeingCreated(modelId, materialId)) {
+        if (this.isBeingCreated(uid, materialId)) {
           // Material not created yet, just remove it from queue
-          delete this._requests[modelId].create[materialId];
+          delete this.getModelRequests(uid).create[materialId];
           continue;
         }
-        this.addRequest(modelId, materialId, "remove", {
+        this.addRequest(uid, materialId, "remove", {
           type: EditRequestType.DELETE_MATERIAL,
           localId: materialId,
         });
@@ -523,12 +553,12 @@ export class ElementsHelper {
           console.log(`Local transform ${localTransformId} is used, skipping`);
           continue;
         }
-        if (this.isBeingCreated(modelId, localTransformId)) {
+        if (this.isBeingCreated(uid, localTransformId)) {
           // Local transform not created yet, just remove it from queue
-          delete this._requests[modelId].create[localTransformId];
+          delete this.getModelRequests(uid).create[localTransformId];
           continue;
         }
-        this.addRequest(modelId, localTransformId, "remove", {
+        this.addRequest(uid, localTransformId, "remove", {
           type: EditRequestType.DELETE_LOCAL_TRANSFORM,
           localId: localTransformId,
         });
@@ -541,12 +571,12 @@ export class ElementsHelper {
           console.log(`Representation ${representationId} is used, skipping`);
           continue;
         }
-        if (this.isBeingCreated(modelId, representationId)) {
+        if (this.isBeingCreated(uid, representationId)) {
           // Representation not created yet, just remove it from queue
-          delete this._requests[modelId].create[representationId];
+          delete this.getModelRequests(uid).create[representationId];
           continue;
         }
-        this.addRequest(modelId, representationId, "remove", {
+        this.addRequest(uid, representationId, "remove", {
           type: EditRequestType.DELETE_REPRESENTATION,
           localId: representationId,
         });
@@ -555,12 +585,12 @@ export class ElementsHelper {
 
     if (sampleIds) {
       for (const sampleId of sampleIds) {
-        if (this.isBeingCreated(modelId, sampleId)) {
+        if (this.isBeingCreated(uid, sampleId)) {
           // Sample not created yet, just remove it from queue
-          delete this._requests[modelId].create[sampleId];
+          delete this.getModelRequests(uid).create[sampleId];
           continue;
         }
-        this.addRequest(modelId, sampleId, "remove", {
+        this.addRequest(uid, sampleId, "remove", {
           type: EditRequestType.DELETE_SAMPLE,
           localId: sampleId,
         });
@@ -569,12 +599,12 @@ export class ElementsHelper {
 
     if (itemIds) {
       for (const itemId of itemIds) {
-        if (this.isBeingCreated(modelId, itemId)) {
+        if (this.isBeingCreated(uid, itemId)) {
           // Item not created yet, just remove it from queue
-          delete this._requests[modelId].create[itemId];
+          delete this.getModelRequests(uid).create[itemId];
           continue;
         }
-        this.addRequest(modelId, itemId, "remove", {
+        this.addRequest(uid, itemId, "remove", {
           type: EditRequestType.DELETE_ITEM,
           localId: itemId,
         });
@@ -582,20 +612,51 @@ export class ElementsHelper {
     }
   }
 
-  private getNextTempId(modelId: string) {
-    if (!this._nextTempIds[modelId]) {
-      this._nextTempIds[modelId] = 0;
+  // Resolves the live model and ties its queued requests to it.
+  private modelOf(modelId: string) {
+    const model = this._fragments.models.list.get(modelId);
+    if (!model) {
+      throw new Error(`Model ${modelId} not found`);
     }
-    return (this._nextTempIds[modelId]++).toString();
+    this.track(model);
+    return model;
+  }
+
+  private uidOf(modelId: string) {
+    return this.modelOf(modelId)._uid;
+  }
+
+  private track(model: FragmentsModel) {
+    const uid = model._uid;
+    if (!this._tracked.has(uid)) {
+      this._tracked.add(uid);
+      model._disposedSignal.addEventListener(
+        "abort",
+        () => {
+          this._tracked.delete(uid);
+          this._nextTempIds.delete(uid);
+          this._requests.delete(uid);
+          this._indexRequests.delete(uid);
+        },
+        { once: true },
+      );
+    }
+    return uid;
+  }
+
+  private getNextTempId(uid: ModelUid) {
+    const tempId = this._nextTempIds.get(uid) ?? 0;
+    this._nextTempIds.set(uid, tempId + 1);
+    return tempId.toString();
   }
 
   private addRelationRequest(
-    modelId: string,
+    uid: ModelUid,
     localId: number | string,
     type: "create" | "update" | "remove",
     request: EditRequest,
   ) {
-    const modelRequests = this.getModelRequests(modelId);
+    const modelRequests = this.getModelRequests(uid);
     const relRequests = modelRequests.relations;
     const currentRequests = relRequests[type];
     const id = localId as keyof typeof currentRequests;
@@ -603,33 +664,35 @@ export class ElementsHelper {
   }
 
   private addRequest(
-    modelId: string,
+    uid: ModelUid,
     localId: number | string,
     type: "create" | "update" | "remove",
     request: EditRequest,
   ) {
-    const modelRequests = this.getModelRequests(modelId);
+    const modelRequests = this.getModelRequests(uid);
     const currentRequests = modelRequests[type];
     const id = localId as keyof typeof currentRequests;
     currentRequests[id] = request;
   }
 
-  private getModelRequests(modelId: string) {
-    if (!this._requests[modelId]) {
-      this._requests[modelId] = this.newRequests();
+  private getModelRequests(uid: ModelUid) {
+    let requests = this._requests.get(uid);
+    if (!requests) {
+      requests = this.newRequests();
+      this._requests.set(uid, requests);
     }
-    return this._requests[modelId];
+    return requests;
   }
 
-  private isBeingCreated(modelId: string, localId: number | string) {
-    if (!this._requests[modelId]) {
+  private isBeingCreated(uid: ModelUid, localId: number | string) {
+    const requests = this._requests.get(uid);
+    if (!requests) {
       return false;
     }
-    const requests = this._requests[modelId];
     return requests.create[localId] !== undefined;
   }
 
-  private newRequests() {
+  private newRequests(): ModelRequests {
     // Relations need to be updated separately because they have the same localId than the item
     return {
       update: {},
