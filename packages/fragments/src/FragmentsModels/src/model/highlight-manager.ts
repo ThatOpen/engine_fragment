@@ -41,7 +41,7 @@ export class HighlightManager {
   }
 
   async getHighlightItemIds(model: FragmentsModel) {
-    return model._invoke("getHighlightItemIds") as Promise<number[]>;
+    return model._invoke("getHighlightItemIds");
   }
 
   async resetHighlight(model: FragmentsModel, localIds?: number[]) {

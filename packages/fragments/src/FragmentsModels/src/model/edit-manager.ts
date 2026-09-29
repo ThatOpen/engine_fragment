@@ -8,18 +8,15 @@ import type { Cloned } from "../multithreading/cloned";
 
 export class EditManager {
   async edit(model: FragmentsModel, requests: EditRequest[]) {
-    return model._invoke("edit", [requests]) as Promise<{
-      deltaModelBuffer: Uint8Array;
-      ids: number[];
-    }>;
+    return model._invoke("edit", [requests]);
   }
 
   async reset(model: FragmentsModel) {
-    return model._invoke("reset", []) as Promise<void>;
+    return model._invoke("reset", []);
   }
 
   async save(model: FragmentsModel): Promise<Uint8Array> {
-    return model._invoke("save", []) as Promise<Uint8Array>;
+    return model._invoke("save", []);
   }
 
   async getItemsGeometry(
@@ -87,78 +84,80 @@ export class EditManager {
   }
 
   async getMaterialsIds(model: FragmentsModel) {
-    return model._invoke("getMaterialsIds", []) as Promise<number[]>;
+    return model._invoke("getMaterialsIds", []);
   }
 
-  async getMaterials(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model._invoke("getMaterials", [localIds]) as Promise<
-      Map<number, EDIT.RawMaterial>
-    >;
+  async getMaterials(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawMaterial>> {
+    return model._invoke("getMaterials", [localIds]);
   }
 
   async getSamplesIds(model: FragmentsModel) {
-    return model._invoke("getSamplesIds", []) as Promise<number[]>;
+    return model._invoke("getSamplesIds", []);
   }
 
-  async getSamples(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model._invoke("getSamples", [localIds]) as Promise<
-      Map<number, EDIT.RawSample>
-    >;
+  async getSamples(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawSample>> {
+    return model._invoke("getSamples", [localIds]);
   }
 
   async getRepresentationsIds(model: FragmentsModel) {
-    return model._invoke("getRepresentationsIds", []) as Promise<number[]>;
+    return model._invoke("getRepresentationsIds", []);
   }
 
-  async getRepresentations(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model._invoke("getRepresentations", [localIds]) as Promise<
-      Map<number, EDIT.RawRepresentation>
-    >;
+  async getRepresentations(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawRepresentation>> {
+    return model._invoke("getRepresentations", [localIds]);
   }
 
   async getLocalTransformsIds(model: FragmentsModel) {
-    return model._invoke("getLocalTransformsIds", []) as Promise<number[]>;
+    return model._invoke("getLocalTransformsIds", []);
   }
 
-  async getLocalTransforms(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model._invoke("getLocalTransforms", [localIds]) as Promise<
-      Map<number, EDIT.RawTransformData>
-    >;
+  async getLocalTransforms(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawTransformData>> {
+    return model._invoke("getLocalTransforms", [localIds]);
   }
 
   async getGlobalTransformsIds(model: FragmentsModel) {
-    return model._invoke("getGlobalTransformsIds", []) as Promise<number[]>;
+    return model._invoke("getGlobalTransformsIds", []);
   }
 
   async getGlobalTransforms(
     model: FragmentsModel,
     localIds?: Iterable<number>,
-  ) {
-    return model._invoke("getGlobalTransforms", [localIds]) as Promise<
-      Map<number, EDIT.RawGlobalTransformData>
-    >;
+  ): Promise<Map<number, EDIT.RawGlobalTransformData>> {
+    return model._invoke("getGlobalTransforms", [localIds]);
   }
 
   async getItemsIds(model: FragmentsModel) {
-    return model._invoke("getItemsIds", []) as Promise<number[]>;
+    return model._invoke("getItemsIds", []);
   }
 
-  async getItems(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model._invoke("getItems", [localIds]) as Promise<
-      Map<number, EDIT.RawItemData>
-    >;
+  async getItems(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawItemData>> {
+    return model._invoke("getItems", [localIds]);
   }
 
-  async getRelations(model: FragmentsModel, localIds?: number[]) {
-    return model._invoke("getRelations", [localIds]) as Promise<
-      Map<number, EDIT.RawRelationData>
-    >;
+  async getRelations(
+    model: FragmentsModel,
+    localIds?: number[],
+  ): Promise<Map<number, EDIT.RawRelationData>> {
+    return model._invoke("getRelations", [localIds]);
   }
 
   async getGlobalTranformsIdsOfItems(model: FragmentsModel, ids: number[]) {
-    const items = (await model._invoke("getGlobalTranformsIdsOfItems", [
-      ids,
-    ])) as number[];
+    const items = await model._invoke("getGlobalTranformsIdsOfItems", [ids]);
     // this.applyActions(editor, model, items, "ITEM");
     return items;
   }
@@ -168,7 +167,7 @@ export class EditManager {
     if (!deltaModel) {
       return [];
     }
-    return deltaModel._invoke("getItemsWithGeometry", []) as Promise<number[]>;
+    return deltaModel._invoke("getItemsWithGeometry", []);
   }
 
   /**
@@ -180,23 +179,22 @@ export class EditManager {
    *
    * Returns `null` if the item has no shells (e.g. line-only items).
    */
-  async getItemSnapData(model: FragmentsModel, itemId: number) {
-    return model._invoke("getItemSnapData", [
-      itemId,
-    ]) as Promise<EDIT.ElementData | null>;
+  async getItemSnapData(
+    model: FragmentsModel,
+    itemId: number,
+  ): Promise<EDIT.ElementData | null> {
+    return model._invoke("getItemSnapData", [itemId]);
   }
 
   async getElements(model: FragmentsModel, localIds: Iterable<number>) {
-    const itemsData = (await model._invoke("getElementsData", [localIds])) as {
-      [id: number]: EDIT.ElementData;
-    };
+    const itemsData = await model._invoke("getElementsData", [localIds]);
 
     // Update meshes data, just get them from delta model
     const deltaModel = model._getDeltaModel();
     if (deltaModel) {
-      const updatedItems = (await deltaModel._invoke("getElementsData", [
+      const updatedItems = await deltaModel._invoke("getElementsData", [
         localIds,
-      ])) as { [id: number]: EDIT.ElementData };
+      ]);
 
       for (const id in updatedItems) {
         itemsData[id] = updatedItems[id];
@@ -212,11 +210,11 @@ export class EditManager {
     return result;
   }
 
-  async getRequests(model: FragmentsModel) {
-    return model._invoke("getRequests", []) as Promise<{
-      requests: EditRequest[];
-      undoneRequests: EditRequest[];
-    }>;
+  async getRequests(model: FragmentsModel): Promise<{
+    requests: EditRequest[];
+    undoneRequests: EditRequest[];
+  }> {
+    return model._invoke("getRequests", []);
   }
 
   async setRequests(
@@ -226,11 +224,11 @@ export class EditManager {
       undoneRequests?: EditRequest[];
     },
   ) {
-    return model._invoke("setRequests", [data]) as Promise<void>;
+    return model._invoke("setRequests", [data]);
   }
 
   async selectRequest(model: FragmentsModel, index: number) {
-    return model._invoke("selectRequest", [index]) as Promise<void>;
+    return model._invoke("selectRequest", [index]);
   }
 
   // Geometries reach the main thread as copies without their prototypes, so
