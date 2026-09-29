@@ -1,6 +1,6 @@
 import * as THREE from "three";
-import { MeshData } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
+import { EditManager } from "./edit-manager";
 
 /**
  * Represents the geometry of an item in a Fragments model.
@@ -27,14 +27,12 @@ export class ItemGeometry {
   }
 
   async get() {
-    const [geometries] = (await this.model._invoke("getItemsGeometry", [
+    const [copies] = await this.model._invoke("getItemsGeometry", [
       [this.localId],
-    ])) as MeshData[][];
+    ]);
+    const geometries = EditManager.restoreTransforms(copies);
 
     for (const geometryData of geometries) {
-      geometryData.transform = new THREE.Matrix4().fromArray(
-        geometryData.transform.elements,
-      );
       const { indices, normals, positions, transform } = geometryData;
       if (!this._indices) this._indices = [];
       if (!this._normals) this._normals = [];
