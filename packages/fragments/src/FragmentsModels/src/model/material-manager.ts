@@ -12,6 +12,7 @@ import {
 import { CRC } from "../utils";
 import { LodMaterial } from "../lod";
 import { DataMap } from "../../../Utils";
+import type { Cloned } from "../multithreading/cloned";
 
 export class MaterialManager {
   readonly list = new DataMap<number, BIMMaterial>();
@@ -21,20 +22,17 @@ export class MaterialManager {
   private readonly _idGenerator = new CRC();
   private readonly white = 0xffffffff;
 
-  static resetColors(definitions: MaterialDefinition[]) {
-    for (const definition of definitions) {
-      if (!(definition && definition.color)) continue;
-      const { color } = definition;
-      if (color.isColor) continue;
-      const { r, g, b } = color;
-      // IFC colors are stored in sRBG color space
-      definition.color = new THREE.Color().setRGB(
-        r,
-        g,
-        b,
-        THREE.SRGBColorSpace
-      );
-    }
+  // Definitions reach the main thread as copies without their prototypes, so
+  // their color is no longer a THREE.Color, though it keeps `isColor`. Its
+  // components are already linear: the worker converted them from sRGB.
+  static restoreColor(
+    definition: Cloned<MaterialDefinition>,
+  ): MaterialDefinition {
+    // Items without a highlight have no definition, and a highlight that only
+    // changes the opacity has no color: there is nothing to restore.
+    if (!definition?.color) return definition as MaterialDefinition;
+    const { r, g, b } = definition.color;
+    return { ...definition, color: new THREE.Color(r, g, b) };
   }
 
   dispose(uid: ModelUid) {
