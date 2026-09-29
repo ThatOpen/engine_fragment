@@ -174,6 +174,28 @@ test("save keeps the old delta models in the scene until the new model is in", a
   expect(deltaModels()).toEqual([]);
 });
 
+test("save tears down the old model and its delta models if the reload fails", async () => {
+  vi.spyOn(FragmentsModel.prototype, "_getRequests").mockResolvedValue({
+    requests: [],
+    undoneRequests: [],
+  });
+  vi.spyOn(FragmentsModel.prototype, "_save").mockResolvedValue(
+    new Uint8Array([1, 2, 3, 4]),
+  );
+  const scene = new THREE.Object3D();
+  const old = await load();
+  scene.add(old.object);
+  await fragments.editor.edit("m", []);
+  const [delta] = deltaModels();
+  vi.spyOn(fragments, "load").mockRejectedValueOnce(new Error("aborted"));
+
+  await expect(fragments.editor.save("m")).rejects.toThrow("aborted");
+
+  expect(old.object.parent).toBeNull();
+  expect(disposeOrder(delta)).toBeDefined();
+  expect(fragments.models.list.size).toBe(0);
+});
+
 test("element requests can't be queued for a model that isn't loaded", () => {
   expect(() =>
     fragments.editor.createMaterial("m", new THREE.MeshLambertMaterial()),

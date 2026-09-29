@@ -131,24 +131,27 @@ export class EditHelper {
     this._deltaModels.delete(model._uid);
     model.dispose({ keepInScene: true });
 
-    // Load new model with the same id (it is free now).
-    const newModel = await this._fragments.load(newModelBuffer as any, {
-      modelId,
-      raw: true,
-      camera,
-    });
+    try {
+      // Load new model with the same id (it is free now).
+      const newModel = await this._fragments.load(newModelBuffer as any, {
+        modelId,
+        raw: true,
+        camera,
+      });
 
-    // If there were some undone actions, pass them to the new model
-    await newModel._setRequests({ undoneRequests: requests.undoneRequests });
+      if (parent) {
+        parent.add(newModel.object);
+      }
 
-    if (parent) {
-      parent.add(newModel.object);
-    }
-
-    // New model is in scene now. Tear down the old visuals.
-    model.finalizeDispose();
-    for (const deltaModel of deltaModels) {
-      deltaModel.dispose();
+      // If there were some undone actions, pass them to the new model
+      await newModel._setRequests({ undoneRequests: requests.undoneRequests });
+    } finally {
+      // New model is in scene now, or it failed to load. Either way, tear
+      // down the old visuals: nothing else can once the model is disposed.
+      model.finalizeDispose();
+      for (const deltaModel of deltaModels) {
+        deltaModel.dispose();
+      }
     }
 
     // Return actions (e.g. to create action history, control z, etc.)
