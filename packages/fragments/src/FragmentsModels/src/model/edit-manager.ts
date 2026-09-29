@@ -1,3 +1,4 @@
+import * as THREE from "three";
 import { FragmentsModel } from "./fragments-model";
 import * as EDIT from "../../../Utils/edit";
 import { EditRequest } from "../../../Utils";
@@ -29,6 +30,9 @@ export class EditManager {
       localIds,
       lod,
     ])) as MeshData[][];
+    for (const geometries of originalGeometries) {
+      this.restoreTransforms(geometries);
+    }
 
     const deltaModel = model._getDeltaModel();
     if (!deltaModel) {
@@ -40,6 +44,9 @@ export class EditManager {
     const deltaGeometries = (await deltaModel._invoke("getItemsGeometry", [
       localIds,
     ])) as MeshData[][];
+    for (const geometries of deltaGeometries) {
+      this.restoreTransforms(geometries);
+    }
 
     const geomsByLocalId = new Map<number, MeshData[]>();
     for (const geometry of originalGeometries) {
@@ -59,6 +66,7 @@ export class EditManager {
     const originalGeometries = (await model._invoke("getGeometries", [
       ids,
     ])) as MeshData[];
+    this.restoreTransforms(originalGeometries);
 
     const deltaModel = model._getDeltaModel();
     if (!deltaModel) {
@@ -70,6 +78,7 @@ export class EditManager {
     const deltaGeometries = (await deltaModel._invoke("getGeometries", [
       ids,
     ])) as MeshData[];
+    this.restoreTransforms(deltaGeometries);
 
     const geomsByReprId = new Map<number, MeshData>();
     for (const geometry of originalGeometries) {
@@ -230,5 +239,15 @@ export class EditManager {
 
   async selectRequest(model: FragmentsModel, index: number) {
     return model._invoke("selectRequest", [index]) as Promise<void>;
+  }
+
+  // Geometries reach the main thread as copies without their prototypes, so
+  // their transform is no longer a THREE.Matrix4.
+  private restoreTransforms(geometries: MeshData[]) {
+    for (const geometry of geometries) {
+      geometry.transform = new THREE.Matrix4().fromArray(
+        geometry.transform.elements,
+      );
+    }
   }
 }
