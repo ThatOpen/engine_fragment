@@ -412,6 +412,31 @@ test("late messages of a disposed model don't reach a model loaded under the sam
   });
 });
 
+test("tiles for a disposed model aren't copied back to the worker", async () => {
+  const load = fragments.load(buffer(), { modelId: "m" });
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const model = await load;
+  model.dispose();
+
+  // The connection answers with the request it received.
+  const request = {
+    class: MultiThreadingRequestClass.RECOMPUTE_MESHES,
+    uid: model._uid,
+    list: [
+      {
+        tileRequestClass: TileRequestClass.CREATE,
+        uid: model._uid,
+        tileId: 1,
+        positions: new Float32Array(9),
+      },
+    ],
+  };
+  await receive(request);
+
+  expect(request.list).toEqual([]);
+});
+
 test("disposing twice deletes the model once and returns the same promise", async () => {
   const deleteModel = vi.spyOn((fragments as any)._connection, "delete");
   const load = fragments.load(buffer(), { modelId: "m" });

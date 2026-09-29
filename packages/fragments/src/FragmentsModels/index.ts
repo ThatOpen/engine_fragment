@@ -623,6 +623,8 @@ export class FragmentsModels {
     if (!model) {
       if (request.class === MultiThreadingRequestClass.RECOMPUTE_MESHES) {
         this.models._dropRequests(request.list);
+        // The answer is this request: don't copy the tiles back with it.
+        request.list = [];
       }
       return;
     }
