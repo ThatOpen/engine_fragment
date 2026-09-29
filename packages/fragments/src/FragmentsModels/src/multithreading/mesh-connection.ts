@@ -1,6 +1,10 @@
 import { Connection } from "./connection";
 import { MultithreadingHelper } from "./multithreading-helper";
-import { ModelUid, VirtualMultithreadingConfig } from "../model/model-types";
+import {
+  ModelUid,
+  TileRequest,
+  VirtualMultithreadingConfig,
+} from "../model/model-types";
 
 export class MeshConnection {
   private _rate = 64;
@@ -8,7 +12,7 @@ export class MeshConnection {
   private _uid: ModelUid;
   private _threshold = 16;
   private _connection: Connection | undefined;
-  private _list: any[] = [];
+  private _list: TileRequest[] = [];
 
   private get needsRefresh() {
     return this._list.length > this._threshold;
@@ -59,7 +63,7 @@ export class MeshConnection {
     this._list = MultithreadingHelper.cleanRequests(this._list);
   }
 
-  process(request: any): void {
+  process(request: TileRequest): void {
     // No connection means no consumer: accumulating requests would just
     // grow the list unboundedly (nothing ever flushes it). Mirrors the
     // `_onTransferMaterial` guard in VirtualFragmentsModel (#262).

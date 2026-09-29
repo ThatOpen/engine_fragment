@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import * as path from "path";
 import { afterEach, expect, test, vi } from "vitest";
 import { SingleThreadedFragmentsModel } from ".";
-import { LoadAbortedError, ModelUid } from "../model";
+import { LoadAbortedError, ModelUid, TileRequestClass } from "../model";
 import { MeshConnection } from "../multithreading/mesh-connection";
 import { VirtualTilesController } from "../virtual-model/virtual-controllers";
 
@@ -172,7 +172,11 @@ test("MeshConnection without a connection starts no interval, throws nothing and
     // first refresh tick throws `Cannot read properties of undefined
     // (reading 'fetchMeshCompute')` inside the timer callback.
     for (let i = 0; i < 50; i++) {
-      meshConnection.process({ uid: 1, tileId: i });
+      meshConnection.process({
+        tileRequestClass: TileRequestClass.DELETE,
+        uid: 1 as ModelUid,
+        tileId: i,
+      });
     }
     expect((meshConnection as any)._list).toEqual([]);
 

@@ -4,7 +4,7 @@ import {
   type ThreadHandler,
 } from "./connection-handlers";
 import { MultithreadingHelper } from "./multithreading-helper";
-import type { ModelUid } from "../model/model-types";
+import type { ModelUid, TileRequest } from "../model/model-types";
 
 /**
  * One side of the message layer between the main thread and a worker.
@@ -19,7 +19,7 @@ export class Connection<TInput extends object = object> {
     this._handleInput = handleInput;
   }
 
-  fetchMeshCompute(uid: ModelUid, list: any[]) {
+  fetchMeshCompute(uid: ModelUid, list: TileRequest[]) {
     const helper = MultithreadingHelper;
     const input = helper.getMeshComputeRequest(uid, list);
     const content = helper.getRequestContent(input);

@@ -14,6 +14,7 @@ import {
   DataBuffer,
   limitOf2Bytes,
   TileRequestClass,
+  TileStatus,
   SnappingClass,
   LodMode,
   VirtualMultithreadingConfig,
@@ -388,9 +389,10 @@ export class VirtualTilesController {
         uid: this._uid,
         tileId,
         objectClass: tile.objectClass,
-        material: tile.materialId as number,
+        // Set for every tile, see newTile().
+        material: tile.materialId!,
         tileData: this.getTileData(tile),
-        currentLod: tile.lod as number,
+        currentLod: tile.lod!,
       });
     }
     this._tilesChanged.clear();
@@ -709,21 +711,15 @@ export class VirtualTilesController {
   }
 
   private getTileHighlight(tile: TileData, locations: number[]) {
-    let highlightData: any = undefined as any;
-    let highlightIds: any = undefined as any;
     const highlights = tile.highlights;
-    if (!highlights) {
+    const highlightSize = highlights?.size((id) => id !== 0);
+    if (!highlights || !highlightSize) {
       return { highlightData: undefined, highlightIds: undefined };
     }
-
-    const highlightSize = highlights.size((id) => id !== 0);
-    if (highlightSize > 0) {
-      highlightIds = new Uint16Array(highlightSize);
-      const f = (id: number) => id !== 0;
-      const c = (id: number, data: number) => (highlightIds[id] = data);
-      highlightData = MultiBufferData.get(highlights, locations, f, c);
-    }
-
+    const highlightIds = new Uint16Array(highlightSize);
+    const f = (id: number) => id !== 0;
+    const c = (id: number, data: number) => (highlightIds[id] = data);
+    const highlightData = MultiBufferData.get(highlights, locations, f, c);
     return { highlightData, highlightIds };
   }
 
@@ -1428,7 +1424,7 @@ export class VirtualTilesController {
     tile.location = result;
   }
 
-  private getTileData(tile: TileData) {
+  private getTileData(tile: TileData): TileStatus {
     const locations = this.getTileLocations(tile);
     const visibilityData = this.getTileVisibility(tile, locations);
     const highlight = this.getTileHighlight(tile, locations);
@@ -1507,10 +1503,11 @@ export class VirtualTilesController {
       normals: tile.normalBuffer,
       faceIds,
       itemIds: tile.ids,
-      material: tile.materialId,
+      // Set for every tile, see newTile().
+      material: tile.materialId!,
       matrix: this._temp.matrix.clone(),
       aabb: tile.box.clone(),
-      currentLod: tile.lod,
+      currentLod: tile.lod!,
     });
     this.updateMemoryOnTileLoad(tile);
   }
