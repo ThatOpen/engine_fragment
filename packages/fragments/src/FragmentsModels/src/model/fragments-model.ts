@@ -581,7 +581,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
   }
 
   async getGuids() {
-    const guids = (await this._invoke("getGuids", [])) as string[];
+    const guids = await this._invoke("getGuids", []);
     return guids;
   }
 
@@ -589,7 +589,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Get all the local IDs of the model.
    */
   async getLocalIds() {
-    const localIds = (await this._invoke("getLocalIds", [])) as number[];
+    const localIds = await this._invoke("getLocalIds", []);
     return localIds;
   }
 
@@ -637,7 +637,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to the total volume of the specified items.
    */
   async getItemsVolume(localIds: number[]) {
-    const volume = (await this._invoke("getItemsVolume", [localIds])) as number;
+    const volume = await this._invoke("getItemsVolume", [localIds]);
     return volume;
   }
 
@@ -647,7 +647,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of an attribute.
    */
   async getAttributeNames() {
-    const names = (await this._invoke("getAttributeNames", [])) as string[];
+    const names = await this._invoke("getAttributeNames", []);
     return names;
   }
 
@@ -657,15 +657,14 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute values.
    */
   async getAttributeValues() {
-    const values = (await this._invoke("getAttributeValues", [])) as any[];
+    const values = await this._invoke("getAttributeValues", []);
     return values;
   }
 
-  async getAttributesUniqueValues(params: AttributesUniqueValuesParams[]) {
-    const values = (await this._invoke("getAttributesUniqueValues", [
-      params,
-    ])) as Record<string, { value: any; localIds: number[] }[]>;
-    return values;
+  async getAttributesUniqueValues(
+    params: AttributesUniqueValuesParams[],
+  ): Promise<Record<string, { value: any; localIds: number[] }[]>> {
+    return this._invoke("getAttributesUniqueValues", [params]);
   }
 
   /**
@@ -674,7 +673,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute types.
    */
   async getAttributeTypes() {
-    const types = (await this._invoke("getAttributeTypes", [])) as string[];
+    const types = await this._invoke("getAttributeTypes", []);
     return types;
   }
 
@@ -684,7 +683,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of a relation.
    */
   async getRelationNames() {
-    const names = (await this._invoke("getRelationNames", [])) as string[];
+    const names = await this._invoke("getRelationNames", []);
     return names;
   }
 

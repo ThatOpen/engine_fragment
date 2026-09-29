@@ -30,9 +30,9 @@ export class Item {
   async getLocalId() {
     if (!this._localId) {
       if (this._guid) {
-        [this._localId] = (await this.model._invoke("getLocalIdsByGuids", [
+        [this._localId] = await this.model._invoke("getLocalIdsByGuids", [
           [this._guid],
-        ])) as (number | null)[];
+        ]);
       } else {
         throw new Error("Fragments: Item localId couldn't be get.");
       }
@@ -94,9 +94,7 @@ export class Item {
     const localId = await this.getLocalId();
     if (localId === null) return null;
 
-    const data = (await this.model._invoke("getItemRelations", [localId])) as {
-      [name: string]: number[];
-    } | null;
+    const data = await this.model._invoke("getItemRelations", [localId]);
     if (!data) return null;
 
     this._relations = new ItemRelations(localId);

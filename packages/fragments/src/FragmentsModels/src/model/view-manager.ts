@@ -94,7 +94,7 @@ export class ViewManager {
   }
 
   async setLodMode(model: FragmentsModel, lodMode: LodMode) {
-    return model._invoke("setLodMode", [lodMode]) as Promise<void>;
+    return model._invoke("setLodMode", [lodMode]);
   }
 
   private getOrthoSize() {
