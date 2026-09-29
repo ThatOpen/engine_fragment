@@ -474,5 +474,10 @@ export class MeshManager {
     mesh.matrixAutoUpdate = false;
     mesh.applyMatrix4(matrix);
     mesh.matrix.copy(matrix);
+    // We own `matrix` (matrixAutoUpdate is off), so we must say its world
+    // matrix is stale: since three r185, `updateWorldMatrix()` skips objects
+    // without this flag, and getWorldPosition, Box3.setFromObject, attach...
+    // would read the identity until the next render (#309).
+    mesh.matrixWorldNeedsUpdate = true;
   }
 }
