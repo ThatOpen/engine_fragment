@@ -216,8 +216,9 @@ export enum MultiThreadingRequestClass {
 export type ModelUid = number & { readonly __brand: "ModelUid" };
 
 /**
- * Error thrown when a model load is aborted via the `signal` passed to
- * `FragmentsModels.load()`, or by disposing the model while it loads.
+ * Error thrown when a model load is aborted via `FragmentsModels.abort()`,
+ * the `signal` passed to `FragmentsModels.load()`, or by disposing the model
+ * while it loads.
  */
 export class LoadAbortedError extends Error {
   constructor(modelId: string) {

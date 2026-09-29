@@ -7,8 +7,8 @@ import {
   TileRequestClass,
 } from "./src/model";
 
-// Main-thread contract of `load({ signal })` (issue #173), of disposing a
-// model, and of loading a model ID that is already taken.
+// Main-thread contract of `load({ signal })` and `abort()` (issue #173), of
+// disposing a model, and of loading a model ID that is already taken.
 // The worker is replaced by a stubbed `_setup`: it settles when the test says
 // so, and rejects the way a real worker-side abort reaches the main thread —
 // as the serialized error string, not as a LoadAbortedError instance.
@@ -105,6 +105,8 @@ test("aborting the signal mid-load aborts the worker and rejects with LoadAborte
   await flush();
   const model = fragments.models.list.get("m")!;
   controller.abort();
+  // A second abort for the same load is not sent again.
+  fragments.abort("m");
 
   await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
   expect(abortRequests()).toEqual([
@@ -113,6 +115,51 @@ test("aborting the signal mid-load aborts the worker and rejects with LoadAborte
   expect(FragmentsModel.prototype.dispose).toHaveBeenCalledTimes(1);
   expect(fragments.models.list.size).toBe(0);
   expect(loaded).not.toHaveBeenCalled();
+});
+
+test("abort(modelId) mid-load also rejects with a LoadAbortedError instance", async () => {
+  const load = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+  fragments.abort("m");
+
+  await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
+  expect(abortRequests()).toHaveLength(1);
+  expect(fragments.models.list.size).toBe(0);
+});
+
+test("abort() for an ID that is not loading sends no request", () => {
+  fragments.abort("unknown");
+  expect(sent).toEqual([]);
+});
+
+test("abort(modelId) after the load resolved does nothing", async () => {
+  const load = fragments.load(buffer(), { modelId: "m" });
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const model = await load;
+
+  fragments.abort("m");
+
+  expect(sent).toEqual([]);
+  expect(model.dispose).not.toHaveBeenCalled();
+  expect(fragments.models.list.get("m")).toBe(model);
+});
+
+test("abort(modelId) doesn't outlive the load it aborted", async () => {
+  const first = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+  fragments.abort("m");
+  await expect(first).rejects.toBeInstanceOf(LoadAbortedError);
+
+  setup = deferred();
+  coordinates = deferred();
+  const second = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+
+  await expect(second).resolves.toBeInstanceOf(FragmentsModel);
+  expect(abortRequests()).toHaveLength(1);
 });
 
 test("an abort rejects without waiting for the worker to unwind", async () => {

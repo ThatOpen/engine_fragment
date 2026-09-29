@@ -171,6 +171,9 @@ export class FragmentsModels {
 
   private _lastUid = 0;
 
+  /** How to abort each load in flight, see {@link abort}. */
+  private readonly _loadAborts = new Map<ModelUid, () => void>();
+
   private _isDisposed = false;
   private _autoRedrawInterval: any = null;
   private _lastUpdate = 0;
@@ -268,9 +271,10 @@ export class FragmentsModels {
        */
       threadGroup?: string;
       /**
-       * Aborts the load when the signal fires: `load()` rejects with a
-       * {@link LoadAbortedError} and the partial model is disposed. If the
-       * signal is already aborted, `load()` rejects without doing any work.
+       * Aborts the load when the signal fires, same as calling
+       * {@link FragmentsModels.abort} with this model's ID: `load()` rejects
+       * with a {@link LoadAbortedError} and the partial model is disposed. If
+       * the signal is already aborted, `load()` rejects without doing any work.
        */
       signal?: AbortSignal;
     },
@@ -325,6 +329,8 @@ export class FragmentsModels {
       once: true,
     });
     const onAbort = () => {
+      // Only once, whether it comes from the signal or from abort().
+      if (loading.signal.aborted) return;
       abortLoading();
       // Fire-and-forget — the worker sets an abort flag and the in-flight
       // generate() loop throws at its next yield point.
@@ -338,6 +344,7 @@ export class FragmentsModels {
         .catch(() => {});
     };
     signal?.addEventListener("abort", onAbort, { once: true });
+    this._loadAborts.set(model._uid, onAbort);
 
     try {
       this.models._add(model);
@@ -381,6 +388,7 @@ export class FragmentsModels {
     } finally {
       model._disposedSignal.removeEventListener("abort", abortLoading);
       signal?.removeEventListener("abort", onAbort);
+      this._loadAborts.delete(model._uid);
       this._progressCallbacks.delete(model._uid);
     }
 
@@ -458,6 +466,24 @@ export class FragmentsModels {
     if (model) {
       await model.dispose();
     }
+  }
+
+  /**
+   * Aborts an in-flight `load()` for the given model ID. The pending `load()`
+   * promise will reject with a `LoadAbortedError` and any partial state
+   * (on both the main thread and the worker) is disposed.
+   *
+   * Has no effect if the model finished loading or isn't currently loading.
+   * It aborts the load under that ID at the time of the call: after a load
+   * was aborted or disposed, a new load of the same ID is a different load.
+   * To tie a load to an `AbortController`, pass its signal to `load()` instead.
+   *
+   * @param modelId - The unique identifier of the model to abort.
+   */
+  abort(modelId: string) {
+    const model = this.models.list.get(modelId);
+    if (!model) return;
+    this._loadAborts.get(model._uid)?.();
   }
 
   /**
