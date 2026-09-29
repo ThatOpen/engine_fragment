@@ -42,7 +42,7 @@ export class CoordinatesManager {
   }
 
   async getCoordinates(model: FragmentsModel) {
-    return model._invoke("getCoordinates") as Promise<number[]>;
+    return model._invoke("getCoordinates");
   }
 
   async getPositions(model: FragmentsModel, localIds?: number[]) {

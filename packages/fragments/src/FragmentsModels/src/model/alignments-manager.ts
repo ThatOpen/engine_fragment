@@ -105,9 +105,7 @@ export class AlignmentsManager {
   }
 
   private async constructAlignments() {
-    const result = (await this.model._invoke(
-      "getAlignments",
-    )) as AlignmentData[];
+    const result: AlignmentData[] = await this.model._invoke("getAlignments");
 
     // Construct the curves
     for (const alignmentData of result) {
