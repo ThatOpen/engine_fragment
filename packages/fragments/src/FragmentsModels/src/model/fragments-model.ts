@@ -47,14 +47,94 @@ import { SetupManager } from "./setup-manager";
 import { ViewManager } from "./view-manager";
 import { VisibilityManager } from "./visibility-manager";
 
-// The methods of a model's worker-side counterpart, see FragmentsModel._invoke.
-type VirtualMethods = {
-  [K in keyof VirtualFragmentsModel as VirtualFragmentsModel[K] extends (
-    ...args: any[]
-  ) => any
-    ? K
-    : never]: VirtualFragmentsModel[K];
-};
+// The methods of a model's worker-side counterpart that the main thread
+// calls, see FragmentsModel._invoke. Their arguments and results are copied
+// between threads, so they must hold data only: no functions, and class
+// instances arrive as plain objects.
+type RemoteMethods = Pick<
+  VirtualFragmentsModel,
+  | "edit"
+  | "getAlignments"
+  | "getAttributeNames"
+  | "getAttributeTypes"
+  | "getAttributeValues"
+  | "getAttributesUniqueValues"
+  | "getBuffer"
+  | "getCRS"
+  | "getCategories"
+  | "getCoordinates"
+  | "getElementsData"
+  | "getGeometries"
+  | "getGlobalTranformsIdsOfItems"
+  | "getGlobalTransforms"
+  | "getGlobalTransformsIds"
+  | "getGrids"
+  | "getGuids"
+  | "getGuidsByLocalIds"
+  | "getHighlight"
+  | "getHighlightItemIds"
+  | "getIndexEntry"
+  | "getIndexInfo"
+  | "getIndexKey"
+  | "getIndexKeys"
+  | "getIndexNames"
+  | "getIndexValues"
+  | "getInverseIndexEntry"
+  | "getItemAttributes"
+  | "getItemCategory"
+  | "getItemDrawChunks"
+  | "getItemRelations"
+  | "getItemSnapData"
+  | "getItems"
+  | "getItemsByQuery"
+  | "getItemsByVisibility"
+  | "getItemsChildren"
+  | "getItemsData"
+  | "getItemsGeometry"
+  | "getItemsIds"
+  | "getItemsMaterialDefinition"
+  | "getItemsOfCategories"
+  | "getItemsVolume"
+  | "getItemsWithGeometry"
+  | "getItemsWithGeometryCategories"
+  | "getLocalIds"
+  | "getLocalIdsByGuids"
+  | "getLocalIdsFromItemIds"
+  | "getLocalTransforms"
+  | "getLocalTransformsIds"
+  | "getMaterials"
+  | "getMaterialsIds"
+  | "getMaxLocalId"
+  | "getMetadata"
+  | "getPositions"
+  | "getRelationNames"
+  | "getRelations"
+  | "getRepresentations"
+  | "getRepresentationsIds"
+  | "getRequests"
+  | "getSamples"
+  | "getSamplesIds"
+  | "getSection"
+  | "getSequenced"
+  | "getSpatialStructure"
+  | "getSubsetBuffer"
+  | "getVisible"
+  | "hasIndexEntry"
+  | "highlight"
+  | "reset"
+  | "resetColor"
+  | "resetHighlight"
+  | "resetOpacity"
+  | "resetVisible"
+  | "save"
+  | "selectRequest"
+  | "setColor"
+  | "setLodMode"
+  | "setOpacity"
+  | "setRequests"
+  | "setVisible"
+  | "toggleVisible"
+>;
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -1125,14 +1205,14 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * so class instances in the result arrive as plain objects, see
    * {@link Cloned}.
    */
-  _invoke<K extends keyof VirtualMethods>(
+  _invoke<K extends keyof RemoteMethods>(
     method: K,
     // Optional only when every parameter of the method is.
-    ...[args]: [] extends Parameters<VirtualMethods[K]>
-      ? [args?: Parameters<VirtualMethods[K]>]
-      : [args: Parameters<VirtualMethods[K]>]
-  ): Promise<Cloned<Awaited<ReturnType<VirtualMethods[K]>>>> {
-    return this.threads.invoke<Awaited<ReturnType<VirtualMethods[K]>>>(
+    ...[args]: [] extends Parameters<RemoteMethods[K]>
+      ? [args?: Parameters<RemoteMethods[K]>]
+      : [args: Parameters<RemoteMethods[K]>]
+  ): Promise<Cloned<Awaited<ReturnType<RemoteMethods[K]>>>> {
+    return this.threads.invoke<Awaited<ReturnType<RemoteMethods[K]>>>(
       this._uid,
       method,
       args,
