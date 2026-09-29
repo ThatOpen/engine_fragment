@@ -4,14 +4,14 @@ import {
   FragmentsModel,
   LoadAbortedError,
   MultiThreadingRequestClass,
+  TileRequestClass,
 } from "./src/model";
 
-// Main-thread contract of `load({ signal })` (issue #173) and of loading a
-// model ID that is already taken.
+// Main-thread contract of `load({ signal })` (issue #173), of disposing a
+// model, and of loading a model ID that is already taken.
 // The worker is replaced by a stubbed `_setup`: it settles when the test says
 // so, and rejects the way a real worker-side abort reaches the main thread —
 // as the serialized error string, not as a LoadAbortedError instance.
-// `threads` stands in for the connection's model → thread assignments.
 
 type Deferred<T> = {
   promise: Promise<T>;
@@ -35,7 +35,6 @@ let fragments: FragmentsModels;
 let setup: Deferred<void>;
 let coordinates: Deferred<number[]>;
 let sent: any[];
-let threads: Set<string>;
 
 const abortRequests = () =>
   sent.filter((m) => m.class === MultiThreadingRequestClass.ABORT_MODEL);
@@ -46,41 +45,31 @@ const flush = () =>
     setTimeout(resolve, 0);
   });
 
+// Delivers a message from a worker, the way the connection does.
+const receive = (message: any) => (fragments as any).manageRequest(message);
+
 beforeEach(() => {
   fragments = new FragmentsModels("worker.mjs");
   setup = deferred();
   coordinates = deferred();
   sent = [];
-  threads = new Set();
 
   vi.spyOn(FragmentsModel.prototype, "_setup").mockImplementation(
-    function setupMocked(this: FragmentsModel) {
-      threads.add(this.modelId);
-      return setup.promise;
-    },
+    () => setup.promise,
   );
   vi.spyOn(FragmentsModel.prototype, "getCoordinates").mockImplementation(
     () => coordinates.promise,
   );
   // Unfreezing a loaded model refreshes its view, which reads `window`.
   vi.spyOn(FragmentsModel.prototype, "_refreshView").mockResolvedValue();
-  vi.spyOn(FragmentsModel.prototype, "dispose").mockImplementation(
-    async function disposeMocked(this: FragmentsModel) {
-      fragments.models.list.delete(this.modelId);
-      threads.delete(this.modelId);
-    },
-  );
-  const connection = (fragments as any)._connection;
-  vi.spyOn(connection, "hasModel").mockImplementation((id: any) =>
-    threads.has(id),
-  );
-  vi.spyOn(connection, "fetch").mockImplementation(
+  vi.spyOn(FragmentsModel.prototype, "dispose");
+  vi.spyOn((fragments as any)._connection, "fetch").mockImplementation(
     async (message: any) => {
       sent.push(message);
       // Like the real worker, an abort only lands while CREATE_MODEL runs.
       if (message.class === MultiThreadingRequestClass.ABORT_MODEL) {
         setup.reject(
-          `LoadAbortedError: Fragments: Load of model "${message.modelId}" was aborted.`,
+          `LoadAbortedError: Fragments: Load of model "${message.uid}" was aborted.`,
         );
       }
     },
@@ -114,13 +103,39 @@ test("aborting the signal mid-load aborts the worker and rejects with LoadAborte
     signal: controller.signal,
   });
   await flush();
+  const model = fragments.models.list.get("m")!;
   controller.abort();
 
   await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
-  expect(abortRequests()).toEqual([expect.objectContaining({ modelId: "m" })]);
+  expect(abortRequests()).toEqual([
+    expect.objectContaining({ uid: model._uid }),
+  ]);
   expect(FragmentsModel.prototype.dispose).toHaveBeenCalledTimes(1);
   expect(fragments.models.list.size).toBe(0);
   expect(loaded).not.toHaveBeenCalled();
+});
+
+test("an abort rejects without waiting for the worker to unwind", async () => {
+  // A worker that ignores the abort: its load keeps running.
+  vi.mocked((fragments as any)._connection.fetch).mockImplementation(
+    async (message: any) => {
+      sent.push(message);
+    },
+  );
+  const controller = new AbortController();
+  const load = fragments.load(buffer(), {
+    modelId: "m",
+    signal: controller.signal,
+  });
+  await flush();
+  controller.abort();
+
+  await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
+  expect(fragments.models.list.size).toBe(0);
+  // The worker finishing later changes nothing.
+  setup.resolve();
+  await flush();
+  expect(fragments.models.list.size).toBe(0);
 });
 
 test("an abort that lands after the worker finished still rejects and disposes", async () => {
@@ -194,7 +209,7 @@ test("loading an ID that is already loaded rejects and keeps the loaded model", 
   const model = await first;
 
   await expect(fragments.load(buffer(), { modelId: "m" })).rejects.toThrow(
-    /already in use/,
+    /already loaded or loading/,
   );
   expect(FragmentsModel.prototype._setup).toHaveBeenCalledTimes(1);
   expect(model.dispose).not.toHaveBeenCalled();
@@ -211,7 +226,7 @@ test("loading an ID that is still loading rejects and leaves the in-flight load 
 
   await expect(
     fragments.load(buffer(), { modelId: "m", signal: controller.signal }),
-  ).rejects.toThrow(/already in use/);
+  ).rejects.toThrow(/already loaded or loading/);
   expect(FragmentsModel.prototype._setup).toHaveBeenCalledTimes(1);
 
   // Only the first load listens to the signal.
@@ -220,32 +235,145 @@ test("loading an ID that is still loading rejects and leaves the in-flight load 
   expect(abortRequests()).toHaveLength(1);
 });
 
-test("loading an ID that is still being disposed rejects until the worker deleted it", async () => {
+test("an ID can be loaded again as soon as its model is disposed, while the worker still deletes it", async () => {
   const workerDeleted = deferred<void>();
-  vi.mocked(FragmentsModel.prototype.dispose).mockImplementation(
-    async function disposeMocked(this: FragmentsModel) {
-      fragments.models.list.delete(this.modelId);
-      await workerDeleted.promise;
-      threads.delete(this.modelId);
-    },
+  vi.spyOn((fragments as any)._connection, "delete").mockReturnValue(
+    workerDeleted.promise,
   );
   const first = fragments.load(buffer(), { modelId: "m" });
-  setup.reject("Error: boom");
-  await flush();
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const old = await first;
 
-  // The failed load's model left the list, but its worker delete is pending.
+  let deleted = false;
+  const disposal = fragments.disposeModel("m").then(() => {
+    deleted = true;
+  });
   expect(fragments.models.list.has("m")).toBe(false);
-  await expect(fragments.load(buffer(), { modelId: "m" })).rejects.toThrow(
-    /already in use/,
-  );
-
-  workerDeleted.resolve();
-  await expect(first).rejects.toBe("Error: boom");
+  expect(old.object.parent).toBeNull();
 
   setup = deferred();
   coordinates = deferred();
   const second = fragments.load(buffer(), { modelId: "m" });
   setup.resolve();
   coordinates.resolve([0, 0, 0]);
+  const model = await second;
+  expect(fragments.models.list.get("m")).toBe(model);
+  expect(model._uid).not.toBe(old._uid);
+  expect(deleted).toBe(false);
+
+  workerDeleted.resolve();
+  await disposal;
+});
+
+test("disposing a model mid-load rejects its load, even if the worker then finishes", async () => {
+  fragments.settings.autoCoordinate = false;
+  const loaded = vi.fn();
+  fragments.onModelLoaded.add(loaded);
+  const load = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+
+  fragments.disposeModel("m");
+  expect(fragments.models.list.size).toBe(0);
+  setup.resolve();
+
+  await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
+  expect(loaded).not.toHaveBeenCalled();
+  expect(fragments.models.list.size).toBe(0);
+});
+
+test("the signal of a disposed load doesn't reach a later load of the same ID", async () => {
+  const controller = new AbortController();
+  const first = fragments.load(buffer(), {
+    modelId: "m",
+    signal: controller.signal,
+  });
+  await flush();
+  fragments.disposeModel("m");
+  await expect(first).rejects.toBeInstanceOf(LoadAbortedError);
+
+  setup = deferred();
+  coordinates = deferred();
+  const second = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+  controller.abort();
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+
   await expect(second).resolves.toBeInstanceOf(FragmentsModel);
+  expect(abortRequests()).toEqual([]);
+});
+
+test("late messages of a disposed model don't reach a model loaded under the same ID", async () => {
+  const firstProgress = vi.fn();
+  const first = fragments.load(buffer(), {
+    modelId: "m",
+    onProgress: firstProgress,
+  });
+  await flush();
+  const old = fragments.models.list.get("m")!;
+  fragments.disposeModel("m");
+  await expect(first).rejects.toBeInstanceOf(LoadAbortedError);
+
+  setup = deferred();
+  const progress = vi.fn();
+  fragments.load(buffer(), { modelId: "m", onProgress: progress });
+  await flush();
+  const model = fragments.models.list.get("m")!;
+
+  await receive({
+    class: MultiThreadingRequestClass.LOAD_PROGRESS,
+    uid: old._uid,
+    stage: "parsing",
+    progress: 1,
+  });
+  await receive({
+    class: MultiThreadingRequestClass.CREATE_MATERIAL,
+    uid: old._uid,
+    materialDefinitions: [{ color: { r: 1, g: 0, b: 0 } }],
+    firstId: 0,
+  });
+  await receive({
+    class: MultiThreadingRequestClass.RECOMPUTE_MESHES,
+    uid: old._uid,
+    list: [
+      {
+        tileRequestClass: TileRequestClass.CREATE,
+        uid: old._uid,
+        tileId: 1,
+      },
+    ],
+  });
+
+  expect(firstProgress).not.toHaveBeenCalled();
+  expect(progress).not.toHaveBeenCalled();
+  const materials = fragments.models.materials as any;
+  expect(materials._definitions.size).toBe(0);
+  expect(fragments.models.requests.list).toEqual([]);
+
+  // The same messages for the live model do arrive.
+  await receive({
+    class: MultiThreadingRequestClass.LOAD_PROGRESS,
+    uid: model._uid,
+    stage: "parsing",
+    progress: 1,
+  });
+  expect(progress).toHaveBeenCalledWith({
+    modelId: "m",
+    stage: "parsing",
+    progress: 1,
+  });
+});
+
+test("disposing twice deletes the model once and returns the same promise", async () => {
+  const deleteModel = vi.spyOn((fragments as any)._connection, "delete");
+  const load = fragments.load(buffer(), { modelId: "m" });
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const model = await load;
+
+  const disposal = model.dispose();
+  expect(model.dispose()).toBe(disposal);
+  await disposal;
+  expect(deleteModel).toHaveBeenCalledTimes(1);
 });

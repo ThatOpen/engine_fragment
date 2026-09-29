@@ -5,6 +5,7 @@ import { Event, FRAGMENTS_VERSION } from "../Utils";
 import {
   LoadAbortedError,
   LoadProgressEvent,
+  ModelUid,
   MultiThreadingRequestClass,
   VirtualModelConfig,
   isRawBuffer,
@@ -164,9 +165,11 @@ export class FragmentsModels {
   private readonly _connection: FragmentsConnection;
 
   private _progressCallbacks = new Map<
-    string,
+    ModelUid,
     (event: LoadProgressEvent) => void
   >();
+
+  private _lastUid = 0;
 
   private _isDisposed = false;
   private _autoRedrawInterval: any = null;
@@ -196,7 +199,7 @@ export class FragmentsModels {
       maxWorkers: options?.maxWorkers,
       threadGroups: options?.threadGroups,
     });
-    this.editor = new Editor(this, this._connection);
+    this.editor = new Editor(this);
     this.models = new MeshManager(updateEvent);
     this.models.list.onItemDeleted.add(() => {
       if (this.models.list.size !== 0) return;
@@ -225,7 +228,7 @@ export class FragmentsModels {
    * Loads a fragments model from an ArrayBuffer.
    * @param buffer - The ArrayBuffer containing the fragments data to load.
    * @param options - Configuration options for loading the model.
-   * @param options.modelId - Unique identifier for the model. Loading an ID that is already loaded or still loading throws; dispose the existing model first.
+   * @param options.modelId - Unique identifier for the model. Loading an ID that is already loaded or still loading throws; dispose the existing model first (the ID is free as soon as `dispose()` is called).
    * @param options.camera - Optional camera to use for model culling and LOD.
    * @param options.clippingPlanes - Optional clipping planes (world space) to cull against. The array is kept by reference and read on every view refresh; see {@link FragmentsModel.useClippingPlanes}.
    * @param options.raw - Whether the buffer is raw (uncompressed) or deflated. If omitted, it is auto-detected from the buffer (see {@link isRawBuffer}).
@@ -276,19 +279,13 @@ export class FragmentsModels {
       throw new LoadAbortedError(modelId);
     }
 
-    // Both threads key all model state by ID, so a second load under the same
-    // ID would clobber the first. The model enters `models.list` before the
-    // first await, which covers in-flight loads. Disposal removes it from the
-    // list before the worker has deleted it, so also wait for the thread.
-    if (this.models.list.has(modelId) || this._connection.hasModel(modelId)) {
+    // Only live models count: a disposed model finishes its teardown under
+    // its own uid, so its modelId is free as soon as it is disposed.
+    if (this.models.list.has(modelId)) {
       throw new Error(
-        `Fragments: model "${modelId}" is already in use (loaded, loading or being disposed). Await its disposal or use a different modelId.`,
+        `Fragments: model "${modelId}" is already loaded or loading. Dispose it first or use a different modelId.`,
       );
     }
-
-    // Record the model's group before we issue any worker request so the
-    // pool routing in fragments-connection picks the right thread.
-    this._connection.setModelThreadGroup(modelId, threadGroup);
 
     const virtualModelConfig: VirtualModelConfig = {
       ...customVirtualModelConfig,
@@ -300,13 +297,13 @@ export class FragmentsModels {
       },
     };
 
-    const model = new FragmentsModel(
-      modelId,
-      this.models,
-      this._connection,
-      this.editor,
-      threadGroup,
-    );
+    // Auto-detect compression when the caller did not specify it, so a raw or
+    // deflated buffer both just work. An explicit `raw` always wins.
+    const bytes =
+      buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    const raw = explicitRaw ?? isRawBuffer(bytes);
+
+    const model = this._createModel(modelId, threadGroup);
 
     if (userData) {
       model.object.userData = userData;
@@ -318,41 +315,46 @@ export class FragmentsModels {
     model.graphicsQuality = this.settings.graphicsQuality;
 
     if (onProgress) {
-      this._progressCallbacks.set(modelId, onProgress);
+      this._progressCallbacks.set(model._uid, onProgress);
     }
 
-    // Auto-detect compression when the caller did not specify it, so a raw or
-    // deflated buffer both just work. An explicit `raw` always wins.
-    const bytes =
-      buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
-    const raw = explicitRaw ?? isRawBuffer(bytes);
-
-    // Fire-and-forget — the worker sets an abort flag and the in-flight
-    // generate() loop throws at its next yield point. The error unwinds
-    // through the catch block below, which cleans up on the main thread.
+    // Aborted by the caller's signal and by disposing the model mid-load.
+    const loading = new AbortController();
+    const abortLoading = () => loading.abort();
+    model._disposedSignal.addEventListener("abort", abortLoading, {
+      once: true,
+    });
     const onAbort = () => {
+      abortLoading();
+      // Fire-and-forget — the worker sets an abort flag and the in-flight
+      // generate() loop throws at its next yield point.
       this._connection
-        .fetch({ class: MultiThreadingRequestClass.ABORT_MODEL, modelId })
+        .fetch({
+          class: MultiThreadingRequestClass.ABORT_MODEL,
+          uid: model._uid,
+        })
         // Rejects only if the model never got a thread, so there is nothing to
-        // abort on the worker. The main-thread check below still rejects.
+        // abort on the worker.
         .catch(() => {});
     };
     signal?.addEventListener("abort", onAbort, { once: true });
 
-    const release = () => {
-      signal?.removeEventListener("abort", onAbort);
-      this._progressCallbacks.delete(modelId);
-    };
-
     try {
-      this.models.list.set(model.modelId, model);
-      await model._setup(buffer, raw, virtualModelConfig);
-      // The worker ignores an abort that lands after it finished its part, so
-      // re-check on the main thread after every await.
-      signal?.throwIfAborted();
+      this.models._add(model);
+      // An abort rejects right away instead of waiting for the worker to
+      // unwind, which it does on its own. It can also land after a step
+      // settled but before the load moves on, hence the checks.
+      await untilAborted(
+        model._setup(buffer, raw, virtualModelConfig),
+        loading.signal,
+      );
+      loading.signal.throwIfAborted();
       if (this.settings.autoCoordinate) {
-        const coordinates = await model.getCoordinates();
-        signal?.throwIfAborted();
+        const coordinates = await untilAborted(
+          model.getCoordinates(),
+          loading.signal,
+        );
+        loading.signal.throwIfAborted();
         if (this.baseCoordinates === null) {
           this.baseCoordinates = coordinates;
         } else {
@@ -367,29 +369,20 @@ export class FragmentsModels {
         }
       }
     } catch (e) {
-      // Capture the signal's state: an abort that fires during disposal
-      // shouldn't mask why the load failed.
-      const aborted = signal?.aborted;
-      // on failure this must run before disposal frees the ID,
-      // or it could remove the progress callback of the ID's next load.
-      release();
-      // Fully dispose partial state — this tears down the worker thread
-      // (if this was the last model on it), clears transferred materials,
-      // removes the model object from its parent, and deletes it from the
-      // models list. `model.dispose()` is safe on partially-loaded models
-      // because the worker-side `DELETE_MODEL` handler is now idempotent.
-      try {
-        await model.dispose();
-      } catch {
-        // best-effort: if disposal fails, still ensure main-thread cleanup
-        this.models.list.delete(model.modelId);
-      }
+      // Read first: disposing the model below aborts the load too.
+      const aborted = loading.signal.aborted;
+      // Fully dispose partial state: the model leaves the models list and
+      // the scene, its modelId is free again, and the worker drops whatever
+      // it built. A no-op if the load was aborted by disposing it.
+      model.dispose();
       // A worker-side abort arrives as its serialized error string, not as a
       // LoadAbortedError instance, so rebuild the error here.
       throw aborted ? new LoadAbortedError(modelId) : e;
+    } finally {
+      model._disposedSignal.removeEventListener("abort", abortLoading);
+      signal?.removeEventListener("abort", onAbort);
+      this._progressCallbacks.delete(model._uid);
     }
-
-    release();
 
     if (camera) {
       model.useCamera(camera);
@@ -408,8 +401,29 @@ export class FragmentsModels {
   }
 
   /**
+   * Internal method to create a model under a new uid. Don't use this
+   * directly; use {@link load} instead.
+   */
+  _createModel(modelId: string, threadGroup?: string) {
+    const uid = ++this._lastUid as ModelUid;
+    // Record the model's group before we issue any worker request so the
+    // pool routing in fragments-connection picks the right thread.
+    this._connection.setModelThreadGroup(uid, threadGroup);
+    return new FragmentsModel({
+      modelId,
+      uid,
+      meshManager: this.models,
+      threads: this._connection,
+      editor: this.editor,
+      threadGroup,
+    });
+  }
+
+  /**
    * Disposes of all models managed by this FragmentsModels instance.
    * After calling this method, the FragmentsModels instance should not be used anymore.
+   * Like {@link FragmentsModel.dispose}, it takes effect before it returns;
+   * the returned promise resolves once the workers have deleted the models.
    */
   async dispose() {
     this._isDisposed = true;
@@ -431,12 +445,12 @@ export class FragmentsModels {
     for (const model of models) {
       promises.push(model.dispose());
     }
-    await Promise.all(promises);
     this.onModelLoaded.reset();
+    await Promise.all(promises);
   }
 
   /**
-   * Disposes of a specific model by its ID.
+   * Disposes of a specific model by its ID. See {@link FragmentsModel.dispose}.
    * @param modelId - The unique identifier of the model to dispose.
    */
   async disposeModel(modelId: string) {
@@ -540,21 +554,26 @@ export class FragmentsModels {
   }
 
   private async manageRequest(message: any): Promise<void> {
+    const model = this.models._get(message.uid);
+    // A disposed model's messages are dropped: nothing they'd change is left.
+    if (!model) {
+      if (message.class === MultiThreadingRequestClass.RECOMPUTE_MESHES) {
+        this.models._dropRequests(message.list);
+      }
+      return;
+    }
     if (message.class === MultiThreadingRequestClass.LOAD_PROGRESS) {
-      const callback = this._progressCallbacks.get(message.modelId);
+      const callback = this._progressCallbacks.get(model._uid);
       if (callback) {
         callback({
-          modelId: message.modelId,
+          modelId: model.modelId,
           stage: message.stage,
           progress: message.progress,
         });
       }
       return;
     }
-    const model = this.models.list.get(message.modelId);
-    if (model) {
-      await model.handleRequest(message);
-    }
+    await model.handleRequest(message);
   }
 
   private newUpdateEvent() {
@@ -579,4 +598,29 @@ export class FragmentsModels {
       this.manageRequest(request);
     };
   }
+}
+
+/**
+ * Settles like `promise`, or rejects as soon as `signal` aborts, whichever
+ * comes first. `promise` itself keeps running.
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    if (signal.aborted) {
+      onAbort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }

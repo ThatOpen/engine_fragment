@@ -4,6 +4,7 @@ import pako from "pako";
 import { describe, expect, test } from "vitest";
 import { EditRequestIndex } from "./edit-request-index";
 import { VirtualFragmentsModel } from "./virtual-fragments-model";
+import type { ModelUid } from "../model/model-types";
 import { EditRequest, EditRequestType } from "../../../Utils";
 
 const fixture = path.resolve(
@@ -15,7 +16,7 @@ const fixture = path.resolve(
 function loadModel() {
   const data = pako.inflate(new Uint8Array(readFileSync(fixture)));
   const model = new VirtualFragmentsModel(
-    "edit-request-index-test",
+    1 as ModelUid,
     data as any,
     undefined as any,
   );

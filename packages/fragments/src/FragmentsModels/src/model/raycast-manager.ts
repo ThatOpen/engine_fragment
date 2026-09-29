@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import {
+  ModelUid,
   MultiThreadingRequestClass,
   RaycastData,
   RaycastResult,
@@ -8,7 +9,6 @@ import {
   SnappingRaycastData,
 } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
-import { MeshManager } from "./mesh-manager";
 import { CameraUtils } from "../utils";
 
 interface Point {
@@ -80,18 +80,14 @@ export class RaycastManager {
     return null;
   }
 
-  async rectangleRaycast(
-    model: FragmentsModel,
-    meshes: MeshManager,
-    data: RectangleRaycastData,
-  ) {
+  async rectangleRaycast(model: FragmentsModel, data: RectangleRaycastData) {
     const frustum = this.getFrustum(data);
     const request = this.getRequest(model, frustum);
     if (!request) return null;
     request.fullyIncluded = data.fullyIncluded;
     const response = await model.threads.fetch(request);
     if (response.localIds && response.localIds.length) {
-      return this.newRectangleCastResponse(response, meshes);
+      return this.newRectangleCastResponse(response, model);
     }
     return null;
   }
@@ -225,10 +221,10 @@ export class RaycastManager {
     frustum: THREE.Frustum,
     ray?: THREE.Ray,
   ) {
-    const { object, box, modelId } = model;
+    const { object, box, _uid: uid } = model;
     const collidesModel = frustum.intersectsBox(box);
     if (collidesModel) {
-      return this.newCastRequest(object, modelId, ray, frustum);
+      return this.newCastRequest(object, uid, ray, frustum);
     }
     return null;
   }
@@ -296,14 +292,14 @@ export class RaycastManager {
 
   private newCastRequest(
     object: THREE.Object3D,
-    modelId: string,
+    uid: ModelUid,
     ray: THREE.Ray | undefined,
     frustum: THREE.Frustum,
   ) {
     this.setupMatrix(object);
     const request: any = {};
     request.class = MultiThreadingRequestClass.RAYCAST;
-    request.modelId = modelId;
+    request.uid = uid;
     this.setupRay(ray, request);
     CameraUtils.transform(frustum, this._inverseTransform, this._frustum);
     request.frustum = this._frustum;
@@ -377,10 +373,10 @@ export class RaycastManager {
     return results;
   }
 
-  private newRectangleCastResponse(response: any, meshes: MeshManager) {
+  private newRectangleCastResponse(response: any, model: FragmentsModel) {
     const result: RectangleRaycastResult = {
       localIds: response.localIds,
-      fragments: meshes.list.get(response.modelId)!,
+      fragments: model,
     };
     return result;
   }

@@ -2,7 +2,6 @@ import { FragmentsModel, FragmentsModels } from "../..";
 import * as EDIT from "../../../Utils/edit";
 import { isIndexRequest } from "../../../Utils/edit";
 import { EditRequestType } from "../../../Utils/edit/edit-types";
-import { FragmentsConnection } from "../multithreading/fragments-connection";
 import { EditUtils } from "../../../Utils/edit/edit-utils";
 import { VirtualModelConfig } from "../model/model-types";
 
@@ -32,11 +31,9 @@ const RENDER_AFFECTING_REQUESTS = new Set<EditRequestType>([
 export class EditHelper {
   private _deltaModels: { [modelId: string]: FragmentsModel[] | null } = {};
   private readonly _fragments: FragmentsModels;
-  private readonly _connection: FragmentsConnection;
 
-  constructor(core: FragmentsModels, connection: FragmentsConnection) {
+  constructor(core: FragmentsModels) {
     this._fragments = core;
-    this._connection = connection;
   }
 
   async edit(
@@ -113,11 +110,10 @@ export class EditHelper {
       oldDeltaModel.object.visible = false;
     }
 
-    // Dispose old delta models and remove from models list
+    // Dispose old delta models, which also removes them from the models list
     const deletePromises = [];
     for (const oldDeltaModel of oldDeltaModels) {
       deletePromises.push(oldDeltaModel.dispose());
-      this._fragments.models.list.delete(oldDeltaModel.modelId);
     }
     await Promise.all(deletePromises);
 
@@ -140,12 +136,12 @@ export class EditHelper {
     const camera = model.camera || undefined;
     const newModelBuffer = await model._save();
 
-    // Free up the modelId slot in the worker + registries, but keep the
-    // model's THREE object, tiles and materials in scene so the user does
-    // not see a blank frame while the new model loads.
-    await model.dispose({ keepInScene: true });
+    // Free up the modelId, but keep the model's THREE object, tiles and
+    // materials in scene so the user does not see a blank frame while the
+    // new model loads. The worker deletes the old model on its own.
+    model.dispose({ keepInScene: true });
 
-    // Load new model with the same id (the slot is now free).
+    // Load new model with the same id (it is free now).
     const newModel = await this._fragments.load(newModelBuffer as any, {
       modelId,
       raw: true,
@@ -218,12 +214,7 @@ export class EditHelper {
     const deltaId = EditUtils.DELTA_MODEL_ID;
     const modelId = `${parentModel.modelId}${deltaId}${performance.now()}`;
 
-    const deltaModel = new FragmentsModel(
-      modelId,
-      this._fragments.models,
-      this._connection,
-      this._fragments.editor,
-    );
+    const deltaModel = this._fragments._createModel(modelId);
 
     deltaModel._setDeltaModel(parentModel.modelId);
 
@@ -241,11 +232,11 @@ export class EditHelper {
     };
 
     try {
-      this._fragments.models.list.set(deltaModel.modelId, deltaModel);
+      this._fragments.models._add(deltaModel);
       await deltaModel._setup(buffer, true, virtualModelConfig);
       parentModel.object.add(deltaModel.object);
     } catch (e) {
-      this._fragments.models.list.delete(deltaModel.modelId);
+      deltaModel.dispose();
       throw e;
     }
 

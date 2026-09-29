@@ -43,7 +43,7 @@ export class SetupManager {
   ) {
     return {
       class: MultiThreadingRequestClass.CREATE_MODEL,
-      modelId: model.modelId,
+      uid: model._uid,
       modelData,
       raw,
       config,
