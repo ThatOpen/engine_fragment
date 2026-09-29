@@ -93,6 +93,15 @@ export class Connection<TInput extends object = object> {
     }
     // Answers go back through the port the request came in on.
     data.toMainThread = true;
-    port.postMessage(data);
+    try {
+      port.postMessage(data);
+    } catch (error: any) {
+      // The answer can't be copied (e.g. a result holding a function). Answer
+      // with the error instead, or the request would never settle.
+      console.error(error);
+      const { requestId } = data;
+      const errorInfo = String(error);
+      port.postMessage({ requestId, toMainThread: true, errorInfo });
+    }
   }
 }
