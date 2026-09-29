@@ -2,6 +2,7 @@ import * as WEBIFC from "web-ifc";
 import { Builder } from "flatbuffers";
 import * as TFB from "../../../../Schema";
 import { RawEntityAttrs } from "./types";
+import { ifcValueTypeName } from "./value-type-name";
 import { IfcImporter } from "../..";
 import {
   FragmentsIfcUtils,
@@ -447,11 +448,7 @@ export class IfcPropertyProcessor {
           ) as number[];
 
           const attrData = [attrName, noHandlesValue];
-          const dataTypeName =
-            "name" in noHandles[0] && noHandles[0].name
-              ? noHandles[0].name
-              : noHandles[0].constructor.name.toUpperCase();
-          attrData.push(dataTypeName !== "OBJECT" ? dataTypeName : "UNDEFINED");
+          attrData.push(ifcValueTypeName(noHandles[0]) ?? "UNDEFINED");
 
           const hash = JSON.stringify(attrData);
           const attrOffset = this._builder.createSharedString(hash);
@@ -506,17 +503,7 @@ export class IfcPropertyProcessor {
         const attrData = [attrName, unwrappedValue];
 
         // Infer type name from the attrValue object or from the actual value type
-        let dataTypeName = "UNDEFINED";
-        if (typeof attrValue === "object" && attrValue !== null) {
-          if ("name" in attrValue && attrValue.name) {
-            dataTypeName = attrValue.name;
-          } else if (
-            attrValue.constructor &&
-            attrValue.constructor.name !== "Object"
-          ) {
-            dataTypeName = attrValue.constructor.name.toUpperCase();
-          }
-        }
+        let dataTypeName = ifcValueTypeName(attrValue) ?? "UNDEFINED";
 
         // If still undefined, infer from the unwrapped value's type
         if (dataTypeName === "UNDEFINED" || dataTypeName === "OBJECT") {
