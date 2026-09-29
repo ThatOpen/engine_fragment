@@ -46,8 +46,7 @@ export class CoordinatesManager {
   }
 
   async getPositions(model: FragmentsModel, localIds?: number[]) {
-    const args = [localIds];
-    const localPositions = await model._invoke("getPositions", args);
+    const localPositions = await model._invoke("getPositions", [localIds]);
     return this.getAbsolutePositions(localPositions, model);
   }
 

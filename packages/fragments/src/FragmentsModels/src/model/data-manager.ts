@@ -160,8 +160,9 @@ export class DataManager {
   }
 
   async getItemsOfCategories(model: FragmentsModel, categories: RegExp[]) {
-    const args = [categories];
-    const data = (await model._invoke("getItemsOfCategories", args)) as {
+    const data = (await model._invoke("getItemsOfCategories", [
+      categories,
+    ])) as {
       [category: string]: number[];
     };
     return data;
@@ -172,8 +173,10 @@ export class DataManager {
     params: ItemsQueryParams,
     config?: ItemsQueryConfig,
   ) {
-    const args = [params, config];
-    const localIds = (await model._invoke("getItemsByQuery", args)) as number[];
+    const localIds = (await model._invoke("getItemsByQuery", [
+      params,
+      config,
+    ])) as number[];
     return localIds;
   }
 
