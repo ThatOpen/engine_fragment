@@ -6,12 +6,16 @@ import {
 import { MultithreadingHelper } from "./multithreading-helper";
 import type { ModelUid } from "../model/model-types";
 
-export class Connection {
+/**
+ * One side of the message layer between the main thread and a worker.
+ * `TInput` is what the other side sends it as requests.
+ */
+export class Connection<TInput extends object = object> {
   private readonly _handlers = new ConnectionHandlers();
-  private readonly _handleInput: ThreadHandler;
+  private readonly _handleInput: ThreadHandler<TInput>;
   private _port?: MessagePort;
 
-  constructor(handleInput: ThreadHandler) {
+  constructor(handleInput: ThreadHandler<TInput>) {
     this._handleInput = handleInput;
   }
 
@@ -19,7 +23,9 @@ export class Connection {
     const helper = MultithreadingHelper;
     const input = helper.getMeshComputeRequest(uid, list);
     const content = helper.getRequestContent(input);
-    this.fetch(input, content);
+    // Fire-and-forget: if the main thread fails to handle it, it logs the
+    // error itself, and there is nothing to do about it here.
+    this.fetch(input, content).catch(() => {});
   }
 
   fetch<T extends object>(input: T, content: any[] = []) {
@@ -75,7 +81,9 @@ export class Connection {
       return;
     }
     try {
-      await this._handleInput(data);
+      // Anything that isn't an answer is a request, which the other side
+      // sends as a TInput.
+      await this._handleInput(data as TInput & MessageBase);
     } catch (error: any) {
       data.errorInfo = error.toString();
       // Aborts are intentional — don't log them as unexpected errors.

@@ -1,4 +1,8 @@
-import { ModelUid, MultiThreadingRequestClass } from "../model/model-types";
+import {
+  ModelUid,
+  MultiThreadingRequestClass,
+  WorkerRequest,
+} from "../model/model-types";
 import { Cloned } from "./cloned";
 import { Connection } from "./connection";
 import { ThreadHandler } from "./connection-handlers";
@@ -22,7 +26,7 @@ export interface FragmentsConnectionOptions {
   threadGroups?: Record<string, number>;
 }
 
-export class FragmentsConnection extends Connection {
+export class FragmentsConnection extends Connection<WorkerRequest> {
   private readonly _data: ThreadsData;
   private readonly _classicWorker: boolean;
   private readonly _maxWorkers: number;
@@ -47,7 +51,7 @@ export class FragmentsConnection extends Connection {
   }
 
   constructor(
-    handleInput: ThreadHandler,
+    handleInput: ThreadHandler<WorkerRequest>,
     threadPath: string,
     options?: FragmentsConnectionOptions,
   ) {

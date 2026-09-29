@@ -5,7 +5,9 @@ export type MessageBase = {
   errorInfo?: string;
 };
 
-export type ThreadHandler = (args: MessageBase) => Promise<void> | void;
+export type ThreadHandler<T extends object = object> = (
+  args: T & MessageBase,
+) => Promise<void> | void;
 
 export class ConnectionHandlers {
   private readonly _list = new Map<

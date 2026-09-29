@@ -8,6 +8,7 @@ import {
   ModelUid,
   MultiThreadingRequestClass,
   VirtualModelConfig,
+  WorkerRequest,
   isRawBuffer,
 } from "./src";
 import { Editor } from "./src/edit";
@@ -30,6 +31,31 @@ export interface FragmentsModelsOptions {
    * Reserved worker capacity per named thread group. Workers are spawned lazily (nothing is spawned until the first load targets a pool). A model loaded with `threadGroup: "x"` always lands on group "x"'s pool; default-pool loads never touch a reserved worker. The sum of group sizes must leave at least one slot for the default pool, otherwise init throws.
    */
   threadGroups?: Record<string, number>;
+}
+
+/**
+ * Settles like `promise`, or rejects as soon as `signal` aborts, whichever
+ * comes first. `promise` itself keeps running.
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    if (signal.aborted) {
+      onAbort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
 
 /**
@@ -195,9 +221,21 @@ export class FragmentsModels {
    */
   constructor(workerURL?: string, options?: FragmentsModelsOptions) {
     const url = workerURL ?? getBundledWorkerUrl();
-    const requestEvent = this.newRequestEvent();
-    const updateEvent = this.newUpdateEvent();
-    this._connection = new FragmentsConnection(requestEvent, url, {
+    const updateEvent = () => {
+      // A tile batch can land after dispose(); it must not re-arm the loop.
+      if (this._isDisposed) return;
+      // This limits the maximum update rate to the maxUpdateRate setting
+      if (this._autoRedrawInterval) {
+        clearTimeout(this._autoRedrawInterval);
+      }
+
+      const offset = this.settings.maxUpdateRate + 1;
+      this._autoRedrawInterval = setTimeout(() => {
+        this._autoRedrawInterval = null;
+        this.update();
+      }, offset);
+    };
+    this._connection = new FragmentsConnection(this.manageRequest, url, {
       classicWorker: options?.classicWorker,
       maxWorkers: options?.maxWorkers,
       threadGroups: options?.threadGroups,
@@ -579,76 +617,28 @@ export class FragmentsModels {
     }, offset);
   }
 
-  private async manageRequest(message: any): Promise<void> {
-    const model = this.models._get(message.uid);
+  private manageRequest: ThreadHandler<WorkerRequest> = async (request) => {
+    const model = this.models._get(request.uid);
     // A disposed model's messages are dropped: nothing they'd change is left.
     if (!model) {
-      if (message.class === MultiThreadingRequestClass.RECOMPUTE_MESHES) {
-        this.models._dropRequests(message.list);
+      if (request.class === MultiThreadingRequestClass.RECOMPUTE_MESHES) {
+        this.models._dropRequests(request.list);
         // The answer is this request: don't copy the tiles back with it.
-        message.list = [];
+        request.list = [];
       }
       return;
     }
-    if (message.class === MultiThreadingRequestClass.LOAD_PROGRESS) {
+    if (request.class === MultiThreadingRequestClass.LOAD_PROGRESS) {
       const callback = this._progressCallbacks.get(model._uid);
       if (callback) {
         callback({
           modelId: model.modelId,
-          stage: message.stage,
-          progress: message.progress,
+          stage: request.stage,
+          progress: request.progress,
         });
       }
       return;
     }
-    await model.handleRequest(message);
-  }
-
-  private newUpdateEvent() {
-    return () => {
-      // A tile batch can land after dispose(); it must not re-arm the loop.
-      if (this._isDisposed) return;
-      // This limits the maximum update rate to the maxUpdateRate setting
-      if (this._autoRedrawInterval) {
-        clearTimeout(this._autoRedrawInterval);
-      }
-
-      const offset = this.settings.maxUpdateRate + 1;
-      this._autoRedrawInterval = setTimeout(() => {
-        this._autoRedrawInterval = null;
-        this.update();
-      }, offset);
-    };
-  }
-
-  private newRequestEvent(): ThreadHandler {
-    return (request) => {
-      this.manageRequest(request);
-    };
-  }
-}
-
-/**
- * Settles like `promise`, or rejects as soon as `signal` aborts, whichever
- * comes first. `promise` itself keeps running.
- */
-function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    if (signal.aborted) {
-      onAbort();
-    } else {
-      signal.addEventListener("abort", onAbort, { once: true });
-    }
-    promise.then(
-      (value) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
-      },
-      (error) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(error);
-      },
-    );
-  });
+    await model.handleRequest(request);
+  };
 }

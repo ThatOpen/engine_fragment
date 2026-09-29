@@ -1,8 +1,10 @@
 import Pako from "pako";
 import {
   LoadAbortedError,
+  LoadProgressEvent,
   ModelUid,
   MultiThreadingRequestClass,
+  WorkerRequest,
 } from "../../model/model-types";
 import { ThreadController } from "./thread-controller";
 import { VirtualFragmentsModel } from "../../virtual-model";
@@ -78,7 +80,7 @@ export class ThreadModelCreator extends ThreadController {
 
   private async createModel(
     input: any,
-    notify: (stage: string, progress: number) => void,
+    notify: (stage: LoadProgressEvent["stage"], progress: number) => void,
     throwIfAborted: () => void,
   ) {
     const { uid, modelData, config } = input;
@@ -110,14 +112,17 @@ export class ThreadModelCreator extends ThreadController {
 
   private createProgressNotifier(uid: ModelUid) {
     const { connection } = this.thread;
-    return (stage: string, progress: number) => {
-      // Fire-and-forget (same pattern as CREATE_MATERIAL transfer)
-      connection.fetch({
-        class: MultiThreadingRequestClass.LOAD_PROGRESS,
-        uid,
-        stage,
-        progress,
-      });
+    return (stage: LoadProgressEvent["stage"], progress: number) => {
+      // Fire-and-forget: if the main thread fails to handle it, it logs the
+      // error itself, and there is nothing to do about it here.
+      connection
+        .fetch({
+          class: MultiThreadingRequestClass.LOAD_PROGRESS,
+          uid,
+          stage,
+          progress,
+        } satisfies WorkerRequest)
+        .catch(() => {});
     };
   }
 }
