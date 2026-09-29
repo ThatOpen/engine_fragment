@@ -14,6 +14,7 @@ import {
   AttributesUniqueValuesParams,
   CurrentLod,
   Identifier,
+  ItemsDataConfig,
   IndexArrayType,
   IndexEntry,
   IndexInfo,
@@ -198,7 +199,7 @@ export class VirtualFragmentsModel {
     return this.properties.getAttributesUniqueValues(config);
   }
 
-  getItemsData(ids: number[], config: any) {
+  getItemsData(ids: Identifier[], config?: Partial<ItemsDataConfig>) {
     return this.properties.getItemsData(ids, config);
   }
 
@@ -298,27 +299,30 @@ export class VirtualFragmentsModel {
     return this._sequenceHelper.getSequenced(result, fromItems, inputs);
   }
 
-  highlight(items: number[], highlightMaterial: MaterialDefinition) {
+  highlight(
+    items: number[] | undefined,
+    highlightMaterial: MaterialDefinition,
+  ) {
     this._highlightHelper.highlight(this, items, highlightMaterial);
   }
 
-  setColor(items: number[], color: MaterialDefinition["color"]) {
+  setColor(items: number[] | undefined, color: MaterialDefinition["color"]) {
     this._highlightHelper.setColor(this, items, color);
   }
 
-  resetColor(items: number[]) {
+  resetColor(items?: number[]) {
     this._highlightHelper.resetColor(this, items);
   }
 
-  setOpacity(items: number[], opacity: number) {
+  setOpacity(items: number[] | undefined, opacity: number) {
     this._highlightHelper.setOpacity(this, items, opacity);
   }
 
-  resetOpacity(items: number[]) {
+  resetOpacity(items?: number[]) {
     this._highlightHelper.resetOpacity(this, items);
   }
 
-  getHighlight(localIds: number[]) {
+  getHighlight(localIds?: number[]) {
     return this._highlightHelper.getHighlight(this, localIds);
   }
 
@@ -326,7 +330,7 @@ export class VirtualFragmentsModel {
     return this._highlightHelper.getHighlightItems(this);
   }
 
-  resetHighlight(items: number[]) {
+  resetHighlight(items?: number[]) {
     this._highlightHelper.resetHighlight(this, items);
   }
 
@@ -542,11 +546,11 @@ export class VirtualFragmentsModel {
     this.tiles.dispose();
   }
 
-  setVisible(localIds: number[], visible: boolean) {
+  setVisible(localIds: number[] | undefined, visible: boolean) {
     this._visibilityHelper.setVisible(this, localIds, visible);
   }
 
-  toggleVisible(localIds: number[]) {
+  toggleVisible(localIds?: number[]) {
     this._visibilityHelper.toggleVisible(this, localIds);
   }
 

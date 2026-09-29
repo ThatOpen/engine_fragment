@@ -8,8 +8,10 @@ export class SectionManager {
     plane: THREE.Plane,
     localIds?: number[],
   ) {
-    const args = [plane, localIds];
-    const result = (await model._invoke("getSection", args)) as ModelSection;
+    const result = (await model._invoke("getSection", [
+      plane,
+      localIds,
+    ])) as ModelSection;
     return result;
   }
 }

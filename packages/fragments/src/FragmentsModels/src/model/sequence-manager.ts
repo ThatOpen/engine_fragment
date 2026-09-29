@@ -20,8 +20,11 @@ export class SequenceManager {
       result?: ResultInputType<T>;
     },
   ) {
-    const args = [result, fromItems, inputs];
-    const response = await model._invoke("getSequenced", args);
+    const response = await model._invoke("getSequenced", [
+      result,
+      fromItems,
+      inputs,
+    ]);
     return response as Promise<InformationResultType<T>>;
   }
 }
