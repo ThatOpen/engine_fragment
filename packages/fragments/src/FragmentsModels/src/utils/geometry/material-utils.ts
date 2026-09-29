@@ -1,13 +1,13 @@
 import { RenderedFaces } from "../../../../Schema";
-import { MaterialDefinition } from "../../model/model-types";
+import { HighlightDefinition } from "../../model/model-types";
 
 export class MaterialUtils {
-  static isSame(a: MaterialDefinition, b: MaterialDefinition) {
+  static isSame(a: HighlightDefinition, b: HighlightDefinition) {
     return this.getKey(a) === this.getKey(b);
   }
 
   /** Returns a stable key including rendering and inheritance semantics. */
-  static getKey(material: MaterialDefinition) {
+  static getKey(material: HighlightDefinition) {
     const { color, _explicitProps, ...properties } = material;
     // Missing properties on preserved highlights inherit from the base material.
     // They must stay distinct from explicitly supplied default values.

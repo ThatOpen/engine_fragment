@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { LineMaterialParameters } from "three/examples/jsm/lines/LineMaterial.js";
 import {
   ObjectClass,
+  HighlightDefinition,
   MaterialDefinition,
   CurrentLod,
   BIMMesh,
@@ -27,10 +28,15 @@ export class MaterialManager {
   // components are already linear: the worker converted them from sRGB.
   static restoreColor(
     definition: Cloned<MaterialDefinition>,
-  ): MaterialDefinition {
-    // Items without a highlight have no definition, and a highlight that only
-    // changes the opacity has no color: there is nothing to restore.
-    if (!definition?.color) return definition as MaterialDefinition;
+  ): MaterialDefinition;
+  static restoreColor(
+    definition: Cloned<HighlightDefinition>,
+  ): HighlightDefinition;
+  static restoreColor(
+    definition: Cloned<HighlightDefinition>,
+  ): HighlightDefinition {
+    // A highlight that keeps the item's color has none to restore.
+    if (!definition.color) return definition as HighlightDefinition;
     const { r, g, b } = definition.color;
     return { ...definition, color: new THREE.Color(r, g, b) };
   }

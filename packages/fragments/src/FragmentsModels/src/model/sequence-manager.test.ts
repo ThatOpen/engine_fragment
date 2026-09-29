@@ -45,8 +45,8 @@ test("getSequenced() returns highlight colors as THREE.Color", async () => {
 
   const result = await sequenced.getSequenced(model, "highlight", []);
 
-  expect(result![0].color).toBeInstanceOf(THREE.Color);
-  expect(result![0].color.getHex()).toBe(0x808080);
+  expect(result![0]!.color).toBeInstanceOf(THREE.Color);
+  expect(result![0]!.color!.getHex()).toBe(0x808080);
 });
 
 test("getSequenced() returns null for a result the worker doesn't know", async () => {

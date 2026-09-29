@@ -23,7 +23,7 @@ const restore: {
   data: (copy) => copy,
   geometry: (copy) => copy.map(EditManager.restoreTransforms),
   guid: (copy) => copy,
-  highlight: (copy) => copy.map((m) => MaterialManager.restoreColor(m)),
+  highlight: (copy) => copy.map((m) => m && MaterialManager.restoreColor(m)),
   mergedBoxes: ({ min, max }) =>
     new THREE.Box3(
       new THREE.Vector3().copy(min),
