@@ -263,42 +263,157 @@ const shouldRewriteType = (type: string): boolean => {
 };
 
 // ---------------------------------------------------------------------------
-// Compact line storage: sparse arrays indexed by IFC id
+// Compact line storage: one dense slot per line, in parse order
 // ---------------------------------------------------------------------------
+
+/**
+ * Maps an IFC id to a dense slot (0, 1, 2... in insertion order).
+ *
+ * Everything the splitter keeps per line hangs off the slot, so its cost
+ * follows the number of lines in the file and never the size of their ids: a
+ * file is free to number its three entities #1, #2 and #1000000000000.
+ *
+ * Ids in the range a well-formed file uses (not far past the number of lines)
+ * resolve through a flat table, which is as fast as indexing by id. Ids beyond
+ * that range go to a map, so an outlier costs one entry instead of a table
+ * that reaches up to it.
+ */
+class IdSlots {
+  /** Smallest size of the flat table, in ids. */
+  private static readonly MIN_DIRECT = 1 << 16;
+  /** How many ids per stored line the flat table may span. */
+  private static readonly DIRECT_IDS_PER_LINE = 4;
+
+  /** Slot + 1 for each id below `direct.length`. 0 means no slot. */
+  private direct = new Uint32Array(IdSlots.MIN_DIRECT);
+  /** Slot of each id the flat table does not reach. */
+  private readonly sparse = new Map<number, number>();
+  private count = 0;
+
+  get size(): number {
+    return this.count;
+  }
+
+  /** The slot of `id`, or -1 if it has none. */
+  get(id: number): number {
+    if (id < this.direct.length) {
+      // Negative and fractional ids read `undefined` here.
+      return (this.direct[id] ?? 0) - 1;
+    }
+    return this.sparse.get(id) ?? -1;
+  }
+
+  /** The slot of `id`, assigning the next free one if it has none. */
+  add(id: number): number {
+    const existing = this.get(id);
+    if (existing >= 0) return existing;
+    const slot = this.count++;
+    if (id >= this.direct.length && id < this.directLimit()) this.grow(id);
+    if (id < this.direct.length) this.direct[id] = slot + 1;
+    else this.sparse.set(id, slot);
+    return slot;
+  }
+
+  private directLimit(): number {
+    return Math.max(
+      IdSlots.MIN_DIRECT,
+      this.count * IdSlots.DIRECT_IDS_PER_LINE,
+    );
+  }
+
+  private grow(id: number): void {
+    // Doubling keeps the copies amortized. `id` is below the limit, so the
+    // table stays under twice the limit.
+    const direct = new Uint32Array(Math.max(id + 1, this.direct.length * 2));
+    direct.set(this.direct);
+    for (const [sparseId, slot] of this.sparse) {
+      if (sparseId >= direct.length) continue;
+      direct[sparseId] = slot + 1;
+      this.sparse.delete(sparseId);
+    }
+    this.direct = direct;
+  }
+}
+
+/** A `Uint32Array` that grows as values are written past its end. */
+class GrowableUint32 {
+  private buf = new Uint32Array(1 << 16);
+
+  get(i: number): number {
+    return this.buf[i];
+  }
+
+  set(i: number, value: number): void {
+    if (i >= this.buf.length) {
+      const buf = new Uint32Array(Math.max(this.buf.length * 2, i + 1));
+      buf.set(this.buf);
+      this.buf = buf;
+    }
+    this.buf[i] = value;
+  }
+}
+
+type RefBuffer = Uint32Array | Float64Array;
+
 class LineIndex {
-  types: (string | undefined)[] = [];
-  maxId: number = 0;
+  /**
+   * The id -> slot table. It outlives {@link free}: the write pass still needs
+   * it to find the groups of each line.
+   */
+  readonly slots = new IdSlots();
+  /** Every id that has a line, ascending. Available after {@link finalize}. */
+  ids: ArrayLike<number> & Iterable<number> = [];
   private _typeIntern: Map<string, string> = new Map();
   specialRaws: Map<number, string> = new Map();
 
-  private _refBuf: Int32Array = new Int32Array(4 * 1024 * 1024);
+  // Per-slot storage
+  private _ids: number[] = [];
+  private _types: string[] = [];
+  private _refStart = new GrowableUint32();
+  private _refLen = new GrowableUint32();
+
+  // Ids fit 32 bits in practice, so that is how references are stored until a
+  // file proves otherwise; see `widenRefBuf`.
+  private _refBuf: RefBuffer = new Uint32Array(4 * 1024 * 1024);
   private _refBufUsed: number = 0;
-  private _refStart: (number | undefined)[] = [];
-  private _refLen: (number | undefined)[] = [];
 
   set(id: number, type: string, refs: number[], raw: string): void {
+    if (!Number.isSafeInteger(id)) {
+      // Past 2^53 - 1 the digits no longer round-trip through a number, so two
+      // different entities could end up sharing one id.
+      throw new RangeError(
+        `IFC id in "${raw.slice(0, 40)}" exceeds the largest id the splitter can represent (${Number.MAX_SAFE_INTEGER})`,
+      );
+    }
+
     let t = this._typeIntern.get(type);
     if (!t) {
       t = type;
       this._typeIntern.set(type, t);
     }
-    this.types[id] = t;
-    if (id > this.maxId) this.maxId = id;
+    // A repeated id reuses its slot, so the last line wins.
+    const slot = this.slots.add(id);
+    this._ids[slot] = id;
+    this._types[slot] = t;
 
     const start = this._refBufUsed;
     const needed = start + refs.length;
     if (needed > this._refBuf.length) {
       const newSize = Math.max(this._refBuf.length * 2, needed);
-      const newBuf = new Int32Array(newSize);
+      const newBuf =
+        this._refBuf instanceof Uint32Array
+          ? new Uint32Array(newSize)
+          : new Float64Array(newSize);
       newBuf.set(this._refBuf);
       this._refBuf = newBuf;
     }
     for (let i = 0; i < refs.length; i++) {
+      if (refs[i] > 0xffffffff) this.widenRefBuf();
       this._refBuf[start + i] = refs[i];
     }
     this._refBufUsed = start + refs.length;
-    this._refStart[id] = start;
-    this._refLen[id] = refs.length;
+    this._refStart.set(slot, start);
+    this._refLen.set(slot, refs.length);
 
     if (
       t.startsWith("IFCREL") ||
@@ -309,24 +424,45 @@ class LineIndex {
     }
   }
 
+  /**
+   * Switches reference storage to doubles the first time a reference does not
+   * fit 32 bits, instead of letting it wrap. Files that never do it keep
+   * paying four bytes per reference.
+   */
+  private widenRefBuf(): void {
+    if (this._refBuf instanceof Float64Array) return;
+    const wide = new Float64Array(this._refBuf.length);
+    wide.set(this._refBuf);
+    this._refBuf = wide;
+  }
+
   finalize(): void {
     this._refBuf = this._refBuf.slice(0, this._refBufUsed);
+
+    // The passes over the whole file walk the ids in ascending order, whatever
+    // order the file lists them in. Most files are already sorted.
+    const ids = this._ids;
+    let sorted = true;
+    for (let i = 1; i < ids.length && sorted; i++) {
+      sorted = ids[i - 1] < ids[i];
+    }
+    this.ids = sorted ? ids : Float64Array.from(ids).sort();
   }
 
   has(id: number): boolean {
-    return this.types[id] !== undefined;
+    return this.slots.get(id) >= 0;
   }
 
   getType(id: number): string | undefined {
-    return this.types[id];
+    const slot = this.slots.get(id);
+    return slot < 0 ? undefined : this._types[slot];
   }
 
-  getRefs(id: number): Int32Array | null {
-    const len = this._refLen[id];
-    if (len === undefined) return null;
-    const start = this._refStart[id];
-    if (start === undefined) return null;
-    return this._refBuf.subarray(start, start + len);
+  getRefs(id: number): RefBuffer | null {
+    const slot = this.slots.get(id);
+    if (slot < 0) return null;
+    const start = this._refStart.get(slot);
+    return this._refBuf.subarray(start, start + this._refLen.get(slot));
   }
 
   getRaw(id: number): string | undefined {
@@ -335,7 +471,7 @@ class LineIndex {
 
   getAll(types: Set<string>) {
     const allElementIds = new Set<number>();
-    for (let id = 0; id <= this.maxId; id++) {
+    for (const id of this.ids) {
       const type = this.getType(id);
       if (type && types.has(type)) allElementIds.add(id);
     }
@@ -345,7 +481,9 @@ class LineIndex {
   free(): void {
     // Deliberately null-out fields to reclaim memory before the write pass
     /* eslint-disable @typescript-eslint/no-explicit-any */
-    (this as any).types = null;
+    (this as any).ids = null;
+    (this as any)._ids = null;
+    (this as any)._types = null;
     (this as any)._refBuf = null;
     (this as any)._refStart = null;
     (this as any)._refLen = null;
@@ -412,7 +550,7 @@ function buildVoidFillMap(index: LineIndex): VoidFillMap {
   const fillerToOpening = new Map<number, number>();
   const relLineIds = new Map<number, Set<number>>();
 
-  for (let id = 0; id <= index.maxId; id++) {
+  for (const id of index.ids) {
     const type = index.getType(id);
     if (!type) continue;
 
@@ -472,7 +610,7 @@ function buildAggregateMap(
   const childToParent = new Map<number, number>();
   const aggregateRelIds = new Map<number, Set<number>>();
 
-  for (let id = 0; id <= index.maxId; id++) {
+  for (const id of index.ids) {
     const type = index.getType(id);
     if (type !== "IFCRELAGGREGATES") continue;
 
@@ -504,7 +642,7 @@ function buildAggregateMap(
 
 function traverseSpatialStructure(index: LineIndex, spatialTypes: Set<string>) {
   const spatialIds = new Set<number>();
-  for (let id = 0; id <= index.maxId; id++) {
+  for (const id of index.ids) {
     const type = index.getType(id);
     if (type && spatialTypes.has(type)) spatialIds.add(id);
   }
@@ -512,7 +650,7 @@ function traverseSpatialStructure(index: LineIndex, spatialTypes: Set<string>) {
   for (const sid of spatialIds) {
     collectDepsAll(sid, index, sharedIds);
   }
-  for (let id = 0; id <= index.maxId; id++) {
+  for (const id of index.ids) {
     const type = index.getType(id);
     if (type === "IFCRELAGGREGATES") {
       const raw = index.getRaw(id);
@@ -631,7 +769,7 @@ function buildStyleMaps(index: LineIndex): StyleMaps {
   const geomToStyledItems = new Map<number, number[]>();
   const materialToDefReps = new Map<number, number[]>();
 
-  for (let id = 0; id <= index.maxId; id++) {
+  for (const id of index.ids) {
     const type = index.getType(id);
     if (!type) continue;
 
@@ -699,21 +837,25 @@ function resolveStyles(
  * than as one bit per group in a `Uint32Array`, so the number of groups is not
  * capped at 32. Lookup is a `subarray` view: O(1) and allocation-free, which
  * matters because the write pass calls it once per data line.
+ *
+ * `starts` has one entry per parsed line (its slot), not one per possible id,
+ * so it is sized by the file and not by the highest id in it.
  */
 class IdGroupIndex {
   private readonly starts: Uint32Array;
   private readonly members: Uint32Array;
-  private readonly maxId: number;
+  private readonly slots: IdSlots;
 
-  constructor(groupsData: GroupData[], maxId: number) {
-    // Pass 1 — count each id's memberships into starts[id + 1], so the prefix
-    // sum below leaves starts[id] holding the id's own start offset.
-    const starts = new Uint32Array(maxId + 2);
+  constructor(groupsData: GroupData[], slots: IdSlots) {
+    // Pass 1 — count each id's memberships into starts[slot + 1], so the
+    // prefix sum below leaves starts[slot] holding the id's own start offset.
+    const starts = new Uint32Array(slots.size + 1);
     let total = 0;
     for (const groupData of groupsData) {
       for (const id of groupData.fileIds) {
-        if (id < 0 || id > maxId) continue; // dangling ref, no line to emit
-        starts[id + 1] += 1;
+        const slot = slots.get(id);
+        if (slot < 0) continue; // dangling ref, no line to emit
+        starts[slot + 1] += 1;
         total += 1;
       }
     }
@@ -726,15 +868,16 @@ class IdGroupIndex {
     const cursor = starts.slice();
     for (let g = 0; g < groupsData.length; g++) {
       for (const id of groupsData[g].fileIds) {
-        if (id < 0 || id > maxId) continue;
-        members[cursor[id]] = g;
-        cursor[id] += 1;
+        const slot = slots.get(id);
+        if (slot < 0) continue;
+        members[cursor[slot]] = g;
+        cursor[slot] += 1;
       }
     }
 
     this.starts = starts;
     this.members = members;
-    this.maxId = maxId;
+    this.slots = slots;
   }
 
   /**
@@ -742,8 +885,9 @@ class IdGroupIndex {
    * Empty if none.
    */
   groupsOf(id: number): Uint32Array {
-    if (id < 0 || id > this.maxId) return new Uint32Array(0);
-    return this.members.subarray(this.starts[id], this.starts[id + 1]);
+    const slot = this.slots.get(id);
+    if (slot < 0) return new Uint32Array(0);
+    return this.members.subarray(this.starts[slot], this.starts[slot + 1]);
   }
 }
 
@@ -924,7 +1068,7 @@ export class IfcSplitter {
     // 7. Pre-parse all relationship lines that need per-group rewriting.
     const relationsStart = performance.now();
     const relEntries: RelEntry[] = [];
-    for (let id = 0; id <= index.maxId; id++) {
+    for (const id of index.ids) {
       const type = index.getType(id);
       if (type && shouldRewriteType(type)) {
         const raw = index.getRaw(id);
@@ -1017,13 +1161,13 @@ export class IfcSplitter {
     this.emitProgressEvent("resolve", resolveStart);
     this.onSplitsResolved.trigger({ data: groupsData });
 
-    // Free the index to reclaim memory before the output pass
-    const maxParsedId = index.maxId;
+    // Free the index to reclaim memory before the output pass. Its id -> slot
+    // table survives: the id -> groups index below is laid out by slot.
     index.free();
 
     // 9. Invert fileIds into an id -> groups index for O(1) write-phase lookups
     const buildIndexStart = performance.now();
-    const idGroups = new IdGroupIndex(groupsData, maxParsedId);
+    const idGroups = new IdGroupIndex(groupsData, index.slots);
     this.emitProgressEvent("build-index", buildIndexStart);
 
     // 10. Second pass: write output files
@@ -1123,7 +1267,7 @@ export class IfcSplitter {
     const relationsStart = performance.now();
     const fileIds = new Set<number>(sharedIds);
     const rewrittenLines = new Map<number, string>();
-    for (let id = 0; id <= index.maxId; id++) {
+    for (const id of index.ids) {
       const type = index.getType(id);
       if (type && shouldRewriteType(type)) {
         const raw = index.getRaw(id);
