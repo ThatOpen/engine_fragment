@@ -8,7 +8,7 @@ import { CivilReader } from "./ifc/civil-reader";
 import { AlignmentData, GridData } from "../../../../FragmentsModels";
 import { IfcImporter } from "../..";
 import { ProcessData } from "../types";
-import { GridReader } from "./grid-reader";
+import { GridReader, GridReadError } from "./grid-reader";
 import { SpaceBoundaryReader } from "./space-boundary-reader";
 import { Hasher } from "./geometry-hash";
 
@@ -57,6 +57,37 @@ export type TransformData = {
   pz: number;
 };
 
+/** Logs a {@link GridReadError} as one console line. */
+function logGridReadError(error: GridReadError) {
+  switch (error.kind) {
+    case "noPlacement":
+      console.warn(
+        `Fragments: IFCGRID #${error.gridId} has no ObjectPlacement. Using the identity placement for it.`,
+      );
+      break;
+    case "unsupportedAxes": {
+      const skipped = error.axes
+        .map(({ tag, curveType }) => `"${tag}" (${curveType})`)
+        .join(", ");
+      console.warn(
+        `Fragments: IFCGRID #${error.gridId} has axes with unsupported curve types that will not be displayed: ${skipped}.`,
+      );
+      break;
+    }
+    case "unreadableGrid":
+      console.warn(
+        `Fragments: skipping IFCGRID #${error.gridId} because it could not be read:`,
+        error.cause,
+      );
+      break;
+    case "unreadableModel":
+      console.error(error.cause);
+      break;
+    default:
+      break;
+  }
+}
+
 // For each item:
 // - use the position of the first geometry as the item position
 // - for the rest of the geometries:
@@ -89,7 +120,6 @@ export class IfcFileReader {
   private _coordinatesInitialized = false;
 
   private _civilReader = new CivilReader();
-  private _gridReader = new GridReader();
   private _spaceBoundaryReader = new SpaceBoundaryReader();
 
   private _nextId = 0;
@@ -309,8 +339,9 @@ export class IfcFileReader {
     const alignments = this._civilReader.read(this._ifcAPI);
     this.onAlignmentsLoaded(alignments);
 
-    const grids = this._gridReader.read(this._ifcAPI);
-    this.onGridsLoaded(grids);
+    const grids = new GridReader(this._ifcAPI, modelID).read();
+    grids.errors.forEach(logGridReadError);
+    this.onGridsLoaded(grids.value);
 
     if (
       this._serializer.geometryProcessSettings
