@@ -57,20 +57,55 @@ async function convertAndGetGrids(ifcName: string): Promise<GridData[]> {
   return grids;
 }
 
-/** A web-ifc API with each fixture open, in the order given. */
-async function openFixtures(...ifcNames: string[]) {
+/** A web-ifc API with each model open, in the order given. */
+async function openModels(...models: Uint8Array[]) {
   const webIfc = new WEBIFC.IfcAPI();
   webIfc.SetWasmPath(webIfcDir + path.sep, true);
   await webIfc.Init();
-  const modelIds: number[] = [];
-  for (const ifcName of ifcNames) {
-    const bytes = await readFile(
-      path.resolve(assetDir, "resources", "ifc", ifcName),
-    );
-    modelIds.push(webIfc.OpenModel(new Uint8Array(bytes)));
-  }
+  const modelIds = models.map((bytes) => webIfc.OpenModel(bytes));
   return { webIfc, modelIds };
 }
+
+/** A web-ifc API with each fixture from `resources/ifc` open, in the order given. */
+async function openFixtures(...ifcNames: string[]) {
+  const models = await Promise.all(
+    ifcNames.map(
+      async (ifcName) =>
+        new Uint8Array(
+          await readFile(path.resolve(assetDir, "resources", "ifc", ifcName)),
+        ),
+    ),
+  );
+  return openModels(...models);
+}
+
+/**
+ * An IFC4 model in millimetres holding one grid, #30, at the origin. `lines`
+ * declares its axes; #10 is a 2D point list running up the Y axis, and #15 a
+ * polyline at x = 1000 for an axis the grid needs besides the one under test.
+ */
+const gridModel = (lines: string) =>
+  new TextEncoder().encode(`ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION((''),'2;1');
+FILE_SCHEMA(('IFC4'));
+ENDSEC;
+DATA;
+#1=IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.);
+#2=IFCUNITASSIGNMENT((#1));
+#3=IFCCARTESIANPOINT((0.,0.,0.));
+#4=IFCAXIS2PLACEMENT3D(#3,$,$);
+#5=IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,#4,$);
+#6=IFCPROJECT('0p',$,'Project',$,$,$,$,(#5),#2);
+#7=IFCLOCALPLACEMENT($,#4);
+#10=IFCCARTESIANPOINTLIST2D(((0.,0.),(0.,4000.),(0.,10000.)),$);
+#13=IFCCARTESIANPOINT((1000.,0.));
+#14=IFCCARTESIANPOINT((1000.,10000.));
+#15=IFCPOLYLINE((#13,#14));
+${lines}
+ENDSEC;
+END-ISO-10303-21;
+`);
 
 const gridWarnings = (warn: ReturnType<typeof vi.spyOn>) =>
   warn.mock.calls.filter(
@@ -251,6 +286,55 @@ test("reads the grids of the model it is given, not only the first one", async (
   expect(ids(baseline)).toEqual([226]);
   // Without a model, the first one opened, as before.
   expect(ids()).toEqual([226]);
+
+  webIfc.Dispose();
+});
+
+test("an indexed polycurve runs through its segments, in their order", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const { webIfc } = await openModels(
+    gridModel(`#11=IFCINDEXEDPOLYCURVE(#10,$,$);
+#12=IFCINDEXEDPOLYCURVE(#10,(IFCLINEINDEX((3,2)),IFCLINEINDEX((2,1))),$);
+#20=IFCGRIDAXIS('1',#11,.T.);
+#21=IFCGRIDAXIS('A',#12,.T.);
+#22=IFCGRIDAXIS('B',#15,.T.);
+#30=IFCGRID('0g',$,'Grid',$,$,#7,$,(#20),(#21,#22),$,.RECTANGULAR.);`),
+  );
+
+  const [grid] = new GridReader().read(webIfc);
+
+  // Without segments, every point in turn.
+  expect(grid.uAxes).toEqual([{ tag: "1", curve: [0, 0, 0, 0, 4, 0, 0, 10, 0] }]);
+  // With them, the order they give: here the list reversed, its joint once.
+  expect(grid.vAxes).toEqual([
+    { tag: "A", curve: [0, 10, 0, 0, 4, 0, 0, 0, 0] },
+    { tag: "B", curve: [1, 0, 0, 1, 10, 0] },
+  ]);
+  expect(grid.unsupportedAxes).toBeUndefined();
+  expect(gridWarnings(warn)).toEqual([]);
+
+  webIfc.Dispose();
+});
+
+test("an arc segment is reported, not drawn as straight lines", async () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const { webIfc } = await openModels(
+    gridModel(`#11=IFCINDEXEDPOLYCURVE(#10,(IFCLINEINDEX((1,2)),IFCARCINDEX((2,3,1))),$);
+#20=IFCGRIDAXIS('1',#11,.T.);
+#21=IFCGRIDAXIS('A',#15,.T.);
+#30=IFCGRID('0g',$,'Grid',$,$,#7,$,(#20),(#21),$,.RECTANGULAR.);`),
+  );
+
+  const [grid] = new GridReader().read(webIfc);
+
+  expect(grid.uAxes).toEqual([]);
+  expect(grid.vAxes.map(({ tag }) => tag)).toEqual(["A"]);
+  expect(grid.unsupportedAxes).toEqual([
+    { tag: "1", curveType: "IFCINDEXEDPOLYCURVE with IFCARCINDEX segments" },
+  ]);
+  const warnings = gridWarnings(warn);
+  expect(warnings).toHaveLength(1);
+  expect(warnings[0][0]).toContain("IFCARCINDEX");
 
   webIfc.Dispose();
 });

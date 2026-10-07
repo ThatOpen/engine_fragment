@@ -538,8 +538,9 @@ export type GridData = {
   /**
    * Grid axes whose curve type the importer cannot represent yet (only
    * point-list curves like IFCPOLYLINE and IFCINDEXEDPOLYCURVE are supported;
-   * e.g. IFCCIRCLE, IFCLINE or IFCTRIMMEDCURVE axes end up here). Optional so
-   * data serialized before this field existed still matches the type.
+   * e.g. IFCCIRCLE, IFCLINE or IFCTRIMMEDCURVE axes end up here, and so does an
+   * IFCINDEXEDPOLYCURVE with an IFCARCINDEX segment). Optional so data
+   * serialized before this field existed still matches the type.
    */
   unsupportedAxes?: { tag: string; curveType: string }[];
 };

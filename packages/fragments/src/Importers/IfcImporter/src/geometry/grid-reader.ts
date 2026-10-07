@@ -143,8 +143,23 @@ export class GridReader {
         // Non-polyline curves with a point list (e.g. IFCINDEXEDPOLYCURVE).
         const ifcPoints = webIfc.GetLine(modelId, curve.Points.value);
         if (ifcPoints.CoordList) {
-          for (const coordinates of ifcPoints.CoordList) {
-            pushPoint(coordinates);
+          const order = this.getPointOrder(
+            webIfc,
+            modelId,
+            curve,
+            ifcPoints.CoordList.length
+          );
+          if (!order) {
+            // Joining an arc's three points with straight lines would draw a
+            // plausible-looking but wrong axis, so report it as IFCCIRCLE is.
+            unsupportedAxes.push({
+              tag: axisData.tag,
+              curveType: `${this.getCurveTypeName(webIfc, curve)} with IFCARCINDEX segments`,
+            });
+            continue;
+          }
+          for (const index of order) {
+            pushPoint(ifcPoints.CoordList[index]);
           }
         }
       }
@@ -165,6 +180,38 @@ export class GridReader {
       axisDataArr.push(axisData);
     }
     return axisDataArr;
+  }
+
+  /**
+   * The 0-based indices an indexed polycurve runs through its point list in:
+   * its `Segments` when it has them, which may revisit, skip or reverse
+   * points, and every point in turn when it has none. `null` when a segment
+   * is an arc, which would need tessellating.
+   */
+  private getPointOrder(
+    webIfc: WEBIFC.IfcAPI,
+    modelId: number,
+    curve: any,
+    pointCount: number
+  ): number[] | null {
+    // GetLine reads a segment back without saying whether it is an
+    // IFCLINEINDEX or an IFCARCINDEX, so the raw line is read for that.
+    const segments: { typecode: number; value: { value: number }[] }[] | null =
+      curve.type === WEBIFC.IFCINDEXEDPOLYCURVE
+        ? webIfc.GetRawLineData(modelId, curve.expressID).arguments[1]
+        : null;
+    if (!segments) {
+      return Array.from({ length: pointCount }, (_, index) => index);
+    }
+    const order: number[] = [];
+    for (const { typecode, value } of segments) {
+      if (typecode !== WEBIFC.IFCLINEINDEX) return null;
+      for (const { value: index } of value) {
+        // Consecutive segments share their joint point: take it once.
+        if (order[order.length - 1] !== index - 1) order.push(index - 1);
+      }
+    }
+    return order;
   }
 
   private getCurveTypeName(webIfc: WEBIFC.IfcAPI, curve: any) {
