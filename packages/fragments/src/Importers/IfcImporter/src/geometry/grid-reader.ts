@@ -3,18 +3,27 @@ import * as WEBIFC from "web-ifc";
 import { GridAxisData, GridData } from "../../../../FragmentsModels";
 import { FragmentsIfcUtils } from "../../../../Utils";
 
+/** Options for {@link GridReader.read}. */
+export interface GridReaderOptions {
+  /** The web-ifc model to read the grids of. Defaults to the first one opened. */
+  modelId?: number;
+}
+
 export class GridReader {
-  read(webIfc: WEBIFC.IfcAPI) {
+  /**
+   * Reads every IFCGRID of a model already open in `webIfc`.
+   */
+  read(webIfc: WEBIFC.IfcAPI, { modelId = 0 }: GridReaderOptions = {}) {
     try {
       const result: GridData[] = [];
 
-      const coordMatrixValues = webIfc.GetCoordinationMatrix(0);
+      const coordMatrixValues = webIfc.GetCoordinationMatrix(modelId);
       const coordMatrix = new THREE.Matrix4();
       coordMatrix.fromArray(coordMatrixValues);
 
-      const units = FragmentsIfcUtils.getUnitsFactor(webIfc);
+      const units = FragmentsIfcUtils.getUnitsFactor(webIfc, modelId);
 
-      const gridsVector = webIfc.GetLineIDsWithType(0, WEBIFC.IFCGRID);
+      const gridsVector = webIfc.GetLineIDsWithType(modelId, WEBIFC.IFCGRID);
       const size = gridsVector.size();
       for (let i = 0; i < size; i++) {
         const id = gridsVector.get(i);
@@ -22,7 +31,7 @@ export class GridReader {
         // One malformed grid must not drop the remaining ones, so each grid
         // gets its own catch instead of failing the whole read.
         try {
-          const grid = webIfc.GetLine(0, id);
+          const grid = webIfc.GetLine(modelId, id);
 
           // ObjectPlacement is optional for IFCGRID; getAbsolutePlacement
           // falls back to the identity placement, but let the user know.
@@ -35,7 +44,8 @@ export class GridReader {
           const transform = FragmentsIfcUtils.getAbsolutePlacement(
             webIfc,
             grid,
-            units
+            units,
+            modelId
           );
 
           transform.premultiply(coordMatrix);
@@ -51,11 +61,11 @@ export class GridReader {
             guid: grid.GlobalId?.value ?? undefined,
             transform: transform.elements,
             // prettier-ignore
-            uAxes: this.getGridAxes(grid, webIfc, units, "UAxes", unsupportedAxes),
+            uAxes: this.getGridAxes(grid, webIfc, modelId, units, "UAxes", unsupportedAxes),
             // prettier-ignore
-            vAxes: this.getGridAxes(grid, webIfc, units, "VAxes", unsupportedAxes),
+            vAxes: this.getGridAxes(grid, webIfc, modelId, units, "VAxes", unsupportedAxes),
             // prettier-ignore
-            wAxes: this.getGridAxes(grid, webIfc, units, "WAxes", unsupportedAxes),
+            wAxes: this.getGridAxes(grid, webIfc, modelId, units, "WAxes", unsupportedAxes),
           };
 
           if (unsupportedAxes.length > 0) {
@@ -87,6 +97,7 @@ export class GridReader {
   private getGridAxes(
     ifcGrid: any,
     webIfc: WEBIFC.IfcAPI,
+    modelId: number,
     units: number,
     ifcKey: "UAxes" | "VAxes" | "WAxes",
     unsupportedAxes: NonNullable<GridData["unsupportedAxes"]>
@@ -97,9 +108,9 @@ export class GridReader {
 
     const axisDataArr: GridAxisData[] = [];
     for (const axis of ifcGrid[ifcKey]) {
-      const axisCurve = webIfc.GetLine(0, axis.value);
+      const axisCurve = webIfc.GetLine(modelId, axis.value);
       const curveId = axisCurve.AxisCurve.value;
-      const curve = webIfc.GetLine(0, curveId);
+      const curve = webIfc.GetLine(modelId, curveId);
       const axisData: GridAxisData = {
         // AxisTag is an optional IfcLabel. web-ifc returns it as null when the
         // IFC omits it (IFCGRIDAXIS($,...)), so read it defensively; otherwise
@@ -121,14 +132,14 @@ export class GridReader {
 
       if (curve.type === WEBIFC.IFCPOLYLINE && curve.Points) {
         for (const { value: pointId } of curve.Points) {
-          const ifcPoints = webIfc.GetLine(0, pointId);
+          const ifcPoints = webIfc.GetLine(modelId, pointId);
           if (ifcPoints.Coordinates) {
             pushPoint(ifcPoints.Coordinates);
           }
         }
       } else if (curve.Points?.value) {
         // Non-polyline curves with a point list (e.g. IFCINDEXEDPOLYCURVE).
-        const ifcPoints = webIfc.GetLine(0, curve.Points.value);
+        const ifcPoints = webIfc.GetLine(modelId, curve.Points.value);
         if (ifcPoints.CoordList) {
           for (const coordinates of ifcPoints.CoordList) {
             pushPoint(coordinates);

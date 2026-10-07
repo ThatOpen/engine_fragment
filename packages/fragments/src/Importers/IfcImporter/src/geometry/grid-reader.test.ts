@@ -2,9 +2,11 @@ import { readFile } from "fs/promises";
 import * as path from "path";
 import { ByteBuffer } from "flatbuffers";
 import { afterEach, expect, test, vi } from "vitest";
+import * as WEBIFC from "web-ifc";
 import { IfcImporter } from "../..";
 import { GRID_CATEGORY, GridData } from "../../../../FragmentsModels";
 import * as TFB from "../../../../Schema";
+import { GridReader } from "./grid-reader";
 
 const assetDir = path.resolve(
   import.meta.dirname,
@@ -53,6 +55,21 @@ async function convertAndGetGrids(ifcName: string): Promise<GridData[]> {
     }
   }
   return grids;
+}
+
+/** A web-ifc API with each fixture open, in the order given. */
+async function openFixtures(...ifcNames: string[]) {
+  const webIfc = new WEBIFC.IfcAPI();
+  webIfc.SetWasmPath(webIfcDir + path.sep, true);
+  await webIfc.Init();
+  const modelIds: number[] = [];
+  for (const ifcName of ifcNames) {
+    const bytes = await readFile(
+      path.resolve(assetDir, "resources", "ifc", ifcName),
+    );
+    modelIds.push(webIfc.OpenModel(new Uint8Array(bytes)));
+  }
+  return { webIfc, modelIds };
 }
 
 const gridWarnings = (warn: ReturnType<typeof vi.spyOn>) =>
@@ -201,3 +218,24 @@ test(
   },
   CONVERSION_TIMEOUT,
 );
+
+test("reads the grids of the model it is given, not only the first one", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  const { webIfc, modelIds } = await openFixtures(
+    "grids-baseline.ifc",
+    "grids-radial-axes.ifc",
+  );
+  const [baseline, radial] = modelIds;
+  expect(radial).not.toBe(baseline);
+
+  const reader = new GridReader();
+  const ids = (modelId?: number) =>
+    reader.read(webIfc, { modelId }).map(({ id }) => id);
+
+  expect(ids(radial)).toEqual([226, 248]);
+  expect(ids(baseline)).toEqual([226]);
+  // Without a model, the first one opened, as before.
+  expect(ids()).toEqual([226]);
+
+  webIfc.Dispose();
+});

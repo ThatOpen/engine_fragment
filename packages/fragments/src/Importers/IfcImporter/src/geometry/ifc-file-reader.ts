@@ -309,7 +309,7 @@ export class IfcFileReader {
     const alignments = this._civilReader.read(this._ifcAPI);
     this.onAlignmentsLoaded(alignments);
 
-    const grids = this._gridReader.read(this._ifcAPI);
+    const grids = this._gridReader.read(this._ifcAPI, { modelId: modelID });
     this.onGridsLoaded(grids);
 
     if (
