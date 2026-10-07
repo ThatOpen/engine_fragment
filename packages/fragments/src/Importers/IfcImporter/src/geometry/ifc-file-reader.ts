@@ -120,7 +120,6 @@ export class IfcFileReader {
   private _coordinatesInitialized = false;
 
   private _civilReader = new CivilReader();
-  private _gridReader = new GridReader();
   private _spaceBoundaryReader = new SpaceBoundaryReader();
 
   private _nextId = 0;
@@ -340,7 +339,7 @@ export class IfcFileReader {
     const alignments = this._civilReader.read(this._ifcAPI);
     this.onAlignmentsLoaded(alignments);
 
-    const grids = this._gridReader.read(this._ifcAPI, { modelId: modelID });
+    const grids = new GridReader(this._ifcAPI, modelID).read();
     grids.errors.forEach(logGridReadError);
     this.onGridsLoaded(grids.value);
 

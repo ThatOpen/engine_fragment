@@ -1,13 +1,13 @@
+import { ByteBuffer } from "flatbuffers";
 import { readFile } from "fs/promises";
 import * as path from "path";
-import { ByteBuffer } from "flatbuffers";
 import { afterEach, expect, test, vi } from "vitest";
 import * as WEBIFC from "web-ifc";
 import { IfcImporter } from "../..";
 import { GRID_CATEGORY, GridData } from "../../../../FragmentsModels";
+import * as FRAGS from "../../../../index";
 import * as TFB from "../../../../Schema";
 import { GridReader } from "./grid-reader";
-import * as FRAGS from "../../../../index";
 
 const assetDir = path.resolve(
   import.meta.dirname,
@@ -278,14 +278,11 @@ test("reads the grids of the model it is given, not only the first one", async (
   const [baseline, radial] = modelIds;
   expect(radial).not.toBe(baseline);
 
-  const reader = new GridReader();
-  const ids = (modelId?: number) =>
-    reader.read(webIfc, { modelId }).value.map(({ id }) => id);
+  const ids = (modelId: number) =>
+    new GridReader(webIfc, modelId).read().value.map(({ id }) => id);
 
   expect(ids(radial)).toEqual([226, 248]);
   expect(ids(baseline)).toEqual([226]);
-  // Without a model, the first one opened, as before.
-  expect(ids()).toEqual([226]);
 
   webIfc.Dispose();
 });
@@ -303,7 +300,7 @@ test("an indexed polycurve runs through its segments, in their order", async () 
   const {
     value: [grid],
     errors,
-  } = new GridReader().read(webIfc);
+  } = new GridReader(webIfc, 0).read();
 
   // Without segments, every point in turn.
   expect(grid.uAxes).toEqual([
@@ -331,7 +328,7 @@ test("an arc segment is reported, not drawn as straight lines", async () => {
   const {
     value: [grid],
     errors,
-  } = new GridReader().read(webIfc);
+  } = new GridReader(webIfc, 0).read();
 
   expect(grid.uAxes).toEqual([]);
   expect(grid.vAxes.map(({ tag }) => tag)).toEqual(["A"]);
@@ -357,7 +354,7 @@ test("returns what it skips in errors, and logs nothing itself", async () => {
 #31=IFCGRID('1g',$,'Placementless',$,$,$,$,(#21),(#21),$,.RECTANGULAR.);`),
   );
 
-  const { value, errors } = new GridReader().read(webIfc);
+  const { value, errors } = new GridReader(webIfc, 0).read();
 
   expect(value.map(({ id }) => id)).toEqual([31]);
   expect(errors).toEqual([
@@ -378,7 +375,7 @@ test("returns a model whose grids cannot be listed in errors", () => {
     },
   } as unknown as WEBIFC.IfcAPI;
 
-  expect(new GridReader().read(webIfc)).toEqual({
+  expect(new GridReader(webIfc, 0).read()).toEqual({
     value: [],
     errors: [{ kind: "unreadableModel", cause: fault }],
   });
@@ -388,7 +385,7 @@ test("returns a model whose grids cannot be listed in errors", () => {
 test("returns an axis it cannot represent in errors", async () => {
   const { webIfc } = await openFixtures("grids-radial-axes.ifc");
 
-  const { errors } = new GridReader().read(webIfc);
+  const { errors } = new GridReader(webIfc, 0).read();
 
   expect(errors).toEqual([
     {
