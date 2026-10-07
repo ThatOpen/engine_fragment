@@ -121,6 +121,21 @@ test(
 // unguarded would throw and silently drop the grid, which is the very failure
 // mode that catch exists to contain.
 test(
+  "each grid carries its IFC Name",
+  async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const grids = await convertAndGetGrids("grids-radial-axes.ifc");
+
+    expect(grids.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 226, name: "ValidGrid" },
+      { id: 248, name: "RadialGrid" },
+    ]);
+  },
+  CONVERSION_TIMEOUT,
+);
+
+test(
   "a grid without GlobalId still imports, with no guid",
   async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

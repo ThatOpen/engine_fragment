@@ -59,6 +59,8 @@ export class GridReader {
             // `guid?: string` does not admit, so normalise it to undefined and
             // let it drop out of the serialized data.
             guid: grid.GlobalId?.value ?? undefined,
+            // Optional in the schema; normalised to undefined like the guid.
+            name: grid.Name?.value ?? undefined,
             transform: transform.elements,
             // prettier-ignore
             uAxes: this.getGridAxes(grid, webIfc, modelId, units, "UAxes", unsupportedAxes),

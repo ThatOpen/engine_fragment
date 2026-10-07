@@ -526,6 +526,11 @@ export type GridData = {
    * unset GlobalId produce no guid either.
    */
   guid?: string;
+  /**
+   * The IFC Name of the grid. Optional because it is optional in the schema,
+   * and because data serialized before this field existed carries none.
+   */
+  name?: string;
   transform: number[];
   uAxes: GridAxisData[];
   vAxes: GridAxisData[];
