@@ -7,6 +7,7 @@ import { IfcImporter } from "../..";
 import { GRID_CATEGORY, GridData } from "../../../../FragmentsModels";
 import * as TFB from "../../../../Schema";
 import { GridReader } from "./grid-reader";
+import * as FRAGS from "../../../../index";
 
 const assetDir = path.resolve(
   import.meta.dirname,
@@ -401,4 +402,8 @@ test("returns an axis it cannot represent in errors", async () => {
     },
   ]);
   webIfc.Dispose();
+});
+
+test("is part of the package's public API", () => {
+  expect(FRAGS.GridReader).toBe(GridReader);
 });
