@@ -3,6 +3,21 @@ import * as WEBIFC from "web-ifc";
 import { GridAxisData, GridData } from "../../../../FragmentsModels";
 import { FragmentsIfcUtils } from "../../../../Utils";
 
+/** Something {@link GridReader.read} skipped, or worked around, in a model. */
+export type GridReadError =
+  /** The grid has no ObjectPlacement; it was read at the identity placement. */
+  | { kind: "noPlacement"; gridId: number }
+  /** Axes the grid was read without; they are also its `unsupportedAxes`. */
+  | {
+      kind: "unsupportedAxes";
+      gridId: number;
+      axes: NonNullable<GridData["unsupportedAxes"]>;
+    }
+  /** The grid could not be read, and is left out. */
+  | { kind: "unreadableGrid"; gridId: number; cause: unknown }
+  /** The model's grids could not be listed, so none were read. */
+  | { kind: "unreadableModel"; cause: unknown };
+
 /** Options for {@link GridReader.read}. */
 export interface GridReaderOptions {
   /** The web-ifc model to read the grids of. Defaults to the first one opened. */
@@ -11,9 +26,15 @@ export interface GridReaderOptions {
 
 export class GridReader {
   /**
-   * Reads every IFCGRID of a model already open in `webIfc`.
+   * Reads every IFCGRID of a model already open in `webIfc`. A grid or an axis
+   * that cannot be read is left out and returned in `errors`, for the caller
+   * to report its own way; it never fails the read.
    */
-  read(webIfc: WEBIFC.IfcAPI, { modelId = 0 }: GridReaderOptions = {}) {
+  read(
+    webIfc: WEBIFC.IfcAPI,
+    { modelId = 0 }: GridReaderOptions = {}
+  ): { value: GridData[]; errors: GridReadError[] } {
+    const errors: GridReadError[] = [];
     try {
       const result: GridData[] = [];
 
@@ -36,9 +57,7 @@ export class GridReader {
           // ObjectPlacement is optional for IFCGRID; getAbsolutePlacement
           // falls back to the identity placement, but let the user know.
           if (!grid.ObjectPlacement) {
-            console.warn(
-              `Fragments: IFCGRID #${id} has no ObjectPlacement. Using the identity placement for it.`
-            );
+            errors.push({ kind: "noPlacement", gridId: id });
           }
 
           const transform = FragmentsIfcUtils.getAbsolutePlacement(
@@ -72,27 +91,23 @@ export class GridReader {
 
           if (unsupportedAxes.length > 0) {
             data.unsupportedAxes = unsupportedAxes;
-            const skipped = unsupportedAxes
-              .map(({ tag, curveType }) => `"${tag}" (${curveType})`)
-              .join(", ");
-            console.warn(
-              `Fragments: IFCGRID #${id} has axes with unsupported curve types that will not be displayed: ${skipped}.`
-            );
+            errors.push({
+              kind: "unsupportedAxes",
+              gridId: id,
+              axes: unsupportedAxes,
+            });
           }
 
           result.push(data);
         } catch (error) {
-          console.warn(
-            `Fragments: skipping IFCGRID #${id} because it could not be read:`,
-            error
-          );
+          errors.push({ kind: "unreadableGrid", gridId: id, cause: error });
         }
       }
 
-      return result;
+      return { value: result, errors };
     } catch (error) {
-      console.error(error);
-      return [] as GridData[];
+      errors.push({ kind: "unreadableModel", cause: error });
+      return { value: [], errors };
     }
   }
 
