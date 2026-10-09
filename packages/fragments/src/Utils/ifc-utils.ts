@@ -1,9 +1,10 @@
 import * as THREE from "three";
 import * as WEBIFC from "web-ifc";
+import type { IfcLineApi } from "./ifc-line-api";
 
 export class FragmentsIfcUtils {
   static getAbsolutePlacement(
-    webIfc: WEBIFC.IfcAPI,
+    webIfc: IfcLineApi,
     item: any,
     // We can pass predefined units factor to avoid recalculating it
     unitsFactor = this.getUnitsFactor(webIfc)
@@ -36,7 +37,7 @@ export class FragmentsIfcUtils {
     return ifcResult;
   }
 
-  static getUnitsFactor(ifcApi: WEBIFC.IfcAPI) {
+  static getUnitsFactor(ifcApi: IfcLineApi) {
     const unitAssignmentIds = ifcApi.GetLineIDsWithType(
       0,
       WEBIFC.IFCUNITASSIGNMENT
@@ -77,7 +78,7 @@ export class FragmentsIfcUtils {
   }
 
   private static getAbsolutePlacementRecursively(
-    webIfc: WEBIFC.IfcAPI,
+    webIfc: IfcLineApi,
     placement: any,
     result: THREE.Matrix4,
     unitsFactor: number

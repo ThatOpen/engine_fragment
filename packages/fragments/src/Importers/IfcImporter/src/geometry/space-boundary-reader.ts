@@ -1,11 +1,8 @@
 import * as WEBIFC from "web-ifc";
 import * as THREE from "three";
 import { FragmentsIfcUtils, GeomsFbUtils } from "../../../../Utils";
-import {
-  GeometryData,
-  IfcElement,
-  IfcGeometryInstance,
-} from "./ifc-file-reader";
+import { encodeShell, GeometryData } from "./geometry-records";
+import { IfcElement, IfcGeometryInstance } from "./geometry-assembler";
 import { IfcImporter } from "../..";
 
 export class SpaceBoundaryReader {
@@ -116,7 +113,7 @@ export class SpaceBoundaryReader {
 
         onGeometryLoaded({
           id: geometryId,
-          geometry: geomData,
+          geometry: encodeShell(geomData),
         });
 
         const geometryInstance: IfcGeometryInstance = {
