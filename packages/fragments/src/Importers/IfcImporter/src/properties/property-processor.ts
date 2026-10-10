@@ -14,6 +14,7 @@ import {
   ifcCategoryMap,
 } from "../../../../Utils";
 import type { IfcLineApi } from "../../../../Utils/ifc-line-api";
+import { writeCustomItem } from "../custom-items";
 import { ProcessData } from "../types";
 import { RelationEdges } from "./relation-edges";
 import { RawEntityAttrs } from "./types";
@@ -281,9 +282,12 @@ export class IfcPropertyProcessor {
 
     const spatialStrutureOffset = await this.getSpatialStructureOffset();
 
+    // `clean` starts a new list, so this one stays as it is
+    const localIds = this.expressIDs;
     this.clean();
 
     return {
+      localIds,
       relIndicesVector,
       relsVector,
       guidsVector,
@@ -349,28 +353,15 @@ export class IfcPropertyProcessor {
   ) {
     for (const customItem of customItems) {
       const expressID = this._maxLocalID++;
-      const attrValue = JSON.stringify(customItem);
-      const attrName = "data";
-      const attrType = "UNDEFINED";
-      const hash = JSON.stringify([attrName, attrValue, attrType]);
-      const attrOffset = this._builder.createSharedString(hash);
+      const { data, attribute } = writeCustomItem(this._builder, customItem);
       if (this._serializer.includeUniqueAttributes) {
-        this._uniqueAttributes.add(hash);
+        this._uniqueAttributes.add(data);
       }
-
-      const dataVector = TFB.Attribute.createDataVector(this._builder, [
-        attrOffset,
-      ]);
-
-      const attributesOffset = TFB.Attribute.createAttribute(
-        this._builder,
-        dataVector,
-      );
 
       // @ts-ignore
       this.classes.push(category);
       this.expressIDs.push(expressID);
-      this._attributesOffsets.push(attributesOffset);
+      this._attributesOffsets.push(attribute);
     }
   }
 

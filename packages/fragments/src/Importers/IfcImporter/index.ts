@@ -7,6 +7,8 @@ import {
   IfcPropertyProcessor,
   IfcGeometryProcessor,
   ifcClasses,
+  IfcSplitInfo,
+  IfcSplitManifest,
   ProcessData,
 } from "./src";
 import {
@@ -33,6 +35,9 @@ import type {
   ProjectedReadOptions,
   ProjectedReadStats,
 } from "./src/geometry/ifc-projected-reader";
+import { MeshesWriter } from "./src/geometry/meshes-writer";
+import { writeReferenceSplit } from "./src/custom-items";
+import { buildSplitIndex } from "./src/split-index";
 
 /**
  * An objet to convert IFC files into fragments.
@@ -212,12 +217,63 @@ export class IfcImporter {
    * @param data.raw Whether to return raw uncompressed data. If false, the output fragments will be smaller.
    * @param data.readFromCallback Whether to read data from a callback function. Useful for node.js.
    * @param data.readCallback Callback function to read IFC data. Useful for node.js.
+   * @param data.splits Write several models instead of one. Each is handed to `data.splits.onSplit`.
+   * @returns The model, or with `data.splits` a manifest of the models written.
    */
+  async process(
+    input: ProcessData & { splits?: undefined },
+  ): Promise<Uint8Array>;
+  // eslint-disable-next-line no-dupe-class-members
+  async process(
+    input: ProcessData & { splits: NonNullable<ProcessData["splits"]> },
+  ): Promise<IfcSplitManifest>;
+  // eslint-disable-next-line no-dupe-class-members
+  async process(input: ProcessData): Promise<Uint8Array | IfcSplitManifest>;
+  // eslint-disable-next-line no-dupe-class-members
   async process(input: ProcessData) {
     // A `file` is read in place; everything downstream sees its reader.
     const data: ProcessData = input.file
       ? { ...input, source: input.source ?? new IfcBlobSource(input.file) }
       : input;
+
+    const { splits } = data;
+    if (splits && !data.geometryBatches) {
+      throw new Error("Fragments: splits need geometryBatches");
+    }
+    const maxItems = splits?.geometry?.maxItems ?? 20_000;
+    if (!Number.isInteger(maxItems) || maxItems < 1) {
+      throw new RangeError(
+        `Fragments: splits.geometry.maxItems must be a positive integer, received ${maxItems}`,
+      );
+    }
+
+    const modelId = data.id ?? MathUtils.generateUUID();
+
+    // Each split is handed out as soon as it is complete, and only what the
+    // manifest says about it is kept.
+    const written: { info: IfcSplitInfo; localIds: ArrayLike<number> }[] = [];
+    const handOut = async ({
+      id,
+      kind,
+      group,
+      model,
+      localIds,
+    }: Pick<IfcSplitInfo, "id" | "kind" | "group"> & {
+      model: Uint8Array;
+      localIds: ArrayLike<number>;
+    }) => {
+      // `model` is the builder's own buffer, which the next split reuses
+      const bytes = data.raw ? model.slice() : pako.deflate(model);
+      const info: IfcSplitInfo = {
+        id,
+        kind,
+        group,
+        items: localIds.length,
+        byteLength: bytes.length,
+      };
+      written.push({ info, localIds });
+      await splits!.onSplit({ ...info, bytes });
+    };
 
     this._builder = new fb.Builder(1024);
 
@@ -271,12 +327,48 @@ export class IfcImporter {
     const geometryProcessor = new IfcGeometryProcessor(this);
     geometryProcessor.wasm = this.wasm;
     geometryProcessor.webIfcSettings = this.webIfcSettings;
-    const geomData = { ...data, builder: this.builder, projected };
+    const geomData = {
+      ...data,
+      builder: this.builder,
+      projected,
+      geometrySplits: splits && {
+        maxItems,
+        maxBytes: splits.geometry?.maxBytes ?? 256 * 1024 * 1024,
+        id: (index: number) => `${modelId}.g${index}`,
+        onSplit: (split: {
+          id: string;
+          model: Uint8Array;
+          localIds: Uint32Array;
+        }) => handOut({ ...split, kind: "geometry", group: null }),
+      },
+    };
 
     const properties = new IfcPropertyProcessor(this, this.builder);
     properties.wasm = this.wasm;
     properties.webIfcSettings = this.webIfcSettings;
 
+    // Grids and alignments come from the end of the geometry pass. With
+    // splits they go to a model of their own right then: the viewer draws
+    // them, so they should not wait for the data split, nor sit in it.
+    const readGeometry = async () => {
+      const read = await geometryProcessor.process(geomData);
+      const { alignments, grids } = read;
+      if (!splits || alignments.length + grids.length === 0) return read;
+      const id = `${modelId}.r0`;
+      const { model, localIds, maxLocalID } = writeReferenceSplit({
+        alignments,
+        grids,
+        coordinates: read.coordinates,
+        firstLocalId: read.maxLocalID + 1,
+        guid: id,
+      });
+      await handOut({ id, kind: "reference", group: null, model, localIds });
+      // what follows takes its ids from after theirs
+      return { ...read, alignments: [], grids: [], maxLocalID: maxLocalID - 1 };
+    };
+
+    // With splits, properties go to a model of their own: this builder holds
+    // the data split, and geometry writes to builders of its own.
     let geoms: Awaited<ReturnType<IfcGeometryProcessor["process"]>>;
     try {
       if (projected) {
@@ -284,7 +376,7 @@ export class IfcImporter {
         // with the geometry in workers they are read here meanwhile, handing
         // the thread back often enough to keep the workers fed.
         [geoms] = await Promise.all([
-          geometryProcessor.process(geomData),
+          readGeometry(),
           properties.prepare({
             ...data,
             lineApi,
@@ -293,7 +385,7 @@ export class IfcImporter {
           }),
         ]);
       } else {
-        geoms = await geometryProcessor.process(geomData);
+        geoms = await readGeometry();
         // With a reader, properties come from the parsing layer: the file is
         // indexed once, now that web-ifc and its copy of the file are gone,
         // and entities are parsed from it on demand. Without one, the pass
@@ -305,7 +397,7 @@ export class IfcImporter {
       for (const executor of executors) executor.dispose();
     }
     this.stats = { projected: geometryProcessor.projectedStats };
-    const { modelMesh, maxLocalID, localIDs, alignments, grids } = geoms;
+    const { maxLocalID, localIDs, alignments, grids } = geoms;
 
     const propsData = await properties.finish({
       ...data,
@@ -329,7 +421,16 @@ export class IfcImporter {
       newMaxLocalID,
     } = propsData;
 
-    const guid = data.id ?? MathUtils.generateUUID();
+    // The data split has no geometry, but a model has a meshes table, and
+    // the viewer aligns models by the coordinates in it.
+    const modelMesh =
+      geoms.modelMesh ??
+      new MeshesWriter(this.builder, this.doubleSidedMaterials).finish(
+        geoms.coordinates,
+        maxLocalID,
+      ).modelMesh;
+
+    const guid = splits ? `${modelId}.d0` : modelId;
     const guidRef = this.builder.createString(guid);
 
     TFB.Model.startModel(this.builder);
@@ -351,6 +452,27 @@ export class IfcImporter {
 
     this.builder.finish(outData);
     const outBytes = this.builder.asUint8Array();
+
+    if (splits) {
+      await handOut({
+        id: guid,
+        kind: "data",
+        group: splits.data?.group ?? "data",
+        model: outBytes,
+        localIds: propsData.localIds,
+      });
+      this.clean();
+      data.progressCallback?.(1, { process: "conversion", state: "finish" });
+      const manifest: IfcSplitManifest = {
+        id: modelId,
+        splits: written.map(({ info }) => info),
+        index: buildSplitIndex(
+          written.map(({ info, localIds }) => ({ kind: info.kind, localIds })),
+        ),
+      };
+      return manifest;
+    }
+
     this.clean();
 
     const content = data.raw ? outBytes : pako.deflate(outBytes);
@@ -419,3 +541,4 @@ export class IfcImporter {
 }
 
 export * from "./src/types";
+export { findItemSplits } from "./src/split-index";

@@ -25,6 +25,23 @@ import {
 } from "./ifc-file-reader";
 import { IfcProjector, ProjectedGroup } from "./ifc-projector";
 
+/**
+ * How a projected read cuts its output into splits. A split is a run of
+ * consecutive batches, assembled on its own: geometry is deduplicated within
+ * it, not against the splits before it.
+ */
+export interface ProjectedSplitOptions {
+  /** Most elements planned into one split. */
+  maxItems: number;
+  /** Whether the split being assembled has outgrown its size in bytes. */
+  isFull: () => boolean;
+  /**
+   * Ends the split being assembled. Given the next free id, resolves to the
+   * one the next split starts from.
+   */
+  cut: (nextId: number) => Promise<number>;
+}
+
 export interface ProjectedReadOptions {
   resolver: IfcEntityResolver;
   lines: IfcLineApi;
@@ -43,6 +60,8 @@ export interface ProjectedReadOptions {
    */
   targetBatchMs: number;
   coordinateToOrigin: boolean;
+  /** Cut the output into several models instead of writing one. */
+  splits?: ProjectedSplitOptions;
 }
 
 /** Numbers about a projected read, for measuring it. */
@@ -110,12 +129,14 @@ export class IfcProjectedReader {
 
     data.progressCallback?.(0, { process: "geometries", state: "start" });
 
-    const assembler = new IfcGeometryAssembler(resolver.index.maxId + 1, {
-      onElementLoaded: (element) => this.onElementLoaded(element),
-      onGeometryLoaded: (geometry) => this.onGeometryLoaded(geometry),
-      onLocalTransformLoaded: (transform) =>
-        this.onLocalTransformLoaded(transform),
-    });
+    const assemblerFrom = (firstFreeId: number) =>
+      new IfcGeometryAssembler(firstFreeId, {
+        onElementLoaded: (element) => this.onElementLoaded(element),
+        onGeometryLoaded: (geometry) => this.onGeometryLoaded(geometry),
+        onLocalTransformLoaded: (transform) =>
+          this.onLocalTransformLoaded(transform),
+      });
+    let assembler = assemblerFrom(resolver.index.maxId + 1);
 
     // Processing order: the one a single pass uses, element by element
     const classes = elementClasses(
@@ -166,6 +187,14 @@ export class IfcProjectedReader {
     const projector = new IfcProjector(resolver);
     this.stats.planningMs += performance.now() - planStart;
 
+    // Splits are planned with the batches: elements are counted into the
+    // current split, and the batch that would overfill it is cut short, so
+    // the next one opens the next split and no batch belongs to two.
+    const { splits } = options;
+    let plannedSplit = 0;
+    let plannedSplitElements = 0;
+    const batchSplits: number[] = [];
+
     let next = 0;
     let batchCount = 0;
     // elements per batch, for progress by what has been assembled
@@ -179,6 +208,13 @@ export class IfcProjectedReader {
       budget: number,
     ): BatchRequest | null => {
       if (next >= order.length) return null;
+      if (splits && plannedSplitElements >= splits.maxItems) {
+        plannedSplit++;
+        plannedSplitElements = 0;
+      }
+      const limit = splits
+        ? Math.min(maxElements, splits.maxItems - plannedSplitElements)
+        : maxElements;
       const start = performance.now();
       projector.begin();
       if (typeof origin === "number") projector.addElement(origin);
@@ -187,7 +223,7 @@ export class IfcProjectedReader {
       let count = 0;
       while (
         next < order.length &&
-        count < maxElements &&
+        count < limit &&
         (count === 0 || (projector.size < options.batchBytes && cost < budget))
       ) {
         const id = orderIds[next];
@@ -203,6 +239,8 @@ export class IfcProjectedReader {
         count++;
       }
       const projection = projector.finish(groups);
+      plannedSplitElements += count;
+      batchSplits.push(plannedSplit);
       batchSizes.push(count);
       batchBytesLog.push(projection.bytes.length);
       batchCosts.push(cost);
@@ -230,7 +268,18 @@ export class IfcProjectedReader {
     let coordinatesReported = false;
     let meshesDone = 0;
 
-    const consume = (result: BatchResult) => {
+    let assembledSplit = 0;
+    const consume = async (result: BatchResult) => {
+      // A batch opens a new split when the plan says so, or when the split
+      // being assembled has outgrown its size in bytes, which only shows
+      // once its geometry is written.
+      if (splits) {
+        const planned = batchSplits[result.index];
+        if (planned !== assembledSplit || splits.isFull()) {
+          assembler = assemblerFrom(await splits.cut(assembler.nextId));
+          assembledSplit = planned;
+        }
+      }
       this.stats.largestWasmHeap = Math.max(
         this.stats.largestWasmHeap,
         result.wasmHeap,
@@ -263,7 +312,7 @@ export class IfcProjectedReader {
       if (!probe) break;
       const result = await executors[0].run(probe);
       observe(result);
-      consume(result);
+      await consume(result);
       if (result.primer !== undefined) {
         origin = result.primer;
         coordination = result.coordination;
@@ -280,11 +329,25 @@ export class IfcProjectedReader {
     // --- the rest, in parallel, assembled in order ---------------------------
     const results = new Map<number, BatchResult>();
     let nextToAssemble = batchCount;
-    const drain = () => {
+    // Assembly is in order, and waits while a completed split is taken, so
+    // one drain runs at a time. An executor waits for it before planning its
+    // next batch: results cannot pile up behind a split that is slow to take.
+    let draining: Promise<void> | null = null;
+    const assembleReady = async () => {
       while (results.has(nextToAssemble)) {
         const result = results.get(nextToAssemble)!;
         results.delete(nextToAssemble++);
-        consume(result);
+        await consume(result);
+      }
+    };
+    const drain = async () => {
+      while (draining) await draining;
+      if (!results.has(nextToAssemble)) return;
+      draining = assembleReady();
+      try {
+        await draining;
+      } finally {
+        draining = null;
       }
     };
 
@@ -295,11 +358,11 @@ export class IfcProjectedReader {
         const result = await executor.run(request);
         observe(result);
         results.set(result.index, result);
-        drain();
+        await drain();
       }
     };
     await Promise.all(executors.map(work));
-    drain();
+    await drain();
     this.stats.batches = batchCount;
 
     // --- what is not per element ---------------------------------------------
