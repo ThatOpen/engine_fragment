@@ -408,6 +408,13 @@ const summary = {
   wallSeconds: (Date.now() - started) / 1000,
   conversionSeconds: result?.stats ? result.stats.totalMs / 1000 : null,
   viewerSeconds: result?.viewerMs ? result.viewerMs / 1000 : null,
+  // from choosing the file: the first geometry drawn, and everything loaded
+  firstVisibleSeconds: result?.firstVisibleMs
+    ? result.firstVisibleMs / 1000
+    : null,
+  endToEndSeconds: result?.endToEndMs ? result.endToEndMs / 1000 : null,
+  // with splits: an item's data as the page read it back from the data split
+  dataProbe: result?.dataProbe ?? null,
   outputMB: result?.stats ? mb(result.stats.outputBytes) : null,
   phases: result?.stats?.phases.map(({ phase, ms }) => [
     phase,

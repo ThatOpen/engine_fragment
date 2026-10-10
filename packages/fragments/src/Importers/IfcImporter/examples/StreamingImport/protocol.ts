@@ -1,5 +1,7 @@
 // Messages exchanged between the demo page and its import worker.
 
+import type { IfcSplit, IfcSplitManifest } from "../../src/types";
+
 /**
  * - `parallel`: geometry in projected batches across several workers.
  * - `streaming`: one web-ifc model of the whole file, read in place.
@@ -16,6 +18,11 @@ export interface ConvertRequest {
   workers: number;
   /** Batch size for `parallel` mode, in bytes of IFC. */
   batchBytes?: number;
+  /**
+   * Write several models instead of one, in `parallel` mode: see
+   * `IfcSplitConfig.geometry`.
+   */
+  splits?: { maxItems?: number; maxBytes?: number };
   /** See `IfcImporter.residentBudget`. */
   residentBudget?: number;
   /** Page size and cache for reading the file in place. */
@@ -32,8 +39,11 @@ export interface PhaseTiming {
 export interface ImportStats {
   mode: ImportMode;
   fileBytes: number;
+  /** Size of the model, or of all its splits together. */
   outputBytes: number;
   totalMs: number;
+  /** With splits: when the first one was handed over, from the start. */
+  firstSplitMs?: number;
   phases: PhaseTiming[];
   /** Final size of every WebAssembly memory the worker created. */
   wasmMemories: number[];
@@ -52,5 +62,12 @@ export type WorkerMessage =
       fraction: number;
       detail?: string;
     }
-  | { type: "done"; bytes: Uint8Array; stats: ImportStats }
+  | { type: "split"; split: IfcSplit }
+  // one model in `bytes`, or with splits, the manifest of those already sent
+  | {
+      type: "done";
+      bytes?: Uint8Array;
+      manifest?: IfcSplitManifest;
+      stats: ImportStats;
+    }
   | { type: "error"; message: string; stack?: string };

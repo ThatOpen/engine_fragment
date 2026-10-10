@@ -161,6 +161,17 @@
       font-weight: 600;
       margin-top: 4px;
     }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #selection td {
+      overflow-wrap: anywhere;
+      padding-left: 12px;
+    }
   </style>
 </head>
 
@@ -179,11 +190,16 @@
         <option value="legacy">Legacy (in memory)</option>
       </select>
     </div>
+    <label class="check" title="Write the model as splits: geometry to draw, and data apart">
+      <input id="splits" type="checkbox">
+      Several models
+    </label>
     <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100">
       <div id="progress-bar"></div>
     </div>
     <div class="status" id="status">Choose an IFC file to convert it in a worker.</div>
     <div id="metrics"></div>
+    <div id="selection"></div>
     <div class="row">
       <button id="download" disabled>Download .frag</button>
       <button id="clear" disabled>Clear viewer</button>

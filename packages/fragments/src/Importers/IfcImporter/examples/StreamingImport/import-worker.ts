@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 import { IfcImporter } from "../..";
 import { IfcBlobSource } from "../../../../Utils/ifc-byte-source";
-import type { ProgressData } from "../../src/types";
+import type { IfcSplitManifest, ProgressData } from "../../src/types";
 import type {
   ConvertRequest,
   ImportStats,
@@ -95,9 +95,12 @@ const createImporter = (request: ConvertRequest, clock: PhaseClock) => {
 };
 
 interface Converted {
-  output: Uint8Array;
+  /** One model, or with splits, the manifest of those already posted. */
+  output: Uint8Array | IfcSplitManifest;
+  outputBytes: number;
   counts: Record<string, number>;
   workerWasmHeap?: number;
+  firstSplitMs?: number;
 }
 
 /** Reads the whole file, then converts it with a second web-ifc for properties. */
@@ -109,7 +112,7 @@ const convertInMemory = async (
   const bytes = new Uint8Array(await request.file.arrayBuffer());
   const { importer, progressCallback } = createImporter(request, clock);
   const output = await importer.process({ bytes, raw: true, progressCallback });
-  return { output, counts: {} };
+  return { output, outputBytes: output.byteLength, counts: {} };
 };
 
 /** Reads the `File` in place; properties come from the parsing layer. */
@@ -120,6 +123,9 @@ const convertStreaming = async (
   const { importer, progressCallback } = createImporter(request, clock);
   const source = new IfcBlobSource(request.file, request.pages);
   const parallel = request.mode === "parallel";
+  const start = performance.now();
+  let splitBytes = 0;
+  let firstSplitMs: number | undefined;
   const output = await importer.process({
     file: request.file,
     source,
@@ -135,6 +141,19 @@ const convertStreaming = async (
           batchBytes: request.batchBytes,
         }
       : undefined,
+    // Each split goes to the page as soon as it is written, so the viewer
+    // can start on it while the rest of the file converts.
+    splits:
+      parallel && request.splits
+        ? {
+            geometry: request.splits,
+            onSplit: (split) => {
+              splitBytes += split.byteLength;
+              firstSplitMs ??= performance.now() - start;
+              post({ type: "split", split }, [split.bytes.buffer]);
+            },
+          }
+        : undefined,
   });
   const counts: Record<string, number> = {
     "file reads (FileReaderSync)": source.fileReads,
@@ -148,7 +167,20 @@ const convertStreaming = async (
     );
     counts["batch planning (ms)"] = Math.round(projected.planningMs);
   }
-  return { output, counts, workerWasmHeap: projected?.largestWasmHeap };
+  if (!(output instanceof Uint8Array)) {
+    const count = (kind: string) =>
+      output.splits.filter((split) => split.kind === kind).length;
+    counts["geometry splits"] = count("geometry");
+    counts["reference splits"] = count("reference");
+    counts["data splits"] = count("data");
+  }
+  return {
+    output,
+    outputBytes: output instanceof Uint8Array ? output.byteLength : splitBytes,
+    counts,
+    workerWasmHeap: projected?.largestWasmHeap,
+    firstSplitMs,
+  };
 };
 
 onmessage = async (event: MessageEvent<ConvertRequest>) => {
@@ -159,21 +191,32 @@ onmessage = async (event: MessageEvent<ConvertRequest>) => {
   try {
     const convert =
       request.mode === "legacy" ? convertInMemory : convertStreaming;
-    const { output, counts, workerWasmHeap } = await convert(request, clock);
+    const { output, outputBytes, counts, workerWasmHeap, firstSplitMs } =
+      await convert(request, clock);
     clock.close();
     sampleHeap();
     const stats: ImportStats = {
       mode: request.mode,
       fileBytes: request.file.size,
-      outputBytes: output.byteLength,
+      outputBytes,
       totalMs: performance.now() - start,
+      firstSplitMs,
       phases: clock.phases,
       wasmMemories: wasmMemories.map((memory) => memory.buffer.byteLength),
       peakJsHeap,
       counts,
       workerWasmHeap,
     };
-    post({ type: "done", bytes: output, stats }, [output.buffer]);
+    if (output instanceof Uint8Array) {
+      post({ type: "done", bytes: output, stats }, [output.buffer]);
+    } else {
+      const { localIds, geometry, data } = output.index;
+      post({ type: "done", manifest: output, stats }, [
+        localIds.buffer,
+        geometry.buffer,
+        data.buffer,
+      ]);
+    }
   } catch (error) {
     const err = error as Error;
     post({ type: "error", message: String(err?.message ?? err), stack: err?.stack });
