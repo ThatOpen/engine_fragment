@@ -66,9 +66,66 @@ Cost matters because exporters write similar elements next to each other. Cut by
 
 **The larger fix is upstream**: a web-ifc mesh cache for mapped representations that survives `Clear()` — mesh a representation map once per model rather than once per instance. On the model with the mapped BREP that is 150 meshings of 110 ms each becoming one, in any pipeline.
 
+## Writing several models
+
+One model in one file gives the viewer nothing to draw until all of it is loaded, in one worker, properties included. `splits` writes a conversion as several models instead — what cutting the IFC up with the splitter and converting each piece gives, but from one conversion, so with one origin, one set of local ids, and no element converted twice:
+
+```ts
+const manifest = await importer.process({
+  file,
+  geometryBatches: { createWorker },
+  splits: {
+    geometry: { maxItems: 20_000 },
+    onSplit: (split) => store(split.id, split.bytes), // as each is written
+  },
+});
+```
+
+- **Geometry splits** hold what drawing, picking and hiding read: the meshes, and the local id and category of the item each belongs to. Nothing else.
+- **The reference split** holds the grids and alignments. The viewer draws those from their attributes (`getGrids`, `getAlignments`), so they belong with what is drawn: a small model (95 KB for the 20 grids of the 148 MB file) that needs nothing from the data split, and is left out of a conversion that has neither.
+- **The data split** holds everything else, for every item, elements included: attributes, relations, GUIDs, the spatial structure and the metadata. It has no meshes. As far as queries go it is the whole model: `getItemsData` with its relations, `getSpatialStructure` and GUID lookups answer as they do on a single file, and it can be loaded into a thread group of its own, away from the workers that draw.
+- **The manifest** lists the splits and says where each item is: `findItemSplits(manifest, localId)` gives the split with its geometry and the split with its attributes. Local ids are the same in every split, so an item picked in a geometry split is read from the data split by the same id.
+
+**Why all data moves out, and not only property sets.** What a converted model is made of, in raw bytes, measured on a single pass:
+
+| Model | IFC | Raw .frag | Geometry | Relations | GUIDs | Elements' attributes | Other attributes | Spatial structure |
+|---|---|---|---|---|---|---|---|---|
+| Tekla (IFC2X3) | 38 MB | 29 MB | 32% | 27% | 11% | 17% | 2% | 7% |
+| AutoCAD Architecture (IFC2X3) | 67 MB | 22 MB | 42% | 26% | 16% | 3% | 4% | 4% |
+| Tekla (IFC2X3) | 139 MB | 121 MB | 42% | 23% | 9% | 14% | 2% | 7% |
+| IFC4, TrimBIM export | 148 MB | 82 MB | 20% | 28% | 12% | 18% | 7% | 8% |
+
+Geometry is 20–42% of a model. Property sets, types and materials ("other attributes") are 2–7%: most of what rendering never reads belongs to the elements themselves — their relations, GUIDs and attributes. So a geometry split keeps an element's meshes and identity, and its data goes where the rest of the data is.
+
+**How splits are planned.** With the batches. Elements are counted into the current split in processing order, and the batch that would overfill it is cut short, so a split is a run of consecutive batches and no batch belongs to two. A split is also ended when its model passes `maxBytes`, which only shows once its geometry is written. Each split is assembled on its own, into a builder of its own, and handed to `onSplit` as soon as its last batch is assembled, while later batches are still in the workers; `onSplit` is awaited, so a slow consumer holds the conversion back rather than letting splits pile up. The property pass writes the data split into its own builder too: nothing ties the two passes any more, since "items with geometry first" was only ever a constraint within one model. Grids and alignments come from the end of the geometry pass, and are handed out then, as the reference split. The data split is last, once the property pass has laid it out.
+
+**What it buys.** Same machine and setup as above; splits of 20,000 elements, loaded with up to 8 fragments workers and one more for the data split. Measured before grids and alignments had a split of their own, which adds one small model to load on the files that have them. "Viewer load" hands the viewer everything after the conversion, as one model or as all its splits together. The other two columns load splits as they are written, which is what the demo does:
+
+| Model | IFC | Splits | Viewer load, one model → splits | First geometry on screen | File to everything loaded | Output |
+|---|---|---|---|---|---|---|
+| Tekla (IFC2X3) | 38 MB | 3 + data | 3.1 → 2.3 s | 7.9 → 3.8 s | 7.9 → 5.2 s | 29 → 30 MB |
+| IFC4, TrimBIM export | 148 MB | 10 + data | 2.6 → 0.8 s | 9.4 → 3.6 s | 9.4 → 7.5 s | 82 → 84 MB |
+| Tekla (IFC2X3) | 139 MB | 11 + data | 16.5 → 3.6 s | 48.5 → 8.3 s | 48.5 → 33.4 s | 121 → 126 MB |
+| IFC4, TrimBIM export | 586 MB | 10 + data | 4.1 → 1.0 s | 20.0 → 5.7 s | 20.0 → 17.0 s | 276 → 279 MB |
+
+Loading is 1.3–4.6× faster, the first geometry is on screen in a sixth to a half of the time, and everything is loaded 0.5–0.7 s after the conversion ends instead of a whole viewer load after it. Conversion itself took 2–4% longer. These are single runs.
+
+Split size is the dial. Viewer load at 50,000 / 20,000 / 10,000 elements per split: 2.9 / 2.3 / 1.0 s, 0.8 / 0.8 / 0.7 s, 7.7 / 3.6 / 4.3 s and 1.1 / 1.0 / 1.0 s for the four models above. Smaller splits help until there are more of them than workers to load them; 20,000 is the default because it is where the heaviest model stopped improving.
+
+**What it costs.**
+
+- **Geometry is deduplicated within a split, not across them**, so a shape used in two splits is stored in both: 1–4% more output on these models.
+- **Memory.** Each split loads in a fragments worker of its own while there are workers to spare, so peak RSS during the run was 0.4–0.5 GB higher on the three smaller models (2.6 → 3.1, 3.2 → 3.6 and 4.0 → 4.5 GB) and unchanged on the largest.
+- **The app routes.** The library writes the splits and the manifest; nothing in `FragmentsModels` loads a manifest yet. The app loads each split as a model and sends a request to the right one — highlight to the geometry split, properties to the data split — as the demo does when an element is clicked. The `loadSplit` discussed in [#180](https://github.com/ThatOpen/engine_fragment/issues/180) would hide that.
+- **A geometry split answers data queries with nothing**, not with an error: no attributes, no GUIDs, an empty spatial structure. Editing or saving one has not been tried; the edit code reads attributes for every item, which a geometry split does not have.
+
 ## Correctness
 
 The output is compared semantically with the original importer's: every item's category, GUID, attributes, relations, its place in the spatial tree, and every sample's geometry (hashed point for point), material and transforms (`parity.ts`). Across nine real models (38–586 MB, IFC2X3 and IFC4, from Tekla, AutoCAD Architecture and two IFC4 exporters, 99k–516k items each) projected batches match the original exactly, and `ifc-projector.test.ts` pins that batches of 1, 7 and 500 elements match a single pass on every fixture. `ifc-line-api.test.ts` pins the parsing layer against `IfcAPI.GetLine` for every line of every fixture.
+
+Splits are compared with the single model they replace by putting them back together: each item's data from the data split, its geometry from the geometry split the manifest names (`dumpSplits`). `splits.test.ts` pins that on every fixture for splits cut by count and by size, checks the manifest against what each split holds, and loads every split in the viewer's model. On four of the real models (38–148 MB; 99k, 100k, 357k and 516k items) the splits hold exactly the single model's items, attributes, relations, GUIDs, spatial structure, placements, materials and transforms.
+
+Shells are compared as shapes rather than as lists of numbers, because splitting changes which copy of a shape is stored. Geometry is deduplicated by a key made of a mesh's vertices rounded to 0.1 mm and of its size, not of its triangles. A single model stores two meshes with the same key once, as the first of them; when a split boundary falls between the two, each is stored as itself. On those four models 4,751, 0, 40,241 and 2,894 items have such a shell. Its points are within 0.2 mm of the single model's, point for point on all but 3,476 of them: fasteners in one model, whose 12- to 60-point shells hold the same points in another order, 57 of them with a flat face cut into loops another way. The comparison counts these (`tolerated`) and fails on anything else. Grids and alignments are compared by what they hold, since their local ids come after the last one geometry used, and splits use a few more ids than one model does; and they are checked to be in the reference split and nowhere else. Only grids, though: no test file has an alignment.
 
 ## What changed in the library
 
@@ -80,6 +137,8 @@ Breaking changes were allowed; the ones made:
 - `GridReader` and `FragmentsIfcUtils` read through an `IfcLineApi`, which web-ifc's `IfcAPI` satisfies, so existing calls are unchanged. `new GridReader(lines, modelId, coordinationMatrix)` reads grids from the parsing layer, with no web-ifc model open, and `IfcLineApi` has `GetRawLineData` for it.
 - Geometry records are typed arrays (`EncodedShell`), and the dedup key is a 64-bit digest.
 - `IfcImporter.stats` reports batch counts, per-batch times and heap sizes; `IfcImporter.residentBudget` decides between reading the file into memory and paging it.
+- `ProcessData` takes `splits` (`{ geometry: { maxItems, maxBytes }, data: { group }, onSplit }`), and `process` then resolves to an `IfcSplitManifest` instead of a model: geometry splits, a reference split for grids and alignments, and a data split. `findItemSplits` looks an item up in it. The shape follows the `splits` config discussed in #180, with two differences: what is data is decided by the importer rather than by a `splitBy` callback, because an element's geometry and its data go to different splits; and `maxSize` is `maxItems`, next to a `maxBytes`. Grouping elements by a `splitBy` (by storey, say) is left for later.
+- Writing a model's `Meshes` table moved out of `IfcGeometryProcessor` into `MeshesWriter`, one per model written.
 
 Also fixed on the way: embind handles leaked per element (`mesh.geometries`, id vectors, a swept-disk probe), an unused web-ifc instance created after every geometry pass, quadratic `unshift` loops over items, and an `indexOf` per child in the spatial walk.
 
@@ -99,7 +158,9 @@ From reading web-ifc 0.0.77 (tag `0.77`):
 
 - **The coordinating thread plans batches serially.** Computing each projection reads statements through the index; for a paged 2.4 GB file that is 31 s (16 s held in memory) of a 68 s conversion, and the workers wait on it. Next: record references during indexing (an adjacency list alongside the index), so planning is a graph walk with no reads, or let workers plan their own batches from a shared index.
 - **Batch cost is estimated, then calibrated.** The weights are from a handful of models; a model whose cost comes from something they do not count (a curve-heavy or tessellation-heavy exporter) is balanced by the calibration only after its first slow batches. An element is never split, so a single very expensive element still bounds a conversion.
-- **The Fragments output caps model size at 1 GiB.** The flatbuffers JS builder grows by doubling and refuses to grow past 1 GiB (`growByteBuffer` throws once the buffer has bit 30 set), and the format's signed 32-bit offsets would cap a buffer at 2 GiB anyway. How soon that bites depends on the exporter: output was 0.2× the IFC on the TrimBIM exports but 0.65–0.87× on the Tekla ones, so a detailed steel model reaches the cap at about 1.2–1.5 GB of IFC — before any importer memory limit. The last doubling also briefly holds 1.5× the buffer. Options, none in this POC: pre-size the builder (saves the doubling copies, not the cap); patch the builder to grow to 2 GiB; split a model's data across several buffers (a format change); or emit several models from one conversion.
+- **The Fragments output caps model size at 1 GiB.** The flatbuffers JS builder grows by doubling and refuses to grow past 1 GiB (`growByteBuffer` throws once the buffer has bit 30 set), and the format's signed 32-bit offsets would cap a buffer at 2 GiB anyway. How soon that bites depends on the exporter: output was 0.2× the IFC on the TrimBIM exports but 0.65–0.87× on the Tekla ones, so a detailed steel model reaches the cap at about 1.2–1.5 GB of IFC — before any importer memory limit. The last doubling also briefly holds 1.5× the buffer. With `splits`, geometry no longer meets the cap: each geometry split has a builder of its own and is ended at `maxBytes`. The data split is still one builder, and data was 58–80% of these models, so the cap moves out by a factor of 1.25–1.7 rather than away. Past that the data has to be cut up as well.
+- **Data is one split.** Cutting it up means relations that point from one split into another, and nothing in the viewer follows those: `getItemsData` resolves a relation within the model it is asked in. That needs the router from #180 first, and then a plan for which items go together — an element with the property sets only it uses, shared types and materials apart.
+- **Splits follow processing order**, so each holds a run of one or two element classes, spread over the whole building. That is enough for loading in parallel, and useless for loading a part of the building first. A `splitBy` that groups elements by storey or by discipline before they are batched is the next step for the config.
 - **Per-worker memory is mostly web-ifc's.** Each geometry worker's JS heap reaches ~80 MB, much of it web-ifc's JS module, which carries all three schemas' tables; loading only the file's schema (the subpath imports asked for in #289) should cut it.
 - **web-ifc asks, from its source** (see the investigation behind this POC): bind `ResetCache` (defined, never bound); evict the least recently used tape chunk rather than the oldest; free the geometry processor's relation maps without closing the model; and, for D2/D3 in #310, let the loader take an index it did not scan. None is needed for this POC.
 - **Not covered by projected batches yet:** second-level space boundaries (`processIfcRelSpaceBoundarySecondLevel`) need the whole model, so they are refused in batch mode; alignments are projected (the alignment, its nests and aggregates) but no test file has any.
@@ -112,11 +173,11 @@ yarn dev   # repo root
 # open /packages/fragments/src/Importers/IfcImporter/examples/StreamingImport/example.html
 ```
 
-Page parameters: `mode` (`parallel`, `streaming`, `legacy`), `workers`, `batchBytes`, `resident` (bytes of file to hold in memory), `pageMB`, `cacheMB`, `view=0` (skip the viewer).
+Page parameters: `mode` (`parallel`, `streaming`, `legacy`), `workers`, `batchBytes`, `resident` (bytes of file to hold in memory), `pageMB`, `cacheMB`, `view=0` (skip the viewer); `splits` (write several models, as the checkbox does), `splitItems` and `splitMB` (their size), `splitLoad=after` (load them when the conversion is done, not as they are written).
 
 Tools in this folder (Node, run with `yarn tsx` / `node` from `packages/fragments`):
 
 - `bench.mjs --file <ifc> [--mode ...] [--query ...] [--heap out.json] [--profile out.cpuprofile] [--screenshot out.png]` drives Chrome over the DevTools protocol and reports timings, renderer RSS, and each worker's V8 heap and array buffers.
-- `convert.ts <repo root> <in.ifc> <out.frag>` converts with any checkout's importer (`BATCH_ELEMENTS=2000` for projected batches).
-- `parity.ts <a.frag> <b.frag>` compares two conversions semantically.
+- `convert.ts <repo root> <in.ifc> <out.frag>` converts with any checkout's importer (`BATCH_ELEMENTS=2000` for projected batches; `SPLIT_ITEMS=20000` writes splits and `<out>.manifest.json`).
+- `parity.ts <a.frag> <b.frag>` compares two conversions semantically. Either side can be a manifest, compared as the model its splits add up to.
 - `replicate.ts <in.ifc> <out.ifc> <copies>` builds a large synthetic file from a real one.
