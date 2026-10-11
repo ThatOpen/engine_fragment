@@ -1,0 +1,23 @@
+{
+  "from": "20251023113211",
+  "to": "20260429202010",
+  "conforms": true,
+  "rewrite": false,
+  "obligations": [],
+  "changes": [
+    {
+      "kind": "field-added",
+      "path": "Model.indexes",
+      "detail": "[ModelIndex]",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "type-added",
+      "path": "ModelIndex",
+      "detail": "table",
+      "breaking": false,
+      "obligation": false
+    }
+  ]
+}

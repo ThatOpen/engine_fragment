@@ -1,0 +1,103 @@
+import { defineMigration, drop } from "../../src/define";
+import type { FromModel, Handlers } from "./types";
+
+/**
+ * 3.2 gave every transform, representation, material and sample a local id,
+ * which editing relies on. Hands them out the way its importer does: from the
+ * next free id of the file, in this order, the first two counting down.
+ */
+function allocate(model: FromModel) {
+  const meshes = model.meshes;
+  const first = model.max_local_id;
+  let next = first;
+  const take = (count: number | undefined, descending: boolean) => {
+    const ids = new Uint32Array(count ?? 0);
+    for (let i = 0; i < ids.length; i++) {
+      ids[descending ? ids.length - 1 - i : i] = next++;
+    }
+    return ids;
+  };
+  const globalTransforms = take(meshes?.global_transforms?.length, true);
+  const representations = take(meshes?.representations?.length, true);
+  const materials = take(meshes?.materials?.length, false);
+  const samples = take(meshes?.samples?.length, false);
+  const localTransforms = take(meshes?.local_transforms?.length, false);
+  return {
+    globalTransforms,
+    representations,
+    materials,
+    samples,
+    localTransforms,
+    next,
+    count: next - first,
+  };
+}
+
+interface Ctx {
+  /** Alignments the file had. 3.2 keeps them as items; they are not converted. */
+  alignments: number;
+  /** Samples of the civil geometry the alignments pointed at. */
+  geometrySamples: number;
+  ids?: ReturnType<typeof allocate>;
+}
+
+function idsOf(model: FromModel, ctx: Ctx) {
+  ctx.ids ??= allocate(model);
+  return ctx.ids;
+}
+
+type MaxLocalId = {
+  "Model.max_local_id": (node: FromModel, ctx: Ctx) => number;
+};
+
+export default defineMigration<Ctx, Handlers<Ctx> & MaxLocalId>({
+  title: "Alignments and civil geometry leave the model, geometry gets ids",
+
+  context: () => ({ alignments: 0, geometrySamples: 0 }),
+
+  // 3.2 removed two fields from the middle of the root table, so every field
+  // after them sits two slots lower than a 3.1 file has it. Files of that
+  // time carry no version: the layout is all there is to tell them by.
+  //   slot   3.1                 3.2 and later
+  //   12     alignments          unique_attributes
+  //   13     geometries (table)  relation_names
+  //   14     unique_attributes   indexes (tables)
+  //   15     relation_names      -
+  matchesUnstamped: (probe) =>
+    probe.rootSlots > 15 ||
+    probe.isStringVector(12) === false ||
+    probe.isStringVector(13) === false ||
+    probe.isStringVector(14) === true,
+
+  layout: {
+    "Model.alignments": (model, ctx) => {
+      ctx.alignments = model.alignments?.length ?? 0;
+      return drop;
+    },
+    "Model.geometries": (model, ctx) => {
+      ctx.geometrySamples = model.geometries?.samples?.length ?? 0;
+      return drop;
+    },
+    // The importer leaves one id unused after the geometry, and so does this.
+    "Model.max_local_id": (model, ctx) => idsOf(model, ctx).next + 1,
+    // Without face ids every profile is a face of its own, which is how a
+    // 3.1 file was always drawn.
+    "Shell.profiles_face_ids": () => new Uint16Array(0),
+    "Meshes.global_transform_ids": (meshes, ctx) =>
+      idsOf(meshes.root as FromModel, ctx).globalTransforms,
+    "Meshes.representation_ids": (meshes, ctx) =>
+      idsOf(meshes.root as FromModel, ctx).representations,
+    "Meshes.material_ids": (meshes, ctx) =>
+      idsOf(meshes.root as FromModel, ctx).materials,
+    "Meshes.sample_ids": (meshes, ctx) =>
+      idsOf(meshes.root as FromModel, ctx).samples,
+    "Meshes.local_transform_ids": (meshes, ctx) =>
+      idsOf(meshes.root as FromModel, ctx).localTransforms,
+  },
+
+  report: (ctx) => ({
+    droppedAlignments: ctx.alignments,
+    droppedGeometrySamples: ctx.geometrySamples,
+    assignedIds: ctx.ids?.count ?? 0,
+  }),
+});

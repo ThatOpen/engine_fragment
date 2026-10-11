@@ -50,6 +50,9 @@
     "fb": "yarn delete-schema && yarn create-schema",
     "create-schema": "node ./flatbuffers/flatc.mjs --gen-mutable -o ../src/Schema --ts index.fbs",
     "delete-schema": "node ./flatbuffers/delete-schema.mjs",
+    "migration:new": "tsx ./flatbuffers/migration.ts new",
+    "migration:check": "tsx ./flatbuffers/migration.ts check",
+    "migration:sync": "tsx ./flatbuffers/migration.ts sync",
     "test-node": "yarn tsx ./src/Importers/IfcImporter/node-example.ts",
     "test-indexes": "yarn tsx ./src/FragmentsModels/test-indexes.ts"
   },

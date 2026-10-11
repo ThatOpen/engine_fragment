@@ -1,0 +1,132 @@
+{
+  "from": "20250710102015",
+  "to": "20251023113211",
+  "conforms": false,
+  "rewrite": true,
+  "obligations": [
+    "Model.alignments",
+    "Model.geometries",
+    "Shell.profiles_face_ids"
+  ],
+  "changes": [
+    {
+      "kind": "type-removed",
+      "path": "GeometryClass",
+      "detail": "enum",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "type-removed",
+      "path": "GeometryRepresentation",
+      "detail": "struct",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "type-removed",
+      "path": "GeometrySample",
+      "detail": "struct",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "type-removed",
+      "path": "GeometryWall",
+      "detail": "struct",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "type-removed",
+      "path": "Alignment",
+      "detail": "table",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "type-removed",
+      "path": "Geometries",
+      "detail": "table",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "type-removed",
+      "path": "GeometryLines",
+      "detail": "table",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "field-added",
+      "path": "Meshes.material_ids",
+      "detail": "[uint]",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "field-added",
+      "path": "Meshes.representation_ids",
+      "detail": "[uint]",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "field-added",
+      "path": "Meshes.sample_ids",
+      "detail": "[uint]",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "field-added",
+      "path": "Meshes.local_transform_ids",
+      "detail": "[uint]",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "field-added",
+      "path": "Meshes.global_transform_ids",
+      "detail": "[uint]",
+      "breaking": false,
+      "obligation": false
+    },
+    {
+      "kind": "field-removed",
+      "path": "Model.alignments",
+      "detail": "[Alignment]",
+      "breaking": true,
+      "obligation": true
+    },
+    {
+      "kind": "field-removed",
+      "path": "Model.geometries",
+      "detail": "Geometries",
+      "breaking": true,
+      "obligation": true
+    },
+    {
+      "kind": "field-moved",
+      "path": "Model.unique_attributes",
+      "detail": "slot 14 -> 12",
+      "breaking": true,
+      "obligation": false
+    },
+    {
+      "kind": "field-moved",
+      "path": "Model.relation_names",
+      "detail": "slot 15 -> 13",
+      "breaking": true,
+      "obligation": false
+    },
+    {
+      "kind": "field-added",
+      "path": "Shell.profiles_face_ids",
+      "detail": "[ushort]",
+      "breaking": false,
+      "obligation": true
+    }
+  ]
+}

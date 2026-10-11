@@ -1,0 +1,324 @@
+{
+  "identifier": "0001",
+  "root": "Model",
+  "enums": {
+    "AxisPartClass": {
+      "type": "byte",
+      "values": { "NONE": 0, "WIRE": 1, "WIRE_SET": 2, "CIRCLE_CURVE": 3 }
+    },
+    "GeometryClass": {
+      "type": "byte",
+      "values": {
+        "NONE": 0,
+        "LINES": 1,
+        "ELLIPSE_ARC": 2,
+        "CLOTHOID": 3,
+        "PARABOLA": 4,
+        "WALLS": 5
+      }
+    },
+    "RenderedFaces": {
+      "type": "byte",
+      "values": { "ONE": 0, "TWO": 1 }
+    },
+    "RepresentationClass": {
+      "type": "byte",
+      "values": { "NONE": 0, "SHELL": 1, "CIRCLE_EXTRUSION": 2 }
+    },
+    "ShellType": {
+      "type": "byte",
+      "values": { "NONE": 0, "BIG": 1 }
+    },
+    "Stroke": {
+      "type": "byte",
+      "values": { "DEFAULT": 0 }
+    }
+  },
+  "structs": {
+    "BoundingBox": {
+      "size": 24,
+      "align": 4,
+      "fields": {
+        "min": { "offset": 0, "type": "FloatVector" },
+        "max": { "offset": 12, "type": "FloatVector" }
+      }
+    },
+    "CircleCurve": {
+      "size": 44,
+      "align": 4,
+      "fields": {
+        "aperture": { "offset": 0, "type": "float" },
+        "position": { "offset": 4, "type": "FloatVector" },
+        "radius": { "offset": 16, "type": "float" },
+        "x_direction": { "offset": 20, "type": "FloatVector" },
+        "y_direction": { "offset": 32, "type": "FloatVector" }
+      }
+    },
+    "DoubleVector": {
+      "size": 24,
+      "align": 8,
+      "fields": {
+        "x": { "offset": 0, "type": "double" },
+        "y": { "offset": 8, "type": "double" },
+        "z": { "offset": 16, "type": "double" }
+      }
+    },
+    "FloatVector": {
+      "size": 12,
+      "align": 4,
+      "fields": {
+        "x": { "offset": 0, "type": "float" },
+        "y": { "offset": 4, "type": "float" },
+        "z": { "offset": 8, "type": "float" }
+      }
+    },
+    "GeometryRepresentation": {
+      "size": 8,
+      "align": 4,
+      "fields": {
+        "id": { "offset": 0, "type": "uint" },
+        "geometry_class": { "offset": 4, "type": "GeometryClass" }
+      }
+    },
+    "GeometrySample": {
+      "size": 8,
+      "align": 4,
+      "fields": {
+        "id": { "offset": 0, "type": "uint" },
+        "transform": { "offset": 4, "type": "uint" }
+      }
+    },
+    "GeometryWall": {
+      "size": 36,
+      "align": 4,
+      "fields": {
+        "start": { "offset": 0, "type": "FloatVector" },
+        "end": { "offset": 12, "type": "FloatVector" },
+        "height": { "offset": 24, "type": "float" },
+        "width": { "offset": 28, "type": "float" },
+        "offset": { "offset": 32, "type": "float" }
+      }
+    },
+    "Material": {
+      "size": 6,
+      "align": 1,
+      "fields": {
+        "r": { "offset": 0, "type": "ubyte" },
+        "g": { "offset": 1, "type": "ubyte" },
+        "b": { "offset": 2, "type": "ubyte" },
+        "a": { "offset": 3, "type": "ubyte" },
+        "rendered_faces": { "offset": 4, "type": "RenderedFaces" },
+        "stroke": { "offset": 5, "type": "Stroke" }
+      }
+    },
+    "Representation": {
+      "size": 32,
+      "align": 4,
+      "fields": {
+        "id": { "offset": 0, "type": "uint" },
+        "bbox": { "offset": 4, "type": "BoundingBox" },
+        "representation_class": { "offset": 28, "type": "RepresentationClass" }
+      }
+    },
+    "Sample": {
+      "size": 16,
+      "align": 4,
+      "fields": {
+        "item": { "offset": 0, "type": "uint" },
+        "material": { "offset": 4, "type": "uint" },
+        "representation": { "offset": 8, "type": "uint" },
+        "local_transform": { "offset": 12, "type": "uint" }
+      }
+    },
+    "Transform": {
+      "size": 48,
+      "align": 8,
+      "fields": {
+        "position": { "offset": 0, "type": "DoubleVector" },
+        "x_direction": { "offset": 24, "type": "FloatVector" },
+        "y_direction": { "offset": 36, "type": "FloatVector" }
+      }
+    },
+    "Wire": {
+      "size": 24,
+      "align": 4,
+      "fields": {
+        "p1": { "offset": 0, "type": "FloatVector" },
+        "p2": { "offset": 12, "type": "FloatVector" }
+      }
+    }
+  },
+  "tables": {
+    "Alignment": {
+      "slots": 3,
+      "fields": {
+        "absolute": { "slot": 0, "type": "[uint]" },
+        "horizontal": { "slot": 1, "type": "[uint]" },
+        "vertical": { "slot": 2, "type": "[uint]" }
+      }
+    },
+    "Attribute": {
+      "slots": 1,
+      "fields": {
+        "data": { "slot": 0, "type": "[string]", "required": true }
+      }
+    },
+    "Axis": {
+      "slots": 5,
+      "fields": {
+        "wires": { "slot": 0, "type": "[Wire]", "required": true },
+        "order": { "slot": 1, "type": "[uint]", "required": true },
+        "parts": { "slot": 2, "type": "[AxisPartClass]", "required": true },
+        "wire_sets": { "slot": 3, "type": "[WireSet]", "required": true },
+        "circle_curves": {
+          "slot": 4,
+          "type": "[CircleCurve]",
+          "required": true
+        }
+      }
+    },
+    "BigShellHole": {
+      "slots": 2,
+      "fields": {
+        "indices": { "slot": 0, "type": "[uint]", "required": true },
+        "profile_id": { "slot": 1, "type": "ushort" }
+      }
+    },
+    "BigShellProfile": {
+      "slots": 1,
+      "fields": {
+        "indices": { "slot": 0, "type": "[uint]", "required": true }
+      }
+    },
+    "CircleExtrusion": {
+      "slots": 2,
+      "fields": {
+        "radius": { "slot": 0, "type": "[double]", "required": true },
+        "axes": { "slot": 1, "type": "[Axis]", "required": true }
+      }
+    },
+    "Geometries": {
+      "slots": 9,
+      "fields": {
+        "samples": { "slot": 0, "type": "[GeometrySample]", "required": true },
+        "sample_ids": { "slot": 1, "type": "[uint]" },
+        "representations": {
+          "slot": 2,
+          "type": "[GeometryRepresentation]",
+          "required": true
+        },
+        "representation_ids": { "slot": 3, "type": "[uint]" },
+        "transforms": { "slot": 4, "type": "[Transform]", "required": true },
+        "transform_ids": { "slot": 5, "type": "[uint]" },
+        "representations_samples": { "slot": 6, "type": "[uint]" },
+        "lines": { "slot": 7, "type": "[GeometryLines]", "required": true },
+        "walls": { "slot": 8, "type": "[GeometryWall]" }
+      }
+    },
+    "GeometryLines": {
+      "slots": 1,
+      "fields": {
+        "points": { "slot": 0, "type": "[float]", "required": true }
+      }
+    },
+    "Meshes": {
+      "slots": 9,
+      "fields": {
+        "coordinates": { "slot": 0, "type": "Transform", "required": true },
+        "meshes_items": { "slot": 1, "type": "[uint]", "required": true },
+        "samples": { "slot": 2, "type": "[Sample]", "required": true },
+        "representations": {
+          "slot": 3,
+          "type": "[Representation]",
+          "required": true
+        },
+        "materials": { "slot": 4, "type": "[Material]", "required": true },
+        "circle_extrusions": {
+          "slot": 5,
+          "type": "[CircleExtrusion]",
+          "required": true
+        },
+        "shells": { "slot": 6, "type": "[Shell]", "required": true },
+        "local_transforms": {
+          "slot": 7,
+          "type": "[Transform]",
+          "required": true
+        },
+        "global_transforms": {
+          "slot": 8,
+          "type": "[Transform]",
+          "required": true
+        }
+      }
+    },
+    "Model": {
+      "slots": 16,
+      "fields": {
+        "metadata": { "slot": 0, "type": "string" },
+        "guids": { "slot": 1, "type": "[string]", "required": true },
+        "guids_items": { "slot": 2, "type": "[uint]", "required": true },
+        "max_local_id": { "slot": 3, "type": "uint" },
+        "local_ids": { "slot": 4, "type": "[uint]", "required": true },
+        "categories": { "slot": 5, "type": "[string]", "required": true },
+        "meshes": { "slot": 6, "type": "Meshes", "required": true },
+        "attributes": { "slot": 7, "type": "[Attribute]" },
+        "relations": { "slot": 8, "type": "[Relation]" },
+        "relations_items": { "slot": 9, "type": "[int]" },
+        "guid": { "slot": 10, "type": "string", "required": true },
+        "spatial_structure": { "slot": 11, "type": "SpatialStructure" },
+        "alignments": { "slot": 12, "type": "[Alignment]" },
+        "geometries": { "slot": 13, "type": "Geometries" },
+        "unique_attributes": { "slot": 14, "type": "[string]" },
+        "relation_names": { "slot": 15, "type": "[string]" }
+      }
+    },
+    "Relation": {
+      "slots": 1,
+      "fields": {
+        "data": { "slot": 0, "type": "[string]", "required": true }
+      }
+    },
+    "Shell": {
+      "slots": 6,
+      "fields": {
+        "profiles": { "slot": 0, "type": "[ShellProfile]", "required": true },
+        "holes": { "slot": 1, "type": "[ShellHole]", "required": true },
+        "points": { "slot": 2, "type": "[FloatVector]", "required": true },
+        "big_profiles": {
+          "slot": 3,
+          "type": "[BigShellProfile]",
+          "required": true
+        },
+        "big_holes": { "slot": 4, "type": "[BigShellHole]", "required": true },
+        "type": { "slot": 5, "type": "ShellType" }
+      }
+    },
+    "ShellHole": {
+      "slots": 2,
+      "fields": {
+        "indices": { "slot": 0, "type": "[ushort]", "required": true },
+        "profile_id": { "slot": 1, "type": "ushort" }
+      }
+    },
+    "ShellProfile": {
+      "slots": 1,
+      "fields": {
+        "indices": { "slot": 0, "type": "[ushort]", "required": true }
+      }
+    },
+    "SpatialStructure": {
+      "slots": 3,
+      "fields": {
+        "local_id": { "slot": 0, "type": "uint", "optional": true },
+        "category": { "slot": 1, "type": "string" },
+        "children": { "slot": 2, "type": "[SpatialStructure]" }
+      }
+    },
+    "WireSet": {
+      "slots": 1,
+      "fields": {
+        "ps": { "slot": 0, "type": "[FloatVector]" }
+      }
+    }
+  }
+}

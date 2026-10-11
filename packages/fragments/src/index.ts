@@ -7,4 +7,5 @@ export * from "./Utils/ifc-splitter";
 export * from "./Schema";
 export * from "./FragmentsModels";
 export * from "./Importers";
+export * from "./Migrations";
 export * from "./GeometryEngine";
