@@ -299,7 +299,9 @@ export class ShellConstructor {
       const indices = this.getIndices(shell, id);
       this.computeNormalsAvg(shell, indices, id);
       this.constructProfile(id, shell, indices, data);
-      this.manageMemory(shell, meshData);
+      // The sizing pass only opens another buffer while profiles remain, so
+      // the last profile must not ask for one (#307).
+      if (id < count - 1) this.manageMemory(shell, meshData);
     }
   }
 
