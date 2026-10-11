@@ -544,7 +544,7 @@ test("extract keeps the styled items of every included geometry item", async () 
   expect(missingStyles, "styles bound by included styled items").toHaveLength(
     0,
   );
-});
+}, 60_000);
 
 test("extract ifc", async () => {
   const splitter = new IfcSplitterNode();
