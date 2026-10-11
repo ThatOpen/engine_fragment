@@ -330,9 +330,12 @@ export class FragmentsModels {
       buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     const raw = explicitRaw ?? isRawBuffer(bytes);
 
-    // Aborted by the caller's signal and by abort().
+    // Aborted by the caller's signal and by disposing the model mid-load.
     const loading = new AbortController();
     const abortLoading = () => loading.abort();
+    model._disposedSignal.addEventListener("abort", abortLoading, {
+      once: true,
+    });
     const onAbort = () => {
       // Only once, whether it comes from the signal or from abort().
       if (loading.signal.aborted) return;
@@ -378,12 +381,15 @@ export class FragmentsModels {
         }
       }
     } catch (e) {
+      // Read first: disposing the model below aborts the load too.
       const aborted = loading.signal.aborted;
       // Fully dispose partial state — this tears down the worker thread
       // (if this was the last model on it), clears transferred materials,
       // removes the model object from its parent, and deletes it from the
       // models list. `model.dispose()` is safe on partially-loaded models
       // because the worker-side `DELETE_MODEL` handler is now idempotent.
+      // If disposing the model is what aborted the load, this waits for that
+      // disposal instead of starting another.
       try {
         await model.dispose();
       } catch {
@@ -394,6 +400,7 @@ export class FragmentsModels {
       // LoadAbortedError instance, so rebuild the error here.
       throw aborted ? new LoadAbortedError(modelId) : e;
     } finally {
+      model._disposedSignal.removeEventListener("abort", abortLoading);
       signal?.removeEventListener("abort", onAbort);
       this._loadAborts.delete(modelId);
       this._progressCallbacks.delete(modelId);

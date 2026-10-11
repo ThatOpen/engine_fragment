@@ -212,6 +212,10 @@ export class FragmentsModel implements IFragmentsModel<true> {
   private _frozen = false;
   private _isSetup = false;
 
+  // Aborted as soon as dispose() is called; an in-flight load listens to it.
+  private readonly _lifetime = new AbortController();
+  private _disposal: Promise<void> | null = null;
+
   private static _deltaModelId = "isDeltaModel";
   private _parentModelId: string | null = null;
 
@@ -220,6 +224,14 @@ export class FragmentsModel implements IFragmentsModel<true> {
    */
   get modelId() {
     return this.object.name;
+  }
+
+  /**
+   * Internal signal, aborted as soon as {@link dispose} is called. Don't use
+   * this directly.
+   */
+  get _disposedSignal(): AbortSignal {
+    return this._lifetime.signal;
   }
 
   /**
@@ -337,6 +349,9 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Dispose the model. Use this when you're done with the model.
    * If you use the {@link FragmentsModels.dispose} method, this will be called automatically for all models.
    *
+   * Disposing a model that is still loading aborts its load. Calling it
+   * again returns the same promise.
+   *
    * @param options.keepInScene - If true, frees the model's worker slot,
    *   registry entries and shared MaterialManager slot but leaves the THREE
    *   object, tiles, materials in `list`, alignments and grids in place.
@@ -344,17 +359,21 @@ export class FragmentsModel implements IFragmentsModel<true> {
    *   {@link finalizeDispose}. Used by `editor.save()` to swap in a freshly
    *   loaded model without a blank frame.
    */
-  async dispose(options?: { keepInScene?: boolean }) {
-    this._isLoaded = false;
-    this.visibleItems.clear();
-    this.onViewUpdated.reset();
-    await this._dataManager.dispose(
-      this,
-      this._meshManager,
-      this._alignmentsManager,
-      this._gridsManager,
-      options,
-    );
+  dispose(options?: { keepInScene?: boolean }): Promise<void> {
+    if (!this._disposal) {
+      this._lifetime.abort();
+      this._isLoaded = false;
+      this.visibleItems.clear();
+      this.onViewUpdated.reset();
+      this._disposal = this._dataManager.dispose(
+        this,
+        this._meshManager,
+        this._alignmentsManager,
+        this._gridsManager,
+        options,
+      );
+    }
+    return this._disposal;
   }
 
   /**

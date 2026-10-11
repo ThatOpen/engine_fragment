@@ -6,8 +6,8 @@ import {
   MultiThreadingRequestClass,
 } from "./src/model";
 
-// Main-thread contract of `load({ signal })` and `abort()` (issue #173), and
-// of loading a model ID that is already taken.
+// Main-thread contract of `load({ signal })` and `abort()` (issue #173), of
+// disposing a model mid-load, and of loading a model ID that is already taken.
 // The worker is replaced by a stubbed `_setup`: it settles when the test says
 // so, and rejects the way a real worker-side abort reaches the main thread —
 // as the serialized error string, not as a LoadAbortedError instance.
@@ -277,4 +277,55 @@ test("loading an ID that is still loading rejects and leaves the in-flight load 
   controller.abort();
   await expect(first).rejects.toBeInstanceOf(LoadAbortedError);
   expect(abortRequests()).toHaveLength(1);
+});
+
+test("disposing a model mid-load rejects its load, even if the worker then finishes", async () => {
+  fragments.settings.autoCoordinate = false;
+  const loaded = vi.fn();
+  fragments.onModelLoaded.add(loaded);
+  const load = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+
+  fragments.disposeModel("m");
+  expect(fragments.models.list.size).toBe(0);
+  setup.resolve();
+
+  await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
+  expect(loaded).not.toHaveBeenCalled();
+  expect(fragments.models.list.size).toBe(0);
+});
+
+test("the signal of a disposed load doesn't reach a later load of the same ID", async () => {
+  const controller = new AbortController();
+  const first = fragments.load(buffer(), {
+    modelId: "m",
+    signal: controller.signal,
+  });
+  await flush();
+  fragments.disposeModel("m");
+  await expect(first).rejects.toBeInstanceOf(LoadAbortedError);
+
+  setup = deferred();
+  coordinates = deferred();
+  const second = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+  controller.abort();
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+
+  await expect(second).resolves.toBeInstanceOf(FragmentsModel);
+  expect(abortRequests()).toEqual([]);
+});
+
+test("disposing twice deletes the model once and returns the same promise", async () => {
+  const deleteModel = vi.spyOn((fragments as any)._connection, "delete");
+  const load = fragments.load(buffer(), { modelId: "m" });
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const model = await load;
+
+  const disposal = model.dispose();
+  expect(model.dispose()).toBe(disposal);
+  await disposal;
+  expect(deleteModel).toHaveBeenCalledTimes(1);
 });
