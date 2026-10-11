@@ -11,7 +11,7 @@ import {
 import { AnyTileData, TileData } from "../types";
 import { DataSizes, PolygonSize, ShellHoleData } from "./types";
 import { ShellUtils } from "./shell-utils";
-import { limitOf2Bytes } from "../../../model/model-types";
+import { limitOf2Bytes, ObjectClass } from "../../../model/model-types";
 import { ShellFaceX } from "./shell-face-x";
 import { ShellFace4 } from "./shell-face-4";
 import { ShellFace3 } from "./shell-face-3";
@@ -39,13 +39,86 @@ export class ShellConstructor {
   private _tileData!: TileData;
   private _faceIdPerProfile = new Map<number, number>();
 
+  // Indices (into the bufferGeometries array passed to construct()) of
+  // buffers this pass had to create on its own, because
+  // ShellTemplateConstructor's own sizing pass didn't predict them - see
+  // setTileData/createOverflowTileData. These need a real, exact
+  // indexCount/positionCount/normalCount patched in once their
+  // construction finishes (finalizeCurrentIfDynamic), unlike a normal
+  // Pass-1-provided buffer, whose predicted counts are already exact and
+  // must NOT be touched.
+  private _dynamicTileIndices = new Set<number>();
+  // The array index _tileData currently represents. NOT the same as
+  // this._indices once nextBuffer's own trailing this._indices++ has run -
+  // this._indices then already points at the NEXT buffer (or, on the
+  // following nextBuffer() call, is read again before that call's own
+  // setTileData reassigns things) - using this._indices directly in
+  // finalizeCurrentIfDynamic would finalize (or fail to finalize) the
+  // wrong buffer by one. Set only inside setTileData, exactly when
+  // _tileData itself is (re)assigned, so the two never drift apart.
+  private _currentTileIndex = 0;
+
   construct(shell: Shell, meshData: TileData | TileData[]) {
+    this._dynamicTileIndices.clear();
     this.resetConstructData(meshData);
     this.getPointsPerWire(shell);
     const data = ShellUtils.getBuffer(shell);
     this.newShellInteriorProfiles(shell);
     this.constructShell(shell, data, meshData);
+    this.finalizeCurrentIfDynamic();
     this._tileData = undefined as any;
+  }
+
+  // A buffer this pass created on its own (see createOverflowTileData) is
+  // allocated at a safe UPPER BOUND (limitOf2Bytes), since its real final
+  // size isn't known until its construction is complete - unlike a
+  // Pass-1-provided buffer, whose exact size was already computed ahead of
+  // time. Trim it down to the real counts this pass actually accumulated
+  // (this._sizes, still holding THIS buffer's totals at the moment this is
+  // called - right before switching to the next buffer, or right before
+  // construct() returns) so downstream consumers that treat
+  // indexCount/positionCount/normalCount as authoritative exact counts
+  // (e.g. VirtualTilesController.setupTileSampleAttributes, which copies
+  // exactly geometry.indexCount index entries into the merged render tile)
+  // see the truth, not the allocation's own upper bound.
+  private finalizeCurrentIfDynamic() {
+    if (!this._tileData) return;
+    if (!this._dynamicTileIndices.has(this._currentTileIndex)) return;
+    const { indices, verticesAmount, normalsAmount } = this._sizes;
+    const tile = this._tileData;
+    if (tile.indexBuffer)
+      tile.indexBuffer = tile.indexBuffer.subarray(0, indices);
+    if (tile.positionBuffer)
+      tile.positionBuffer = tile.positionBuffer.subarray(0, verticesAmount);
+    if (tile.normalBuffer)
+      tile.normalBuffer = tile.normalBuffer.subarray(0, normalsAmount);
+    if (tile.faceIdBuffer)
+      tile.faceIdBuffer = tile.faceIdBuffer.subarray(0, verticesAmount / 3);
+    tile.indexCount = indices;
+    tile.positionCount = verticesAmount;
+    tile.normalCount = normalsAmount;
+  }
+
+  // ShellTemplateConstructor's own sizing pass predicts each buffer's
+  // exact final size ahead of time by walking the same shell data with a
+  // (deliberately simpler, point-count-based) formula - normally that
+  // prediction is exact. If this pass's own real, per-vertex accounting
+  // ever needs MORE buffers than were predicted (both formulas are meant
+  // to agree, but nothing enforces that at the type level), the safe
+  // fallback is to allocate one here rather than read past the end of the
+  // predicted array (which silently returns undefined, crashing the very
+  // next buffer-initialization call). Sized at limitOf2Bytes - the same
+  // per-buffer cap the whole scheme targets, and specifically the format's
+  // own hard ceiling for indexBuffer (a Uint16Array, capped at 65536
+  // addressable vertex slots) - then trimmed to the real size in
+  // finalizeCurrentIfDynamic once construction of this buffer completes.
+  private createOverflowTileData(): TileData {
+    return {
+      objectClass: ObjectClass.SHELL,
+      indexCount: limitOf2Bytes,
+      positionCount: limitOf2Bytes * 3,
+      normalCount: limitOf2Bytes * 3,
+    } as TileData;
   }
 
   private getIntProfileNormalsAvg(shell: Shell, id: number) {
@@ -235,6 +308,10 @@ export class ShellConstructor {
   }
 
   private nextBuffer = (bufferGeometries: TileData | TileData[]) => {
+    // Finalize the OUTGOING buffer (if it was one this pass created on its
+    // own) before switching this._tileData/this._indices away from it -
+    // this._sizes still holds its real final totals at this exact point.
+    this.finalizeCurrentIfDynamic();
     this.setTileData(bufferGeometries);
     this.initializeIndices();
     this.initializePositions();
@@ -281,7 +358,16 @@ export class ShellConstructor {
 
   private setTileData(bufferGeometries: AnyTileData) {
     if (Array.isArray(bufferGeometries)) {
+      if (this._indices >= bufferGeometries.length) {
+        // ShellTemplateConstructor's sizing pass didn't predict this many
+        // buffers for this shell - see createOverflowTileData's own
+        // comment for why. Grow the (caller-owned, persisted) array here
+        // instead of reading past its end.
+        bufferGeometries.push(this.createOverflowTileData());
+        this._dynamicTileIndices.add(this._indices);
+      }
       this._tileData = bufferGeometries[this._indices];
+      this._currentTileIndex = this._indices;
       return;
     }
     this._tileData = bufferGeometries;
