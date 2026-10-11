@@ -20,6 +20,20 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      # A change to the schema of .frag files needs a migration for the files
+      # written before it. On a pull request it also has to be newer than every
+      # migration on the base branch.
+      - name: Check migrations
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE" ]; then
+            git fetch --depth=1 origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"
+            yarn workspace @thatopen/fragments migration:check --base "origin/$BASE"
+          else
+            yarn workspace @thatopen/fragments migration:check
+          fi
+
       - name: Build library
         run: yarn build-core
 

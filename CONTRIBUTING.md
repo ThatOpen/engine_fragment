@@ -27,6 +27,9 @@ packages/fragments/src/
 │       ├── index.ts          # IfcImporter: classes to include, relations to index, settings
 │       └── src/              # geometry readers (civil, grids, shells), property processor
 ├── Schema/                   # FlatBuffers-generated TS (don't edit by hand; see `yarn fb`)
+├── Migrations/               # Changes to .frag files, and what applies them to older files
+│   ├── list/                 # One directory per change: migration, layout snapshot, diff
+│   └── src/                  # migrate(), and the copier that rewrites a file between layouts
 ├── Utils/                    # Shared helpers: edit-types, ifc-relations-map, shells, splitter
 │   └── ifc-splitter/         # Stream-split a large IFC into smaller files
 └── GeometryEngine/           # Primitive geometry (H-profiles, extrusions)
@@ -53,7 +56,7 @@ Before adding any `Map<number, number>` or `Uint32Array` inverse index inside th
 
 ### Key mental model
 
-- `.frag` files are FlatBuffers. The schema lives at `packages/fragments/flatbuffers/index.fbs` and is generated into `src/Schema/`. Run `yarn fb` after changing it.
+- `.frag` files are FlatBuffers. The schema lives at `packages/fragments/flatbuffers/index.fbs` and is generated into `src/Schema/`. Run `yarn fb` after changing it, then `yarn migration:new` (see [Changing what a .frag holds](#changing-what-a-frag-holds)).
 - **Main thread** (`src/FragmentsModels/src/model/`) exposes the public API (`model.raycast()`, `model.highlight()`, etc.) and forwards most calls to the worker.
 - **Worker** (`src/FragmentsModels/src/virtual-model/` + `multithreading/`) holds the flatbuffer, builds tiles, runs raycasts, serves queries. Messages flow as `model.threads.invoke(modelId, "methodName", args)`.
 - **Edits produce a delta model.** `editor.edit()` generates a separate `.frag` delta buffer that's loaded as its own `FragmentsModel` alongside the base. Reads must consider both (raycast, highlight, etc.). `editor.save()` flattens delta into a new committed buffer and reloads.
@@ -76,7 +79,7 @@ Examples import fragments from `../../../index` (source), so edits to `packages/
 
 Two exceptions that need explicit builds:
 
-- **FlatBuffers schema changes** (`flatbuffers/index.fbs`) — run `yarn fb` to regenerate `src/Schema/`.
+- **FlatBuffers schema changes** (`flatbuffers/index.fbs`) — run `yarn fb` to regenerate `src/Schema/`. It runs flatc 25.2.10 on any platform: the binary is downloaded once into `.tmp/` and checked against a pinned hash (set `FLATC` to use your own).
 - **Worker changes** — the worker is bundled separately. If you change anything under `FragmentsModels/src/virtual-model/` or `multithreading/`, and your example points at the pre-built worker URL, you need:
   ```bash
   yarn workspace @thatopen/fragments build
@@ -105,7 +108,39 @@ Two exceptions that need explicit builds:
 - **`representationFromGeometry()` expects a `Uint32Array` index.** `THREE.BoxGeometry` and friends use `Uint16Array` by default; cast explicitly or normals/indices will be misread.
 - **Edit request `tempId`s only live within a single `editor.edit()` batch.** Split across two calls and the second can't reference entities created in the first.
 - **`CREATE_SAMPLE.data.item` is the global transform's tempId, not the item's.** Common footgun.
-- **Existing `.frag` files don't auto-migrate.** If you change what gets serialized (keys, categories, relation names), document that re-import is required.
+- **Existing `.frag` files only follow a change if a migration carries them.** If you change what gets serialized (the schema, but also keys, categories, relation names), add one: see [Changing what a .frag holds](#changing-what-a-frag-holds).
+
+## Changing what a .frag holds
+
+Apps store `.frag` files and keep loading them after they update this package, so a change to what a file holds needs a migration for the files written before it. Migrations live in `packages/fragments/src/Migrations/list/`, one directory per change, named `<UTC timestamp>_<slug>`. A file records the timestamp of the newest one its writer knew as `metadata.revision`, and `load()` (or `migrate()` in Node) runs the ones it is behind on.
+
+```bash
+yarn workspace @thatopen/fragments migration:new <slug>
+```
+
+What you get depends on whether `index.fbs` changed since the newest directory:
+
+| The schema | The directory holds | You write |
+|---|---|---|
+| did not change | `migration.ts`, `migration.test.ts` | the migration and its test |
+| only grew (fields added at the end of a table) | `schema.fbs`, `schema.json`, `diff.json` | nothing: old files just lack the new fields |
+| broke (a field removed, moved, retyped; any change to a struct) | the above plus `types.ts`, `migration.ts`, `migration.test.ts` | one handler per field `types.ts` lists as required, and the test |
+
+`schema.json` is the binary layout of the schema at that point. It is what lets this package read a file of a layout it no longer has generated code for, so nothing in `src/Schema/` is kept for old files. `diff.json` and `types.ts` are derived from two consecutive layouts; never edit them, run `yarn workspace @thatopen/fragments migration:sync`.
+
+A migration has up to two steps, which share a `ctx` created per file:
+
+- **`layout`**: handlers by `Type.field`, called while the file is copied to the new layout. The copier carries every field it can by name, so a field that only moved needs nothing. A field that was removed needs a handler returning `drop`, a new required field or one that changed type needs a handler returning its value. A handler receives the node of the old file that owns the field. You can also give one for a field that did not change, to change its content: that is one pass over the bytes and the cheap way to do it.
+- **`edit`**: returns edit requests, for changes that need the editor's bookkeeping (items, relations, samples). It runs on a model already in the current layout, after every `layout` step. It builds a model and runs a full edit, which on a 190 MB model took about twice what loading it does: reach for it only when a handler cannot do the job.
+
+`report(ctx)` is what the app is told about the file, through `onModelMigrated`.
+
+Rules that are easy to miss:
+
+- **Layout steps all run before edit steps.** A `layout` handler cannot count on the `edit` of an older migration having run.
+- **Test with a file of the previous revision.** For a layout from a released version, convert an IFC from `resources/ifc/` with that version off npm and commit it under `fixtures/`. `Copier.write(schema, object)` writes a file of any layout from plain objects when no real one has the data you need.
+- **Ids only go up.** CI fails a migration older than one already on the base branch, because every file written in between would skip it. Rename the directory with a current timestamp after rebasing.
+- **`yarn workspace @thatopen/fragments migration:check`** is what CI runs. It fails when `index.fbs` changed without a migration, when a generated file is stale, and when a scaffold still has its `TODO`.
 
 ## When in doubt
 
