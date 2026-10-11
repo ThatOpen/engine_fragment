@@ -185,6 +185,14 @@ export class EditHelper {
     return model._getRequests();
   }
 
+  async getRequestsSince(modelId: string, from: number, generation: number) {
+    const model = this._fragments.models.list.get(modelId);
+    if (!model) {
+      throw new Error(`Model ${modelId} not found`);
+    }
+    return model._getRequestsSince(from, generation);
+  }
+
   async selectRequest(modelId: string, index: number) {
     const model = this._fragments.models.list.get(modelId);
     if (!model) {

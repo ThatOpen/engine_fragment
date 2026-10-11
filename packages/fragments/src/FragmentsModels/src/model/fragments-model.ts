@@ -1189,6 +1189,15 @@ export class FragmentsModel implements IFragmentsModel<true> {
   }
 
   /**
+   * Internal method to get the requests added since an earlier call. Don't use this directly.
+   * @param from - The `count` the earlier call returned.
+   * @param generation - The `generation` the earlier call returned.
+   */
+  _getRequestsSince(from: number, generation: number) {
+    return this._editManager.getRequestsSince(this, from, generation);
+  }
+
+  /**
    * Internal method to set the requests of the model. Don't use this directly.
    * @param data - The data to set the requests of the model.
    */

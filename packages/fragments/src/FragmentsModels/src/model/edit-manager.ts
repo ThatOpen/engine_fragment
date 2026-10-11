@@ -1,6 +1,6 @@
 import { FragmentsModel } from "./fragments-model";
 import * as EDIT from "../../../Utils/edit";
-import { EditRequest } from "../../../Utils";
+import { EditRequest, EditRequestsSince } from "../../../Utils";
 import { Element } from "../edit";
 import { CurrentLod, MeshData } from "./model-types";
 
@@ -216,6 +216,17 @@ export class EditManager {
       requests: EditRequest[];
       undoneRequests: EditRequest[];
     }>;
+  }
+
+  async getRequestsSince(
+    model: FragmentsModel,
+    from: number,
+    generation: number,
+  ) {
+    return model._invoke("getRequestsSince", [
+      from,
+      generation,
+    ]) as Promise<EditRequestsSince>;
   }
 
   async setRequests(
