@@ -2,12 +2,19 @@ import * as THREE from "three";
 import * as WEBIFC from "web-ifc";
 
 export class FragmentsIfcUtils {
+  /**
+   * The absolute placement of `item`, in three.js coordinates.
+   * @param unitsFactor - Pass a precomputed {@link getUnitsFactor} to avoid
+   * recalculating it.
+   * @param modelId - The web-ifc model `item` belongs to.
+   */
   static getAbsolutePlacement(
     webIfc: WEBIFC.IfcAPI,
     item: any,
-    // We can pass predefined units factor to avoid recalculating it
-    unitsFactor = this.getUnitsFactor(webIfc)
+    unitsFactor?: number,
+    modelId = 0
   ) {
+    const factor = unitsFactor ?? this.getUnitsFactor(webIfc, modelId);
     const ifcResult = new THREE.Matrix4();
     ifcResult.identity();
 
@@ -16,12 +23,13 @@ export class FragmentsIfcUtils {
     // placement; the IFC → three.js basis change below still applies.
     const placementId = item.ObjectPlacement?.value;
     if (placementId !== null && placementId !== undefined) {
-      const placement = webIfc.GetLine(0, placementId);
+      const placement = webIfc.GetLine(modelId, placementId);
       this.getAbsolutePlacementRecursively(
         webIfc,
+        modelId,
         placement,
         ifcResult,
-        unitsFactor
+        factor
       );
     }
 
@@ -36,9 +44,13 @@ export class FragmentsIfcUtils {
     return ifcResult;
   }
 
-  static getUnitsFactor(ifcApi: WEBIFC.IfcAPI) {
+  /**
+   * The factor that converts the model's length unit to metres.
+   * @param modelId - The web-ifc model to read the units of.
+   */
+  static getUnitsFactor(ifcApi: WEBIFC.IfcAPI, modelId = 0) {
     const unitAssignmentIds = ifcApi.GetLineIDsWithType(
-      0,
+      modelId,
       WEBIFC.IFCUNITASSIGNMENT
     );
 
@@ -48,10 +60,10 @@ export class FragmentsIfcUtils {
 
     for (let i = 0; i < unitAssignmentIds.size(); i++) {
       const assignmentId = unitAssignmentIds.get(i);
-      const assignmentAttrs = ifcApi.GetLine(0, assignmentId);
+      const assignmentAttrs = ifcApi.GetLine(modelId, assignmentId);
 
       for (const unitHandle of assignmentAttrs.Units) {
-        const unit = ifcApi.GetLine(0, unitHandle.value);
+        const unit = ifcApi.GetLine(modelId, unitHandle.value);
 
         const value = unit.UnitType?.value;
         if (value !== "LENGTHUNIT") continue;
@@ -78,13 +90,14 @@ export class FragmentsIfcUtils {
 
   private static getAbsolutePlacementRecursively(
     webIfc: WEBIFC.IfcAPI,
+    modelId: number,
     placement: any,
     result: THREE.Matrix4,
     unitsFactor: number
   ) {
     // Current relative placement
     const relativePlacementId = placement.RelativePlacement.value;
-    const relativePlacement = webIfc.GetLine(0, relativePlacementId);
+    const relativePlacement = webIfc.GetLine(modelId, relativePlacementId);
 
     const locationId = relativePlacement.Location.value;
     const zAxisRef = relativePlacement.Axis;
@@ -94,7 +107,7 @@ export class FragmentsIfcUtils {
     const zAxis = new THREE.Vector3(0, 0, 1);
     const xAxis = new THREE.Vector3(1, 0, 0);
 
-    const locationData = webIfc.GetLine(0, locationId);
+    const locationData = webIfc.GetLine(modelId, locationId);
     if (locationData) {
       const [x, y, z] = locationData.Coordinates;
       pos.x = x.value * unitsFactor;
@@ -103,7 +116,7 @@ export class FragmentsIfcUtils {
     }
 
     if (zAxisRef) {
-      const zAxisData = webIfc.GetLine(0, zAxisRef.value);
+      const zAxisData = webIfc.GetLine(modelId, zAxisRef.value);
       const [z1, z2, z3] = (
         zAxisData.DirectionRatios as (number | { value: number })[]
       ).map((v) => (typeof v === "number" ? v : v.value));
@@ -113,7 +126,7 @@ export class FragmentsIfcUtils {
     }
 
     if (xAxisRef) {
-      const xAxisData = webIfc.GetLine(0, xAxisRef.value);
+      const xAxisData = webIfc.GetLine(modelId, xAxisRef.value);
       const [x1, x2, x3] = (
         xAxisData.DirectionRatios as (number | { value: number })[]
       ).map((v) => (typeof v === "number" ? v : v.value));
@@ -143,9 +156,10 @@ export class FragmentsIfcUtils {
     // Parent placement
     if (!placement.PlacementRelTo || !placement.PlacementRelTo.value) return;
     const parentPlacementId = placement.PlacementRelTo.value;
-    const parentPlacement = webIfc.GetLine(0, parentPlacementId);
+    const parentPlacement = webIfc.GetLine(modelId, parentPlacementId);
     this.getAbsolutePlacementRecursively(
       webIfc,
+      modelId,
       parentPlacement,
       result,
       unitsFactor

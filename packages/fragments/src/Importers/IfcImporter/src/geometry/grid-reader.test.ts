@@ -1,10 +1,13 @@
+import { ByteBuffer } from "flatbuffers";
 import { readFile } from "fs/promises";
 import * as path from "path";
-import { ByteBuffer } from "flatbuffers";
 import { afterEach, expect, test, vi } from "vitest";
+import * as WEBIFC from "web-ifc";
 import { IfcImporter } from "../..";
 import { GRID_CATEGORY, GridData } from "../../../../FragmentsModels";
+import * as FRAGS from "../../../../index";
 import * as TFB from "../../../../Schema";
+import { GridReader } from "./grid-reader";
 
 const assetDir = path.resolve(
   import.meta.dirname,
@@ -55,6 +58,56 @@ async function convertAndGetGrids(ifcName: string): Promise<GridData[]> {
   return grids;
 }
 
+/** A web-ifc API with each model open, in the order given. */
+async function openModels(...models: Uint8Array[]) {
+  const webIfc = new WEBIFC.IfcAPI();
+  webIfc.SetWasmPath(webIfcDir + path.sep, true);
+  await webIfc.Init();
+  const modelIds = models.map((bytes) => webIfc.OpenModel(bytes));
+  return { webIfc, modelIds };
+}
+
+/** A web-ifc API with each fixture from `resources/ifc` open, in the order given. */
+async function openFixtures(...ifcNames: string[]) {
+  const models = await Promise.all(
+    ifcNames.map(
+      async (ifcName) =>
+        new Uint8Array(
+          await readFile(path.resolve(assetDir, "resources", "ifc", ifcName)),
+        ),
+    ),
+  );
+  return openModels(...models);
+}
+
+/**
+ * An IFC4 model in millimetres holding one grid, #30, at the origin. `lines`
+ * declares its axes; #10 is a 2D point list running up the Y axis, and #15 a
+ * polyline at x = 1000 for an axis the grid needs besides the one under test.
+ */
+const gridModel = (lines: string) =>
+  new TextEncoder().encode(`ISO-10303-21;
+HEADER;
+FILE_DESCRIPTION((''),'2;1');
+FILE_SCHEMA(('IFC4'));
+ENDSEC;
+DATA;
+#1=IFCSIUNIT(*,.LENGTHUNIT.,.MILLI.,.METRE.);
+#2=IFCUNITASSIGNMENT((#1));
+#3=IFCCARTESIANPOINT((0.,0.,0.));
+#4=IFCAXIS2PLACEMENT3D(#3,$,$);
+#5=IFCGEOMETRICREPRESENTATIONCONTEXT($,'Model',3,1.E-05,#4,$);
+#6=IFCPROJECT('0p',$,'Project',$,$,$,$,(#5),#2);
+#7=IFCLOCALPLACEMENT($,#4);
+#10=IFCCARTESIANPOINTLIST2D(((0.,0.),(0.,4000.),(0.,10000.)),$);
+#13=IFCCARTESIANPOINT((1000.,0.));
+#14=IFCCARTESIANPOINT((1000.,10000.));
+#15=IFCPOLYLINE((#13,#14));
+${lines}
+ENDSEC;
+END-ISO-10303-21;
+`);
+
 const gridWarnings = (warn: ReturnType<typeof vi.spyOn>) =>
   warn.mock.calls.filter(
     ([first]) => typeof first === "string" && first.includes("IFCGRID"),
@@ -103,6 +156,21 @@ test(
 // read runs inside the per-grid catch added for issues #263/#264: reading it
 // unguarded would throw and silently drop the grid, which is the very failure
 // mode that catch exists to contain.
+test(
+  "each grid carries its IFC Name",
+  async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const grids = await convertAndGetGrids("grids-radial-axes.ifc");
+
+    expect(grids.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 226, name: "ValidGrid" },
+      { id: 248, name: "RadialGrid" },
+    ]);
+  },
+  CONVERSION_TIMEOUT,
+);
+
 test(
   "a grid without GlobalId still imports, with no guid",
   async () => {
@@ -201,3 +269,138 @@ test(
   },
   CONVERSION_TIMEOUT,
 );
+
+test("reads the grids of the model it is given, not only the first one", async () => {
+  const { webIfc, modelIds } = await openFixtures(
+    "grids-baseline.ifc",
+    "grids-radial-axes.ifc",
+  );
+  const [baseline, radial] = modelIds;
+  expect(radial).not.toBe(baseline);
+
+  const ids = (modelId: number) =>
+    new GridReader(webIfc, modelId).read().value.map(({ id }) => id);
+
+  expect(ids(radial)).toEqual([226, 248]);
+  expect(ids(baseline)).toEqual([226]);
+
+  webIfc.Dispose();
+});
+
+test("an indexed polycurve runs through its segments, in their order", async () => {
+  const { webIfc } = await openModels(
+    gridModel(`#11=IFCINDEXEDPOLYCURVE(#10,$,$);
+#12=IFCINDEXEDPOLYCURVE(#10,(IFCLINEINDEX((3,2)),IFCLINEINDEX((2,1))),$);
+#20=IFCGRIDAXIS('1',#11,.T.);
+#21=IFCGRIDAXIS('A',#12,.T.);
+#22=IFCGRIDAXIS('B',#15,.T.);
+#30=IFCGRID('0g',$,'Grid',$,$,#7,$,(#20),(#21,#22),$,.RECTANGULAR.);`),
+  );
+
+  const {
+    value: [grid],
+    errors,
+  } = new GridReader(webIfc, 0).read();
+
+  // Without segments, every point in turn.
+  expect(grid.uAxes).toEqual([
+    { tag: "1", curve: [0, 0, 0, 0, 4, 0, 0, 10, 0] },
+  ]);
+  // With them, the order they give: here the list reversed, its joint once.
+  expect(grid.vAxes).toEqual([
+    { tag: "A", curve: [0, 10, 0, 0, 4, 0, 0, 0, 0] },
+    { tag: "B", curve: [1, 0, 0, 1, 10, 0] },
+  ]);
+  expect(grid.unsupportedAxes).toBeUndefined();
+  expect(errors).toEqual([]);
+
+  webIfc.Dispose();
+});
+
+test("an arc segment is reported, not drawn as straight lines", async () => {
+  const { webIfc } = await openModels(
+    gridModel(`#11=IFCINDEXEDPOLYCURVE(#10,(IFCLINEINDEX((1,2)),IFCARCINDEX((2,3,1))),$);
+#20=IFCGRIDAXIS('1',#11,.T.);
+#21=IFCGRIDAXIS('A',#15,.T.);
+#30=IFCGRID('0g',$,'Grid',$,$,#7,$,(#20),(#21),$,.RECTANGULAR.);`),
+  );
+
+  const {
+    value: [grid],
+    errors,
+  } = new GridReader(webIfc, 0).read();
+
+  expect(grid.uAxes).toEqual([]);
+  expect(grid.vAxes.map(({ tag }) => tag)).toEqual(["A"]);
+  const arc = {
+    tag: "1",
+    curveType: "IFCINDEXEDPOLYCURVE with IFCARCINDEX segments",
+  };
+  expect(grid.unsupportedAxes).toEqual([arc]);
+  expect(errors).toEqual([
+    { kind: "unsupportedAxes", gridId: 30, axes: [arc] },
+  ]);
+
+  webIfc.Dispose();
+});
+
+test("returns what it skips in errors, and logs nothing itself", async () => {
+  const warn = vi.spyOn(console, "warn");
+  const error = vi.spyOn(console, "error");
+  // #30's axis is a point, not an IFCGRIDAXIS, so it has no AxisCurve.
+  const { webIfc } = await openModels(
+    gridModel(`#21=IFCGRIDAXIS('A',#15,.T.);
+#30=IFCGRID('0g',$,'Unreadable',$,$,#7,$,(#13),(#21),$,.RECTANGULAR.);
+#31=IFCGRID('1g',$,'Placementless',$,$,$,$,(#21),(#21),$,.RECTANGULAR.);`),
+  );
+
+  const { value, errors } = new GridReader(webIfc, 0).read();
+
+  expect(value.map(({ id }) => id)).toEqual([31]);
+  expect(errors).toEqual([
+    { kind: "unreadableGrid", gridId: 30, cause: expect.any(TypeError) },
+    { kind: "noPlacement", gridId: 31 },
+  ]);
+  expect(warn).not.toHaveBeenCalled();
+  expect(error).not.toHaveBeenCalled();
+  webIfc.Dispose();
+});
+
+test("returns a model whose grids cannot be listed in errors", () => {
+  const error = vi.spyOn(console, "error");
+  const fault = new Error("no coordination matrix");
+  const webIfc = {
+    GetCoordinationMatrix: () => {
+      throw fault;
+    },
+  } as unknown as WEBIFC.IfcAPI;
+
+  expect(new GridReader(webIfc, 0).read()).toEqual({
+    value: [],
+    errors: [{ kind: "unreadableModel", cause: fault }],
+  });
+  expect(error).not.toHaveBeenCalled();
+});
+
+test("returns an axis it cannot represent in errors", async () => {
+  const { webIfc } = await openFixtures("grids-radial-axes.ifc");
+
+  const { errors } = new GridReader(webIfc, 0).read();
+
+  expect(errors).toEqual([
+    {
+      kind: "unsupportedAxes",
+      gridId: 248,
+      axes: [
+        { tag: "R1", curveType: "IFCCIRCLE" },
+        { tag: "L1", curveType: "IFCLINE" },
+        { tag: "T1", curveType: "IFCTRIMMEDCURVE" },
+      ],
+    },
+  ]);
+  webIfc.Dispose();
+});
+
+test("is part of the package's public API", () => {
+  expect(FRAGS.GridReader).toBe(GridReader);
+});
