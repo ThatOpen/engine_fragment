@@ -1397,12 +1397,14 @@ export function edit(
     attributesOffsets.push(attributeOffset);
   }
 
-  // Create new attributes
+  // Create new attributes. An item updated after its creation is written as
+  // updated, like the items above and like the reads of pending edits.
 
-  for (const [currentId, attributes] of itemsToCreate) {
+  for (const [currentId, created] of itemsToCreate) {
     if (itemsToDelete.has(currentId)) {
       continue;
     }
+    const attributes = itemsToUpdate.get(currentId) ?? created;
 
     // Category
     categoriesOffsets.push(builder.createSharedString(attributes.category));
