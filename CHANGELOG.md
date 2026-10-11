@@ -22,6 +22,33 @@
 * `split` now throws a `RangeError` unless `numGroups` is a positive integer. The previous 32-group ceiling is gone: group membership is no longer stored as a `1 << g` bitmask, so any number of splits is supported (bounded in practice by the process' open file descriptor limit, one per group).
 * `@thatopen/fragments` now requires node `>=20.11.0` (`fs.openAsBlob`, global web streams)
 
+## [3.5.0](https://github.com/ThatOpen/engine_fragment/compare/v3.4.8...v3.5.0) (2026-10-11)
+
+
+### Features
+
+* **edit:** read only the requests added since an earlier read ([4257a65](https://github.com/ThatOpen/engine_fragment/commit/4257a652123d4b7a0b99ea454850be773953d7d9))
+
+
+### Bug Fixes
+
+* a queued tile update whose highlight was reclaimed no longer throws ([#318](https://github.com/ThatOpen/engine_fragment/issues/318)) ([1d64583](https://github.com/ThatOpen/engine_fragment/commit/1d64583b29f53bad9a6aff2e17d68f0ff2197861))
+* build a shell whose last profile fills its buffer ([5232de0](https://github.com/ThatOpen/engine_fragment/commit/5232de0524aadc98d3ecc819f4a9a60761006f5d))
+* **edit:** save the latest update of an item created since the last save ([185e429](https://github.com/ThatOpen/engine_fragment/commit/185e429397fea059cd097bcba197788daf5c8d65))
+* **edit:** start new local ids after the ids of replayed requests ([1c1667e](https://github.com/ThatOpen/engine_fragment/commit/1c1667eebb2599ae854e578a6d90dc803abab9f6))
+* **edit:** start new local ids after the ids of restored requests ([e57a4c0](https://github.com/ThatOpen/engine_fragment/commit/e57a4c0c30d6411531399ded70454da6fefd610c)), closes [#332](https://github.com/ThatOpen/engine_fragment/issues/332)
+* **edit:** tell request-log readers apart across a save or reload ([#336](https://github.com/ThatOpen/engine_fragment/issues/336)) ([e142dbe](https://github.com/ThatOpen/engine_fragment/commit/e142dbe2369bc4f07a51c54d7a00c744d9e8b67b))
+* **importer:** grid reader api ([#314](https://github.com/ThatOpen/engine_fragment/issues/314)) ([2959f86](https://github.com/ThatOpen/engine_fragment/commit/2959f8689b21c086c52c683d3f75f876859430fb))
+* **importer:** import list, bounded, enumerated and table properties ([#324](https://github.com/ThatOpen/engine_fragment/issues/324)) ([d40c17d](https://github.com/ThatOpen/engine_fragment/commit/d40c17dd3b8c262de9f044df984799c29e6c3aa6))
+* pair EditUtils.getItems guids with guidsItems, not the item index ([#322](https://github.com/ThatOpen/engine_fragment/issues/322)) ([aa57cfc](https://github.com/ThatOpen/engine_fragment/commit/aa57cfce80a32f142455b435b5b20968a4ef59e1))
+* return each item's own sample materials from getItemsMaterialDefinition ([acbb1ac](https://github.com/ThatOpen/engine_fragment/commit/acbb1aca43591f58d7ad4feff50563ddf0c5afe7))
+* size the splitter by the entities of the file, not by its highest id ([e5ec179](https://github.com/ThatOpen/engine_fragment/commit/e5ec179d3dff252930dc4fb213fc83e13ce35de9)), closes [#313](https://github.com/ThatOpen/engine_fragment/issues/313)
+
+
+### Performance Improvements
+
+* read an item's samples from an index in getItemsMaterialDefinition ([849cec5](https://github.com/ThatOpen/engine_fragment/commit/849cec58f56151aef7945426c69b24cde7dd14a5))
+
 ## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
 
 
