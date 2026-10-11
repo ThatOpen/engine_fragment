@@ -618,12 +618,7 @@ export class VirtualFragmentsModel {
   edit(requests: EditRequest[], raw = true) {
     // Replayed requests (e.g. from getRequests() of another load of the file)
     // carry their local ids: new ids start after them.
-    for (const request of requests) {
-      const localId = (request as { localId?: unknown }).localId;
-      if (Number.isInteger(localId)) {
-        this._nextId = Math.max(this._nextId, (localId as number) + 1);
-      }
-    }
+    this.startIdsAfter(requests);
     const ids = EditUtils.solveIds(requests, this._nextId);
     this._nextId += ids.length;
     for (const request of requests) {
@@ -720,13 +715,26 @@ export class VirtualFragmentsModel {
     requests?: EditRequest[];
     undoneRequests?: EditRequest[];
   }) {
+    // Restored requests carry their local ids, and the undone ones can be
+    // redone: new ids start after all of them.
     if (data.requests) {
       this.requests = data.requests;
       this._requestIndex.rebuild(this.requests);
       this._requestsGeneration++;
+      this.startIdsAfter(this.requests);
     }
     if (data.undoneRequests) {
       this._requestsForRedo = data.undoneRequests;
+      this.startIdsAfter(this._requestsForRedo);
+    }
+  }
+
+  private startIdsAfter(requests: EditRequest[]) {
+    for (const request of requests) {
+      const localId = (request as { localId?: unknown }).localId;
+      if (Number.isInteger(localId)) {
+        this._nextId = Math.max(this._nextId, (localId as number) + 1);
+      }
     }
   }
 

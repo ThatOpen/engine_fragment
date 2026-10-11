@@ -13,6 +13,7 @@
 * Settle forced updates when the scene is empty or the last model is removed, without waiting for a worker FINISH that can no longer arrive.
 * Save an item created since the last save with its latest `UPDATE_ITEM`, as reads of the pending edits already return it, instead of its creation attributes.
 * Edits replayed with their local ids (e.g. the requests of `editor.getModelRequests()` applied to another load of the file) now advance the id allocator, so later created items no longer reuse a replayed id and `save()` keeps the max local id above them.
+* Requests restored with `setRequests()` (a stored session, or the undone requests kept across `editor.save()`) now advance the id allocator too, so later created items no longer reuse a restored id.
 
 ### ⚠ BREAKING CHANGES
 
