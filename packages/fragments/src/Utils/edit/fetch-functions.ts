@@ -470,12 +470,19 @@ export function getItems(model: TFB.Model, itemIds?: Iterable<number>) {
     }
   }
 
+  // guids(j) pairs with guidsItems(j) (a localId), not with item index j:
+  // only some items have a guid.
+  const guidByLocalId = new Map<number, string>();
+  for (let j = 0; j < model.guidsItemsLength(); j++) {
+    guidByLocalId.set(model.guidsItems(j)!, model.guids(j)!);
+  }
+
   const items = new Map<number, ET.RawItemData>();
 
   for (const i of source) {
     const localId = model.localIds(i)!;
     const category = model.categories(i)!;
-    const guid = model.guids(i)!;
+    const guid = guidByLocalId.get(localId);
     const attrsData = model.attributes(i)!;
     const data: Record<string, ItemAttribute> = {};
     for (let j = 0; j < attrsData.dataLength(); j++) {
@@ -483,7 +490,10 @@ export function getItems(model: TFB.Model, itemIds?: Iterable<number>) {
       const [name, value, type] = JSON.parse(attrString);
       data[name] = { value, type };
     }
-    items.set(localId, { data, category, guid });
+    items.set(
+      localId,
+      guid === undefined ? { data, category } : { data, category, guid },
+    );
   }
 
   return items;
