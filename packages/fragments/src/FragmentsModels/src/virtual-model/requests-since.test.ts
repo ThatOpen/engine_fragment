@@ -14,12 +14,13 @@ const fragPath = fileURLToPath(
   new URL("../../../../../../resources/frags/small_test.frag", import.meta.url),
 );
 
-const load = async () => {
-  const inflated = Pako.inflate(readFileSync(fragPath));
-  const data = inflated.buffer.slice(
-    inflated.byteOffset,
-    inflated.byteOffset + inflated.byteLength,
-  );
+const load = async (
+  bytes: Uint8Array = Pako.inflate(readFileSync(fragPath)),
+) => {
+  const data = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
   const connection: any = { fetch: async () => {}, fetchMeshCompute: () => {} };
   const model = new VirtualFragmentsModel("m", data, connection, {
     multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 0 },
@@ -88,5 +89,32 @@ describe("VirtualFragmentsModel.getRequestsSince", () => {
       from: 0,
       count: 1,
     });
+  });
+
+  // EditHelper.save() saves, disposes and loads the saved buffer under the same
+  // model id, so the reader keeps asking the same id but a new worker model answers.
+  test("returns all requests after the model is saved and loaded again", async () => {
+    const model = await load();
+    model.edit([createItem("A")]);
+    const before = model.getRequestsSince(0, -1);
+    expect(before).toMatchObject({ from: 0, count: 1 });
+
+    const reloaded = await load(model.save(true) as Uint8Array);
+    reloaded.setRequests({ undoneRequests: [] });
+    reloaded.edit([createItem("B")]);
+    const after = reloaded.getRequestsSince(before.count, before.generation);
+    expect(after.generation).not.toBe(before.generation);
+    expect(after.from).toBe(0);
+    expect(names(after.requests)).toEqual(["B"]);
+  });
+
+  test("a model loaded again does not reuse the generation of the first load", async () => {
+    const first = (await load()).getRequestsSince(0, -1);
+    const second = (await load()).getRequestsSince(0, -1);
+    expect(second.generation).not.toBe(first.generation);
+    for (const { generation } of [first, second]) {
+      expect(Number.isSafeInteger(generation)).toBe(true);
+      expect(generation).toBeGreaterThanOrEqual(0);
+    }
   });
 });

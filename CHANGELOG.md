@@ -4,7 +4,7 @@
 
 ### Features
 
-* `editor.getModelRequestsSince(modelId, from, generation)` returns only the requests added since an earlier call, so following the edit log of a long unsaved session no longer copies the whole log out of the worker on every read. If requests were undone, selected, set or reset in between, it returns all of them.
+* `editor.getModelRequestsSince(modelId, from, generation)` returns only the requests added since an earlier call, so following the edit log of a long unsaved session no longer copies the whole log out of the worker on every read. If requests were undone, selected, set or reset in between, or the model was saved or loaded again, it returns all of them.
 
 ### Bug Fixes
 

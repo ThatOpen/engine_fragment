@@ -99,7 +99,9 @@ export class VirtualFragmentsModel {
   private _requestsForRedo: EditRequest[] = [];
 
   // Changes whenever `requests` changes other than by appending (see getRequestsSince).
-  private _requestsGeneration = 0;
+  // Starts at a random 32-bit integer, not 0, so a generation read before a save or reload
+  // does not match the model loaded under the same id (a counter would repeat across workers).
+  private _requestsGeneration = Math.floor(Math.random() * 0x100000000);
 
   constructor(
     modelId: string,

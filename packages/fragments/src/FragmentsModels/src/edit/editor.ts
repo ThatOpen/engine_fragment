@@ -80,7 +80,9 @@ export class Editor {
    * @remarks Reading only what was added keeps a long unsaved session cheap to follow:
    * every request is copied from the worker once. Pass the `count` and `generation` of the
    * previous result. If requests were undone, selected, set or reset since, all of them are
-   * returned and `from` is 0.
+   * returned and `from` is 0. The same happens after `save`, or after the model is disposed
+   * and loaded again with the same ID: the log starts again (`save` leaves it empty) under a
+   * new `generation`, so check `from` before appending to what was read earlier.
    * @param modelId - The ID of the model to get the requests from.
    * @param from - The `count` of the previous result (0 the first time).
    * @param generation - The `generation` of the previous result (-1 the first time).

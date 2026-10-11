@@ -675,7 +675,10 @@ export type EditRequest =
  * The requests of a model added since an earlier read (see `Editor.getModelRequestsSince`).
  */
 export interface EditRequestsSince {
-  /** Pass it to the next call. It changes when requests are undone, selected, set or reset. */
+  /**
+   * Pass it to the next call. It changes when requests are undone, selected, set or reset, and
+   * when the model is saved or loaded again. It is an arbitrary non-negative integer.
+   */
   generation: number;
   /** The index of the first returned request: the given `from`, or 0 when all are returned. */
   from: number;
