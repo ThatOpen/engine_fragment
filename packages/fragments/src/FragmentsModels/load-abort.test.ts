@@ -58,10 +58,10 @@ beforeEach(() => {
   );
   // Unfreezing a loaded model refreshes its view, which reads `window`.
   vi.spyOn(FragmentsModel.prototype, "_refreshView").mockResolvedValue();
-  vi.spyOn(FragmentsModel.prototype, "dispose").mockImplementation(
-    async function disposeMocked(this: FragmentsModel) {
-      fragments.models.list.delete(this.modelId);
-    },
+  vi.spyOn(FragmentsModel.prototype, "dispose");
+  // The stubbed `_setup` assigns the model no worker, so there is none to free.
+  vi.spyOn((fragments as any)._connection, "delete").mockImplementation(
+    () => {},
   );
   vi.spyOn((fragments as any)._connection, "fetch").mockImplementation(
     async (message: any) => {
@@ -120,6 +120,66 @@ test("abort(modelId) mid-load also rejects with a LoadAbortedError instance", as
   fragments.abort("m");
 
   await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
+  expect(abortRequests()).toHaveLength(1);
+  expect(fragments.models.list.size).toBe(0);
+});
+
+test("abort() for an ID that is not loading sends no request", () => {
+  fragments.abort("unknown");
+  expect(sent).toEqual([]);
+});
+
+test("abort(modelId) after the load resolved does nothing", async () => {
+  const load = fragments.load(buffer(), { modelId: "m" });
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const model = await load;
+
+  fragments.abort("m");
+
+  expect(sent).toEqual([]);
+  expect(model.dispose).not.toHaveBeenCalled();
+  expect(fragments.models.list.get("m")).toBe(model);
+});
+
+test("abort(modelId) doesn't outlive the load it aborted", async () => {
+  const first = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+  fragments.abort("m");
+  await expect(first).rejects.toBeInstanceOf(LoadAbortedError);
+
+  setup = deferred();
+  coordinates = deferred();
+  const second = fragments.load(buffer(), { modelId: "m" });
+  await flush();
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+
+  await expect(second).resolves.toBeInstanceOf(FragmentsModel);
+  expect(abortRequests()).toHaveLength(1);
+});
+
+test("an abort doesn't wait for the worker to answer the load", async () => {
+  // A worker that ignores the abort: its load keeps running.
+  vi.mocked((fragments as any)._connection.fetch).mockImplementation(
+    async (message: any) => {
+      sent.push(message);
+    },
+  );
+  const controller = new AbortController();
+  const load = fragments.load(buffer(), {
+    modelId: "m",
+    signal: controller.signal,
+  });
+  await flush();
+  controller.abort();
+
+  await expect(load).rejects.toBeInstanceOf(LoadAbortedError);
+  expect(fragments.models.list.size).toBe(0);
+  // The worker finishing later changes nothing.
+  setup.resolve();
+  await flush();
+  expect(fragments.models.list.size).toBe(0);
 });
 
 test("an abort that lands after the worker finished still rejects and disposes", async () => {
@@ -156,11 +216,6 @@ test("a signal that fires after the load resolved does nothing", async () => {
   expect(sent).toEqual([]);
   expect(model.dispose).not.toHaveBeenCalled();
   expect(fragments.models.list.get("m")).toBe(model);
-});
-
-test("abort() for an ID that is not loading sends no request", () => {
-  fragments.abort("unknown");
-  expect(sent).toEqual([]);
 });
 
 test("a worker error without an abort is rethrown unchanged", async () => {

@@ -169,10 +169,8 @@ export class FragmentsModels {
     (event: LoadProgressEvent) => void
   >();
 
-  /** IDs of models whose `load()` is in flight. */
-  private readonly _loadingModels = new Set<string>();
-  /** IDs of in-flight loads that have been aborted but not settled yet. */
-  private readonly _abortedLoads = new Set<string>();
+  /** How to abort each load in flight, see {@link abort}. */
+  private readonly _loadAborts = new Map<string, () => void>();
 
   private _isDisposed = false;
   private _autoRedrawInterval: any = null;
@@ -332,25 +330,40 @@ export class FragmentsModels {
       buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     const raw = explicitRaw ?? isRawBuffer(bytes);
 
-    const onAbort = () => this.abort(modelId);
-    signal?.addEventListener("abort", onAbort, { once: true });
-    this._loadingModels.add(modelId);
-
-    // The worker ignores an abort that lands after it finished its part, so
-    // re-check on the main thread after every await.
-    const throwIfAborted = () => {
-      if (this._abortedLoads.has(modelId)) {
-        throw new LoadAbortedError(modelId);
-      }
+    // Aborted by the caller's signal and by abort().
+    const loading = new AbortController();
+    const abortLoading = () => loading.abort();
+    const onAbort = () => {
+      // Only once, whether it comes from the signal or from abort().
+      if (loading.signal.aborted) return;
+      abortLoading();
+      // Fire-and-forget — the worker sets an abort flag and the in-flight
+      // generate() loop throws at its next yield point.
+      this._connection
+        .fetch({ class: MultiThreadingRequestClass.ABORT_MODEL, modelId })
+        // Rejects only if the model never got a thread, so there is nothing to
+        // abort on the worker.
+        .catch(() => {});
     };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    this._loadAborts.set(modelId, onAbort);
 
     try {
       this.models.list.set(model.modelId, model);
-      await model._setup(buffer, raw, virtualModelConfig);
-      throwIfAborted();
+      // An abort ends the wait for the worker's step right away; the worker
+      // unwinds on its own. It can also land after a step settled but before
+      // the load moves on, hence the checks.
+      await untilAborted(
+        model._setup(buffer, raw, virtualModelConfig),
+        loading.signal,
+      );
+      loading.signal.throwIfAborted();
       if (this.settings.autoCoordinate) {
-        const coordinates = await model.getCoordinates();
-        throwIfAborted();
+        const coordinates = await untilAborted(
+          model.getCoordinates(),
+          loading.signal,
+        );
+        loading.signal.throwIfAborted();
         if (this.baseCoordinates === null) {
           this.baseCoordinates = coordinates;
         } else {
@@ -365,10 +378,7 @@ export class FragmentsModels {
         }
       }
     } catch (e) {
-      // Stop accepting aborts first: disposing drops the model's thread, and
-      // an abort request sent after that would spawn a new worker for it.
-      this._loadingModels.delete(modelId);
-      this._progressCallbacks.delete(modelId);
+      const aborted = loading.signal.aborted;
       // Fully dispose partial state — this tears down the worker thread
       // (if this was the last model on it), clears transferred materials,
       // removes the model object from its parent, and deletes it from the
@@ -382,11 +392,10 @@ export class FragmentsModels {
       }
       // A worker-side abort arrives as its serialized error string, not as a
       // LoadAbortedError instance, so rebuild the error here.
-      throw this._abortedLoads.has(modelId) ? new LoadAbortedError(modelId) : e;
+      throw aborted ? new LoadAbortedError(modelId) : e;
     } finally {
       signal?.removeEventListener("abort", onAbort);
-      this._loadingModels.delete(modelId);
-      this._abortedLoads.delete(modelId);
+      this._loadAborts.delete(modelId);
       this._progressCallbacks.delete(modelId);
     }
 
@@ -451,25 +460,14 @@ export class FragmentsModels {
    * (on both the main thread and the worker) is disposed.
    *
    * Has no effect if the model finished loading or isn't currently loading.
+   * It aborts the load under that ID at the time of the call: after a load
+   * was aborted or disposed, a new load of the same ID is a different load.
    * To tie a load to an `AbortController`, pass its signal to `load()` instead.
    *
    * @param modelId - The unique identifier of the model to abort.
    */
   abort(modelId: string) {
-    // Only an in-flight load can be aborted, and only once. A request for any
-    // other ID has no thread to route to, so sending it would spawn a worker.
-    if (!this._loadingModels.has(modelId) || this._abortedLoads.has(modelId)) {
-      return;
-    }
-    this._abortedLoads.add(modelId);
-    // Fire-and-forget — the worker sets an abort flag and the in-flight
-    // generate() loop throws at its next yield point. The error unwinds
-    // through load() and its catch block cleans up on the main thread.
-    this._connection
-      .fetch({ class: MultiThreadingRequestClass.ABORT_MODEL, modelId })
-      // Rejects only if the model never got a thread, so there is nothing to
-      // abort on the worker. The main-thread check in load() still rejects.
-      .catch(() => {});
+    this._loadAborts.get(modelId)?.();
   }
 
   /**
@@ -605,4 +603,29 @@ export class FragmentsModels {
       this.manageRequest(request);
     };
   }
+}
+
+/**
+ * Settles like `promise`, or rejects as soon as `signal` aborts, whichever
+ * comes first. `promise` itself keeps running.
+ */
+function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    if (signal.aborted) {
+      onAbort();
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
 }
