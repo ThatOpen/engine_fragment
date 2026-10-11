@@ -4,7 +4,7 @@
 
 ### Features
 
-* `.frag` files are migrated when an older version of the package wrote them. Files now record the revision of the format they are at (`metadata.revision`), and `load()` brings one that is behind up to date in the worker before reading it; `onModelMigrated` tells what was done, and `settings.autoMigrate` turns it off. `migrate(bytes)` does the same in Node, `getRevision(bytes)` tells where a file is, and `applyMigration(model, migration)` runs an app's own edit migration. Two migrations ship: files converted with 3.0 or 3.1, whose `unique_attributes` and `relation_names` were being read from the wrong slots since 3.2, are rewritten to the current layout, and files that name no generator or version get `"unknown"` for them.
+* `.frag` files are migrated when an older version of the package wrote them. Files now record the revision of the format they are at (`metadata.revision`), and `load()` brings one that is behind up to date in the worker before reading it; `onModelMigrated` tells what was done, and `settings.autoMigrate` turns it off. `migrate(bytes)` does the same in Node, `getRevision(bytes)` tells where a file is, and `applyMigration(model, migration)` runs an app's own edit migration. Two migrations ship: files converted with 3.0 or 3.1, whose `unique_attributes` and `relation_names` were being read from the wrong slots since 3.2, are rewritten to the current layout, with the alignments of a 3.1 file converted to the items they have been since 3.2; and files that name no generator or version get `"unknown"` for them.
 
 ### Bug Fixes
 

@@ -131,7 +131,7 @@ What you get depends on whether `index.fbs` changed since the newest directory:
 A migration has up to two steps, which share a `ctx` created per file:
 
 - **`layout`**: handlers by `Type.field`, called while the file is copied to the new layout. The copier carries every field it can by name, so a field that only moved needs nothing. A field that was removed needs a handler returning `drop`, a new required field or one that changed type needs a handler returning its value. A handler receives the node of the old file that owns the field. You can also give one for a field that did not change, to change its content: that is one pass over the bytes and the cheap way to do it.
-- **`edit`**: returns edit requests, for changes that need the editor's bookkeeping (items, relations, samples). It runs on a model already in the current layout, after every `layout` step. It builds a model and runs a full edit, which on a 190 MB model took about twice what loading it does: reach for it only when a handler cannot do the job.
+- **`edit`**: returns edit requests, for changes that need the editor's bookkeeping (items, relations, samples). It runs on a model already in the current layout, after every `layout` step, and typically works from what `layout` left in `ctx`. It rewrites the file through `edit()`, which on a 190 MB model took 5 s against 0.7 s for a copy, and reading from the model costs building it, another 6 s: reach for it only when a handler cannot do the job.
 
 `report(ctx)` is what the app is told about the file, through `onModelMigrated`.
 
@@ -140,7 +140,7 @@ Rules that are easy to miss:
 - **Layout steps all run before edit steps.** A `layout` handler cannot count on the `edit` of an older migration having run.
 - **Test with a file of the previous revision.** For a layout from a released version, convert an IFC from `resources/ifc/` with that version off npm and commit it under `fixtures/`. `Copier.write(schema, object)` writes a file of any layout from plain objects when no real one has the data you need.
 - **Ids only go up.** CI fails a migration older than one already on the base branch, because every file written in between would skip it. Rename the directory with a current timestamp after rebasing.
-- **`yarn workspace @thatopen/fragments migration:check`** is what CI runs. It fails when `index.fbs` changed without a migration, when a generated file is stale, and when a scaffold still has its `TODO`.
+- **`yarn workspace @thatopen/fragments migration:check`** is what CI runs. It fails when `index.fbs` changed without a migration, when a migration leaves a field of its schema change undecided or has a handler for a field that does not exist, when a generated file is stale, and when a scaffold still has its `TODO`. For each schema change it prints what became of every field: decided by a handler, carried by the copier, or new and left for older files to lack.
 
 ## When in doubt
 

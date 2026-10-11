@@ -5,6 +5,8 @@ import pako from "pako";
 import { describe, expect, test } from "vitest";
 import * as TFB from "../../../Schema";
 import { SingleThreadedFragmentsModel } from "../../../FragmentsModels";
+import { VirtualFragmentsModel } from "../../../FragmentsModels/src/virtual-model";
+import { IfcImporter } from "../../../Importers";
 import { getRevision, migrate } from "../..";
 import { registry } from "../../registry";
 import { Copier } from "../../src/layout/copier";
@@ -81,7 +83,7 @@ describe("files written by 3.1", () => {
     expect(result.to).toBe(THIS);
     expect(result.applied[0]).toMatchObject({
       id: THIS,
-      report: { droppedAlignments: 0, droppedGeometrySamples: 0 },
+      report: { convertedAlignments: 0, droppedAlignments: 0 },
     });
 
     const migrated = generated(result.bytes);
@@ -136,21 +138,21 @@ describe("files written by 3.1", () => {
     },
   );
 
-  test("what the file had in the removed fields is counted, and the rest lands in its new slot", async () => {
-    // No IFC at hand has alignments, so this file is written by hand in the
-    // 3.1 layout.
-    const transform = {
-      position: { x: 0, y: 0, z: 0 },
-      x_direction: { x: 1, y: 0, z: 0 },
-      y_direction: { x: 0, y: 1, z: 0 },
-    };
-    const stale = Copier.write(registry.steps[0].schema!, {
+  // No real file at hand has unique attributes or relation names, so these
+  // are written by hand in the 3.1 layout.
+  const transform = {
+    position: { x: 0, y: 0, z: 0 },
+    x_direction: { x: 1, y: 0, z: 0 },
+    y_direction: { x: 0, y: 1, z: 0 },
+  };
+  const handWritten = (root: Record<string, unknown>) =>
+    Copier.write(registry.steps[0].schema!, {
       metadata: JSON.stringify({ schema: "IFC4X3" }),
       guids: [],
       guids_items: [],
       max_local_id: 10,
       local_ids: [1, 2],
-      categories: ["IFCALIGNMENT", "IFCWALL"],
+      categories: ["IFCSITE", "IFCWALL"],
       meshes: {
         coordinates: transform,
         meshes_items: [],
@@ -163,19 +165,17 @@ describe("files written by 3.1", () => {
         global_transforms: [],
       },
       guid: "hand-written",
-      alignments: [
-        { absolute: [0, 1], horizontal: [0], vertical: [1] },
-        { absolute: [2] },
-      ],
+      ...root,
+    });
+
+  test("the fields after the removed ones land in their new slot", async () => {
+    const stale = handWritten({
+      alignments: [],
       geometries: {
-        samples: [
-          { id: 0, transform: 0 },
-          { id: 1, transform: 0 },
-          { id: 2, transform: 0 },
-        ],
+        samples: [],
         representations: [],
-        transforms: [transform],
-        lines: [{ points: [0, 0, 0, 1, 1, 1] }],
+        transforms: [],
+        lines: [],
       },
       unique_attributes: ["Name", "Tag"],
       relation_names: ["ContainedInStructure"],
@@ -184,8 +184,8 @@ describe("files written by 3.1", () => {
 
     const result = await migrate(stale, options);
     expect(result.applied[0].report).toEqual({
-      droppedAlignments: 2,
-      droppedGeometrySamples: 3,
+      convertedAlignments: 0,
+      droppedAlignments: 0,
       assignedIds: 2,
     });
     const model = generated(result.bytes);
@@ -205,4 +205,124 @@ describe("files written by 3.1", () => {
       revision: THIS,
     });
   });
+
+  test("the alignments of a file written by 3.0 are counted, not converted", async () => {
+    // 3.0 laid its civil geometry out another way, which no descriptor here
+    // covers. Such a file lacks the two fields 3.1 added to the root.
+    const stale = handWritten({
+      alignments: [{ absolute: [0] }, { absolute: [1] }],
+      geometries: {
+        samples: [],
+        representations: [],
+        transforms: [],
+        lines: [],
+      },
+    });
+    expect(getRevision(stale).revision).toBe(BASELINE);
+    const result = await migrate(stale, options);
+    expect(result.applied[0].report).toMatchObject({
+      convertedAlignments: 0,
+      droppedAlignments: 2,
+    });
+    expect(generated(result.bytes).categoriesLength()).toBe(2);
+  });
+});
+
+// resources/ifc/alignment.ifc, converted with @thatopen/fragments@3.1.7. It
+// holds two alignments: three horizontal curves over two vertical ones, and
+// two over one.
+describe("the alignments of a 3.1 file", () => {
+  type Curve = { points: ArrayLike<number>; type: number };
+  type Alignment = Record<"absolute" | "horizontal" | "vertical", Curve[]>;
+  const KINDS = ["absolute", "horizontal", "vertical"] as const;
+
+  /** What the current code reads as the alignments of a raw file. */
+  const alignmentsOf = (bytes: Uint8Array) => {
+    const model = new VirtualFragmentsModel(
+      "m",
+      bytes as any,
+      undefined as any,
+    );
+    const alignments = model.getAlignments() as Alignment[];
+    const ids = model.getItemsOfCategories([/^ThatOpenAlignment$/]);
+    const result = {
+      alignments,
+      ids: ids.ThatOpenAlignment ?? [],
+      maxLocalId: model.getMaxLocalId(),
+    };
+    model.dispose();
+    return result;
+  };
+
+  const shape = (alignments: Alignment[]) =>
+    alignments.map((alignment) =>
+      KINDS.map((kind) => alignment[kind].map((curve) => curve.type)),
+    );
+
+  test("become the items 3.2 keeps alignments as, curve for curve", async () => {
+    // What web-ifc gave the 3.1.7 importer for this IFC, laid out the way the
+    // importer lays alignments out since 3.2: first curve and first point
+    // first, each curve with its own type.
+    const file = path.join(here, "fixtures", "alignment.3.1.7.expected.json");
+    const expected: Alignment[] = JSON.parse(await readFile(file, "utf-8"));
+
+    const result = await migrate(await fixture("alignment.3.1.7.frag"), {
+      ...options,
+      raw: true,
+    });
+    expect(result.applied[0].report).toMatchObject({
+      convertedAlignments: 2,
+      droppedAlignments: 0,
+    });
+
+    const { alignments, ids, maxLocalId } = alignmentsOf(result.bytes);
+    expect(shape(alignments)).toEqual(shape(expected));
+    // lines 1, clothoid 2, arc 3, parabola 4
+    expect(shape(alignments)).toEqual([
+      [
+        [1, 3, 2],
+        [1, 3, 2],
+        [1, 4],
+      ],
+      [[1, 3], [1, 3], [1]],
+    ]);
+    for (let a = 0; a < expected.length; a++) {
+      for (const kind of KINDS) {
+        expected[a][kind].forEach((curve, index) => {
+          // 3.1 stored the points as 32-bit floats.
+          const points = Array.from(curve.points, Math.fround);
+          expect(alignments[a][kind][index].points).toEqual(points);
+        });
+      }
+    }
+
+    // The items take the next ids of the file, in the order of the alignments.
+    expect(ids).toEqual([maxLocalId - 2, maxLocalId - 1]);
+  });
+
+  test("come out as the current importer writes them for the same IFC", async () => {
+    const importer = new IfcImporter();
+    const webIfc = path.dirname(import.meta.resolve("web-ifc"));
+    importer.wasm = {
+      path: webIfc.replace("file://", "") + path.sep,
+      absolute: true,
+    };
+    const ifc = await readFile(
+      path.join(repoRoot, "resources/ifc/alignment.ifc"),
+    );
+    const native = (await importer.process({
+      bytes: ifc,
+      raw: true,
+    })) as Uint8Array;
+
+    const migrated = await migrate(await fixture("alignment.3.1.7.frag"), {
+      ...options,
+      raw: true,
+    });
+    // The curves and their types. Not the points: the two were sampled by
+    // different versions of web-ifc, which do not cut a clothoid alike.
+    expect(shape(alignmentsOf(migrated.bytes).alignments)).toEqual(
+      shape(alignmentsOf(native).alignments),
+    );
+  }, 30000);
 });

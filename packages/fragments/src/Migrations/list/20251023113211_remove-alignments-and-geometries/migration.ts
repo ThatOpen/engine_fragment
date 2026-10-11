@@ -1,4 +1,10 @@
+import { EditRequestType } from "../../../Utils/edit/edit-types";
 import { defineMigration, drop } from "../../src/define";
+import {
+  ALIGNMENT_CATEGORY,
+  AlignmentData,
+  convertAlignments,
+} from "./alignments";
 import type { FromModel, Handlers } from "./types";
 
 /**
@@ -34,10 +40,10 @@ function allocate(model: FromModel) {
 }
 
 interface Ctx {
-  /** Alignments the file had. 3.2 keeps them as items; they are not converted. */
-  alignments: number;
-  /** Samples of the civil geometry the alignments pointed at. */
-  geometrySamples: number;
+  /** The alignments of the file, in the form 3.2 keeps them as items. */
+  alignments: AlignmentData[];
+  /** Alignments of a 3.0 file, whose civil geometry is not converted. */
+  unconverted: number;
   ids?: ReturnType<typeof allocate>;
 }
 
@@ -51,9 +57,9 @@ type MaxLocalId = {
 };
 
 export default defineMigration<Ctx, Handlers<Ctx> & MaxLocalId>({
-  title: "Alignments and civil geometry leave the model, geometry gets ids",
+  title: "Alignments become items, geometry gets ids",
 
-  context: () => ({ alignments: 0, geometrySamples: 0 }),
+  context: () => ({ alignments: [], unconverted: 0 }),
 
   // 3.2 removed two fields from the middle of the root table, so every field
   // after them sits two slots lower than a 3.1 file has it. Files of that
@@ -70,14 +76,15 @@ export default defineMigration<Ctx, Handlers<Ctx> & MaxLocalId>({
     probe.isStringVector(14) === true,
 
   layout: {
+    // 3.2 has no place for the two fields: an alignment is an item there.
+    // They are read here, while the file is still in its old layout, and
+    // `edit` creates the items once it is in the new one.
     "Model.alignments": (model, ctx) => {
-      ctx.alignments = model.alignments?.length ?? 0;
+      Object.assign(ctx, convertAlignments(model));
       return drop;
     },
-    "Model.geometries": (model, ctx) => {
-      ctx.geometrySamples = model.geometries?.samples?.length ?? 0;
-      return drop;
-    },
+    // Only held the curves of the alignments, which are converted above.
+    "Model.geometries": () => drop,
     // The importer leaves one id unused after the geometry, and so does this.
     "Model.max_local_id": (model, ctx) => idsOf(model, ctx).next + 1,
     // Without face ids every profile is a face of its own, which is how a
@@ -95,9 +102,20 @@ export default defineMigration<Ctx, Handlers<Ctx> & MaxLocalId>({
       idsOf(meshes.root as FromModel, ctx).localTransforms,
   },
 
+  // The items get the next ids of the file, as they do from the importer:
+  // it creates them after the geometry.
+  edit: (_model, ctx) =>
+    ctx.alignments.map((alignment) => ({
+      type: EditRequestType.CREATE_ITEM,
+      data: {
+        category: ALIGNMENT_CATEGORY,
+        data: { data: { value: JSON.stringify(alignment), type: "UNDEFINED" } },
+      },
+    })),
+
   report: (ctx) => ({
-    droppedAlignments: ctx.alignments,
-    droppedGeometrySamples: ctx.geometrySamples,
+    convertedAlignments: ctx.alignments.length,
+    droppedAlignments: ctx.unconverted,
     assignedIds: ctx.ids?.count ?? 0,
   }),
 });
