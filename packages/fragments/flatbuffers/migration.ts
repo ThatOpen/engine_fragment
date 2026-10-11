@@ -2,8 +2,9 @@
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import prettier from "prettier";
+import { Copier } from "../src/Migrations/src/layout/copier";
 import type { SchemaDescriptor } from "../src/Migrations/src/layout/descriptor";
 import { conforms, describeSchema } from "./migration/describe";
 import { SchemaDiff, diffSchemas } from "./migration/diff";
@@ -390,6 +391,72 @@ function idsOn(ref: string) {
     .filter((id): id is string => id !== undefined);
 }
 
+/**
+ * Whether each migration decides everything its schema change leaves open.
+ * The copier plans a whole copy before it touches a file and refuses a field
+ * it cannot carry and has no handler for, so planning one with the handlers
+ * of the migration is the check: no fixture needed, and it is the very code
+ * that will run on a file. A handler for a field of neither layout fails too.
+ *
+ * @returns One line per schema change saying what became of it.
+ */
+async function cover(
+  steps: Step[],
+  files: Map<string, string>,
+  problems: string[],
+) {
+  const lines: string[] = [];
+  let layout = steps[0].schema!;
+  for (const step of steps) {
+    const target = step.schema ?? layout;
+    let handlers: Record<string, unknown> = {};
+    if (step.hasMigration) {
+      const file = path.join(step.dir, "migration.ts");
+      const module = await import(pathToFileURL(file).href);
+      handlers = module.default.layout ?? {};
+    }
+    const stored = files.get(path.join(step.dir, "diff.json"));
+    const diff: StoredDiff | undefined = stored && JSON.parse(stored);
+    if (diff?.rewrite || Object.keys(handlers).length > 0) {
+      try {
+        const bytes = new Uint8Array(8);
+        // eslint-disable-next-line no-new
+        new Copier({
+          bytes,
+          from: layout,
+          to: target,
+          handlers: handlers as any,
+        });
+      } catch (error: any) {
+        problems.push(`${relative(step.dir)}: ${error.message}`);
+      }
+    }
+    if (diff) {
+      const added = diff.changes.filter(
+        (change) => change.kind === "field-added" && !change.obligation,
+      );
+      const lacking = added
+        .filter((change) => !(change.path in handlers))
+        .map((change) => change.path);
+      const carried = diff.changes.filter(
+        (change) =>
+          change.kind === "field-moved" || change.kind === "default-changed",
+      );
+      const parts = [
+        `${diff.obligations.length} decided by a handler`,
+        `${carried.length} carried by the copier`,
+        `${added.length - lacking.length} new fields filled in`,
+      ];
+      if (lacking.length > 0) {
+        parts.push(`left for older files to lack: ${lacking.join(", ")}`);
+      }
+      lines.push(`  ${path.basename(step.dir)}: ${parts.join("; ")}`);
+    }
+    layout = target;
+  }
+  return lines;
+}
+
 async function check(args: string[]) {
   const problems: string[] = [];
   const steps = readSteps();
@@ -452,6 +519,8 @@ async function check(args: string[]) {
     }
   }
 
+  const coverage = await cover(steps, files, problems);
+
   // Files are stamped with the newest id their writer knew, so a migration
   // merged with an id older than one already on the base branch would be
   // skipped by every file written in between.
@@ -470,6 +539,9 @@ async function check(args: string[]) {
 
   if (problems.length > 0) {
     throw new Error(`Migrations:\n- ${problems.join("\n- ")}`);
+  }
+  for (const line of coverage) {
+    console.log(line);
   }
   console.log(`Migrations: ${steps.length} steps, all covered.`);
 }
