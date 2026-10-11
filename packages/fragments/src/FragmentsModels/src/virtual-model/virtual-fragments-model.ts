@@ -12,11 +12,14 @@ import {
 
 import {
   AttributesUniqueValuesParams,
+  CRSData,
   CurrentLod,
   Identifier,
+  ItemsDataConfig,
   IndexArrayType,
   IndexEntry,
   IndexInfo,
+  InformationResultType,
   ItemInformationType,
   ItemSelectionType,
   ItemsQueryConfig,
@@ -25,6 +28,7 @@ import {
   MaterialDefinition,
   MeshData,
   SnappingClass,
+  SpatialTreeItem,
   VirtualModelConfig,
 } from "../model/model-types";
 import {
@@ -197,7 +201,7 @@ export class VirtualFragmentsModel {
     return this.properties.getAttributesUniqueValues(config);
   }
 
-  getItemsData(ids: number[], config: any) {
+  getItemsData(ids: Identifier[], config?: Partial<ItemsDataConfig>) {
     return this.properties.getItemsData(ids, config);
   }
 
@@ -221,7 +225,7 @@ export class VirtualFragmentsModel {
     return this.properties.getItemRelations(id);
   }
 
-  getSpatialStructure() {
+  getSpatialStructure(): SpatialTreeItem {
     // If there are any changes to the spatial structure, return the changed spatial structure
     const found = EditUtils.applyChangesToSpecialData(
       this.requests,
@@ -241,7 +245,7 @@ export class VirtualFragmentsModel {
     return this.properties.getCategories();
   }
 
-  getMetadata() {
+  getMetadata(): Record<string, any> {
     // If there are any changes to the metadata, return the changed metadata
     const found = EditUtils.applyChangesToSpecialData(
       this.requests,
@@ -255,7 +259,7 @@ export class VirtualFragmentsModel {
     return this.properties.getMetadata();
   }
 
-  getCRS() {
+  getCRS(): CRSData | null {
     // If there are any changes to the metadata, check there too
     const found = EditUtils.applyChangesToSpecialData(
       this.requests,
@@ -293,31 +297,34 @@ export class VirtualFragmentsModel {
       selector?: Partial<Record<ItemSelectionType, any>>;
       result?: any;
     },
-  ) {
+  ): InformationResultType<ItemInformationType> | null {
     return this._sequenceHelper.getSequenced(result, fromItems, inputs);
   }
 
-  highlight(items: number[], highlightMaterial: MaterialDefinition) {
+  highlight(
+    items: number[] | undefined,
+    highlightMaterial: MaterialDefinition,
+  ) {
     this._highlightHelper.highlight(this, items, highlightMaterial);
   }
 
-  setColor(items: number[], color: MaterialDefinition["color"]) {
+  setColor(items: number[] | undefined, color: MaterialDefinition["color"]) {
     this._highlightHelper.setColor(this, items, color);
   }
 
-  resetColor(items: number[]) {
+  resetColor(items?: number[]) {
     this._highlightHelper.resetColor(this, items);
   }
 
-  setOpacity(items: number[], opacity: number) {
+  setOpacity(items: number[] | undefined, opacity: number) {
     this._highlightHelper.setOpacity(this, items, opacity);
   }
 
-  resetOpacity(items: number[]) {
+  resetOpacity(items?: number[]) {
     this._highlightHelper.resetOpacity(this, items);
   }
 
-  getHighlight(localIds: number[]) {
+  getHighlight(localIds?: number[]) {
     return this._highlightHelper.getHighlight(this, localIds);
   }
 
@@ -325,7 +332,7 @@ export class VirtualFragmentsModel {
     return this._highlightHelper.getHighlightItems(this);
   }
 
-  resetHighlight(items: number[]) {
+  resetHighlight(items?: number[]) {
     this._highlightHelper.resetHighlight(this, items);
   }
 
@@ -491,11 +498,13 @@ export class VirtualFragmentsModel {
     return this._grids.getGrids();
   }
 
-  getBuffer(raw: boolean) {
+  // Compressed, the buffer is a Uint8Array, not an ArrayBuffer.
+  getBuffer(raw: boolean): ArrayBuffer | Uint8Array {
     const bb = this.data.bb as ByteBuffer;
     const bytes = bb.bytes();
-    const buffer = bytes.buffer;
-    return raw ? buffer : pako.deflate(buffer as ArrayBuffer);
+    // The model is read from an ArrayBuffer, see setupModel().
+    const buffer = bytes.buffer as ArrayBuffer;
+    return raw ? buffer : pako.deflate(buffer);
   }
 
   getSubsetBuffer(localIds: number[], raw: boolean) {
@@ -541,11 +550,11 @@ export class VirtualFragmentsModel {
     this.tiles.dispose();
   }
 
-  setVisible(localIds: number[], visible: boolean) {
+  setVisible(localIds: number[] | undefined, visible: boolean) {
     this._visibilityHelper.setVisible(this, localIds, visible);
   }
 
-  toggleVisible(localIds: number[]) {
+  toggleVisible(localIds?: number[]) {
     this._visibilityHelper.toggleVisible(this, localIds);
   }
 

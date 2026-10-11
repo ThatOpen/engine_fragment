@@ -44,7 +44,7 @@ export class HighlightHelper {
     model.tiles.restart();
   }
 
-  getHighlight(model: VirtualFragmentsModel, localIds: number[]) {
+  getHighlight(model: VirtualFragmentsModel, localIds?: number[]) {
     const found: MaterialDefinition[] = [];
     const itemIds = model.properties.getItemIdsFromLocalIds(localIds);
     const fetchEvent = this.getFetchEvent(model, found);
@@ -66,7 +66,7 @@ export class HighlightHelper {
 
   highlight(
     model: VirtualFragmentsModel,
-    items: number[],
+    items: number[] | undefined,
     material: MaterialDefinition,
   ) {
     const itemIds = model.properties.getItemIdsFromLocalIds(items);
@@ -86,7 +86,7 @@ export class HighlightHelper {
 
   private updateHighlightDefinition(
     model: VirtualFragmentsModel,
-    items: number[],
+    items: number[] | undefined,
     updateFn: (current: MaterialDefinition) => Partial<MaterialDefinition>,
   ) {
     const itemIds = model.properties.getItemIdsFromLocalIds(items);
@@ -129,7 +129,7 @@ export class HighlightHelper {
 
   setColor(
     model: VirtualFragmentsModel,
-    items: number[],
+    items: number[] | undefined,
     color: MaterialDefinition["color"],
   ) {
     let normalizedColor = color;
@@ -149,7 +149,7 @@ export class HighlightHelper {
     this.highlight(model, items, material);
   }
 
-  resetColor(model: VirtualFragmentsModel, items: number[]) {
+  resetColor(model: VirtualFragmentsModel, items?: number[]) {
     this.updateHighlightDefinition(model, items, (current) => {
       const { color: _, ...rest } = current;
       return rest;
@@ -158,7 +158,7 @@ export class HighlightHelper {
 
   setOpacity(
     model: VirtualFragmentsModel,
-    items: number[],
+    items: number[] | undefined,
     opacity: number,
   ) {
     const material = {
@@ -170,7 +170,7 @@ export class HighlightHelper {
     this.highlight(model, items, material);
   }
 
-  resetOpacity(model: VirtualFragmentsModel, items: number[]) {
+  resetOpacity(model: VirtualFragmentsModel, items?: number[]) {
     this.updateHighlightDefinition(model, items, (current) => {
       const { opacity: _o, transparent: _t, ...rest } = current;
       return rest;
