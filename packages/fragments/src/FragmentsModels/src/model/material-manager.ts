@@ -21,9 +21,11 @@ export class MaterialManager {
   private readonly _idGenerator = new CRC();
   private readonly white = 0xffffffff;
 
-  // Definitions reach the main thread as copies without their prototypes, so
-  // their color is no longer a THREE.Color, though it keeps `isColor`. Its
-  // components are already linear: the worker converted them from sRGB.
+  /**
+   * Definitions reach the main thread as copies without their prototypes, so
+   * their color is no longer a THREE.Color, though it keeps `isColor`. Its
+   * components are already linear: the worker converted them from sRGB.
+   */
   static restoreColor(
     definition: Cloned<MaterialDefinition>,
   ): MaterialDefinition {

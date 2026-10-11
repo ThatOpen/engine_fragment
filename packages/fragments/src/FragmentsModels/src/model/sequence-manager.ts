@@ -1,4 +1,8 @@
 import * as THREE from "three";
+import type { Cloned } from "../multithreading/cloned";
+import { EditManager } from "./edit-manager";
+import { FragmentsModel } from "./fragments-model";
+import { MaterialManager } from "./material-manager";
 import {
   InformationResultType,
   ItemInformationType,
@@ -6,10 +10,8 @@ import {
   ResultInputType,
   SelectionInputType,
 } from "./model-types";
-import { FragmentsModel } from "./fragments-model";
-import { EditManager } from "./edit-manager";
-import { MaterialManager } from "./material-manager";
-import type { Cloned } from "../multithreading/cloned";
+
+const identity = <T>(x: T) => x;
 
 // Each kind of result as it is handed out, from the copy the worker sends.
 const restore: {
@@ -17,20 +19,20 @@ const restore: {
     copy: Cloned<InformationResultType<T>>,
   ) => InformationResultType<T>;
 } = {
-  attributes: (copy) => copy,
-  category: (copy) => copy,
-  children: (copy) => copy,
-  data: (copy) => copy,
+  attributes: identity,
+  category: identity,
+  children: identity,
+  data: identity,
   geometry: (copy) => copy.map(EditManager.restoreTransforms),
-  guid: (copy) => copy,
+  guid: identity,
   highlight: (copy) => copy.map((m) => MaterialManager.restoreColor(m)),
   mergedBoxes: ({ min, max }) =>
     new THREE.Box3(
       new THREE.Vector3().copy(min),
       new THREE.Vector3().copy(max),
     ),
-  relations: (copy) => copy,
-  visibility: (copy) => copy,
+  relations: identity,
+  visibility: identity,
 };
 
 export class SequenceManager {

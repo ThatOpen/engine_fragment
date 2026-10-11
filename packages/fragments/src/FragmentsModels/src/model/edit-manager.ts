@@ -242,8 +242,10 @@ export class EditManager {
     return model._invoke("selectRequest", [index]);
   }
 
-  // Geometries reach the main thread as copies without their prototypes, so
-  // their transform is no longer a THREE.Matrix4.
+  /**
+   * Geometries reach the main thread as copies without their prototypes, so
+   * their transform is no longer a THREE.Matrix4.
+   */
   static restoreTransforms(geometries: Cloned<MeshData>[]): MeshData[] {
     return geometries.map((geometry) => ({
       ...geometry,

@@ -59,10 +59,11 @@ export class DataManager {
     return model._invoke("getIndexInfo", [name]);
   }
 
-  // The type parameters of the index methods are the caller's word for the
-  // types of an index's keys and values, which the worker takes on trust as
-  // well, so their results are cast to them.
-
+  /**
+   * The type parameters of this and the other index methods are the caller's
+   * word for the types of an index's keys and values, which the worker takes
+   * on trust as well, so their results are cast to them.
+   */
   async getIndexKeys<K extends string | number>(
     model: FragmentsModel,
     name: string,

@@ -47,10 +47,12 @@ import { SetupManager } from "./setup-manager";
 import { ViewManager } from "./view-manager";
 import { VisibilityManager } from "./visibility-manager";
 
-// The methods of a model's worker-side counterpart that the main thread
-// calls, see FragmentsModel._invoke. Their arguments and results are copied
-// between threads, so they must hold data only: no functions, and class
-// instances arrive as plain objects.
+/**
+ * The methods of a model's worker-side counterpart that the main thread
+ * calls, see {@link FragmentsModel._invoke}. Their arguments and results are
+ * copied between threads, so they must hold data only: no functions, and
+ * class instances arrive as plain objects.
+ */
 type RemoteMethods = Pick<
   VirtualFragmentsModel,
   | "edit"
@@ -1176,10 +1178,12 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * this directly. The arguments and the result are copied between threads,
    * so class instances in the result arrive as plain objects, see
    * {@link Cloned}.
+   * @param method - The name of the method.
+   * @param args - The arguments of the method. Optional only when every
+   * parameter of the method is.
    */
   _invoke<K extends keyof RemoteMethods>(
     method: K,
-    // Optional only when every parameter of the method is.
     ...[args]: [] extends Parameters<RemoteMethods[K]>
       ? [args?: Parameters<RemoteMethods[K]>]
       : [args: Parameters<RemoteMethods[K]>]
