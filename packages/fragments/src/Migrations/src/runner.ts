@@ -24,8 +24,8 @@ function titleOf(step: MigrationStep) {
   return step.migration?.title ?? step.slug;
 }
 
-/** Whether a file that predates the step cannot be read before the step ran. */
-function rewrites(step: MigrationStep) {
+/** Whether the step is done by copying the file, with or without handlers. */
+function copies(step: MigrationStep) {
   return step.rewrite === true || step.migration?.layout !== undefined;
 }
 
@@ -67,11 +67,13 @@ function inspect(bytes: Uint8Array, registry: MigrationRegistry) {
   }
   const pending: PendingMigration[] = [];
   for (const step of steps.slice(index + 1)) {
-    if (rewrites(step) || step.migration?.edit) {
+    if (copies(step) || step.migration?.edit) {
       pending.push({
         id: step.id,
         title: titleOf(step),
-        rewrite: rewrites(step),
+        // Handlers on a schema that did not break only change content: the
+        // file reads fine without them.
+        rewrite: step.rewrite === true,
       });
     }
   }
@@ -187,11 +189,11 @@ export async function migrate(
   let current = source;
   let schema = schemaAt(steps, index);
 
-  // Layout steps need nothing but the descriptors, so they are what makes a
-  // file readable by the rest of the package. They all run first.
+  // Copies need nothing but the descriptors, so they are what makes a file
+  // readable by the rest of the package. They all run first.
   for (const step of pending) {
     const target = step.schema ?? schema;
-    if (rewrites(step)) {
+    if (copies(step)) {
       try {
         current = new Copier({
           bytes: current,

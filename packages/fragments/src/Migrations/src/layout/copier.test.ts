@@ -42,6 +42,11 @@ describe("copying a file to its own layout", () => {
       const bytes = await readFrag(name);
       const copy = new Copier({ bytes, from: current, to: current }).run();
       expect(dump(copy)).toEqual(dump(bytes));
+      // Vectors are read in place as typed arrays, so the file has to start
+      // on an aligned byte of its buffer.
+      expect(copy.byteOffset % 8).toBe(0);
+      const model = TFB.Model.getRootAsModel(new FB.ByteBuffer(copy));
+      expect(model.localIdsArray()!.length).toBe(model.localIdsLength());
       // The importer shares equal strings, and so must the copy.
       expect(copy.length).toBeLessThanOrEqual(bytes.length * 1.01);
     },

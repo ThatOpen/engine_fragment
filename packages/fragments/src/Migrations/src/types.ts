@@ -56,10 +56,13 @@ export interface UnstampedProbe {
 /**
  * One change to fragments files, applied to every file that predates it.
  *
- * - `layout` rewrites the file when the schema changed. The copier carries
- *   everything it can by name; the handlers decide the rest.
+ * - `layout` gives the value of single fields while the file is copied. The
+ *   copier carries everything it can by name; the handlers decide the rest.
+ *   A schema change needs it for the fields it leaves open, and it is also
+ *   the cheap way to change the content of a field: one pass over the bytes.
  * - `edit` changes the content of a file that is already in the current
- *   layout, with the same requests the editor takes.
+ *   layout, with the same requests the editor takes. It is for changes that
+ *   need the editor's bookkeeping, and it costs a model and a full edit.
  *
  * Both receive the `ctx` of the migration, one per file, so `layout` can keep
  * what it removes for `edit` to put back in another form.
@@ -74,7 +77,10 @@ export interface Migration<
   title: string;
   /** The state of this migration for one file. Called once per file. */
   context?: () => Ctx;
-  /** One handler per field the copier cannot carry on its own, as `Type.field`. */
+  /**
+   * Handlers by `Type.field`: one per field the copier cannot carry on its
+   * own, and any other whose value has to change.
+   */
   layout?: Handlers;
   /** Edit requests that bring the content of the file up to date. */
   edit?: (

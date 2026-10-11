@@ -210,7 +210,13 @@ export class Copier {
     this._to = to;
     this._handlers = handlers;
     this._ctx = ctx;
-    this._builder = new Builder(Math.max(bytes.length, 1024));
+    // Room for the file to grow a little without the builder doubling its
+    // buffer, which would copy everything written so far. A multiple of 8:
+    // the builder aligns from the end of its buffer, so only then does the
+    // file start on an aligned byte, which reading its vectors as typed
+    // arrays needs.
+    const capacity = Math.ceil((bytes.length * 1.125 + 1024) / 8) * 8;
+    this._builder = new Builder(capacity);
     this.checkHandlerKeys();
     // Plans everything reachable from the root, so a missing handler throws
     // here and not halfway through the file.
@@ -227,7 +233,7 @@ export class Copier {
     const copier = new Copier({ bytes: empty, from: schema, to: schema });
     const builder = copier._builder;
     builder.finish(copier.newTable(schema.root, root));
-    return builder.asUint8Array().slice();
+    return copier.result();
   }
 
   /** The file in the new layout, raw. */
@@ -235,9 +241,18 @@ export class Copier {
     const builder = this._builder;
     const root = this.table(this._root, this._reader.rootPosition);
     builder.finish(root);
-    // A copy, so the builder's buffer (at least as big as the old file) is
-    // not kept alive by a view into it.
-    return builder.asUint8Array().slice();
+    return this.result();
+  }
+
+  /**
+   * What the builder wrote: a view into its buffer when the file fills most
+   * of it, like the files `edit()` returns, and a copy when it would keep a
+   * much bigger buffer alive.
+   */
+  private result() {
+    const written = this._builder.asUint8Array();
+    const mostly = written.byteLength >= written.buffer.byteLength * 0.75;
+    return mostly ? written : written.slice();
   }
 
   // Planning
