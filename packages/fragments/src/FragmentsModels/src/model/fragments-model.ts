@@ -114,6 +114,7 @@ type RemoteMethods = Pick<
   | "getRepresentations"
   | "getRepresentationsIds"
   | "getRequests"
+  | "getRequestsSince"
   | "getSamples"
   | "getSamplesIds"
   | "getSection"

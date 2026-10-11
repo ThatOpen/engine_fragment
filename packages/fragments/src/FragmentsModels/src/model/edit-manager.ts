@@ -221,11 +221,8 @@ export class EditManager {
     model: FragmentsModel,
     from: number,
     generation: number,
-  ) {
-    return model._invoke("getRequestsSince", [
-      from,
-      generation,
-    ]) as Promise<EditRequestsSince>;
+  ): Promise<EditRequestsSince> {
+    return model._invoke("getRequestsSince", [from, generation]);
   }
 
   async setRequests(
