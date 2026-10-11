@@ -30,6 +30,8 @@ interface Step {
   /** The layout from this step on, when the step changed the schema. */
   schema?: SchemaDescriptor;
   hasMigration: boolean;
+  /** `probe.ts`: tells whether a file with no revision predates the step. */
+  hasProbe: boolean;
 }
 
 /** `diff.json`: the diff, plus what flatc says about the same change. */
@@ -63,6 +65,7 @@ function readSteps(): Step[] {
         ? JSON.parse(fs.readFileSync(schemaFile, "utf8"))
         : undefined,
       hasMigration: fs.existsSync(path.join(dir, "migration.ts")),
+      hasProbe: fs.existsSync(path.join(dir, "probe.ts")),
     });
   }
   return steps;
@@ -148,24 +151,67 @@ async function generate(steps: Step[]) {
     previous = step;
   }
 
+  // Two views of the same directories. The gate is what every load pays
+  // for: the steps by name, whether they have anything to do, and the probes
+  // for files with no revision. The registry adds what the steps do, and is
+  // only loaded for a file that is behind.
   const imports: string[] = [];
   const entries: string[] = [];
+  const gateImports: string[] = [];
+  const gateEntries: string[] = [];
   for (const step of steps) {
     const base = `./list/${path.basename(step.dir)}`;
     const parts = [`id: "${step.id}"`, `slug: "${step.slug}"`];
+    const gateParts = [...parts];
     if (step.schema) {
       imports.push(`import schema${step.id} from "${base}/schema.json";`);
       parts.push(`schema: schema${step.id} as SchemaDescriptor`);
     }
+    if (step.hasMigration || rewrites.has(step.id)) {
+      gateParts.push("work: true");
+    }
     if (rewrites.has(step.id)) {
       parts.push("rewrite: true");
+      gateParts.push("rewrite: true");
     }
     if (step.hasMigration) {
       imports.push(`import migration${step.id} from "${base}/migration";`);
       parts.push(`migration: migration${step.id}`);
     }
+    if (step.hasProbe) {
+      const probe = `import probe${step.id} from "${base}/probe";`;
+      imports.push(probe);
+      gateImports.push(probe);
+      parts.push(`matchesUnstamped: probe${step.id}`);
+      gateParts.push(`matchesUnstamped: probe${step.id}`);
+    }
     entries.push(`{ ${parts.join(", ")} },`);
+    gateEntries.push(`{ ${gateParts.join(", ")} },`);
   }
+  const gate = path.join(migrations, "gate.ts");
+  files.set(
+    gate,
+    await format(
+      gate,
+      [
+        HEADER,
+        `import type { Gate } from "./src/gate";`,
+        `import { UNSTAMPED_REVISION } from "./list/unstamped";`,
+        ...gateImports,
+        "",
+        "/**",
+        " * The steps as the gate knows them: which there are, which have something",
+        " * to do on an older file, and how to place a file with no revision. It is",
+        " * all the worker holds of the migrations. What the steps do is in the",
+        " * registry, which is loaded for a file that is behind.",
+        " */",
+        "export const gate: Gate = {",
+        "  unstamped: UNSTAMPED_REVISION,",
+        `  steps: [${gateEntries.join("\n")}],`,
+        "};",
+      ].join("\n"),
+    ),
+  );
   const registry = path.join(migrations, "registry.ts");
   files.set(
     registry,
@@ -320,7 +366,7 @@ async function create(args: string[]) {
   const changed = !same(previous?.schema, schema);
 
   const dir = path.join(list, name);
-  const step: Step = { id, slug, dir, hasMigration: false };
+  const step: Step = { id, slug, dir, hasMigration: false, hasProbe: false };
   let scaffold: string | undefined;
   if (changed) {
     step.schema = schema;

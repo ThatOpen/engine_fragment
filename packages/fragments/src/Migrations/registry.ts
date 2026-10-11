@@ -5,8 +5,10 @@ import { UNSTAMPED_REVISION } from "./list/unstamped";
 import schema20250710102015 from "./list/20250710102015_baseline/schema.json";
 import schema20251023113211 from "./list/20251023113211_remove-alignments-and-geometries/schema.json";
 import migration20251023113211 from "./list/20251023113211_remove-alignments-and-geometries/migration";
+import probe20251023113211 from "./list/20251023113211_remove-alignments-and-geometries/probe";
 import schema20260429202010 from "./list/20260429202010_model-indexes/schema.json";
 import migration20261011053212 from "./list/20261011053212_provenance-backfill/migration";
+import probe20261011053212 from "./list/20261011053212_provenance-backfill/probe";
 
 /** Every change to fragments files this package knows, oldest first. */
 export const registry: MigrationRegistry = {
@@ -23,6 +25,7 @@ export const registry: MigrationRegistry = {
       schema: schema20251023113211 as SchemaDescriptor,
       rewrite: true,
       migration: migration20251023113211,
+      matchesUnstamped: probe20251023113211,
     },
     {
       id: "20260429202010",
@@ -33,6 +36,7 @@ export const registry: MigrationRegistry = {
       id: "20261011053212",
       slug: "provenance-backfill",
       migration: migration20261011053212,
+      matchesUnstamped: probe20261011053212,
     },
   ],
 };

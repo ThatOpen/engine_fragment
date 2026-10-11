@@ -5,13 +5,14 @@ import pako from "pako";
 import { describe, expect, test, vi } from "vitest";
 import * as TFB from "../../Schema";
 import { SingleThreadedFragmentsModel } from "../../FragmentsModels";
-import { VirtualFragmentsModel } from "../../FragmentsModels/src/virtual-model";
 import { isRawBuffer } from "../../FragmentsModels/src/utils/misc/buffer";
+import { VirtualFragmentsModel } from "../../FragmentsModels/src/virtual-model";
 import { EditRequest, EditRequestType } from "../../Utils/edit/edit-types";
 import { registry as packageRegistry } from "../registry";
+import { inspect } from "./core";
 import { defineMigration } from "./define";
 import { MigrationError, UnknownRevisionError } from "./errors";
-import { applyMigration, getRevision, migrate } from "./runner";
+import { applyMigration, migrate } from "./migrate";
 import { Migration, MigrationRegistry, MigrationStep } from "./types";
 
 const repoRoot = path.resolve(import.meta.dirname, "../../../../..");
@@ -25,16 +26,16 @@ const file = async () =>
     await readFile(path.join(repoRoot, "resources/frags/small_test.frag")),
   );
 
+const rawOf = (bytes: Uint8Array) =>
+  isRawBuffer(bytes) ? bytes : pako.inflate(bytes);
+
 const metadataOf = (bytes: Uint8Array) => {
-  const raw = isRawBuffer(bytes) ? bytes : pako.inflate(bytes);
-  const model = TFB.Model.getRootAsModel(new FB.ByteBuffer(raw));
+  const model = TFB.Model.getRootAsModel(new FB.ByteBuffer(rawOf(bytes)));
   return JSON.parse(model.metadata()!);
 };
 
-const guidOf = (bytes: Uint8Array) => {
-  const raw = isRawBuffer(bytes) ? bytes : pako.inflate(bytes);
-  return TFB.Model.getRootAsModel(new FB.ByteBuffer(raw)).guid();
-};
+const guidOf = (bytes: Uint8Array) =>
+  TFB.Model.getRootAsModel(new FB.ByteBuffer(rawOf(bytes))).guid();
 
 const setMetadata = (data: Record<string, unknown>): EditRequest => ({
   type: EditRequestType.UPDATE_METADATA,
@@ -53,19 +54,22 @@ const registryOf = (
   return { steps, unstamped: "10" };
 };
 
+// Reads the metadata while the file is copied, and has `edit` rewrite it.
 const tag = defineMigration({
   title: "Tag the metadata",
-  context: () => ({ keys: [] as string[] }),
-  edit: (model, ctx) => {
-    const metadata = model.getMetadata();
-    ctx.keys = Object.keys(metadata);
-    return [setMetadata({ ...metadata, tagged: true })];
+  context: () => ({ metadata: {} as Record<string, unknown> }),
+  layout: {
+    "Model.metadata": (model, ctx) => {
+      ctx.metadata = JSON.parse(model.metadata);
+      return model.metadata;
+    },
   },
-  report: (ctx) => ({ had: ctx.keys }),
+  edit: (ctx) => [setMetadata({ ...ctx.metadata, tagged: true })],
+  report: (ctx) => ({ had: Object.keys(ctx.metadata) }),
 });
 
 describe("migrate", () => {
-  test("an edit step changes the file, stamps it and reports from its ctx", async () => {
+  test("a migration changes the file, stamps it and reports from its ctx", async () => {
     const registry = registryOf(tag);
     const input = await file();
     const result = await migrate(input, { registry });
@@ -109,79 +113,88 @@ describe("migrate", () => {
   });
 
   test("layout steps run before edit steps, whatever their order", async () => {
-    const seen: (string | null)[] = [];
+    const order: string[] = [];
     const first = defineMigration({
-      title: "Reads the guid",
-      edit: (model) => {
-        seen.push(guidOf(new Uint8Array(model.getBuffer(true))));
+      title: "Edits",
+      edit: () => {
+        order.push("edit of the older step");
         return [];
       },
     });
     const second = defineMigration({
       title: "Renames the model",
-      layout: { "Model.guid": () => "renamed" },
+      layout: {
+        "Model.guid": () => {
+          order.push("layout of the newer step");
+          return "renamed";
+        },
+      },
     });
     const result = await migrate(await file(), {
       registry: registryOf(first, second),
     });
-    expect(seen).toEqual(["renamed"]);
+    expect(order).toEqual([
+      "layout of the newer step",
+      "edit of the older step",
+    ]);
     expect(guidOf(result.bytes)).toBe("renamed");
     // Only the step that changed the file is listed.
     expect(result.applied).toEqual([{ id: "30", title: "Renames the model" }]);
     expect(metadataOf(result.bytes).revision).toBe("30");
   });
 
-  test("an edit step builds a model only if it reads from it", async () => {
+  test("an edit step alone changes the file, with no model built for it", async () => {
     const setup = vi.spyOn(VirtualFragmentsModel.prototype, "setupData");
     const blind = defineMigration({
-      title: "Sets the metadata without looking",
-      edit: () => [setMetadata({ set: true })],
+      title: "Sets the metadata",
+      context: () => ({ set: true }),
+      edit: (ctx) => [setMetadata(ctx)],
     });
     const result = await migrate(await file(), { registry: registryOf(blind) });
     expect(metadataOf(result.bytes)).toEqual({ set: true, revision: "20" });
     expect(setup).not.toHaveBeenCalled();
-
-    // `tag` reads the metadata of the model.
-    await migrate(await file(), { registry: registryOf(tag) });
-    expect(setup).toHaveBeenCalledTimes(1);
     setup.mockRestore();
   });
 
-  test("what an edit step creates gets the next ids of the file", async () => {
-    const create = defineMigration({
-      title: "Adds two items",
-      edit: () =>
-        ["A", "B"].map((name) => ({
-          type: EditRequestType.CREATE_ITEM,
-          data: { category: "ADDED", data: { Name: { value: name } } },
-        })),
-    });
+  test("what the edit steps create gets the next ids of the file, in order", async () => {
+    const create = (category: string) =>
+      defineMigration({
+        title: `Adds two ${category}`,
+        edit: () =>
+          ["A", "B"].map((name) => ({
+            type: EditRequestType.CREATE_ITEM,
+            data: { category, data: { Name: { value: name } } },
+          })),
+      });
     const input = await file();
     const before = new SingleThreadedFragmentsModel("before", input);
     const next = before.getMaxLocalId();
     before.dispose();
 
-    const result = await migrate(input, { registry: registryOf(create) });
+    const result = await migrate(input, {
+      registry: registryOf(create("FIRST"), create("SECOND")),
+    });
     const after = new SingleThreadedFragmentsModel("after", result.bytes);
-    const added = after.getItemsOfCategories([/^ADDED$/]).ADDED;
-    expect(added).toEqual([next, next + 1]);
-    expect(after.getMaxLocalId()).toBe(next + 2);
+    const added = after.getItemsOfCategories([/^(FIRST|SECOND)$/]);
+    expect(added.FIRST).toEqual([next, next + 1]);
+    expect(added.SECOND).toEqual([next + 2, next + 3]);
+    expect(after.getMaxLocalId()).toBe(next + 4);
+    expect(after.getMetadata().revision).toBe("30");
     after.dispose();
   });
 
   test("the layout step and the edit step of a migration share a ctx", async () => {
     const move = defineMigration({
       title: "Moves the guid into the metadata",
-      context: () => ({ guid: "" }),
+      context: () => ({ guid: "", metadata: {} }),
       layout: {
         "Model.guid": (model, ctx) => {
           ctx.guid = model.guid;
+          ctx.metadata = JSON.parse(model.metadata);
           return "moved";
         },
       },
-      edit: (model, ctx) => [
-        setMetadata({ ...model.getMetadata(), was: ctx.guid }),
-      ],
+      edit: (ctx) => [setMetadata({ ...ctx.metadata, was: ctx.guid })],
       report: (ctx) => ({ guid: ctx.guid }),
     });
     const input = await file();
@@ -195,16 +208,17 @@ describe("migrate", () => {
     expect(result.applied[0].report).toEqual({ guid: before });
   });
 
-  test("a migration can claim the files that predate it and carry no revision", async () => {
+  test("a step can claim the files that predate it and carry no revision", async () => {
+    const raw = rawOf(await file());
     const registry = registryOf(tag, tag);
     registry.unstamped = "30";
     // Nothing claims the file: it is past every step.
-    expect(getRevision(await file(), { registry }).revision).toBe("30");
+    expect(inspect(raw, registry).info.revision).toBe("30");
 
-    const claiming = { ...tag, matchesUnstamped: () => true };
-    const claimed = registryOf(tag, claiming);
+    const claimed = registryOf(tag, tag);
     claimed.unstamped = "30";
-    const info = getRevision(await file(), { registry: claimed });
+    claimed.steps[2].matchesUnstamped = () => true;
+    const { info } = inspect(raw, claimed);
     expect(info).toMatchObject({
       revision: "20",
       stamped: false,
@@ -223,7 +237,7 @@ describe("migrate", () => {
     await expect(migrate(bytes, { registry: older })).rejects.toThrow(
       UnknownRevisionError,
     );
-    expect(() => getRevision(bytes, { registry: older })).toThrow(
+    expect(() => inspect(rawOf(bytes), older)).toThrow(
       /newer than this version of the package/,
     );
   });
@@ -242,9 +256,20 @@ describe("migrate", () => {
 });
 
 describe("applyMigration", () => {
-  test("leaves the edit of a migration pending on a model", async () => {
+  test("leaves the edit of an app's migration pending on its model", async () => {
     const model = new SingleThreadedFragmentsModel("model", await file());
-    const { requests, report } = await applyMigration(model, tag);
+    // An app's migration reads the model it has.
+    const own = defineMigration({
+      title: "Tag the metadata",
+      context: () => ({ had: [] as string[] }),
+      edit: (ctx) => {
+        const metadata = model.getMetadata();
+        ctx.had = Object.keys(metadata);
+        return [setMetadata({ ...metadata, tagged: true })];
+      },
+      report: (ctx) => ({ had: ctx.had }),
+    });
+    const { requests, report } = await applyMigration(model, own);
     expect(requests).toHaveLength(1);
     expect(report).toEqual({ had: ["schema"] });
     expect(model.getMetadata().tagged).toBe(true);

@@ -61,20 +61,6 @@ export default defineMigration<Ctx, Handlers<Ctx> & MaxLocalId>({
 
   context: () => ({ alignments: [], unconverted: 0 }),
 
-  // 3.2 removed two fields from the middle of the root table, so every field
-  // after them sits two slots lower than a 3.1 file has it. Files of that
-  // time carry no version: the layout is all there is to tell them by.
-  //   slot   3.1                 3.2 and later
-  //   12     alignments          unique_attributes
-  //   13     geometries (table)  relation_names
-  //   14     unique_attributes   indexes (tables)
-  //   15     relation_names      -
-  matchesUnstamped: (probe) =>
-    probe.rootSlots > 15 ||
-    probe.isStringVector(12) === false ||
-    probe.isStringVector(13) === false ||
-    probe.isStringVector(14) === true,
-
   layout: {
     // 3.2 has no place for the two fields: an alignment is an item there.
     // They are read here, while the file is still in its old layout, and
@@ -104,7 +90,7 @@ export default defineMigration<Ctx, Handlers<Ctx> & MaxLocalId>({
 
   // The items get the next ids of the file, as they do from the importer:
   // it creates them after the geometry.
-  edit: (_model, ctx) =>
+  edit: (ctx) =>
     ctx.alignments.map((alignment) => ({
       type: EditRequestType.CREATE_ITEM,
       data: {

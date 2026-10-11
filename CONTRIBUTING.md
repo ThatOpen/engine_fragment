@@ -29,6 +29,8 @@ packages/fragments/src/
 ├── Schema/                   # FlatBuffers-generated TS (don't edit by hand; see `yarn fb`)
 ├── Migrations/               # Changes to .frag files, and what applies them to older files
 │   ├── list/                 # One directory per change: migration, layout snapshot, diff
+│   ├── gate.ts               # Generated: what the worker needs to tell that a file is behind
+│   ├── registry.ts           # Generated: the steps with their layouts and migrations, loaded on demand
 │   └── src/                  # migrate(), and the copier that rewrites a file between layouts
 ├── Utils/                    # Shared helpers: edit-types, ifc-relations-map, shells, splitter
 │   └── ifc-splitter/         # Stream-split a large IFC into smaller files
@@ -128,10 +130,12 @@ What you get depends on whether `index.fbs` changed since the newest directory:
 
 `schema.json` is the binary layout of the schema at that point. It is what lets this package read a file of a layout it no longer has generated code for, so nothing in `src/Schema/` is kept for old files. `diff.json` and `types.ts` are derived from two consecutive layouts; never edit them, run `yarn workspace @thatopen/fragments migration:sync`.
 
+Only a small gate is part of every load: the ids of the steps, whether each has work to do, and the probes below (`src/Migrations/gate.ts`, generated). The worker holds it and answers whether a file is behind. Everything else here (layouts, copier, migrations) is loaded by the main thread through a dynamic import, the first time a file needs it: the file comes back from the worker, the main thread runs the copies, and what the edit steps ask for goes back with the file for the worker to apply, since the worker has the editor. Keep it that way: nothing the worker or the entry imports statically may import `registry.ts`, `src/core.ts` or a `migration.ts`, and nothing in that lazy part may import the model classes (`src/Migrations/lazy.test.ts` checks both).
+
 A migration has up to two steps, which share a `ctx` created per file:
 
 - **`layout`**: handlers by `Type.field`, called while the file is copied to the new layout. The copier carries every field it can by name, so a field that only moved needs nothing. A field that was removed needs a handler returning `drop`, a new required field or one that changed type needs a handler returning its value. A handler receives the node of the old file that owns the field. You can also give one for a field that did not change, to change its content: that is one pass over the bytes and the cheap way to do it.
-- **`edit`**: returns edit requests, for changes that need the editor's bookkeeping (items, relations, samples). It runs on a model already in the current layout, after every `layout` step, and typically works from what `layout` left in `ctx`. It rewrites the file through `edit()`, which on a 190 MB model took 5 s against 0.7 s for a copy, and reading from the model costs building it, another 6 s: reach for it only when a handler cannot do the job.
+- **`edit`**: `(ctx) => requests`, for changes that need the editor's bookkeeping (items, relations, samples). It runs after every `layout` step and works from what `layout` left in `ctx`. It is not given the file: a handler can read any field while the file is copied, where a model to read from would cost building one (6 s on a 190 MB model). The requests are applied with `edit()`, a full rewrite that took 5 s on that model against 0.7 s for a copy, so reach for it only when a handler cannot do the job.
 
 `report(ctx)` is what the app is told about the file, through `onModelMigrated`.
 
@@ -139,6 +143,7 @@ Rules that are easy to miss:
 
 - **Layout steps all run before edit steps.** A `layout` handler cannot count on the `edit` of an older migration having run.
 - **Test with a file of the previous revision.** For a layout from a released version, convert an IFC from `resources/ifc/` with that version off npm and commit it under `fixtures/`. `Copier.write(schema, object)` writes a file of any layout from plain objects when no real one has the data you need.
+- **A file with no revision is placed by probes.** Files written before the revision stamp carry nothing to tell them by, so a step older than the stamp can have a `probe.ts` next to its migration: a function that says whether such a file predates the step. It is part of the gate, so it must import nothing but its type.
 - **Ids only go up.** CI fails a migration older than one already on the base branch, because every file written in between would skip it. Rename the directory with a current timestamp after rebasing.
 - **`yarn workspace @thatopen/fragments migration:check`** is what CI runs. It fails when `index.fbs` changed without a migration, when a migration leaves a field of its schema change undecided or has a handler for a field that does not exist, when a generated file is stale, and when a scaffold still has its `TODO`. For each schema change it prints what became of every field: decided by a handler, carried by the copier, or new and left for older files to lack.
 

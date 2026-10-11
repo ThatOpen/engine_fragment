@@ -1,5 +1,4 @@
 import type { EditRequest } from "../../Utils/edit/edit-types";
-import type { SingleThreadedFragmentsModel } from "../../FragmentsModels/src/single-threading";
 import type { LayoutHandler } from "./layout/copier";
 import type { SchemaDescriptor } from "./layout/descriptor";
 
@@ -34,9 +33,9 @@ export type Writable = View | StructView | { [field: string]: unknown };
 export type MigrationReport = Record<string, unknown>;
 
 /**
- * What a migration can ask about a file that carries no revision, to tell
- * whether the file predates it. Only migrations of layouts older than the
- * revision stamp need this.
+ * What the `probe.ts` of a step can ask about a file that carries no
+ * revision, to tell whether the file predates the step. Only the steps older
+ * than the revision stamp need one.
  */
 export interface UnstampedProbe {
   /** The metadata of the file, or `null` when it has none that parses. */
@@ -62,8 +61,8 @@ export interface UnstampedProbe {
  *   the cheap way to change the content of a field: one pass over the bytes.
  * - `edit` changes the content of a file that is already in the current
  *   layout, with the same requests the editor takes. It is for changes that
- *   need the editor's bookkeeping, like creating items. It costs a full
- *   edit of the file, plus a model if it reads from the one it is given.
+ *   need the editor's bookkeeping, like creating items, and it costs a full
+ *   edit of the file.
  *
  * Both receive the `ctx` of the migration, one per file, so `layout` can keep
  * what it removes for `edit` to put back in another form.
@@ -84,22 +83,14 @@ export interface Migration<
    */
   layout?: Handlers;
   /**
-   * Edit requests that bring the content of the file up to date. The model
-   * is built when first read from, so a step that works from its `ctx`
-   * alone, or has nothing to do, does not pay for one.
+   * Edit requests that bring the content of the file up to date, worked out
+   * from what `layout` left in `ctx`. It is not given the file: a handler
+   * can read any field of it while it is copied, which costs nothing, where
+   * a model to read from would cost building one.
    */
-  edit?: (
-    model: SingleThreadedFragmentsModel,
-    ctx: Ctx,
-  ) => EditRequest[] | Promise<EditRequest[]>;
+  edit?: (ctx: Ctx) => EditRequest[] | Promise<EditRequest[]>;
   /** What to tell the app about this file, once the migration ran. */
   report?: (ctx: Ctx) => MigrationReport;
-  /**
-   * Whether a file with no revision predates this migration. Only the
-   * migrations up to the one the stamp was introduced with are asked, oldest
-   * first; a file none of them claims is taken to be past all of them.
-   */
-  matchesUnstamped?: (probe: UnstampedProbe) => boolean;
 }
 
 /** A directory of `Migrations/list`: a migration, a new layout, or both. */
@@ -112,6 +103,13 @@ export interface MigrationStep {
   /** The schema change cannot be read without rewriting the file. */
   rewrite?: boolean;
   migration?: Migration<any, any>;
+  /**
+   * Whether a file with no revision predates this step: the `probe.ts` of
+   * its directory. Only the steps up to the one the stamp was introduced
+   * with are asked, oldest first; a file none of them claims is taken to be
+   * past all of them.
+   */
+  matchesUnstamped?: (probe: UnstampedProbe) => boolean;
 }
 
 export interface MigrationRegistry {

@@ -165,9 +165,17 @@ export class FragmentsModels {
     threadUpdaterDelay: 32,
     /**
      * Whether `load()` migrates a file that an older version of the package
-     * wrote. Files record the revision of the format they are at, and one
-     * that is behind is brought up to date in the worker before it is read;
-     * {@link onModelMigrated} then tells what was done to it.
+     * wrote. Files record the revision of the format they are at. The worker
+     * only tells whether a file is behind; one that is comes back to the
+     * main thread, which migrates it with code it loads on demand, and
+     * {@link onModelMigrated} then tells what was done to it. An app whose
+     * files are current never downloads that code.
+     *
+     * The copying part of a migration runs on the main thread, once per file
+     * if the app stores the result: about 0.7 s for a file of 190 MB
+     * inflated. What a migration asks to edit is applied in the worker. To
+     * keep all of it off the main thread, call `migrate()` yourself, in a
+     * worker or a backend, before loading.
      *
      * When false, a file that is only behind on content loads as it is, and
      * one whose layout has changed since makes `load()` reject with a

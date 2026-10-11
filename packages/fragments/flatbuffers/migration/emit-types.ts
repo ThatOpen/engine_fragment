@@ -183,7 +183,7 @@ export function emitTypes(
   );
   const imports: string[] = [];
   if (used.has("Drop")) {
-    imports.push(`import type { Drop } from "../../src/layout/copier";`);
+    imports.push(`import type { Drop } from "../../src/drop";`);
   }
   if (fromTypes.length > 0) {
     imports.push(

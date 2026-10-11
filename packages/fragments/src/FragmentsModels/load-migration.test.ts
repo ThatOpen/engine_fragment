@@ -1,3 +1,6 @@
+import { readFile } from "fs/promises";
+import * as path from "path";
+import pako from "pako";
 import {
   afterAll,
   afterEach,
@@ -8,13 +11,24 @@ import {
   vi,
 } from "vitest";
 import { FragmentsModels } from "./index";
-import { StaleFragmentsError, UnknownRevisionError } from "../Migrations";
+import {
+  StaleFragmentsError,
+  UnknownRevisionError,
+  getRevision,
+} from "../Migrations";
+import { registry } from "../Migrations/registry";
+import { applyRequests } from "../Migrations/src/apply";
+import { EditRequestType } from "../Utils/edit/edit-types";
 import { MultiThreadingRequestClass } from "./src/model/model-types";
+import { SingleThreadedFragmentsModel } from "./src/single-threading";
 import { FragmentsConnection } from "./src/multithreading/fragments-connection";
 
-// Issue #316: load() tells the app when the worker migrated the file, and
-// turns the worker's refusal to read one into the error it stands for.
+// Issue #316: the worker tells load() that a file is behind and hands it
+// back. load() migrates it, with code it only loads then, sends it again and
+// tells the app what was done.
 
+const repoRoot = path.resolve(import.meta.dirname, "../../../..");
+const LATEST = registry.steps[registry.steps.length - 1].id;
 const realWindow = (globalThis as any).window;
 
 beforeAll(() => {
@@ -37,16 +51,33 @@ afterEach(() => {
 
 const box = { min: { x: 0, y: 0, z: 0 }, max: { x: 1, y: 1, z: 1 } };
 
-/** load() with the worker's answer to CREATE_MODEL given by the test. */
+// Converted with @thatopen/fragments@3.1.7, inflated as the worker hands it back.
+const stale = async (name = "just_wall") => {
+  const file = path.join(
+    repoRoot,
+    "packages/fragments/src/Migrations/list/20251023113211_remove-alignments-and-geometries/fixtures",
+    `${name}.3.1.7.frag`,
+  );
+  return pako.inflate(new Uint8Array(await readFile(file)));
+};
+
+/**
+ * load() against a worker that answers CREATE_MODEL the way the test says:
+ * the first time with `answer`, and with a model once the file was migrated.
+ */
 const loadWith = (answer: Record<string, unknown>) => {
   const created: any[] = [];
+  const transferred: any[] = [];
   vi.spyOn(FragmentsConnection.prototype, "fetch").mockImplementation(
-    async (request: any) => {
-      if (request.class === MultiThreadingRequestClass.CREATE_MODEL) {
-        created.push(request);
-        return { boundingBox: box, ...answer };
+    async (request: any, content?: any[]) => {
+      if (request.class !== MultiThreadingRequestClass.CREATE_MODEL) {
+        return {};
       }
-      return {};
+      created.push(request);
+      transferred.push(content);
+      return request.migrated
+        ? { boundingBox: box }
+        : { boundingBox: box, ...answer };
     },
   );
   // No worker holds the model, so there is none to tell about its disposal.
@@ -61,24 +92,76 @@ const loadWith = (answer: Record<string, unknown>) => {
       raw: true,
       virtualModelConfig: config,
     });
-  return { fragments, created, migrated, load };
+  return { fragments, created, transferred, migrated, load };
 };
 
 describe("load() and migrations (issue #316)", () => {
-  test("onModelMigrated tells what the worker did to the file", async () => {
-    const migration = {
-      from: "20250710102015",
-      to: "20261011053212",
-      applied: [{ id: "20251023113211", title: "t", report: { n: 1 } }],
-    };
-    const { migrated, load } = loadWith({ migration });
+  test("a file the worker hands back is migrated, sent again, and reported", async () => {
+    const modelData = await stale();
+    const { created, transferred, migrated, load } = loadWith({
+      migration: { pending: true },
+      modelData,
+    });
     await load();
-    expect(migrated).toEqual([{ modelId: "model", ...migration }]);
+
+    expect(created).toHaveLength(2);
+    const [, again] = created;
+    // What goes back is raw, at the newest revision, and moved, not copied.
+    expect(again).toMatchObject({ raw: true, migrated: true, requests: [] });
+    expect(getRevision(again.modelData)).toMatchObject({
+      revision: LATEST,
+      stamped: true,
+      pending: [],
+    });
+    expect(transferred[1]).toEqual([again.modelData.buffer]);
+
+    expect(migrated).toHaveLength(1);
+    expect(migrated[0]).toMatchObject({
+      modelId: "model",
+      from: "20250710102015",
+      to: LATEST,
+    });
+    expect(migrated[0].applied.map((step: any) => step.id)).toEqual([
+      "20251023113211",
+      "20261011053212",
+    ]);
+    expect(migrated[0].applied[0].report).toMatchObject({ assignedIds: 5 });
   });
 
-  test("a file that needed nothing triggers nothing", async () => {
-    const { migrated, load } = loadWith({});
+  test("what the migrations ask to edit goes back with the file, for the worker to apply", async () => {
+    // This one has two alignments, which become items through the editor.
+    const { created, migrated, load } = loadWith({
+      migration: { pending: true },
+      modelData: await stale("alignment"),
+    });
     await load();
+
+    const [, again] = created;
+    expect(again.requests).toHaveLength(3);
+    // The main thread did the copies and left the edit: the alignments are
+    // items once the worker has applied it.
+    const alignmentsIn = (bytes: Uint8Array) => {
+      const model = new SingleThreadedFragmentsModel("m", bytes, true);
+      const ids = model.getItemsOfCategories([/^ThatOpenAlignment$/]);
+      model.dispose();
+      return ids.ThatOpenAlignment ?? [];
+    };
+    expect(alignmentsIn(again.modelData)).toHaveLength(0);
+    const applied = applyRequests(again.modelData, again.requests);
+    expect(alignmentsIn(applied)).toHaveLength(2);
+    expect(getRevision(applied)).toMatchObject({
+      revision: LATEST,
+      pending: [],
+    });
+    expect(migrated[0].applied[0].report).toMatchObject({
+      convertedAlignments: 2,
+    });
+  });
+
+  test("a file that needed nothing is sent once and triggers nothing", async () => {
+    const { created, migrated, load } = loadWith({});
+    await load();
+    expect(created).toHaveLength(1);
     expect(migrated).toEqual([]);
   });
 
@@ -99,16 +182,16 @@ describe("load() and migrations (issue #316)", () => {
 
   test("a file the worker refused rejects with the error, and leaves no model", async () => {
     const pending = [{ id: "20251023113211", title: "t", rewrite: true }];
-    const stale = loadWith({
+    const refused = loadWith({
       migration: {
         error: { name: "StaleFragmentsError", revision: "1", pending },
       },
     });
-    const error = await stale.load().catch((e) => e);
+    const error = await refused.load().catch((e) => e);
     expect(error).toBeInstanceOf(StaleFragmentsError);
     expect(error).toMatchObject({ revision: "1", pending });
-    expect(stale.fragments.models.list.has("model")).toBe(false);
-    expect(stale.migrated).toEqual([]);
+    expect(refused.fragments.models.list.has("model")).toBe(false);
+    expect(refused.migrated).toEqual([]);
 
     vi.restoreAllMocks();
     const newer = loadWith({
@@ -119,5 +202,27 @@ describe("load() and migrations (issue #316)", () => {
     const unknown = await newer.load().catch((e) => e);
     expect(unknown).toBeInstanceOf(UnknownRevisionError);
     expect(unknown).toMatchObject({ revision: "9", latest: "2" });
+  });
+
+  test("a file from a newer version rejects with the error, and is not sent again", async () => {
+    const file = path.join(repoRoot, "resources/frags/small_test.frag");
+    const source = new SingleThreadedFragmentsModel(
+      "source",
+      new Uint8Array(await readFile(file)),
+    );
+    const data = { ...source.getMetadata(), revision: "99990101000000" };
+    source.edit([{ type: EditRequestType.UPDATE_METADATA, localId: 0, data }]);
+    const newer = source.save();
+    source.dispose();
+
+    const { fragments, created, load } = loadWith({
+      migration: { pending: true },
+      modelData: newer,
+    });
+    const error = await load().catch((e) => e);
+    expect(error).toBeInstanceOf(UnknownRevisionError);
+    expect(error).toMatchObject({ revision: "99990101000000", latest: LATEST });
+    expect(created).toHaveLength(1);
+    expect(fragments.models.list.has("model")).toBe(false);
   });
 });

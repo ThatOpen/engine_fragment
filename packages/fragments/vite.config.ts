@@ -61,10 +61,14 @@ export default defineConfig({
             three: "THREE",
           },
         },
+        // The three below are single files. The migration code is behind a
+        // dynamic import (#316), which would otherwise split each of them
+        // into chunks: only the per-module build above keeps it lazy.
         {
           entryFileNames: `index.cjs`,
           format: "cjs",
           sourcemap: true,
+          inlineDynamicImports: true,
           globals: {
             three: "THREE",
           },
@@ -73,6 +77,7 @@ export default defineConfig({
           entryFileNames: `index.min.mjs`,
           plugins: [pluginTerser()],
           format: "es",
+          inlineDynamicImports: true,
           globals: {
             three: "THREE",
           },
@@ -81,6 +86,7 @@ export default defineConfig({
           entryFileNames: `index.min.cjs`,
           plugins: [pluginTerser()],
           format: "cjs",
+          inlineDynamicImports: true,
           globals: {
             three: "THREE",
           },

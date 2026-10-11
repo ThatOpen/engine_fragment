@@ -20,10 +20,28 @@ export class SetupManager {
   ) {
     const message = this.getCreateModelMessage(model, modelData, raw, config);
     const data = this.formatModelData(modelData);
-    const result = await model.threads.fetch(message, data);
+    let result = await model.threads.fetch(message, data);
     this.throwIfRefused(result);
+    let migration: ModelMigration | undefined;
+    if (result.migration?.pending) {
+      // The worker only tells that the file is behind. What brings it up to
+      // date is loaded here, the first time a file needs it, so an app whose
+      // files are current never downloads it.
+      const { prepare } = await import("../../../Migrations/src/core");
+      const prepared = await prepare(result.modelData);
+      const { bytes, requests, from, to, applied } = prepared;
+      if (applied.length > 0) {
+        migration = { from, to, applied };
+      }
+      // What the edit steps ask for goes back with the file: the worker has
+      // the editor, and applies it before reading the file.
+      const again = this.getCreateModelMessage(model, bytes, true, config);
+      again.migrated = true;
+      again.requests = requests;
+      result = await model.threads.fetch(again, [bytes.buffer]);
+    }
     this.updateBox(bbox, result);
-    return result.migration as ModelMigration | undefined;
+    return migration;
   }
 
   // The worker answers a file it refused to read with the error as data,

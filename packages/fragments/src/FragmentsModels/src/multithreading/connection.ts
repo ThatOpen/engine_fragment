@@ -49,7 +49,15 @@ export class Connection {
   private async manageOutput(input: any) {
     const connection = await this.fetchConnection(input);
     input.toMainThread = true;
-    connection.postMessage(input);
+    // A handler that answers with a big buffer lists it here, so the answer
+    // moves it instead of copying it.
+    const transfer: ArrayBuffer[] | undefined = input.transferBack;
+    delete input.transferBack;
+    if (transfer) {
+      connection.postMessage(input, transfer);
+    } else {
+      connection.postMessage(input);
+    }
   }
 
   private onInput = (input: MessageEvent) => {

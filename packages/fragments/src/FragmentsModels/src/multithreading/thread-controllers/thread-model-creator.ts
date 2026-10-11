@@ -5,11 +5,9 @@ import {
 } from "../../model/model-types";
 import { ThreadController } from "./thread-controller";
 import { VirtualFragmentsModel } from "../../virtual-model";
-import {
-  StaleFragmentsError,
-  UnknownRevisionError,
-} from "../../../../Migrations/src/errors";
-import { getRevision, migrate } from "../../../../Migrations/src/runner";
+import { gate } from "../../../../Migrations/gate";
+import { applyRequests } from "../../../../Migrations/src/apply";
+import { check } from "../../../../Migrations/src/gate";
 
 export class ThreadModelCreator extends ThreadController {
   protected getId() {
@@ -25,15 +23,14 @@ export class ThreadModelCreator extends ThreadController {
       }
     };
 
+    this.thread.migrating.delete(modelId);
     this.thread.loading.add(modelId);
     try {
       this.inflate(input);
       notify("decompressing", 1);
       throwIfAborted();
 
-      const refused = await this.migrate(input, notify);
-      throwIfAborted();
-      if (refused) {
+      if (this.isBehind(input, notify)) {
         return;
       }
 
@@ -102,55 +99,54 @@ export class ThreadModelCreator extends ThreadController {
   }
 
   /**
-   * Brings a file an older version of the package wrote up to date before it
-   * is read, since that is the only point where the stale bytes can still be
-   * told from current ones. What was done goes back to the main thread on
-   * `input.migration`.
+   * Tells whether the file was written by an older version of the package
+   * and has something to catch up on. That is all the worker knows about
+   * migrations: the code that does them is loaded by the main thread, and
+   * only for a file that is behind. Such a file is answered with no model
+   * and handed back, inflated, to be migrated and sent again.
    *
-   * A file that cannot be read (it needs a layout migration and migrating is
-   * off, or it is newer than this package) is answered with the error as
-   * data and no model: a thrown error reaches the main thread as a string.
+   * With migrating turned off, a file that is only behind on content is
+   * read as it is, and one that cannot be read (its layout changed, or it is
+   * newer than this package) is refused. The refusal is answered as data: a
+   * thrown error reaches the main thread as a string.
    *
-   * @returns Whether the load was refused.
+   * @returns Whether the load ends here.
    */
-  private async migrate(
+  private isBehind(
     input: any,
     notify: (stage: string, progress: number) => void,
   ) {
     const data: ArrayBuffer | Uint8Array = input.modelData;
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-    try {
-      const info = getRevision(bytes);
-      if (info.pending.length === 0) {
-        return false;
-      }
-      if (input.config?.migrate === false) {
-        if (info.readable) {
-          return false;
-        }
-        throw new StaleFragmentsError(info.revision, info.pending);
-      }
-      const result = await migrate(bytes, { raw: true });
-      notify("migrating", 1);
-      if (result.applied.length > 0) {
-        const { from, to, applied } = result;
-        input.modelData = result.bytes;
-        input.migration = { from, to, applied };
+    if (input.migrated) {
+      // The file is back from the main thread, which ran the migrations as
+      // far as it could without the editor. What they ask to edit is applied
+      // here, where the editor is.
+      if (input.requests?.length > 0) {
+        input.modelData = applyRequests(bytes, input.requests);
+        notify("migrating", 1);
       }
       return false;
-    } catch (error) {
-      if (error instanceof StaleFragmentsError) {
-        const { name, revision, pending } = error;
-        input.migration = { error: { name, revision, pending } };
-      } else if (error instanceof UnknownRevisionError) {
-        const { name, revision, latest } = error;
-        input.migration = { error: { name, revision, latest } };
-      } else {
-        throw error;
+    }
+    const { known, pending, readable, revision, latest } = check(bytes, gate);
+    if (known && pending.length === 0) {
+      return false;
+    }
+    if (input.config?.migrate === false) {
+      if (readable) {
+        return false;
       }
+      const name = known ? "StaleFragmentsError" : "UnknownRevisionError";
+      input.migration = { error: { name, revision, latest, pending } };
       input.modelData = undefined;
       return true;
     }
+    notify("migrating", 0);
+    this.thread.migrating.add(input.modelId);
+    input.migration = { pending: true };
+    input.modelData = bytes;
+    input.transferBack = [bytes.buffer];
+    return true;
   }
 
   private inflate(input: any) {

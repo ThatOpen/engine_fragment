@@ -19,11 +19,8 @@ import {
   readNumber,
   scalarArrayOf,
 } from "./reader";
+import { drop } from "../drop";
 import { MigrationObligationError } from "../errors";
-
-/** What the handler of a removed field returns: the field is gone on purpose. */
-export const drop: unique symbol = Symbol("fragments.migration.drop");
-export type Drop = typeof drop;
 
 /**
  * Gives the value of one field of the new layout, or acknowledges a field

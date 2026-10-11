@@ -7,7 +7,9 @@ import * as TFB from "../../../Schema";
 import { SingleThreadedFragmentsModel } from "../../../FragmentsModels";
 import { VirtualFragmentsModel } from "../../../FragmentsModels/src/virtual-model";
 import { IfcImporter } from "../../../Importers";
+import { isRawBuffer } from "../../../FragmentsModels/src/utils/misc/buffer";
 import { getRevision, migrate } from "../..";
+import { inspect } from "../../src/core";
 import { registry } from "../../registry";
 import { Copier } from "../../src/layout/copier";
 
@@ -23,6 +25,11 @@ const steps = registry.steps.slice(
   registry.steps.findIndex((step) => step.id === THIS) + 1,
 );
 const options = { registry: { steps, unstamped: THIS } };
+
+/** Where a file is in that registry. */
+const revisionOf = (bytes: Uint8Array) =>
+  inspect(isRawBuffer(bytes) ? bytes : pako.inflate(bytes), options.registry)
+    .info;
 
 const fixture = async (name: string) =>
   new Uint8Array(await readFile(path.join(here, "fixtures", name)));
@@ -50,7 +57,7 @@ describe("files written by 3.1", () => {
   test.each(["just_wall.3.1.7.frag", "school_str.3.1.7.frag"])(
     "%s is recognized, though it carries no revision",
     async (name) => {
-      const info = getRevision(await fixture(name), options);
+      const info = revisionOf(await fixture(name));
       expect(info.revision).toBe(BASELINE);
       expect(info.stamped).toBe(false);
       expect(info.readable).toBe(false);
@@ -69,7 +76,7 @@ describe("files written by 3.1", () => {
     "school_arq.frag",
     "synthetic_large_grid.frag",
   ])("%s, written since, is not taken for one", async (name) => {
-    const info = getRevision(await resource(name), options);
+    const info = revisionOf(await resource(name));
     expect(info.revision).toBe(THIS);
     expect(info.pending).toEqual([]);
   });
@@ -130,7 +137,7 @@ describe("files written by 3.1", () => {
       const again = await migrate(result.bytes, options);
       expect(again.applied).toEqual([]);
       expect(again.bytes).toBe(result.bytes);
-      expect(getRevision(result.bytes, options)).toMatchObject({
+      expect(revisionOf(result.bytes)).toMatchObject({
         revision: result.to,
         stamped: true,
         pending: [],

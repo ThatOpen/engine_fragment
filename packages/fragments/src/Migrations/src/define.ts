@@ -1,7 +1,7 @@
 import type { LayoutHandler } from "./layout/copier";
 import type { Migration } from "./types";
 
-export { drop } from "./layout/copier";
+export { drop } from "./drop";
 
 /**
  * Declares a migration. It only types it: `ctx` is inferred from `context`,

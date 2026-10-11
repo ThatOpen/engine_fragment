@@ -10,7 +10,8 @@ export class ThreadModelAborter extends ThreadController {
     const { modelId } = input;
     // Only flag loads that are actually in flight. Otherwise a stale abort
     // could cause a future load of the same modelId to abort immediately.
-    if (!this.thread.loading.has(modelId)) return;
+    const { loading, migrating } = this.thread;
+    if (!loading.has(modelId) && !migrating.has(modelId)) return;
     // The running generate() loop will see this flag at its next yield and
     // throw, unwinding the CREATE_MODEL call. Cleanup of any partial state
     // happens in ThreadModelCreator's catch block.

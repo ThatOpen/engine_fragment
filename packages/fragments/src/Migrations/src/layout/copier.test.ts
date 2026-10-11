@@ -7,7 +7,8 @@ import * as TFB from "../../../Schema";
 import { getObject } from "../../../Utils/flatbuffers-json-converter";
 import { registry } from "../../registry";
 import { MigrationObligationError } from "../errors";
-import { Copier, drop } from "./copier";
+import { drop } from "../drop";
+import { Copier } from "./copier";
 import { SchemaDescriptor } from "./descriptor";
 import { Reader } from "./reader";
 
