@@ -50,6 +50,14 @@ export const ifcClasses = {
   properties: new Set([
     WEBIFC.IFCPROPERTYSET,
     WEBIFC.IFCPROPERTYSINGLEVALUE,
+    // Multi-value properties. Without them a property set still lists their
+    // ids, but the items have no data (IDS checks them, e.g. "any matching
+    // value in a list property").
+    WEBIFC.IFCPROPERTYLISTVALUE,
+    WEBIFC.IFCPROPERTYBOUNDEDVALUE,
+    WEBIFC.IFCPROPERTYENUMERATEDVALUE,
+    WEBIFC.IFCPROPERTYENUMERATION,
+    WEBIFC.IFCPROPERTYTABLEVALUE,
     WEBIFC.IFCELEMENTQUANTITY,
     WEBIFC.IFCQUANTITYAREA,
     WEBIFC.IFCQUANTITYCOUNT,
