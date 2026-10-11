@@ -5,4 +5,4 @@
  * migration. Kept apart from the registry so that the writers can stamp it
  * without importing the migrations.
  */
-export const LATEST_REVISION = "20260429202010";
+export const LATEST_REVISION = "20261011053212";

@@ -4,6 +4,8 @@ import { expect, test } from "vitest";
 import { newModel } from "./edit/new-model-function";
 import { IfcImporter } from "../Importers";
 import { SingleThreadedFragmentsModel } from "../FragmentsModels";
+import { getRevision } from "../Migrations";
+import { registry } from "../Migrations/registry";
 
 const repoRoot = path.resolve(import.meta.dirname, "..", "..", "..", "..");
 
@@ -23,6 +25,9 @@ const expectProvenance = async (metadata: Record<string, any> | null) => {
   );
   expect(metadata!.version).toBe(pkg.version);
   expect(metadata!.version).toMatch(/^\d+\.\d+\.\d+/);
+  // A new file is at the newest revision: it has nothing to migrate.
+  const { steps } = registry;
+  expect(metadata!.revision).toBe(steps[steps.length - 1].id);
 };
 
 test(
@@ -57,6 +62,7 @@ test("newModel stamps generator and version into the model metadata", async () =
   const metadata = model.getMetadata();
   await expectProvenance(metadata);
   model.dispose();
+  expect(getRevision(fragBytes)).toMatchObject({ stamped: true, pending: [] });
 });
 
 test("frag files created before the provenance stamp still load fine", async () => {

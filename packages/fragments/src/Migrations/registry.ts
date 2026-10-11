@@ -6,6 +6,7 @@ import schema20250710102015 from "./list/20250710102015_baseline/schema.json";
 import schema20251023113211 from "./list/20251023113211_remove-alignments-and-geometries/schema.json";
 import migration20251023113211 from "./list/20251023113211_remove-alignments-and-geometries/migration";
 import schema20260429202010 from "./list/20260429202010_model-indexes/schema.json";
+import migration20261011053212 from "./list/20261011053212_provenance-backfill/migration";
 
 /** Every change to fragments files this package knows, oldest first. */
 export const registry: MigrationRegistry = {
@@ -27,6 +28,11 @@ export const registry: MigrationRegistry = {
       id: "20260429202010",
       slug: "model-indexes",
       schema: schema20260429202010 as SchemaDescriptor,
+    },
+    {
+      id: "20261011053212",
+      slug: "provenance-backfill",
+      migration: migration20261011053212,
     },
   ],
 };

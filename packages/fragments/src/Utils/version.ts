@@ -1,3 +1,5 @@
+import { LATEST_REVISION } from "../Migrations/revision";
+
 declare const __FRAGMENTS_VERSION__: string;
 
 /**
@@ -20,11 +22,14 @@ export const FRAGMENTS_VERSION =
 /**
  * Provenance data stamped into the metadata of every model this library
  * creates, so any fragments file records which package and version generated
- * it (see ThatOpen/engine_fragment#273).
+ * it (see ThatOpen/engine_fragment#273), and which revision of the file
+ * format it is at: the id of the newest migration this version knows. A newer
+ * version reads that to tell what the file is behind on (see `migrate`).
  */
 export function getProvenanceMetadata() {
   return {
     generator: FRAGMENTS_GENERATOR,
     version: FRAGMENTS_VERSION,
+    revision: LATEST_REVISION,
   };
 }

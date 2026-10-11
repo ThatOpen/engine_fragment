@@ -8,12 +8,19 @@ import { SingleThreadedFragmentsModel } from "../../../FragmentsModels";
 import { getRevision, migrate } from "../..";
 import { registry } from "../../registry";
 import { Copier } from "../../src/layout/copier";
-import { UNSTAMPED_REVISION } from "../unstamped";
 
 const here = import.meta.dirname;
 const repoRoot = path.resolve(here, "../../../../../..");
 const BASELINE = "20250710102015";
 const THIS = "20251023113211";
+
+// Later migrations are theirs to test: these run on the registry as it was
+// when this one was the newest.
+const steps = registry.steps.slice(
+  0,
+  registry.steps.findIndex((step) => step.id === THIS) + 1,
+);
+const options = { registry: { steps, unstamped: THIS } };
 
 const fixture = async (name: string) =>
   new Uint8Array(await readFile(path.join(here, "fixtures", name)));
@@ -41,7 +48,7 @@ describe("files written by 3.1", () => {
   test.each(["just_wall.3.1.7.frag", "school_str.3.1.7.frag"])(
     "%s is recognized, though it carries no revision",
     async (name) => {
-      const info = getRevision(await fixture(name));
+      const info = getRevision(await fixture(name), options);
       expect(info.revision).toBe(BASELINE);
       expect(info.stamped).toBe(false);
       expect(info.readable).toBe(false);
@@ -60,17 +67,18 @@ describe("files written by 3.1", () => {
     "school_arq.frag",
     "synthetic_large_grid.frag",
   ])("%s, written since, is not taken for one", async (name) => {
-    const info = getRevision(await resource(name));
-    expect(info.revision).toBe(UNSTAMPED_REVISION);
-    expect(info.readable).toBe(true);
+    const info = getRevision(await resource(name), options);
+    expect(info.revision).toBe(THIS);
+    expect(info.pending).toEqual([]);
   });
 
   test("migrating one gives what the current importer writes for the same IFC", async () => {
     const result = await migrate(await fixture("school_str.3.1.7.frag"), {
+      ...options,
       raw: true,
     });
     expect(result.from).toBe(BASELINE);
-    expect(result.to).toBe(registry.steps[registry.steps.length - 1].id);
+    expect(result.to).toBe(THIS);
     expect(result.applied[0]).toMatchObject({
       id: THIS,
       report: { droppedAlignments: 0, droppedGeometrySamples: 0 },
@@ -109,7 +117,7 @@ describe("files written by 3.1", () => {
     "%s loads once migrated, and is then left alone",
     async (name) => {
       const stale = await fixture(name);
-      const result = await migrate(stale);
+      const result = await migrate(stale, options);
       const model = new SingleThreadedFragmentsModel("wall", result.bytes);
       await model.ready;
       expect(model.getMetadata().revision).toBe(result.to);
@@ -117,10 +125,10 @@ describe("files written by 3.1", () => {
       expect(model.getMaterialsIds().length).toBeGreaterThan(0);
       model.dispose();
 
-      const again = await migrate(result.bytes);
+      const again = await migrate(result.bytes, options);
       expect(again.applied).toEqual([]);
       expect(again.bytes).toBe(result.bytes);
-      expect(getRevision(result.bytes)).toMatchObject({
+      expect(getRevision(result.bytes, options)).toMatchObject({
         revision: result.to,
         stamped: true,
         pending: [],
@@ -174,7 +182,7 @@ describe("files written by 3.1", () => {
     });
     expect(getRevision(stale).revision).toBe(BASELINE);
 
-    const result = await migrate(stale);
+    const result = await migrate(stale, options);
     expect(result.applied[0].report).toEqual({
       droppedAlignments: 2,
       droppedGeometrySamples: 3,
@@ -194,7 +202,7 @@ describe("files written by 3.1", () => {
     expect(model.maxLocalId()).toBe(13);
     expect(JSON.parse(model.metadata()!)).toEqual({
       schema: "IFC4X3",
-      revision: result.to,
+      revision: THIS,
     });
   });
 });
