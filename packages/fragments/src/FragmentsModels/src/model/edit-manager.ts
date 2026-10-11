@@ -1,27 +1,22 @@
+import * as THREE from "three";
 import { FragmentsModel } from "./fragments-model";
 import * as EDIT from "../../../Utils/edit";
 import { EditRequest } from "../../../Utils";
 import { Element } from "../edit";
 import { CurrentLod, MeshData } from "./model-types";
+import type { Cloned } from "../multithreading/cloned";
 
 export class EditManager {
   async edit(model: FragmentsModel, requests: EditRequest[]) {
-    return model.threads.invoke(model.modelId, "edit", [requests]) as Promise<{
-      deltaModelBuffer: Uint8Array;
-      ids: number[];
-    }>;
+    return model._invoke("edit", [requests]);
   }
 
   async reset(model: FragmentsModel) {
-    return model.threads.invoke(model.modelId, "reset", []) as Promise<void>;
+    return model._invoke("reset", []);
   }
 
   async save(model: FragmentsModel): Promise<Uint8Array> {
-    return model.threads.invoke(
-      model.modelId,
-      "save",
-      [],
-    ) as Promise<Uint8Array>;
+    return model._invoke("save", []);
   }
 
   async getItemsGeometry(
@@ -29,24 +24,20 @@ export class EditManager {
     localIds: number[],
     lod: CurrentLod,
   ) {
-    const originalGeometries = (await model.threads.invoke(
-      model.modelId,
-      "getItemsGeometry",
-      [localIds, lod],
-    )) as MeshData[][];
+    const originalGeometries = (
+      await model._invoke("getItemsGeometry", [localIds, lod])
+    ).map(EditManager.restoreTransforms);
 
-    const deltaModelId = model.deltaModelId;
-    if (!deltaModelId) {
+    const deltaModel = model._getDeltaModel();
+    if (!deltaModel) {
       return originalGeometries;
     }
 
     // If there are edited geometries, return them instead of the original ones
 
-    const deltaGeometries = (await model.threads.invoke(
-      deltaModelId,
-      "getItemsGeometry",
-      [localIds],
-    )) as MeshData[][];
+    const deltaGeometries = (
+      await deltaModel._invoke("getItemsGeometry", [localIds])
+    ).map(EditManager.restoreTransforms);
 
     const geomsByLocalId = new Map<number, MeshData[]>();
     for (const geometry of originalGeometries) {
@@ -63,24 +54,20 @@ export class EditManager {
   }
 
   async getGeometries(model: FragmentsModel, ids: number[]) {
-    const originalGeometries = (await model.threads.invoke(
-      model.modelId,
-      "getGeometries",
-      [ids],
-    )) as MeshData[];
+    const originalGeometries = EditManager.restoreTransforms(
+      await model._invoke("getGeometries", [ids]),
+    );
 
-    const deltaModelId = model.deltaModelId;
-    if (!deltaModelId) {
+    const deltaModel = model._getDeltaModel();
+    if (!deltaModel) {
       return originalGeometries;
     }
 
     // If there are edited geometries, return them instead of the original ones
 
-    const deltaGeometries = (await model.threads.invoke(
-      deltaModelId,
-      "getGeometries",
-      [ids],
-    )) as MeshData[];
+    const deltaGeometries = EditManager.restoreTransforms(
+      await deltaModel._invoke("getGeometries", [ids]),
+    );
 
     const geomsByReprId = new Map<number, MeshData>();
     for (const geometry of originalGeometries) {
@@ -97,113 +84,90 @@ export class EditManager {
   }
 
   async getMaterialsIds(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getMaterialsIds",
-      [],
-    ) as Promise<number[]>;
+    return model._invoke("getMaterialsIds", []);
   }
 
-  async getMaterials(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model.threads.invoke(model.modelId, "getMaterials", [
-      localIds,
-    ]) as Promise<Map<number, EDIT.RawMaterial>>;
+  async getMaterials(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawMaterial>> {
+    return model._invoke("getMaterials", [localIds]);
   }
 
   async getSamplesIds(model: FragmentsModel) {
-    return model.threads.invoke(model.modelId, "getSamplesIds", []) as Promise<
-      number[]
-    >;
+    return model._invoke("getSamplesIds", []);
   }
 
-  async getSamples(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model.threads.invoke(model.modelId, "getSamples", [
-      localIds,
-    ]) as Promise<Map<number, EDIT.RawSample>>;
+  async getSamples(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawSample>> {
+    return model._invoke("getSamples", [localIds]);
   }
 
   async getRepresentationsIds(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getRepresentationsIds",
-      [],
-    ) as Promise<number[]>;
+    return model._invoke("getRepresentationsIds", []);
   }
 
-  async getRepresentations(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model.threads.invoke(model.modelId, "getRepresentations", [
-      localIds,
-    ]) as Promise<Map<number, EDIT.RawRepresentation>>;
+  async getRepresentations(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawRepresentation>> {
+    return model._invoke("getRepresentations", [localIds]);
   }
 
   async getLocalTransformsIds(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getLocalTransformsIds",
-      [],
-    ) as Promise<number[]>;
+    return model._invoke("getLocalTransformsIds", []);
   }
 
-  async getLocalTransforms(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model.threads.invoke(model.modelId, "getLocalTransforms", [
-      localIds,
-    ]) as Promise<Map<number, EDIT.RawTransformData>>;
+  async getLocalTransforms(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawTransformData>> {
+    return model._invoke("getLocalTransforms", [localIds]);
   }
 
   async getGlobalTransformsIds(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getGlobalTransformsIds",
-      [],
-    ) as Promise<number[]>;
+    return model._invoke("getGlobalTransformsIds", []);
   }
 
   async getGlobalTransforms(
     model: FragmentsModel,
     localIds?: Iterable<number>,
-  ) {
-    return model.threads.invoke(model.modelId, "getGlobalTransforms", [
-      localIds,
-    ]) as Promise<Map<number, EDIT.RawGlobalTransformData>>;
+  ): Promise<Map<number, EDIT.RawGlobalTransformData>> {
+    return model._invoke("getGlobalTransforms", [localIds]);
   }
 
   async getItemsIds(model: FragmentsModel) {
-    return model.threads.invoke(model.modelId, "getItemsIds", []) as Promise<
-      number[]
-    >;
+    return model._invoke("getItemsIds", []);
   }
 
-  async getItems(model: FragmentsModel, localIds?: Iterable<number>) {
-    return model.threads.invoke(model.modelId, "getItems", [
-      localIds,
-    ]) as Promise<Map<number, EDIT.RawItemData>>;
+  async getItems(
+    model: FragmentsModel,
+    localIds?: Iterable<number>,
+  ): Promise<Map<number, EDIT.RawItemData>> {
+    return model._invoke("getItems", [localIds]);
   }
 
-  async getRelations(model: FragmentsModel, localIds?: number[]) {
-    return model.threads.invoke(model.modelId, "getRelations", [
-      localIds,
-    ]) as Promise<Map<number, EDIT.RawRelationData>>;
+  async getRelations(
+    model: FragmentsModel,
+    localIds?: number[],
+  ): Promise<Map<number, EDIT.RawRelationData>> {
+    return model._invoke("getRelations", [localIds]);
   }
 
   async getGlobalTranformsIdsOfItems(model: FragmentsModel, ids: number[]) {
-    const items = (await model.threads.invoke(
-      model.modelId,
-      "getGlobalTranformsIdsOfItems",
-      [ids],
-    )) as number[];
+    const items = await model._invoke("getGlobalTranformsIdsOfItems", [ids]);
     // this.applyActions(editor, model, items, "ITEM");
     return items;
   }
 
   async getEditedElements(model: FragmentsModel) {
-    if (!model.deltaModelId) {
+    const deltaModel = model._getDeltaModel();
+    if (!deltaModel) {
       return [];
     }
-    return model.threads.invoke(
-      model.deltaModelId,
-      "getItemsWithGeometry",
-      [],
-    ) as Promise<number[]>;
+    return deltaModel._invoke("getItemsWithGeometry", []);
   }
 
   /**
@@ -215,26 +179,22 @@ export class EditManager {
    *
    * Returns `null` if the item has no shells (e.g. line-only items).
    */
-  async getItemSnapData(model: FragmentsModel, itemId: number) {
-    return model.threads.invoke(model.modelId, "getItemSnapData", [
-      itemId,
-    ]) as Promise<EDIT.ElementData | null>;
+  async getItemSnapData(
+    model: FragmentsModel,
+    itemId: number,
+  ): Promise<EDIT.ElementData | null> {
+    return model._invoke("getItemSnapData", [itemId]);
   }
 
   async getElements(model: FragmentsModel, localIds: Iterable<number>) {
-    const itemsData = (await model.threads.invoke(
-      model.modelId,
-      "getElementsData",
-      [localIds],
-    )) as { [id: number]: EDIT.ElementData };
+    const itemsData = await model._invoke("getElementsData", [localIds]);
 
     // Update meshes data, just get them from delta model
-    if (model.deltaModelId) {
-      const updatedItems = (await model.threads.invoke(
-        model.deltaModelId,
-        "getElementsData",
-        [localIds],
-      )) as { [id: number]: EDIT.ElementData };
+    const deltaModel = model._getDeltaModel();
+    if (deltaModel) {
+      const updatedItems = await deltaModel._invoke("getElementsData", [
+        localIds,
+      ]);
 
       for (const id in updatedItems) {
         itemsData[id] = updatedItems[id];
@@ -250,11 +210,11 @@ export class EditManager {
     return result;
   }
 
-  async getRequests(model: FragmentsModel) {
-    return model.threads.invoke(model.modelId, "getRequests", []) as Promise<{
-      requests: EditRequest[];
-      undoneRequests: EditRequest[];
-    }>;
+  async getRequests(model: FragmentsModel): Promise<{
+    requests: EditRequest[];
+    undoneRequests: EditRequest[];
+  }> {
+    return model._invoke("getRequests", []);
   }
 
   async setRequests(
@@ -264,14 +224,19 @@ export class EditManager {
       undoneRequests?: EditRequest[];
     },
   ) {
-    return model.threads.invoke(model.modelId, "setRequests", [
-      data,
-    ]) as Promise<void>;
+    return model._invoke("setRequests", [data]);
   }
 
   async selectRequest(model: FragmentsModel, index: number) {
-    return model.threads.invoke(model.modelId, "selectRequest", [
-      index,
-    ]) as Promise<void>;
+    return model._invoke("selectRequest", [index]);
+  }
+
+  // Geometries reach the main thread as copies without their prototypes, so
+  // their transform is no longer a THREE.Matrix4.
+  static restoreTransforms(geometries: Cloned<MeshData>[]): MeshData[] {
+    return geometries.map((geometry) => ({
+      ...geometry,
+      transform: new THREE.Matrix4().fromArray(geometry.transform.elements),
+    }));
   }
 }

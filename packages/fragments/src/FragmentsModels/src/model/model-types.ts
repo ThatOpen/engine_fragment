@@ -89,8 +89,8 @@ export interface Attributes {
 export type AttributeData = {
   /** The value of the attribute, which can be any type */
   value: any;
-  /** Optional type identifier for the attribute value */
-  type?: number;
+  /** Optional type name of the attribute value, e.g. `"IFCLABEL"` */
+  type?: string;
 };
 
 /**
@@ -208,7 +208,17 @@ export enum MultiThreadingRequestClass {
 }
 
 /**
- * Error thrown when a model load is aborted via `FragmentsModels.abort()`.
+ * Internal key of a model. Unlike the `modelId` a model is loaded under, it is
+ * never reused, so late work of a disposed model can't reach a newer model
+ * loaded under the same `modelId`. Messages between the main thread and the
+ * workers address models by it.
+ */
+export type ModelUid = number & { readonly __brand: "ModelUid" };
+
+/**
+ * Error thrown when a model load is aborted via `FragmentsModels.abort()`,
+ * the `signal` passed to `FragmentsModels.load()`, or by disposing the model
+ * while it loads.
  */
 export class LoadAbortedError extends Error {
   constructor(modelId: string) {

@@ -13,6 +13,7 @@ import {
   ItemsQueryParams,
   LodMode,
   MaterialDefinition,
+  ModelUid,
   RaycastData,
   RectangleRaycastData,
   RelsChange,
@@ -22,7 +23,9 @@ import {
   VirtualModelConfig,
 } from "./model-types";
 
+import { Cloned } from "../multithreading/cloned";
 import { FragmentsConnection } from "../multithreading/fragments-connection";
+import type { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 import { MiscHelper } from "../utils";
 import { MeshManager } from "./mesh-manager";
 
@@ -37,12 +40,102 @@ import { IFragmentsModel } from "./fragments-model-interface";
 import { GridsConfig, GridsManager } from "./grids-manager";
 import { HighlightManager } from "./highlight-manager";
 import { ItemsManager } from "./items-manager";
+import { MaterialManager } from "./material-manager";
 import { RaycastManager } from "./raycast-manager";
 import { SectionManager } from "./section-manager";
 import { SequenceManager } from "./sequence-manager";
 import { SetupManager } from "./setup-manager";
 import { ViewManager } from "./view-manager";
 import { VisibilityManager } from "./visibility-manager";
+
+// The methods of a model's worker-side counterpart that the main thread
+// calls, see FragmentsModel._invoke. Their arguments and results are copied
+// between threads, so they must hold data only: no functions, and class
+// instances arrive as plain objects.
+type RemoteMethods = Pick<
+  VirtualFragmentsModel,
+  | "edit"
+  | "getAlignments"
+  | "getAttributeNames"
+  | "getAttributeTypes"
+  | "getAttributeValues"
+  | "getAttributesUniqueValues"
+  | "getBuffer"
+  | "getCRS"
+  | "getCategories"
+  | "getCoordinates"
+  | "getElementsData"
+  | "getGeometries"
+  | "getGlobalTranformsIdsOfItems"
+  | "getGlobalTransforms"
+  | "getGlobalTransformsIds"
+  | "getGrids"
+  | "getGuids"
+  | "getGuidsByLocalIds"
+  | "getHighlight"
+  | "getHighlightItemIds"
+  | "getIndexEntry"
+  | "getIndexInfo"
+  | "getIndexKey"
+  | "getIndexKeys"
+  | "getIndexNames"
+  | "getIndexValues"
+  | "getInverseIndexEntry"
+  | "getItemAttributes"
+  | "getItemCategory"
+  | "getItemDrawChunks"
+  | "getItemRelations"
+  | "getItemSnapData"
+  | "getItems"
+  | "getItemsByQuery"
+  | "getItemsByVisibility"
+  | "getItemsChildren"
+  | "getItemsData"
+  | "getItemsGeometry"
+  | "getItemsIds"
+  | "getItemsMaterialDefinition"
+  | "getItemsOfCategories"
+  | "getItemsVolume"
+  | "getItemsWithGeometry"
+  | "getItemsWithGeometryCategories"
+  | "getLocalIds"
+  | "getLocalIdsByGuids"
+  | "getLocalIdsFromItemIds"
+  | "getLocalTransforms"
+  | "getLocalTransformsIds"
+  | "getMaterials"
+  | "getMaterialsIds"
+  | "getMaxLocalId"
+  | "getMetadata"
+  | "getPositions"
+  | "getRelationNames"
+  | "getRelations"
+  | "getRepresentations"
+  | "getRepresentationsIds"
+  | "getRequests"
+  | "getSamples"
+  | "getSamplesIds"
+  | "getSection"
+  | "getSequenced"
+  | "getSpatialStructure"
+  | "getSubsetBuffer"
+  | "getVisible"
+  | "hasIndexEntry"
+  | "highlight"
+  | "reset"
+  | "resetColor"
+  | "resetHighlight"
+  | "resetOpacity"
+  | "resetVisible"
+  | "save"
+  | "selectRequest"
+  | "setColor"
+  | "setLodMode"
+  | "setOpacity"
+  | "setRequests"
+  | "setVisible"
+  | "toggleVisible"
+>;
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -120,6 +213,11 @@ export class FragmentsModel implements IFragmentsModel<true> {
   private _frozen = false;
   private _isSetup = false;
 
+  private readonly _modelId: string;
+  // Aborted as soon as dispose() is called; an in-flight load listens to it.
+  private readonly _lifetime = new AbortController();
+  private _disposal: Promise<void> | null = null;
+
   private static _deltaModelId = "isDeltaModel";
   private _parentModelId: string | null = null;
 
@@ -127,7 +225,20 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * The ID of the model.
    */
   get modelId() {
-    return this.object.name;
+    return this._modelId;
+  }
+
+  /**
+   * Internal key of the model, see {@link ModelUid}. Don't use this directly.
+   */
+  readonly _uid: ModelUid;
+
+  /**
+   * Internal signal, aborted as soon as {@link dispose} is called. Don't use
+   * this directly.
+   */
+  get _disposedSignal(): AbortSignal {
+    return this._lifetime.signal;
   }
 
   /**
@@ -218,13 +329,23 @@ export class FragmentsModel implements IFragmentsModel<true> {
   /**
    * The constructor of the fragments model. Don't use this directly. Use the {@link FragmentsModels.load} instead.
    */
-  constructor(
-    modelId: string,
-    meshManager: MeshManager,
-    threads: FragmentsConnection,
-    editor: Editor,
-    threadGroup?: string,
-  ) {
+  constructor({
+    modelId,
+    uid,
+    meshManager,
+    threads,
+    editor,
+    threadGroup,
+  }: {
+    modelId: string;
+    uid: ModelUid;
+    meshManager: MeshManager;
+    threads: FragmentsConnection;
+    editor: Editor;
+    threadGroup?: string;
+  }) {
+    this._modelId = modelId;
+    this._uid = uid;
     this.object.name = modelId;
     this.object.up.set(0, 0, 1);
     this._meshManager = meshManager;
@@ -245,49 +366,49 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Dispose the model. Use this when you're done with the model.
    * If you use the {@link FragmentsModels.dispose} method, this will be called automatically for all models.
    *
-   * @param options.keepInScene - If true, frees the model's worker slot,
-   *   registry entries and shared MaterialManager slot but leaves the THREE
-   *   object, tiles, materials in `list`, alignments and grids in place.
-   *   Caller must finalize the visual cleanup later via
-   *   {@link finalizeDispose}. Used by `editor.save()` to swap in a freshly
-   *   loaded model without a blank frame.
+   * It takes effect before it returns: the model leaves
+   * {@link FragmentsModels.models}, its load (if still in flight) is
+   * aborted, later requests to it reject, and its modelId can be loaded
+   * again right away. The returned promise resolves once the worker has
+   * deleted the model too. Calling it again returns the same promise.
+   *
+   * @param options.keepInScene - If true, frees the model's worker slot
+   *   and registry entries but leaves the THREE object, tiles, materials,
+   *   alignments and grids in place. Caller must finalize the visual
+   *   cleanup later via {@link finalizeDispose}. Used by `editor.save()` to
+   *   swap in a freshly loaded model without a blank frame.
    */
-  async dispose(options?: { keepInScene?: boolean }) {
-    this._isLoaded = false;
-    this.visibleItems.clear();
-    this.onViewUpdated.reset();
-    await this._dataManager.dispose(
-      this,
-      this._meshManager,
-      this._alignmentsManager,
-      this._gridsManager,
-      options,
-    );
+  dispose(options?: { keepInScene?: boolean }): Promise<void> {
+    if (!this._disposal) {
+      this._lifetime.abort();
+      this._isLoaded = false;
+      this.visibleItems.clear();
+      this.onViewUpdated.reset();
+      this._disposal = this._dataManager.dispose(
+        this,
+        this._meshManager,
+        this._alignmentsManager,
+        this._gridsManager,
+        options,
+      );
+    }
+    return this._disposal;
   }
 
   /**
    * Finalize a deferred dispose. Removes the THREE object from its parent,
-   * tears down tile meshes (geometry only — materials are shared via the
-   * MaterialManager and may be reused by a replacement model under the
-   * same modelId), and disposes the model's alignments and grids.
+   * tears down the tile meshes and the model's materials, and disposes the
+   * model's alignments and grids.
    *
-   * Only call this after `dispose({ keepInScene: true })`. The tile map
-   * is cleared with events disabled to bypass the onBeforeDelete listener
-   * registered in the constructor (which would otherwise dispose tile
-   * materials).
+   * Only call this after `dispose({ keepInScene: true })`.
    */
   finalizeDispose() {
-    this.object.removeFromParent();
-
-    this.tiles.eventsEnabled = false;
-    for (const [, mesh] of this.tiles) {
-      this.object.remove(mesh);
-      mesh.geometry.dispose();
-    }
-    this.tiles.clear();
-
-    this._alignmentsManager.dispose();
-    this._gridsManager.dispose();
+    this._dataManager.disposeScene({
+      model: this,
+      meshes: this._meshManager,
+      alignments: this._alignmentsManager,
+      grids: this._gridsManager,
+    });
   }
 
   /**
@@ -448,10 +569,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param raw - Whether to get the raw buffer. If false, it will be compressed.
    */
   getSubsetBuffer(localIds: number[], raw = false) {
-    return this.threads.invoke(this.modelId, "getSubsetBuffer", [
-      localIds,
-      raw,
-    ]);
+    return this._invoke("getSubsetBuffer", [localIds, raw]);
   }
 
   /**
@@ -463,11 +581,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
   }
 
   async getGuids() {
-    const guids = (await this.threads.invoke(
-      this.modelId,
-      "getGuids",
-      [],
-    )) as string[];
+    const guids = await this._invoke("getGuids", []);
     return guids;
   }
 
@@ -475,11 +589,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Get all the local IDs of the model.
    */
   async getLocalIds() {
-    const localIds = (await this.threads.invoke(
-      this.modelId,
-      "getLocalIds",
-      [],
-    )) as number[];
+    const localIds = await this._invoke("getLocalIds", []);
     return localIds;
   }
 
@@ -496,12 +606,11 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   // TODO: Fix, this is wrong
   async getItemsMaterialDefinition(localIds: number[]) {
-    const result = (await this.threads.invoke(
-      this.modelId,
-      "getItemsMaterialDefinition",
-      [localIds],
-    )) as { definition: MaterialDefinition; localIds: number[] }[];
-    return result;
+    const result = await this._invoke("getItemsMaterialDefinition", [localIds]);
+    return result.map(({ definition, localIds }) => ({
+      definition: MaterialManager.restoreColor(definition),
+      localIds,
+    }));
   }
 
   /**
@@ -528,9 +637,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to the total volume of the specified items.
    */
   async getItemsVolume(localIds: number[]) {
-    const volume = (await this.threads.invoke(this.modelId, "getItemsVolume", [
-      localIds,
-    ])) as number;
+    const volume = await this._invoke("getItemsVolume", [localIds]);
     return volume;
   }
 
@@ -540,11 +647,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of an attribute.
    */
   async getAttributeNames() {
-    const names = (await this.threads.invoke(
-      this.modelId,
-      "getAttributeNames",
-      [],
-    )) as string[];
+    const names = await this._invoke("getAttributeNames", []);
     return names;
   }
 
@@ -554,21 +657,14 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute values.
    */
   async getAttributeValues() {
-    const values = (await this.threads.invoke(
-      this.modelId,
-      "getAttributeValues",
-      [],
-    )) as any[];
+    const values = await this._invoke("getAttributeValues", []);
     return values;
   }
 
-  async getAttributesUniqueValues(params: AttributesUniqueValuesParams[]) {
-    const values = (await this.threads.invoke(
-      this.modelId,
-      "getAttributesUniqueValues",
-      [params],
-    )) as Record<string, { value: any; localIds: number[] }[]>;
-    return values;
+  async getAttributesUniqueValues(
+    params: AttributesUniqueValuesParams[],
+  ): Promise<Record<string, { value: any; localIds: number[] }[]>> {
+    return this._invoke("getAttributesUniqueValues", [params]);
   }
 
   /**
@@ -577,11 +673,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute types.
    */
   async getAttributeTypes() {
-    const types = (await this.threads.invoke(
-      this.modelId,
-      "getAttributeTypes",
-      [],
-    )) as string[];
+    const types = await this._invoke("getAttributeTypes", []);
     return types;
   }
 
@@ -591,11 +683,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of a relation.
    */
   async getRelationNames() {
-    const names = (await this.threads.invoke(
-      this.modelId,
-      "getRelationNames",
-      [],
-    )) as string[];
+    const names = await this._invoke("getRelationNames", []);
     return names;
   }
 
@@ -815,7 +903,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param data - The data of the rectangle raycast.
    */
   rectangleRaycast(data: RectangleRaycastData) {
-    return this._raycastManager.rectangleRaycast(this, this._meshManager, data);
+    return this._raycastManager.rectangleRaycast(this, data);
   }
 
   /**
@@ -848,8 +936,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param visible - Whether the items should be visible.
    */
   async setVisible(localIds: number[] | undefined, visible: boolean) {
-    const args = [localIds, visible];
-    await this.threads.invoke(this.modelId, "setVisible", args);
+    await this._invoke("setVisible", [localIds, visible]);
   }
 
   /**
@@ -857,8 +944,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param localIds - The local IDs of the items to toggle the visibility of.
    */
   async toggleVisible(localIds?: number[]) {
-    const args = [localIds];
-    await this.threads.invoke(this.modelId, "toggleVisible", args);
+    await this._invoke("toggleVisible", [localIds]);
   }
 
   /**
@@ -1114,6 +1200,43 @@ export class FragmentsModel implements IFragmentsModel<true> {
     await this._meshManager.requests.handleRequest(this._meshManager, request);
   }
 
+  /**
+   * Internal method to call a method of the model on its worker. Don't use
+   * this directly. The arguments and the result are copied between threads,
+   * so class instances in the result arrive as plain objects, see
+   * {@link Cloned}.
+   */
+  _invoke<K extends keyof RemoteMethods>(
+    method: K,
+    // Optional only when every parameter of the method is.
+    ...[args]: [] extends Parameters<RemoteMethods[K]>
+      ? [args?: Parameters<RemoteMethods[K]>]
+      : [args: Parameters<RemoteMethods[K]>]
+  ): Promise<Cloned<Awaited<ReturnType<RemoteMethods[K]>>>> {
+    // Otherwise the connection rejects it naming the uid, which means nothing
+    // to whoever holds the model (or one of its items).
+    if (this._lifetime.signal.aborted) {
+      const error = new Error(
+        `Fragments: model "${this.modelId}" is disposed.`,
+      );
+      return Promise.reject(error);
+    }
+    return this.threads.invoke<Awaited<ReturnType<RemoteMethods[K]>>>(
+      this._uid,
+      method,
+      args,
+    );
+  }
+
+  /**
+   * Internal method to get the delta model holding this model's edits, if
+   * it is loaded. Don't use this directly.
+   */
+  _getDeltaModel() {
+    if (this.deltaModelId === null) return undefined;
+    return this._meshManager.list.get(this.deltaModelId);
+  }
+
   _getElements(localIds: Iterable<number>) {
     return this._editManager.getElements(this, localIds);
   }
@@ -1144,7 +1267,9 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Internal method to refresh the view of the model. You shouldn't call this directly. Instead, use {@link FragmentsModels.update}.
    */
   async _refreshView(force = false) {
-    if (this.frozen) return;
+    // A disposed model has nothing left to show.
+    const disposed = this._lifetime.signal;
+    if (this.frozen || disposed.aborted) return;
     // Only mark the model busy when a REFRESH_VIEW was actually
     // dispatched — a skipped (unchanged-view) refresh produces no
     // FINISH, so setting the flag would leave `isBusy` stuck. The
@@ -1157,7 +1282,13 @@ export class FragmentsModel implements IFragmentsModel<true> {
         if (sent) this._isProcessing = true;
       });
     const deltaPromise = this._editor._update(this.modelId);
-    await Promise.all([mainPromise, deltaPromise]);
+    try {
+      await Promise.all([mainPromise, deltaPromise]);
+    } catch (error) {
+      // Disposing the model mid-refresh rejects the refresh if it drops the
+      // model's worker. Callers often don't await refreshes (see `frozen`).
+      if (!disposed.aborted) throw error;
+    }
   }
 
   /**

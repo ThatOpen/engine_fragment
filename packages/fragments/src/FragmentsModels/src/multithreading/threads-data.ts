@@ -1,4 +1,5 @@
 import { Thread } from "./multithreading-helper";
+import type { ModelUid } from "../model/model-types";
 
 /**
  * Sentinel for the default pool. Threads not reserved for a named
@@ -8,7 +9,7 @@ import { Thread } from "./multithreading-helper";
 const DEFAULT_POOL = "__default__";
 
 export class ThreadsData {
-  private readonly _modelThread = new Map<string, Thread>();
+  private readonly _modelThread = new Map<ModelUid, Thread>();
   private readonly _threadsModelAmount = new Map<Thread, number>();
   private readonly _threadPort = new Map<Thread, MessagePort>();
   private readonly _threadPath: string;
@@ -17,7 +18,7 @@ export class ThreadsData {
   // Per-thread group tag. Default-pool threads use DEFAULT_POOL.
   private readonly _threadGroup = new Map<Thread, string>();
   // Per-model group tag, mirrors what the user passed at load().
-  private readonly _modelGroup = new Map<string, string | undefined>();
+  private readonly _modelGroup = new Map<ModelUid, string | undefined>();
 
   get path() {
     return this._threadPath;
@@ -28,36 +29,36 @@ export class ThreadsData {
     this._threadPath = threadPath;
   }
 
-  usePlaceholder(id: string) {
-    this._modelThread.set(id, this._placeholder);
+  usePlaceholder(uid: ModelUid) {
+    this._modelThread.set(uid, this._placeholder);
   }
 
   getAmount(thread: Thread) {
     return this._threadsModelAmount.get(thread);
   }
 
-  getThread(modelId: string) {
-    return this._modelThread.get(modelId);
+  getThread(uid: ModelUid) {
+    return this._modelThread.get(uid);
   }
 
-  getAndCheckThread(id: string) {
-    const thread = this._modelThread.get(id);
+  getAndCheckThread(uid: ModelUid) {
+    const thread = this._modelThread.get(uid);
     if (thread === this._placeholder) {
       throw new Error("Fragments: Error fetching thread!");
     }
     return thread;
   }
 
-  set(modelId: string, thread: Thread) {
-    this._modelThread.set(modelId, thread);
+  set(uid: ModelUid, thread: Thread) {
+    this._modelThread.set(uid, thread);
   }
 
-  setModelGroup(modelId: string, group: string | undefined) {
-    this._modelGroup.set(modelId, group);
+  setModelGroup(uid: ModelUid, group: string | undefined) {
+    this._modelGroup.set(uid, group);
   }
 
-  getModelGroup(modelId: string) {
-    return this._modelGroup.get(modelId);
+  getModelGroup(uid: ModelUid) {
+    return this._modelGroup.get(uid);
   }
 
   setThreadGroup(thread: Thread, group: string | undefined) {
@@ -83,21 +84,18 @@ export class ThreadsData {
     return count;
   }
 
-  deleteModel(modelId: string) {
-    const modelThread = this.getThreadSafe(modelId);
-    const threadModelAmount = this.getAmountSafe(modelThread);
-    const newModelAmount = threadModelAmount - 1;
-    this.setAmount(modelThread, newModelAmount);
-    this._modelThread.delete(modelId);
-    this._modelGroup.delete(modelId);
-  }
-
-  getThreadSafe(modelId: string) {
-    const thread = this.getThread(modelId);
-    if (!thread) {
-      throw new Error(`Fragments: Thread for model ${modelId} not found`);
+  /**
+   * Forgets the model, and frees its slot in its thread if it got one (a
+   * model that never sent CREATE_MODEL, or whose thread setup failed, has
+   * none).
+   */
+  deleteModel(uid: ModelUid) {
+    const modelThread = this._modelThread.get(uid);
+    if (modelThread && modelThread !== this._placeholder) {
+      this.setAmount(modelThread, this.getAmountSafe(modelThread) - 1);
     }
-    return thread;
+    this._modelThread.delete(uid);
+    this._modelGroup.delete(uid);
   }
 
   deleteThread(thread: Thread) {
@@ -134,7 +132,7 @@ export class ThreadsData {
       );
     }
     this._threadsModelAmount.set(lessBusyThread, modelAmount + 1);
-    this._modelThread.set(input.modelId, lessBusyThread);
+    this._modelThread.set(input.uid, lessBusyThread);
     return this._threadPort.get(lessBusyThread) as MessagePort;
   }
 

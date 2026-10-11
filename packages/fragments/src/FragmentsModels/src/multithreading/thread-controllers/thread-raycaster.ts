@@ -45,7 +45,7 @@ export class ThreadRaycaster extends ThreadController {
   }
 
   private raycastRectangle(input: any) {
-    const model = this.thread.getModel(input.modelId);
+    const model = this.thread.getModel(input.uid);
     const frustum = MultithreadingHelper.frustum(input.frustum);
     const fullyIncluded = input.fullyIncluded;
     const localIds = model.rectangleRaycast(frustum, fullyIncluded);
@@ -53,7 +53,7 @@ export class ThreadRaycaster extends ThreadController {
   }
 
   private raycastWithSnap(input: any) {
-    const model = this.thread.getModel(input.modelId);
+    const model = this.thread.getModel(input.uid);
     const beam = MultithreadingHelper.beam(input.ray);
     const frustum = MultithreadingHelper.frustum(input.frustum);
     const snappingClass = input.snappingClass;
@@ -62,7 +62,7 @@ export class ThreadRaycaster extends ThreadController {
   }
 
   private raycastBeam(input: any) {
-    const model = this.thread.getModel(input.modelId);
+    const model = this.thread.getModel(input.uid);
     const beam = MultithreadingHelper.beam(input.ray);
     const frustum = MultithreadingHelper.frustum(input.frustum);
     const returnAll = input.returnAll || false;

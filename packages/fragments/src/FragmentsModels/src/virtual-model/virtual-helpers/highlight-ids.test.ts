@@ -6,6 +6,7 @@ import { VirtualFragmentsModel } from "../virtual-fragments-model";
 import { ItemConfigController } from "../virtual-controllers/item-config-controller";
 import { MaterialManager } from "../../model/material-manager";
 import { RequestsManager } from "../../model/requests-manager";
+import type { ModelUid } from "../../model/model-types";
 
 // Issue #299: highlight ids live in a Uint16Array per item and index the
 // per-model material list shared by the worker and the main thread.
@@ -30,12 +31,13 @@ const load = async () => {
     inflated.byteOffset,
     inflated.byteOffset + inflated.byteLength,
   );
-  const model = new VirtualFragmentsModel("m", data, connection, {
+  const uid = 1 as ModelUid;
+  const model = new VirtualFragmentsModel(uid, data, connection, {
     multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 0 },
   });
   await model.setupData();
   const workerList = (model.materials as any)._list as unknown[];
-  const mainList = () => (mainMaterials as any)._definitions.get("m") as unknown[];
+  const mainList = () => (mainMaterials as any)._definitions.get(uid) as unknown[];
   return { model, workerList, mainList };
 };
 

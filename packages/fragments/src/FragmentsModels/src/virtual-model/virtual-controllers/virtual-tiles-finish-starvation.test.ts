@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import Pako from "pako";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
-import { TileRequestClass } from "../../model/model-types";
+import { ModelUid, TileRequestClass } from "../../model/model-types";
 
 // Issue #300: under continuous view refreshes (a moving camera) the tile
 // pass never completed. FINISH keeps meaning "the view you last sent is
@@ -28,7 +28,7 @@ const setup = async () => {
     inflated.byteOffset,
     inflated.byteOffset + inflated.byteLength,
   );
-  const model = new VirtualFragmentsModel("m", data, connection, {
+  const model = new VirtualFragmentsModel(1 as ModelUid, data, connection, {
     multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 0 },
   });
   await model.setupData();

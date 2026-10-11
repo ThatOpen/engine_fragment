@@ -1,11 +1,22 @@
 import * as THREE from "three";
 
 import {
+  ModelUid,
   MultiThreadingRequestClass,
   TileRequestClass,
 } from "../model/model-types";
 
 export type Thread = Worker;
+
+/** A call of a method of a model's worker-side counterpart. */
+export type ExecuteRequest = {
+  class: MultiThreadingRequestClass.EXECUTE;
+  uid: ModelUid;
+  function: string;
+  parameters: unknown[];
+  /** Set by the worker: what the method returned. */
+  result?: unknown;
+};
 
 export class MultithreadingHelper {
   static newThread(url: string, classic?: boolean) {
@@ -16,9 +27,9 @@ export class MultithreadingHelper {
     return setInterval(effect, rate);
   }
 
-  static getMeshComputeRequest(modelId: string, list: any[]) {
+  static getMeshComputeRequest(uid: ModelUid, list: any[]) {
     const className = MultiThreadingRequestClass.RECOMPUTE_MESHES;
-    return { class: className, modelId, list };
+    return { class: className, uid, list };
   }
 
   static planeSet(planes: THREE.Plane[]) {
@@ -101,13 +112,17 @@ export class MultithreadingHelper {
     return MultithreadingHelper._seq;
   }
 
-  static getExecuteRequest(modelId: string, method: string, args: any) {
+  static getExecuteRequest(
+    uid: ModelUid,
+    method: string,
+    args: any,
+  ): ExecuteRequest {
     const parameters = Array.from(args);
     const className = MultiThreadingRequestClass.EXECUTE;
     // `seq` is attached at the FragmentsConnection.fetch level so every
     // main → worker request (EXECUTE, REFRESH_VIEW, GET_BOXES, …) gets
     // tagged consistently. Tagging here would only cover EXECUTE.
-    return { class: className, modelId, function: method, parameters };
+    return { class: className, uid, function: method, parameters };
   }
 
   static plane(plane: THREE.Plane) {

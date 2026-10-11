@@ -7,38 +7,37 @@ import {
   BIMMesh,
   BIMMaterial,
   MaterialData,
+  ModelUid,
 } from "./model-types";
 import { CRC } from "../utils";
 import { LodMaterial } from "../lod";
 import { DataMap } from "../../../Utils";
+import type { Cloned } from "../multithreading/cloned";
 
 export class MaterialManager {
   readonly list = new DataMap<number, BIMMaterial>();
 
-  private readonly _modelMaterialMapping = new Map<string, Set<number>>();
-  private readonly _definitions = new Map<string, MaterialDefinition[]>();
+  private readonly _modelMaterialMapping = new Map<ModelUid, Set<number>>();
+  private readonly _definitions = new Map<ModelUid, MaterialDefinition[]>();
   private readonly _idGenerator = new CRC();
   private readonly white = 0xffffffff;
 
-  static resetColors(definitions: MaterialDefinition[]) {
-    for (const definition of definitions) {
-      if (!(definition && definition.color)) continue;
-      const { color } = definition;
-      if (color.isColor) continue;
-      const { r, g, b } = color;
-      // IFC colors are stored in sRBG color space
-      definition.color = new THREE.Color().setRGB(
-        r,
-        g,
-        b,
-        THREE.SRGBColorSpace
-      );
-    }
+  // Definitions reach the main thread as copies without their prototypes, so
+  // their color is no longer a THREE.Color, though it keeps `isColor`. Its
+  // components are already linear: the worker converted them from sRGB.
+  static restoreColor(
+    definition: Cloned<MaterialDefinition>,
+  ): MaterialDefinition {
+    // Items without a highlight have no definition, and a highlight that only
+    // changes the opacity has no color: there is nothing to restore.
+    if (!definition?.color) return definition as MaterialDefinition;
+    const { r, g, b } = definition.color;
+    return { ...definition, color: new THREE.Color(r, g, b) };
   }
 
-  dispose(modelId: string) {
-    this._definitions.delete(modelId);
-    const ids = this._modelMaterialMapping.get(modelId);
+  dispose(uid: ModelUid) {
+    this._definitions.delete(uid);
+    const ids = this._modelMaterialMapping.get(uid);
     if (!ids) return;
     for (const id of ids) {
       const material = this.list.get(id);
@@ -46,30 +45,23 @@ export class MaterialManager {
       material.dispose();
       this.list.delete(id);
     }
-    this._modelMaterialMapping.delete(modelId);
-  }
-
-  /**
-   * Release a model's slot in the per-model definitions and mapping tables
-   * without disposing the underlying THREE materials in `list`. Used by
-   * `editor.save()` so a fresh model can register under the same modelId
-   * while the outgoing model's tiles still render normally.
-   */
-  releaseModelSlot(modelId: string) {
-    this._definitions.delete(modelId);
-    this._modelMaterialMapping.delete(modelId);
+    this._modelMaterialMapping.delete(uid);
   }
 
   get(data: MaterialDefinition, request: any) {
-    const { modelId, objectClass, currentLod, templateId } = request;
-    if (!(modelId && objectClass !== undefined && currentLod !== undefined)) {
+    const { uid, objectClass, currentLod, templateId } = request;
+    if (
+      uid === undefined ||
+      objectClass === undefined ||
+      currentLod === undefined
+    ) {
       throw new Error(
         "Fragments: material definition information is missing to create the material."
       );
     }
 
     this._idGenerator.fromMaterialData({
-      modelId,
+      uid,
       objectClass,
       currentLod,
       templateId,
@@ -88,25 +80,25 @@ export class MaterialManager {
    * ones the worker has reclaimed (see #299) and are replaced.
    */
   addDefinitions(
-    modelID: string,
+    uid: ModelUid,
     materials: MaterialDefinition[],
     firstId?: number,
   ) {
-    const definitions = this._definitions.get(modelID);
+    const definitions = this._definitions.get(uid);
     if (definitions) {
       if (firstId !== undefined && firstId < definitions.length) {
         definitions.length = firstId;
       }
       definitions.push(...materials);
     } else {
-      this._definitions.set(modelID, materials);
+      this._definitions.set(uid, materials);
     }
   }
 
   createHighlights(mesh: BIMMesh, request: any) {
     const {
       tileData: { highlightData, highlightIds },
-      modelId,
+      uid,
       material: index,
     } = request;
 
@@ -114,7 +106,7 @@ export class MaterialManager {
     const materials = (mesh.material as THREE.Material[]).slice(0, 2);
     const localMap = new Map<number, number>();
 
-    const materialDefinitions = this._definitions.get(modelId);
+    const materialDefinitions = this._definitions.get(uid);
     if (!materialDefinitions) return materials;
 
     for (let i = 0; i < highlightData.position.length; i++) {
@@ -140,9 +132,9 @@ export class MaterialManager {
   getHighlightProps(
     highlightIndex: number,
     originalIndex: number,
-    modelId: string,
+    uid: ModelUid,
   ) {
-    const materialDefinitions = this._definitions.get(modelId);
+    const materialDefinitions = this._definitions.get(uid);
     if (!materialDefinitions) return undefined;
     const originalDefinition = materialDefinitions[originalIndex];
     const newDefinition = materialDefinitions[highlightIndex];
@@ -166,8 +158,8 @@ export class MaterialManager {
   }
 
   getFromRequest(request: any) {
-    const { material: index, modelId } = request;
-    const modelMaterials = this._definitions.get(modelId);
+    const { material: index, uid } = request;
+    const modelMaterials = this._definitions.get(uid);
     const definition = modelMaterials?.[index];
     if (!definition) {
       throw new Error(`Fragments: Missing mesh material for index ${index}`);
@@ -235,11 +227,11 @@ export class MaterialManager {
     return material;
   }
 
-  private addMaterialToModel(modelId: string, id: number) {
-    let modelMaterials = this._modelMaterialMapping.get(modelId);
+  private addMaterialToModel(uid: ModelUid, id: number) {
+    let modelMaterials = this._modelMaterialMapping.get(uid);
     if (!modelMaterials) {
       modelMaterials = new Set();
-      this._modelMaterialMapping.set(modelId, modelMaterials);
+      this._modelMaterialMapping.set(uid, modelMaterials);
     }
     modelMaterials.add(id);
   }
@@ -277,12 +269,12 @@ export class MaterialManager {
     data: MaterialDefinition,
     request: any
   ) {
-    const modelId = request.modelId;
+    const uid = request.uid;
     const material = this.list.get(id);
     if (material) return material;
     const newMaterial = this.new(data, request);
     this.list.set(id, newMaterial);
-    this.addMaterialToModel(modelId, id);
+    this.addMaterialToModel(uid, id);
     return this.list.get(id)!;
   }
 }

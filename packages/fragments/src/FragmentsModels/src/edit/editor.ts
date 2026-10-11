@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { FragmentsModels, ItemData } from "../..";
-import { FragmentsConnection } from "../multithreading/fragments-connection";
 import {
   EditRequest,
   Event,
@@ -25,8 +24,8 @@ export class Editor {
   private _editHelper: EditHelper;
   private _elementsHelper: ElementsHelper;
 
-  constructor(core: FragmentsModels, connection: FragmentsConnection) {
-    this._editHelper = new EditHelper(core, connection);
+  constructor(core: FragmentsModels) {
+    this._editHelper = new EditHelper(core);
     this._elementsHelper = new ElementsHelper(core);
   }
 
