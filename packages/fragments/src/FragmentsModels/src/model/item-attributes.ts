@@ -112,7 +112,7 @@ export class ItemAttributes extends Map<string, AttributeData> {
    * @param type - The type of the attribute to set.
    * @returns The updated map.
    */
-  setType(key: string, type: number) {
+  setType(key: string, type: string) {
     const value = this.getValue(key);
     if (!value) return this;
     return this.set(key, { value, type });

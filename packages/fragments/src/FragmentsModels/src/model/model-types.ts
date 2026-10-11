@@ -89,8 +89,8 @@ export interface Attributes {
 export type AttributeData = {
   /** The value of the attribute, which can be any type */
   value: any;
-  /** Optional type identifier for the attribute value */
-  type?: number;
+  /** Optional type name of the attribute value, e.g. `"IFCLABEL"` */
+  type?: string;
 };
 
 /**
@@ -208,7 +208,9 @@ export enum MultiThreadingRequestClass {
 }
 
 /**
- * Error thrown when a model load is aborted via `FragmentsModels.abort()`.
+ * Error thrown when a model load is aborted via `FragmentsModels.abort()`,
+ * the `signal` passed to `FragmentsModels.load()`, or by disposing the model
+ * while it loads.
  */
 export class LoadAbortedError extends Error {
   constructor(modelId: string) {

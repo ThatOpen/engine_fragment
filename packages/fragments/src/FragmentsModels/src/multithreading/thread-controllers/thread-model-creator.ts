@@ -13,6 +13,25 @@ export class ThreadModelCreator extends ThreadController {
 
   protected async execute(input: any) {
     const { modelId } = input;
+    const load = this.load(input);
+    // A DELETE that lands mid-load aborts it and waits for it to unwind.
+    this.thread.loading.set(
+      modelId,
+      load.then(
+        () => {},
+        () => {},
+      ),
+    );
+    try {
+      await load;
+    } finally {
+      this.thread.aborting.delete(modelId);
+      this.thread.loading.delete(modelId);
+    }
+  }
+
+  private async load(input: any) {
+    const { modelId } = input;
     const notify = this.createProgressNotifier(modelId);
     const throwIfAborted = () => {
       if (this.thread.aborting.has(modelId)) {
@@ -20,7 +39,6 @@ export class ThreadModelCreator extends ThreadController {
       }
     };
 
-    this.thread.loading.add(modelId);
     try {
       this.inflate(input);
       notify("decompressing", 1);
@@ -48,9 +66,6 @@ export class ThreadModelCreator extends ThreadController {
         this.thread.list.delete(modelId);
       }
       throw e;
-    } finally {
-      this.thread.aborting.delete(modelId);
-      this.thread.loading.delete(modelId);
     }
   }
 

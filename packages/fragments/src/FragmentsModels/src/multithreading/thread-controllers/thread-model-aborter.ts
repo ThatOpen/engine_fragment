@@ -8,8 +8,8 @@ export class ThreadModelAborter extends ThreadController {
 
   protected async execute(input: any) {
     const { modelId } = input;
-    // Only flag loads that are actually in flight. Otherwise a stale abort
-    // could cause a future load of the same modelId to abort immediately.
+    // Only flag loads that are actually in flight: a flag left behind would
+    // never be cleared.
     if (!this.thread.loading.has(modelId)) return;
     // The running generate() loop will see this flag at its next yield and
     // throw, unwinding the CREATE_MODEL call. Cleanup of any partial state

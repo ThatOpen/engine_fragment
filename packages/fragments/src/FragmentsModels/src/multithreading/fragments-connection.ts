@@ -1,3 +1,5 @@
+import { MultiThreadingRequestClass } from "../model/model-types";
+import { Cloned } from "./cloned";
 import { Connection } from "./connection";
 import { ThreadHandler } from "./connection-handlers";
 import { MultithreadingHelper, Thread } from "./multithreading-helper";
@@ -106,11 +108,15 @@ export class FragmentsConnection extends Connection {
     this._data.setModelGroup(modelId, group);
   }
 
-  async invoke(model: string, method: string, args: any[] = []) {
+  /**
+   * Calls a method of the model's worker-side counterpart. `R` is what the
+   * method returns there, which reaches this thread as a copy.
+   */
+  async invoke<R = any>(model: string, method: string, args: any[] = []) {
     const helper = MultithreadingHelper;
     const requestData = helper.getExecuteRequest(model, method, args);
     const response = await this.fetch(requestData);
-    return response.result;
+    return response.result as Cloned<R>;
   }
 
   /**
@@ -125,7 +131,10 @@ export class FragmentsConnection extends Connection {
    * RPC type — EXECUTE, REFRESH_VIEW, GET_BOXES, etc. — is covered
    * uniformly.
    */
-  override fetch(input: any, content?: any[]) {
+  override fetch<T extends object>(
+    input: T & { seq?: number },
+    content?: any[],
+  ) {
     if (input.seq === undefined) {
       input.seq = MultithreadingHelper.nextSeq();
     }
@@ -136,6 +145,12 @@ export class FragmentsConnection extends Connection {
     const thread = this._data.getAndCheckThread(input.modelId);
     if (thread) {
       return this._data.getPort(thread);
+    }
+    // Only CREATE_MODEL assigns a thread, and only disposing the model
+    // releases it. Any other request without one is for a model that isn't
+    // loaded, and a thread assigned to it would never be released.
+    if (input.class !== MultiThreadingRequestClass.CREATE_MODEL) {
+      throw new Error(`Fragments: model "${input.modelId}" is not loaded.`);
     }
     return this.setupNewThread(input);
   }
