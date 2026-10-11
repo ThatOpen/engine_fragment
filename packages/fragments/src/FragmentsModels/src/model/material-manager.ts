@@ -255,6 +255,16 @@ export class MaterialManager {
     if (!localMap.has(highlightIndex)) {
       const originalDefinition = materialDefinitions[index];
       const newDefinition = materialDefinitions[highlightIndex];
+      if (!newDefinition) {
+        // Definitions arrive at once, tile updates wait in the requests
+        // queue. An update emitted before a resetHighlight() can be
+        // processed after the worker reclaimed its highlight ids (#299)
+        // and `addDefinitions` dropped them, so the id resolves to nothing
+        // (#318). The highlight it refers to was reset: draw the range with
+        // the tile's own material until the update that replaces it arrives.
+        localMap.set(highlightIndex, 0);
+        return;
+      }
       const { preserveOriginalMaterial, _explicitProps, ...highlightDefinition } = newDefinition;
       const combinedDefinition: MaterialDefinition = { ...originalDefinition };
       if (preserveOriginalMaterial) {
