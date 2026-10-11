@@ -62,7 +62,8 @@ export interface UnstampedProbe {
  *   the cheap way to change the content of a field: one pass over the bytes.
  * - `edit` changes the content of a file that is already in the current
  *   layout, with the same requests the editor takes. It is for changes that
- *   need the editor's bookkeeping, and it costs a model and a full edit.
+ *   need the editor's bookkeeping, like creating items. It costs a full
+ *   edit of the file, plus a model if it reads from the one it is given.
  *
  * Both receive the `ctx` of the migration, one per file, so `layout` can keep
  * what it removes for `edit` to put back in another form.
@@ -82,7 +83,11 @@ export interface Migration<
    * own, and any other whose value has to change.
    */
   layout?: Handlers;
-  /** Edit requests that bring the content of the file up to date. */
+  /**
+   * Edit requests that bring the content of the file up to date. The model
+   * is built when first read from, so a step that works from its `ctx`
+   * alone, or has nothing to do, does not pay for one.
+   */
   edit?: (
     model: SingleThreadedFragmentsModel,
     ctx: Ctx,

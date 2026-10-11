@@ -1,5 +1,8 @@
 import pako from "pako";
+import { edit as editFile } from "../../Utils/edit/edit-function";
 import { EditRequest, EditRequestType } from "../../Utils/edit/edit-types";
+import { getModelFromBuffer } from "../../Utils/edit/fetch-functions";
+import { solveIds } from "../../Utils/edit/id-solver";
 import { SingleThreadedFragmentsModel } from "../../FragmentsModels/src/single-threading";
 import { isRawBuffer } from "../../FragmentsModels/src/utils/misc/buffer";
 import { registry as packageRegistry } from "../registry";
@@ -114,7 +117,7 @@ function stamping(
 /** The requests of an edit step, with the revision set in the metadata. */
 function stamped(
   requests: EditRequest[],
-  model: SingleThreadedFragmentsModel,
+  metadata: Record<string, any> | null,
   revision: string,
 ) {
   const result = [...requests];
@@ -129,7 +132,7 @@ function stamped(
   const data =
     last && last.type === EditRequestType.UPDATE_METADATA
       ? last.data
-      : model.getMetadata();
+      : metadata;
   const request: EditRequest = {
     type: EditRequestType.UPDATE_METADATA,
     localId: 0,
@@ -141,6 +144,45 @@ function stamped(
     result[index] = request;
   }
   return result;
+}
+
+/**
+ * The model an edit step reads from. It is built when the step first uses
+ * it: building one costs about as much as loading the file, and a step that
+ * finds what it needs in its ctx, or nothing to do, never pays for it.
+ */
+function lazyModel(id: string, bytes: Uint8Array) {
+  let model: SingleThreadedFragmentsModel | undefined;
+  const target = Object.create(SingleThreadedFragmentsModel.prototype);
+  const proxy: SingleThreadedFragmentsModel = new Proxy(target, {
+    get(_target, key) {
+      model ??= new SingleThreadedFragmentsModel(id, bytes, true);
+      const value = Reflect.get(model, key);
+      return typeof value === "function" ? value.bind(model) : value;
+    },
+  });
+  return { proxy, dispose: () => model?.dispose() };
+}
+
+/**
+ * Applies the requests of an edit step to a raw file, the way a model's
+ * `edit()` followed by `save()` does, without the model: what the requests
+ * create gets the next local ids of the file, which then moves past them.
+ */
+function applyRequests(
+  bytes: Uint8Array,
+  requests: EditRequest[],
+  revision: string,
+) {
+  const file = getModelFromBuffer(bytes, true);
+  const all = stamped(requests, readMetadata(bytes), revision);
+  const next = file.maxLocalId();
+  const created = solveIds(all, next);
+  all.push({
+    type: EditRequestType.UPDATE_MAX_LOCAL_ID,
+    localId: next + created.length,
+  });
+  return editFile(file, all, { raw: true }).model;
 }
 
 /**
@@ -214,12 +256,11 @@ export async function migrate(
     const edit = step.migration?.edit;
     if (!edit) continue;
     try {
-      const model = new SingleThreadedFragmentsModel(step.id, current, true);
+      const model = lazyModel(step.id, current);
       try {
-        const requests = await edit(model, contextOf(step));
+        const requests = await edit(model.proxy, contextOf(step));
         if (requests.length > 0) {
-          model.edit(stamped(requests, model, to));
-          current = model.save(true);
+          current = applyRequests(current, requests, to);
           changed.add(step);
         }
       } finally {

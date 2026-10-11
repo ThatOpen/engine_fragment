@@ -2,9 +2,10 @@ import { readFile } from "fs/promises";
 import * as path from "path";
 import * as FB from "flatbuffers";
 import pako from "pako";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import * as TFB from "../../Schema";
 import { SingleThreadedFragmentsModel } from "../../FragmentsModels";
+import { VirtualFragmentsModel } from "../../FragmentsModels/src/virtual-model";
 import { isRawBuffer } from "../../FragmentsModels/src/utils/misc/buffer";
 import { EditRequest, EditRequestType } from "../../Utils/edit/edit-types";
 import { registry as packageRegistry } from "../registry";
@@ -128,6 +129,44 @@ describe("migrate", () => {
     // Only the step that changed the file is listed.
     expect(result.applied).toEqual([{ id: "30", title: "Renames the model" }]);
     expect(metadataOf(result.bytes).revision).toBe("30");
+  });
+
+  test("an edit step builds a model only if it reads from it", async () => {
+    const setup = vi.spyOn(VirtualFragmentsModel.prototype, "setupData");
+    const blind = defineMigration({
+      title: "Sets the metadata without looking",
+      edit: () => [setMetadata({ set: true })],
+    });
+    const result = await migrate(await file(), { registry: registryOf(blind) });
+    expect(metadataOf(result.bytes)).toEqual({ set: true, revision: "20" });
+    expect(setup).not.toHaveBeenCalled();
+
+    // `tag` reads the metadata of the model.
+    await migrate(await file(), { registry: registryOf(tag) });
+    expect(setup).toHaveBeenCalledTimes(1);
+    setup.mockRestore();
+  });
+
+  test("what an edit step creates gets the next ids of the file", async () => {
+    const create = defineMigration({
+      title: "Adds two items",
+      edit: () =>
+        ["A", "B"].map((name) => ({
+          type: EditRequestType.CREATE_ITEM,
+          data: { category: "ADDED", data: { Name: { value: name } } },
+        })),
+    });
+    const input = await file();
+    const before = new SingleThreadedFragmentsModel("before", input);
+    const next = before.getMaxLocalId();
+    before.dispose();
+
+    const result = await migrate(input, { registry: registryOf(create) });
+    const after = new SingleThreadedFragmentsModel("after", result.bytes);
+    const added = after.getItemsOfCategories([/^ADDED$/]).ADDED;
+    expect(added).toEqual([next, next + 1]);
+    expect(after.getMaxLocalId()).toBe(next + 2);
+    after.dispose();
   });
 
   test("the layout step and the edit step of a migration share a ctx", async () => {
