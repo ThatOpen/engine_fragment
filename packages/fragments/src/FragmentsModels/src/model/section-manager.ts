@@ -9,11 +9,7 @@ export class SectionManager {
     localIds?: number[],
   ) {
     const args = [plane, localIds];
-    const result = (await model.threads.invoke(
-      model.modelId,
-      "getSection",
-      args,
-    )) as ModelSection;
+    const result = (await model._invoke("getSection", args)) as ModelSection;
     return result;
   }
 }

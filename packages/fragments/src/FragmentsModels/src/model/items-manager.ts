@@ -12,15 +12,10 @@ export class ItemsManager {
     ids: Identifier[],
     config?: Partial<ItemsDataConfig>,
   ) {
-    return model.threads.invoke(model.modelId, "getItemsData", [
-      ids,
-      config,
-    ]) as Promise<ItemData[]>;
+    return model._invoke("getItemsData", [ids, config]) as Promise<ItemData[]>;
   }
 
   async getItemsChildren(model: FragmentsModel, ids: Identifier[]) {
-    return model.threads.invoke(model.modelId, "getItemsChildren", [
-      ids,
-    ]) as Promise<number[]>;
+    return model._invoke("getItemsChildren", [ids]) as Promise<number[]>;
   }
 }

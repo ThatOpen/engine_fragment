@@ -27,11 +27,9 @@ export class ItemGeometry {
   }
 
   async get() {
-    const [geometries] = (await this.model.threads.invoke(
-      this.model.modelId,
-      "getItemsGeometry",
-      [[this.localId]],
-    )) as MeshData[][];
+    const [geometries] = (await this.model._invoke("getItemsGeometry", [
+      [this.localId],
+    ])) as MeshData[][];
 
     for (const geometryData of geometries) {
       geometryData.transform = new THREE.Matrix4().fromArray(

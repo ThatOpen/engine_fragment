@@ -105,8 +105,7 @@ export class AlignmentsManager {
   }
 
   private async constructAlignments() {
-    const result = (await this.model.threads.invoke(
-      this.model.modelId,
+    const result = (await this.model._invoke(
       "getAlignments",
     )) as AlignmentData[];
 

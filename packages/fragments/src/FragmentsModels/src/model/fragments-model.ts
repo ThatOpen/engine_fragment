@@ -448,10 +448,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param raw - Whether to get the raw buffer. If false, it will be compressed.
    */
   getSubsetBuffer(localIds: number[], raw = false) {
-    return this.threads.invoke(this.modelId, "getSubsetBuffer", [
-      localIds,
-      raw,
-    ]);
+    return this._invoke("getSubsetBuffer", [localIds, raw]);
   }
 
   /**
@@ -463,11 +460,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
   }
 
   async getGuids() {
-    const guids = (await this.threads.invoke(
-      this.modelId,
-      "getGuids",
-      [],
-    )) as string[];
+    const guids = (await this._invoke("getGuids", [])) as string[];
     return guids;
   }
 
@@ -475,11 +468,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Get all the local IDs of the model.
    */
   async getLocalIds() {
-    const localIds = (await this.threads.invoke(
-      this.modelId,
-      "getLocalIds",
-      [],
-    )) as number[];
+    const localIds = (await this._invoke("getLocalIds", [])) as number[];
     return localIds;
   }
 
@@ -496,11 +485,9 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   // TODO: Fix, this is wrong
   async getItemsMaterialDefinition(localIds: number[]) {
-    const result = (await this.threads.invoke(
-      this.modelId,
-      "getItemsMaterialDefinition",
-      [localIds],
-    )) as { definition: MaterialDefinition; localIds: number[] }[];
+    const result = (await this._invoke("getItemsMaterialDefinition", [
+      localIds,
+    ])) as { definition: MaterialDefinition; localIds: number[] }[];
     return result;
   }
 
@@ -528,9 +515,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to the total volume of the specified items.
    */
   async getItemsVolume(localIds: number[]) {
-    const volume = (await this.threads.invoke(this.modelId, "getItemsVolume", [
-      localIds,
-    ])) as number;
+    const volume = (await this._invoke("getItemsVolume", [localIds])) as number;
     return volume;
   }
 
@@ -540,11 +525,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of an attribute.
    */
   async getAttributeNames() {
-    const names = (await this.threads.invoke(
-      this.modelId,
-      "getAttributeNames",
-      [],
-    )) as string[];
+    const names = (await this._invoke("getAttributeNames", [])) as string[];
     return names;
   }
 
@@ -554,20 +535,14 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute values.
    */
   async getAttributeValues() {
-    const values = (await this.threads.invoke(
-      this.modelId,
-      "getAttributeValues",
-      [],
-    )) as any[];
+    const values = (await this._invoke("getAttributeValues", [])) as any[];
     return values;
   }
 
   async getAttributesUniqueValues(params: AttributesUniqueValuesParams[]) {
-    const values = (await this.threads.invoke(
-      this.modelId,
-      "getAttributesUniqueValues",
-      [params],
-    )) as Record<string, { value: any; localIds: number[] }[]>;
+    const values = (await this._invoke("getAttributesUniqueValues", [
+      params,
+    ])) as Record<string, { value: any; localIds: number[] }[]>;
     return values;
   }
 
@@ -577,11 +552,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute types.
    */
   async getAttributeTypes() {
-    const types = (await this.threads.invoke(
-      this.modelId,
-      "getAttributeTypes",
-      [],
-    )) as string[];
+    const types = (await this._invoke("getAttributeTypes", [])) as string[];
     return types;
   }
 
@@ -591,11 +562,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of a relation.
    */
   async getRelationNames() {
-    const names = (await this.threads.invoke(
-      this.modelId,
-      "getRelationNames",
-      [],
-    )) as string[];
+    const names = (await this._invoke("getRelationNames", [])) as string[];
     return names;
   }
 
@@ -849,7 +816,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    */
   async setVisible(localIds: number[] | undefined, visible: boolean) {
     const args = [localIds, visible];
-    await this.threads.invoke(this.modelId, "setVisible", args);
+    await this._invoke("setVisible", args);
   }
 
   /**
@@ -858,7 +825,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    */
   async toggleVisible(localIds?: number[]) {
     const args = [localIds];
-    await this.threads.invoke(this.modelId, "toggleVisible", args);
+    await this._invoke("toggleVisible", args);
   }
 
   /**
@@ -1112,6 +1079,23 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   async handleRequest(request: any) {
     await this._meshManager.requests.handleRequest(this._meshManager, request);
+  }
+
+  /**
+   * Internal method to call a method of the model on its worker. Don't use
+   * this directly.
+   */
+  _invoke(method: string, args?: any[]) {
+    return this.threads.invoke(this.modelId, method, args);
+  }
+
+  /**
+   * Internal method to get the delta model holding this model's edits, if
+   * it is loaded. Don't use this directly.
+   */
+  _getDeltaModel() {
+    if (this.deltaModelId === null) return undefined;
+    return this._meshManager.list.get(this.deltaModelId);
   }
 
   _getElements(localIds: Iterable<number>) {
