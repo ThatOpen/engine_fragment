@@ -935,7 +935,7 @@ const deleteItems = async () => {
   const itemIds = Array.from(items.keys());
   const firstItemId = itemIds[0];
   const secondItemId = itemIds[1];
-  const gtIds = await model.getGlobalTranformsIdsOfItems([firstItemId]);
+  const gtIds = await model.getGlobalTransformsIdsOfItems([firstItemId]);
 
   requests.push({
     type: FRAGS.EditRequestType.DELETE_ITEM,

@@ -307,7 +307,7 @@ requests.push({
 });
 
 const globalTransformIds = new Set(
-  await model.getGlobalTranformsIdsOfItems(Array.from(steelElementsIds)),
+  await model.getGlobalTransformsIdsOfItems(Array.from(steelElementsIds)),
 );
 
 const samples = await model.getSamples();

@@ -454,8 +454,16 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
    * Gets the global transforms IDs of the items of the model.
    * @param ids - The local IDs of the items to get the global transforms IDs of.
    */
+  getGlobalTransformsIdsOfItems(ids: number[]) {
+    return this._virtualModel.getGlobalTransformsIdsOfItems(ids);
+  }
+
+  /**
+   * @deprecated Misspelled. Use
+   * {@link SingleThreadedFragmentsModel.getGlobalTransformsIdsOfItems} instead.
+   */
   getGlobalTranformsIdsOfItems(ids: number[]) {
-    return this._virtualModel.getGlobalTranformsIdsOfItems(ids);
+    return this.getGlobalTransformsIdsOfItems(ids);
   }
 
   // ---------------------------------------------------------------------
