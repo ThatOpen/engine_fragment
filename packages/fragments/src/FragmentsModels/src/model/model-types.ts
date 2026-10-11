@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { LodMaterial, LODMesh } from "../lod";
 import { RenderedFaces, RepresentationClass } from "../../../Schema";
 import { FragmentsModel } from "./fragments-model";
+import type { AppliedMigration } from "../../../Migrations/src/types";
 
 /**
  * Interface representing a change event when attributes are deleted from a model item.
@@ -224,7 +225,7 @@ export type LoadProgressEvent = {
   /** The model this progress event belongs to. */
   modelId: string;
   /** Current loading stage. */
-  stage: "decompressing" | "parsing" | "generating" | "done";
+  stage: "decompressing" | "migrating" | "parsing" | "generating" | "done";
   /** Progress within the current stage, from 0 to 1. */
   progress: number;
 };
@@ -611,6 +612,21 @@ export interface VirtualModelConfig {
   properties?: VirtualPropertiesConfig;
   /** Optional multithreading timing configuration for the virtual model */
   multithreading?: VirtualMultithreadingConfig;
+  /**
+   * Whether to migrate the file when an older version of the package wrote
+   * it. Defaults to the `autoMigrate` setting of FragmentsModels.
+   */
+  migrate?: boolean;
+}
+
+/** What loading did to a file that an older version of the package wrote. */
+export interface ModelMigration {
+  /** The revision the file was at. */
+  from: string;
+  /** The revision the loaded model is at. */
+  to: string;
+  /** The migrations that changed the file, oldest first. */
+  applied: AppliedMigration[];
 }
 
 /**

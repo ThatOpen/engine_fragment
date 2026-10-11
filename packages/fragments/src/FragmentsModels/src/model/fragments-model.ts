@@ -1168,11 +1168,18 @@ export class FragmentsModel implements IFragmentsModel<true> {
     raw?: boolean,
     config?: VirtualModelConfig,
   ) {
-    if (this._isSetup) return;
-    await this._setupManager.setup(this, this._bbox, data, raw, config);
+    if (this._isSetup) return undefined;
+    const migration = await this._setupManager.setup(
+      this,
+      this._bbox,
+      data,
+      raw,
+      config,
+    );
     this._isLoaded = true;
     this._isProcessing = true;
     this._isSetup = true;
+    return migration;
   }
 
   /**

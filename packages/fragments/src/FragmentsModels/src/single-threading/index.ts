@@ -1,16 +1,18 @@
 import pako from "pako";
 import * as THREE from "three";
-import { EditRequest } from "../../../Utils";
+import type { EditRequest } from "../../../Utils";
+// From the module and not the `../model` barrel: the worker imports this
+// class to run migrations, and the barrel leads to the main-thread classes.
 import {
-  CurrentLod,
-  Identifier,
-  IndexEntry,
-  ItemsDataConfig,
-  ItemsQueryConfig,
-  ItemsQueryParams,
+  type CurrentLod,
+  type Identifier,
+  type IndexEntry,
+  type ItemsDataConfig,
+  type ItemsQueryConfig,
+  type ItemsQueryParams,
   LoadAbortedError,
-} from "../model";
-import { IFragmentsModel } from "../model/fragments-model-interface";
+} from "../model/model-types";
+import type { IFragmentsModel } from "../model/fragments-model-interface";
 import { isRawBuffer } from "../utils/misc/buffer";
 import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 

@@ -1,6 +1,14 @@
 import * as THREE from "three";
-import { MultiThreadingRequestClass, VirtualModelConfig } from "./model-types";
+import {
+  ModelMigration,
+  MultiThreadingRequestClass,
+  VirtualModelConfig,
+} from "./model-types";
 import { FragmentsModel } from "./fragments-model";
+import {
+  StaleFragmentsError,
+  UnknownRevisionError,
+} from "../../../Migrations/src/errors";
 
 export class SetupManager {
   async setup(
@@ -13,7 +21,22 @@ export class SetupManager {
     const message = this.getCreateModelMessage(model, modelData, raw, config);
     const data = this.formatModelData(modelData);
     const result = await model.threads.fetch(message, data);
+    this.throwIfRefused(result);
     this.updateBox(bbox, result);
+    return result.migration as ModelMigration | undefined;
+  }
+
+  // The worker answers a file it refused to read with the error as data,
+  // because an error it throws reaches this thread as a string.
+  private throwIfRefused(result: any) {
+    const error = result.migration?.error;
+    if (!error) {
+      return;
+    }
+    if (error.name === "StaleFragmentsError") {
+      throw new StaleFragmentsError(error.revision, error.pending);
+    }
+    throw new UnknownRevisionError(error.revision, error.latest);
   }
 
   private formatModelData(modelData: ArrayBuffer | Uint8Array) {

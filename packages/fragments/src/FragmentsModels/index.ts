@@ -4,6 +4,7 @@ import { MeshManager, FragmentsModel } from "./src/model";
 import {
   VirtualModelConfig,
   LoadProgressEvent,
+  ModelMigration,
   MultiThreadingRequestClass,
   isRawBuffer,
 } from "./src";
@@ -90,6 +91,15 @@ export class FragmentsModels {
   readonly onModelLoaded = new Event<FragmentsModel>();
 
   /**
+   * Triggered after a model is loaded from a file that an older version of
+   * the package wrote and that had to be migrated (see `autoMigrate` in
+   * {@link settings}). The model is the migrated one: store what its
+   * `getBuffer()` returns in place of the file, or the next load migrates it
+   * again.
+   */
+  readonly onModelMigrated = new Event<{ modelId: string } & ModelMigration>();
+
+  /**
    * The manager that handles all loaded fragments models.
    * Provides functionality to:
    * - Store and retrieve models by ID
@@ -153,6 +163,17 @@ export class FragmentsModels {
      * reduce idle-loop overhead.
      */
     threadUpdaterDelay: 32,
+    /**
+     * Whether `load()` migrates a file that an older version of the package
+     * wrote. Files record the revision of the format they are at, and one
+     * that is behind is brought up to date in the worker before it is read;
+     * {@link onModelMigrated} then tells what was done to it.
+     *
+     * When false, a file that is only behind on content loads as it is, and
+     * one whose layout has changed since makes `load()` reject with a
+     * `StaleFragmentsError`, because it cannot be read without migrating.
+     */
+    autoMigrate: true,
   };
 
   /** Coordinates of the first loaded model, used for coordinate system alignment */
@@ -257,6 +278,7 @@ export class FragmentsModels {
 
     const virtualModelConfig: VirtualModelConfig = {
       ...options.virtualModelConfig,
+      migrate: options.virtualModelConfig?.migrate ?? this.settings.autoMigrate,
       multithreading: {
         meshConnectionRate: this.settings.meshConnectionRate,
         meshConnectionThreshold: this.settings.meshConnectionThreshold,
@@ -291,10 +313,11 @@ export class FragmentsModels {
     const bytes =
       buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
     const raw = options.raw ?? isRawBuffer(bytes);
+    let migration: ModelMigration | undefined;
 
     try {
       this.models.list.set(model.modelId, model);
-      await model._setup(buffer, raw, virtualModelConfig);
+      migration = await model._setup(buffer, raw, virtualModelConfig);
       if (this.settings.autoCoordinate) {
         const coordinates = await model.getCoordinates();
         if (this.baseCoordinates === null) {
@@ -342,6 +365,9 @@ export class FragmentsModels {
     model.frozen = false;
 
     this.onModelLoaded.trigger(model);
+    if (migration) {
+      this.onModelMigrated.trigger({ modelId: model.modelId, ...migration });
+    }
 
     return model;
   }
@@ -372,6 +398,7 @@ export class FragmentsModels {
     }
     await Promise.all(promises);
     this.onModelLoaded.reset();
+    this.onModelMigrated.reset();
   }
 
   /**
