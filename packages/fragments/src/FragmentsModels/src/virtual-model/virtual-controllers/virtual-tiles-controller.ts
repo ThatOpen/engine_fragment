@@ -965,7 +965,11 @@ export class VirtualTilesController {
     const tileIds = this.getTileIds(id, lod);
     if (tileIds === undefined) return;
     MiscHelper.forEach(tileIds, (tileId) => {
-      this.updateTile(tileId, id, high, vis);
+      // A tile draws a sample either with its own material (`visible`)
+      // or with its highlight, never both: the highlight replaces the
+      // material, otherwise a transparent one shows the opaque original
+      // through it (#318). A hidden sample gets neither (#287).
+      this.updateTile(tileId, id, vis ? high : 0, vis && high === 0);
     });
   }
 
