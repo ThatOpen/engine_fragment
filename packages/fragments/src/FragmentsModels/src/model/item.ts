@@ -30,12 +30,9 @@ export class Item {
   async getLocalId() {
     if (!this._localId) {
       if (this._guid) {
-        [this._localId] = (await this.model.threads.invoke(
-          this.model.modelId,
-          "getLocalIdsByGuids",
-          // @ts-ignore
-          [[this._guid]],
-        )) as (number | null)[];
+        [this._localId] = await this.model._invoke("getLocalIdsByGuids", [
+          [this._guid],
+        ]);
       } else {
         throw new Error("Fragments: Item localId couldn't be get.");
       }
@@ -53,12 +50,7 @@ export class Item {
     const localId = await this.getLocalId();
     if (localId === null) return null;
 
-    const data = (await this.model.threads.invoke(
-      this.model.modelId,
-      "getItemAttributes",
-      // @ts-ignore
-      [localId],
-    )) as { [name: string]: { value: any; type?: number } } | null;
+    const data = await this.model._invoke("getItemAttributes", [localId]);
 
     this._attributes = new ItemAttributes(localId);
 
@@ -102,12 +94,7 @@ export class Item {
     const localId = await this.getLocalId();
     if (localId === null) return null;
 
-    const data = (await this.model.threads.invoke(
-      this.model.modelId,
-      "getItemRelations",
-      // @ts-ignore
-      [localId],
-    )) as { [name: string]: number[] } | null;
+    const data = await this.model._invoke("getItemRelations", [localId]);
     if (!data) return null;
 
     this._relations = new ItemRelations(localId);
@@ -150,12 +137,9 @@ export class Item {
     if (!this._guid) {
       const localId = await this.getLocalId();
       if (localId === null) return null;
-      [this._guid] = await this.model.threads.invoke(
-        this.model.modelId,
-        "getGuidsByLocalIds",
-        // @ts-ignore
-        [[localId]],
-      );
+      [this._guid] = await this.model._invoke("getGuidsByLocalIds", [
+        [localId],
+      ]);
     }
     return this._guid;
   }
@@ -168,12 +152,7 @@ export class Item {
     if (!this._category) {
       const localId = await this.getLocalId();
       if (localId === null) return null;
-      this._category = await this.model.threads.invoke(
-        this.model.modelId,
-        "getItemCategory",
-        // @ts-ignore
-        [localId],
-      );
+      this._category = await this.model._invoke("getItemCategory", [localId]);
     }
     return this._category;
   }

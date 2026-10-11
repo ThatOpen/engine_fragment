@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import Pako from "pako";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
 import { CameraUtils } from "../../utils/geometry/camera-utils";
-import { CurrentLod } from "../../model/model-types";
+import { CurrentLod, ModelUid } from "../../model/model-types";
 
 /**
  * Regression test for https://github.com/ThatOpen/engine_fragment/issues/287
@@ -83,7 +83,7 @@ const loadStabilized = async () => {
     inflated.byteOffset,
     inflated.byteOffset + inflated.byteLength,
   );
-  const model = new VirtualFragmentsModel("m", data, connection, {
+  const model = new VirtualFragmentsModel(1 as ModelUid, data, connection, {
     multithreading: { meshConnectionThreshold: 0, meshConnectionRate: 0 },
   });
   await model.setupData();

@@ -2,9 +2,9 @@ import { FragmentsModel, FragmentsModels } from "../..";
 import * as EDIT from "../../../Utils/edit";
 import { isIndexRequest } from "../../../Utils/edit";
 import { EditRequestType } from "../../../Utils/edit/edit-types";
-import { FragmentsConnection } from "../multithreading/fragments-connection";
 import { EditUtils } from "../../../Utils/edit/edit-utils";
-import { VirtualModelConfig } from "../model/model-types";
+import { ModelUid, VirtualModelConfig } from "../model/model-types";
+import type { ElementsHelper } from "./elements-helper";
 
 // Request types that change what is rendered (geometry, materials,
 // transforms or whole elements). Requests outside this set (items without
@@ -30,13 +30,21 @@ const RENDER_AFFECTING_REQUESTS = new Set<EditRequestType>([
 ]);
 
 export class EditHelper {
-  private _deltaModels: { [modelId: string]: FragmentsModel[] | null } = {};
+  // The delta models of each model, by the model's uid. They are disposed
+  // with it, see setDeltaModels().
+  private readonly _deltaModels = new Map<ModelUid, FragmentsModel[]>();
+  // The edit (or reset) whose delta models each model shows, by the model's
+  // uid. Edits are numbered in the order they reach the worker, see
+  // setDeltaModels().
+  private readonly _shownEdits = new Map<ModelUid, number>();
   private readonly _fragments: FragmentsModels;
-  private readonly _connection: FragmentsConnection;
+  private readonly _elements: ElementsHelper;
+  private _lastDeltaId = 0;
+  private _lastEdit = 0;
 
-  constructor(core: FragmentsModels, connection: FragmentsConnection) {
+  constructor(core: FragmentsModels, elements: ElementsHelper) {
     this._fragments = core;
-    this._connection = connection;
+    this._elements = elements;
   }
 
   async edit(
@@ -60,10 +68,6 @@ export class EditHelper {
       actions.length > 0 &&
       actions.every((action) => !RENDER_AFFECTING_REQUESTS.has(action.type));
 
-    // Get old delta models
-    const oldDeltaModels = this._deltaModels[modelId] || [];
-    this._deltaModels[modelId] = null;
-
     // Apply new edits
 
     // We want to do this when users makes new actions
@@ -73,6 +77,7 @@ export class EditHelper {
       model._setRequests({ undoneRequests: [] });
     }
 
+    const edit = ++this._lastEdit;
     const { deltaModelBuffer, ids } = await model._edit(actions);
 
     // Add local ids to actions.
@@ -96,30 +101,13 @@ export class EditHelper {
       // The virtual model already has the new requests applied; the current
       // delta visuals are still correct. The next render-affecting edit
       // rebuilds the delta from the full request history anyway.
-      this._deltaModels[modelId] = oldDeltaModels.length ? oldDeltaModels : null;
       return ids;
     }
 
     // Load new delta models
     // For now we just generate one, maybe we want to generate multiple in the future?
     const deltaModel = await this.load(deltaModelBuffer as any, model);
-    this._deltaModels[modelId] = [deltaModel];
-    model.deltaModelId = deltaModel.modelId;
-
-    // Hide the outgoing delta visuals synchronously — dispose() below is
-    // async, so without this a frame can render both deltas on top of each
-    // other (z-fighting flash).
-    for (const oldDeltaModel of oldDeltaModels) {
-      oldDeltaModel.object.visible = false;
-    }
-
-    // Dispose old delta models and remove from models list
-    const deletePromises = [];
-    for (const oldDeltaModel of oldDeltaModels) {
-      deletePromises.push(oldDeltaModel.dispose());
-      this._fragments.models.list.delete(oldDeltaModel.modelId);
-    }
-    await Promise.all(deletePromises);
+    this.setDeltaModels(model, [deltaModel], edit);
 
     //  Return the local ids of the requests as an array
 
@@ -139,28 +127,44 @@ export class EditHelper {
 
     const camera = model.camera || undefined;
     const newModelBuffer = await model._save();
-
-    // Free up the modelId slot in the worker + registries, but keep the
-    // model's THREE object, tiles and materials in scene so the user does
-    // not see a blank frame while the new model loads.
-    await model.dispose({ keepInScene: true });
-
-    // Load new model with the same id (the slot is now free).
-    const newModel = await this._fragments.load(newModelBuffer as any, {
-      modelId,
-      raw: true,
-      camera,
-    });
-
-    // If there were some undone actions, pass them to the new model
-    await newModel._setRequests({ undoneRequests: requests.undoneRequests });
-
-    if (parent) {
-      parent.add(newModel.object);
+    // Disposed meanwhile: there is nothing to replace.
+    if (model._disposedSignal.aborted) {
+      return null;
     }
 
-    // New model is in scene now. Tear down the old visuals.
-    model.finalizeDispose();
+    // Free up the modelId, but keep the model's THREE object, tiles and
+    // materials in scene so the user does not see a blank frame while the
+    // new model loads. The worker deletes the old model on its own. Its
+    // delta models stay in the scene with it.
+    const deltaModels = this._deltaModels.get(model._uid) ?? [];
+    this._deltaModels.delete(model._uid);
+    // Element requests not applied yet carry over to the reloaded model.
+    const queued = this._elements.takeQueued(model);
+    model.dispose({ keepInScene: true });
+
+    try {
+      // Load new model with the same id (it is free now).
+      const newModel = await this._fragments.load(newModelBuffer as any, {
+        modelId,
+        raw: true,
+        camera,
+      });
+      this._elements.queue(newModel, queued);
+
+      if (parent) {
+        parent.add(newModel.object);
+      }
+
+      // If there were some undone actions, pass them to the new model
+      await newModel._setRequests({ undoneRequests: requests.undoneRequests });
+    } finally {
+      // New model is in scene now, or it failed to load. Either way, tear
+      // down the old visuals: nothing else can once the model is disposed.
+      model.finalizeDispose();
+      for (const deltaModel of deltaModels) {
+        deltaModel.dispose();
+      }
+    }
 
     // Return actions (e.g. to create action history, control z, etc.)
     return requests;
@@ -173,8 +177,9 @@ export class EditHelper {
       return;
     }
 
+    const edit = ++this._lastEdit;
     await model._reset();
-    await this.disposeDeltaModels(modelId);
+    this.setDeltaModels(model, [], edit);
   }
 
   async getRequests(modelId: string) {
@@ -193,8 +198,8 @@ export class EditHelper {
     return model._selectRequest(index);
   }
 
-  async _update(modelId: string) {
-    const models = this._deltaModels[modelId];
+  async _update(model: FragmentsModel) {
+    const models = this._deltaModels.get(model._uid);
     if (models) {
       const promises = [];
       for (const deltaModel of models) {
@@ -204,26 +209,58 @@ export class EditHelper {
     }
   }
 
-  private async disposeDeltaModels(modelId: string) {
-    const models = this._deltaModels[modelId];
-    if (models) {
-      for (const deltaModel of models) {
-        await deltaModel.dispose();
+  /**
+   * Replaces the model's delta models with those of `edit` and disposes the
+   * outgoing ones, which takes them out of the scene right away. The given
+   * ones are disposed instead if the model was disposed meanwhile (its
+   * deltas went with it), or if it shows a later edit's already: delta
+   * models load concurrently, so an earlier edit's can finish last, and it
+   * lacks the later edit's changes.
+   */
+  private setDeltaModels(
+    model: FragmentsModel,
+    deltaModels: FragmentsModel[],
+    edit: number,
+  ) {
+    const uid = model._uid;
+    const shown = this._shownEdits.get(uid) ?? 0;
+    if (model._disposedSignal.aborted || edit < shown) {
+      for (const deltaModel of deltaModels) {
+        deltaModel.dispose();
       }
-      this._deltaModels[modelId] = [];
+      return;
+    }
+    if (!this._deltaModels.has(uid)) {
+      model._disposedSignal.addEventListener(
+        "abort",
+        () => {
+          for (const deltaModel of this._deltaModels.get(uid) ?? []) {
+            deltaModel.dispose();
+          }
+          this._deltaModels.delete(uid);
+          this._shownEdits.delete(uid);
+        },
+        { once: true },
+      );
+    }
+    const outgoing = this._deltaModels.get(uid) ?? [];
+    this._deltaModels.set(uid, deltaModels);
+    this._shownEdits.set(uid, edit);
+    model.deltaModelId = deltaModels[0]?.modelId ?? null;
+    for (const deltaModel of outgoing) {
+      if (!deltaModels.includes(deltaModel)) {
+        deltaModel.dispose();
+      }
     }
   }
 
   private async load(buffer: ArrayBuffer, parentModel: FragmentsModel) {
     const deltaId = EditUtils.DELTA_MODEL_ID;
-    const modelId = `${parentModel.modelId}${deltaId}${performance.now()}`;
+    // Unique among this instance's models, so it can't replace another
+    // delta model in the models list.
+    const modelId = `${parentModel.modelId}${deltaId}${++this._lastDeltaId}`;
 
-    const deltaModel = new FragmentsModel(
-      modelId,
-      this._fragments.models,
-      this._connection,
-      this._fragments.editor,
-    );
+    const deltaModel = this._fragments._createModel(modelId);
 
     deltaModel._setDeltaModel(parentModel.modelId);
 
@@ -241,11 +278,11 @@ export class EditHelper {
     };
 
     try {
-      this._fragments.models.list.set(deltaModel.modelId, deltaModel);
+      this._fragments.models._add(deltaModel);
       await deltaModel._setup(buffer, true, virtualModelConfig);
       parentModel.object.add(deltaModel.object);
     } catch (e) {
-      this._fragments.models.list.delete(deltaModel.modelId);
+      deltaModel.dispose();
       throw e;
     }
 

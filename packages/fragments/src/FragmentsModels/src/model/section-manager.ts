@@ -7,13 +7,7 @@ export class SectionManager {
     model: FragmentsModel,
     plane: THREE.Plane,
     localIds?: number[],
-  ) {
-    const args = [plane, localIds];
-    const result = (await model.threads.invoke(
-      model.modelId,
-      "getSection",
-      args,
-    )) as ModelSection;
-    return result;
+  ): Promise<ModelSection> {
+    return model._invoke("getSection", [plane, localIds]);
   }
 }

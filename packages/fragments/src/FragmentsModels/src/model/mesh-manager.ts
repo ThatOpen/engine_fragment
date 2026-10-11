@@ -5,6 +5,7 @@ import {
   ObjectClass,
   CurrentLod,
   BIMMesh,
+  ModelUid,
 } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 import { DataMap } from "../../../Utils";
@@ -40,7 +41,7 @@ type FenceWaiter = {
   /** Last seq dispatched to any worker when the fence was requested. */
   targetSeq: number;
   /** Per model, the seq of the refresh whose FINISH is still missing. */
-  views: Map<string, number>;
+  views: Map<ModelUid, number>;
   resolve: () => void;
 };
 
@@ -52,6 +53,11 @@ export class MeshManager {
    * A map of FragmentsModel instances by their model ID.
    */
   readonly list = new DataMap<string, FragmentsModel>();
+
+  // The same models by uid, which is what the workers' messages carry. A
+  // modelId can be reused by a newer model before a disposed one's last
+  // messages arrive, a uid can't.
+  private readonly _models = new Map<ModelUid, FragmentsModel>();
   readonly materials = new MaterialManager();
   readonly lod = new LODManager(this.materials);
   readonly requests = new RequestsManager();
@@ -83,17 +89,15 @@ export class MeshManager {
    * sent to the next model and released the fence while that one was
    * still sweeping.
    */
-  private readonly _viewSeq = new Map<string, number>();
-  private readonly _finishSeq = new Map<string, number>();
+  private readonly _viewSeq = new Map<ModelUid, number>();
+  private readonly _finishSeq = new Map<ModelUid, number>();
 
   private _onUpdate: () => void;
 
   constructor(onUpdate: () => void) {
     this._onUpdate = onUpdate;
-    this.requests.onFinish = (seq, modelId) => this.handleFinish(seq, modelId);
-    this.list.onItemDeleted.add((modelId) => {
-      this._viewSeq.delete(modelId);
-      this._finishSeq.delete(modelId);
+    this.requests.onFinish = (seq, uid) => this.handleFinish(seq, uid);
+    this.list.onItemDeleted.add(() => {
       this.finishEmptyScene();
       this.resolveReadyWaiters();
     });
@@ -105,12 +109,55 @@ export class MeshManager {
   }
 
   /**
-   * Records that a REFRESH_VIEW with `seq` was sent for `modelId`. The
-   * worker answers every refresh with a FINISH once that view is done
+   * Records that a REFRESH_VIEW with `seq` was sent for the model `uid`.
+   * The worker answers every refresh with a FINISH once that view is done
    * (right away if it was already), so fences wait for it.
    */
-  viewDispatched(modelId: string, seq: number | undefined) {
-    if (typeof seq === "number") this._viewSeq.set(modelId, seq);
+  viewDispatched(uid: ModelUid, seq: number | undefined) {
+    if (typeof seq === "number") this._viewSeq.set(uid, seq);
+  }
+
+  /**
+   * Internal method to register a model. Don't use this directly.
+   */
+  _add(model: FragmentsModel) {
+    this._models.set(model._uid, model);
+    this.list.set(model.modelId, model);
+  }
+
+  /**
+   * Internal method to unregister a model. Its {@link list} entry is only
+   * removed while it is still this model's. Don't use this directly.
+   */
+  _remove(model: FragmentsModel) {
+    this._models.delete(model._uid);
+    this._viewSeq.delete(model._uid);
+    this._finishSeq.delete(model._uid);
+    if (this.list.get(model.modelId) === model) {
+      this.list.delete(model.modelId);
+    }
+  }
+
+  /**
+   * Internal method to get a registered model by its uid. Don't use this
+   * directly.
+   */
+  _get(uid: ModelUid) {
+    return this._models.get(uid);
+  }
+
+  /**
+   * Internal method for the tile requests of a model that is gone. Its tiles
+   * are dropped, but a FINISH among them still tells how far its worker got,
+   * which a {@link forceUpdateFinish} caller may be waiting on. Don't use
+   * this directly.
+   */
+  _dropRequests(requests: any[]) {
+    for (const request of requests) {
+      if (MultithreadingHelper.isFinishRequest(request)) {
+        this.handleFinish(request.seq);
+      }
+    }
   }
 
   /**
@@ -134,9 +181,9 @@ export class MeshManager {
     const targetSeq = MultithreadingHelper.lastDispatchedSeq;
     // Models whose last view has not been answered yet. Models with no
     // refresh in flight have nothing to finish and are not waited on.
-    const views = new Map<string, number>();
-    for (const [modelId, seq] of this._viewSeq) {
-      if ((this._finishSeq.get(modelId) ?? 0) < seq) views.set(modelId, seq);
+    const views = new Map<ModelUid, number>();
+    for (const [uid, seq] of this._viewSeq) {
+      if ((this._finishSeq.get(uid) ?? 0) < seq) views.set(uid, seq);
     }
     const waiter: FenceWaiter = { targetSeq, views, resolve: () => {} };
     // No outbound RPCs have been issued yet, or everything we've sent
@@ -154,9 +201,9 @@ export class MeshManager {
 
   private isSettled(waiter: FenceWaiter) {
     if (waiter.targetSeq > this._lastSettledSeq) return false;
-    for (const [modelId, seq] of waiter.views) {
-      if (!this.list.has(modelId)) continue;
-      if ((this._finishSeq.get(modelId) ?? 0) < seq) return false;
+    for (const [uid, seq] of waiter.views) {
+      if (!this._models.has(uid)) continue;
+      if ((this._finishSeq.get(uid) ?? 0) < seq) return false;
     }
     return true;
   }
@@ -182,13 +229,13 @@ export class MeshManager {
    * has now settled, draining the request queue first so the visual
    * effects are on screen by the time the awaiter wakes up.
    */
-  private handleFinish(seq: number | undefined, modelId?: string) {
+  private handleFinish(seq: number | undefined, uid?: ModelUid) {
     if (typeof seq === "number" && seq > this._lastSettledSeq) {
       this._lastSettledSeq = seq;
     }
-    if (typeof seq === "number" && modelId !== undefined) {
-      if (seq > (this._finishSeq.get(modelId) ?? 0)) {
-        this._finishSeq.set(modelId, seq);
+    if (typeof seq === "number" && uid !== undefined) {
+      if (seq > (this._finishSeq.get(uid) ?? 0)) {
+        this._finishSeq.set(uid, seq);
       }
     }
     // Drain on every FINISH, whether or not anyone is awaiting a
@@ -251,8 +298,8 @@ export class MeshManager {
   }
 
   private processTileRequest(request: any) {
-    const { tileRequestClass, tileId, modelId } = request;
-    const model = this.list.get(modelId);
+    const { tileRequestClass, tileId, uid } = request;
+    const model = this._models.get(uid);
     if (!model) return;
     if (tileRequestClass === TileRequestClass.CREATE) {
       if (request.objectClass === undefined) return;

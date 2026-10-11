@@ -1,6 +1,5 @@
 import {
   CRSData,
-  MultiThreadingRequestClass,
   ItemsQueryParams,
   SpatialTreeItem,
   ItemsQueryConfig,
@@ -14,61 +13,78 @@ import { MeshManager } from "./mesh-manager";
 import { GridsManager } from "./grids-manager";
 
 export class DataManager {
-  async dispose(
+  /**
+   * Everything on the main thread happens before this returns; the returned
+   * promise resolves once the worker has deleted the model too.
+   */
+  dispose(
     model: FragmentsModel,
     meshes: MeshManager,
     alignments: AlignmentsManager,
     grids: GridsManager,
     options?: { keepInScene?: boolean },
   ) {
-    meshes.list.delete(model.modelId);
-    await this.requestModelDelete(model);
-    model.threads.delete(model.modelId);
-    if (options?.keepInScene) {
-      // Free the modelId slot in the shared MaterialManager so the
-      // replacement model can register its own definitions without
-      // appending to ours (which would corrupt material indices). The
-      // actual THREE materials in `list` stay alive so the outgoing
-      // tiles keep rendering until `finalizeDispose` runs.
-      meshes.materials.releaseModelSlot(model.modelId);
-      return;
+    meshes._remove(model);
+    const deleted = model.threads.delete(model._uid);
+    // Otherwise the outgoing tiles keep rendering until `finalizeDispose`
+    // runs. Materials are keyed by uid, so a replacement model registers its
+    // own next to them.
+    if (!options?.keepInScene) {
+      this.disposeScene({ model, meshes, alignments, grids });
     }
+    return deleted;
+  }
+
+  /**
+   * Takes the model out of the scene and frees its tiles, materials,
+   * alignments and grids.
+   */
+  disposeScene({
+    model,
+    meshes,
+    alignments,
+    grids,
+  }: {
+    model: FragmentsModel;
+    meshes: MeshManager;
+    alignments: AlignmentsManager;
+    grids: GridsManager;
+  }) {
     model.object.removeFromParent();
     this.deleteAllTiles(model);
-    meshes.materials.dispose(model.modelId);
+    meshes.materials.dispose(model._uid);
     alignments.dispose();
     grids.dispose();
   }
 
   async getBuffer(model: FragmentsModel, raw: boolean) {
-    return model.threads.invoke(model.modelId, "getBuffer", [
-      raw,
-    ]) as Promise<ArrayBuffer>;
+    return model._invoke("getBuffer", [raw]);
   }
 
   async getCategories(model: FragmentsModel) {
-    return model.threads.invoke(model.modelId, "getCategories") as Promise<
-      string[]
-    >;
+    return model._invoke("getCategories");
   }
 
   async getIndexNames(model: FragmentsModel) {
-    return model.threads.invoke(model.modelId, "getIndexNames") as Promise<
-      string[]
-    >;
+    return model._invoke("getIndexNames");
   }
 
-  async getIndexInfo(model: FragmentsModel, name: string) {
-    return model.threads.invoke(model.modelId, "getIndexInfo", [
-      name,
-    ]) as Promise<IndexInfo | null>;
+  async getIndexInfo(
+    model: FragmentsModel,
+    name: string,
+  ): Promise<IndexInfo | null> {
+    return model._invoke("getIndexInfo", [name]);
   }
+
+  // The type parameters of the index methods are the caller's word for the
+  // types of an index's keys and values, which the worker takes on trust as
+  // well, so their results are cast to them.
 
   async getIndexKeys<K extends string | number>(
     model: FragmentsModel,
     name: string,
   ) {
-    return model.threads.invoke(model.modelId, "getIndexKeys", [
+    return model._invoke("getIndexKeys", [
       name,
     ]) as Promise<IndexArrayType<K> | null>;
   }
@@ -78,19 +94,14 @@ export class DataManager {
     name: string,
     index: number,
   ) {
-    return model.threads.invoke(model.modelId, "getIndexKey", [
-      name,
-      index,
-    ]) as Promise<K | null>;
+    return model._invoke("getIndexKey", [name, index]) as Promise<K | null>;
   }
 
   async getIndexValues<V extends string | number>(
     model: FragmentsModel,
     name: string,
   ) {
-    return model.threads.invoke(model.modelId, "getIndexValues", [
-      name,
-    ]) as Promise<V[] | null>;
+    return model._invoke("getIndexValues", [name]) as Promise<V[] | null>;
   }
 
   async hasIndexEntry<K extends string | number>(
@@ -98,10 +109,7 @@ export class DataManager {
     name: string,
     key: K,
   ) {
-    return model.threads.invoke(model.modelId, "hasIndexEntry", [
-      name,
-      key,
-    ]) as Promise<boolean>;
+    return model._invoke("hasIndexEntry", [name, key]);
   }
 
   async getIndexEntry<K extends string | number, V extends IndexEntry>(
@@ -109,75 +117,50 @@ export class DataManager {
     name: string,
     key: K,
   ) {
-    return model.threads.invoke(model.modelId, "getIndexEntry", [
-      name,
-      key,
-    ]) as Promise<V | null>;
+    return model._invoke("getIndexEntry", [name, key]) as Promise<V | null>;
   }
 
   async getInverseIndexEntry<
     K extends string | number,
     V extends string | number,
   >(model: FragmentsModel, name: string, value: K) {
-    return model.threads.invoke(model.modelId, "getInverseIndexEntry", [
+    return model._invoke("getInverseIndexEntry", [
       name,
       value,
     ]) as Promise<IndexArrayType<V> | null>;
   }
 
   async getMaxLocalId(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getMaxLocalId",
-    ) as Promise<number>;
+    return model._invoke("getMaxLocalId");
   }
 
   async getLocalIdsByGuids(model: FragmentsModel, guids: string[]) {
-    return model.threads.invoke(model.modelId, "getLocalIdsByGuids", [
-      guids,
-    ]) as Promise<(number | null)[]>;
+    return model._invoke("getLocalIdsByGuids", [guids]);
   }
 
   async getLocalIdsFromItemIds(
     model: FragmentsModel,
     itemIds: Iterable<number>,
   ) {
-    return model.threads.invoke(model.modelId, "getLocalIdsFromItemIds", [
-      itemIds,
-    ]) as Promise<number[]>;
+    return model._invoke("getLocalIdsFromItemIds", [itemIds]);
   }
 
-  async getSpatialStructure(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getSpatialStructure",
-    ) as Promise<SpatialTreeItem>;
+  async getSpatialStructure(model: FragmentsModel): Promise<SpatialTreeItem> {
+    return model._invoke("getSpatialStructure");
   }
 
   async getItemsWithGeometry(model: FragmentsModel) {
-    const localIds = (await model.threads.invoke(
-      model.modelId,
-      "getItemsWithGeometry",
-      [],
-    )) as number[];
+    const localIds = await model._invoke("getItemsWithGeometry", []);
     const items = localIds.map((id) => model.getItem(id));
     return items;
   }
 
   async getItemsWithGeometryCategories(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getItemsWithGeometryCategories",
-      [],
-    ) as Promise<(string | null)[]>;
+    return model._invoke("getItemsWithGeometryCategories", []);
   }
 
   async getItemsIdsWithGeometry(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getItemsWithGeometry",
-      [],
-    ) as Promise<number[]>;
+    return model._invoke("getItemsWithGeometry", []);
   }
 
   async getItemDrawChunks(
@@ -186,21 +169,14 @@ export class DataManager {
   ): Promise<
     Array<{ tileId: number; position: Uint32Array; size: Uint32Array }>
   > {
-    return model.threads.invoke(model.modelId, "getItemDrawChunks", [
-      localIds,
-    ]) as Promise<
-      Array<{ tileId: number; position: Uint32Array; size: Uint32Array }>
-    >;
+    return model._invoke("getItemDrawChunks", [localIds]);
   }
 
-  async getItemsOfCategories(model: FragmentsModel, categories: RegExp[]) {
-    const args = [categories];
-    const data = (await model.threads.invoke(
-      model.modelId,
-      "getItemsOfCategories",
-      args,
-    )) as { [category: string]: number[] };
-    return data;
+  async getItemsOfCategories(
+    model: FragmentsModel,
+    categories: RegExp[],
+  ): Promise<{ [category: string]: number[] }> {
+    return model._invoke("getItemsOfCategories", [categories]);
   }
 
   async getItemsByQuery(
@@ -208,40 +184,23 @@ export class DataManager {
     params: ItemsQueryParams,
     config?: ItemsQueryConfig,
   ) {
-    const args = [params, config];
-    const localIds = (await model.threads.invoke(
-      model.modelId,
-      "getItemsByQuery",
-      args,
-    )) as number[];
+    const localIds = await model._invoke("getItemsByQuery", [params, config]);
     return localIds;
   }
 
   async getMetadata<T extends Record<string, any> = Record<string, any>>(
     model: FragmentsModel,
   ) {
-    return model.threads.invoke(model.modelId, "getMetadata", []) as Promise<T>;
+    // T is the caller's word for the shape of the metadata.
+    return model._invoke("getMetadata", []) as Promise<T>;
   }
 
-  async getCRS(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getCRS",
-      [],
-    ) as Promise<CRSData | null>;
+  async getCRS(model: FragmentsModel): Promise<CRSData | null> {
+    return model._invoke("getCRS", []);
   }
 
   async getGuidsByLocalIds(model: FragmentsModel, localIds: number[]) {
-    return model.threads.invoke(model.modelId, "getGuidsByLocalIds", [
-      localIds,
-    ]) as Promise<(string | null)[]>;
-  }
-
-  private async requestModelDelete(model: FragmentsModel) {
-    await model.threads.fetch({
-      class: MultiThreadingRequestClass.DELETE_MODEL,
-      modelId: model.modelId,
-    });
+    return model._invoke("getGuidsByLocalIds", [localIds]);
   }
 
   private deleteAllTiles(model: FragmentsModel) {

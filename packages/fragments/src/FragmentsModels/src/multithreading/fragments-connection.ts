@@ -1,3 +1,5 @@
+import { ModelUid, MultiThreadingRequestClass } from "../model/model-types";
+import { Cloned } from "./cloned";
 import { Connection } from "./connection";
 import { ThreadHandler } from "./connection-handlers";
 import { MultithreadingHelper, Thread } from "./multithreading-helper";
@@ -74,13 +76,32 @@ export class FragmentsConnection extends Connection {
     this._defaultCap = this._maxWorkers - reserved;
   }
 
-  delete(model: string) {
-    const thread = this._data.getThreadSafe(model);
-    const amount = this._data.getAmountSafe(thread) - 1;
-    this._data.deleteModel(model);
-    if (amount === 0) {
+  /**
+   * Deletes the model from its worker. Takes effect right away: the model's
+   * thread slot is freed, any later request for the model rejects, and the
+   * worker is terminated if it hosts no other model, which rejects the
+   * requests still waiting on it. Resolves once the worker has deleted the
+   * model or has been terminated.
+   */
+  delete(uid: ModelUid): Promise<void> {
+    const thread = this._data.getThread(uid);
+    const port = thread ? this._data.getPort(thread) : undefined;
+    // Sent before the slot is freed, so it still goes to the model's worker.
+    // A model that never got a thread has nothing to delete there.
+    const deleted = port
+      ? this.fetch({ class: MultiThreadingRequestClass.DELETE_MODEL, uid })
+      : Promise.resolve();
+    this._data.deleteModel(uid);
+    if (thread && port && this._data.getAmount(thread) === 0) {
       this._data.deleteThread(thread);
+      this.failPending(port, "Fragments: the worker was terminated.");
+      port.close();
     }
+    // The model is gone either way; a failed delete has nothing to report.
+    return deleted.then(
+      () => {},
+      () => {},
+    );
   }
 
   /**
@@ -88,8 +109,8 @@ export class FragmentsConnection extends Connection {
    * undefined for default-pool models. Used by FragmentsModels to expose
    * `model.threadGroup` to consumers.
    */
-  getModelThreadGroup(modelId: string) {
-    return this._data.getModelGroup(modelId);
+  getModelThreadGroup(uid: ModelUid) {
+    return this._data.getModelGroup(uid);
   }
 
   /**
@@ -97,20 +118,24 @@ export class FragmentsConnection extends Connection {
    * before issuing the first request for that model so the routing in
    * setupNewThread sees the right group.
    */
-  setModelThreadGroup(modelId: string, group: string | undefined) {
+  setModelThreadGroup(uid: ModelUid, group: string | undefined) {
     if (group !== undefined && !this._threadGroups.has(group)) {
       throw new Error(
         `Fragments: thread group "${group}" was not declared at init time. Declared groups: ${[...this._threadGroups.keys()].join(", ") || "(none)"}.`,
       );
     }
-    this._data.setModelGroup(modelId, group);
+    this._data.setModelGroup(uid, group);
   }
 
-  async invoke(model: string, method: string, args: any[] = []) {
+  /**
+   * Calls a method of the model's worker-side counterpart. `R` is what the
+   * method returns there, which reaches this thread as a copy.
+   */
+  async invoke<R = any>(uid: ModelUid, method: string, args: any[] = []) {
     const helper = MultithreadingHelper;
-    const requestData = helper.getExecuteRequest(model, method, args);
+    const requestData = helper.getExecuteRequest(uid, method, args);
     const response = await this.fetch(requestData);
-    return response.result;
+    return response.result as Cloned<R>;
   }
 
   /**
@@ -125,17 +150,27 @@ export class FragmentsConnection extends Connection {
    * RPC type — EXECUTE, REFRESH_VIEW, GET_BOXES, etc. — is covered
    * uniformly.
    */
-  override fetch(input: any, content?: any[]) {
+  override fetch<T extends object>(
+    input: T & { seq?: number },
+    content?: any[],
+  ) {
     if (input.seq === undefined) {
       input.seq = MultithreadingHelper.nextSeq();
     }
     return super.fetch(input, content);
   }
 
-  protected override async fetchConnection(input: any): Promise<MessagePort> {
-    const thread = this._data.getAndCheckThread(input.modelId);
+  protected override fetchConnection(input: any): MessagePort {
+    const thread = this._data.getAndCheckThread(input.uid);
     if (thread) {
       return this._data.getPort(thread);
+    }
+    // Only CREATE_MODEL assigns a thread, and only disposing the model
+    // releases it. Any other request without one is for a model that isn't
+    // loaded (or was disposed), and a thread assigned to it would never be
+    // released.
+    if (input.class !== MultiThreadingRequestClass.CREATE_MODEL) {
+      throw new Error(`Fragments: model ${input.uid} is not loaded.`);
     }
     return this.setupNewThread(input);
   }
@@ -148,8 +183,8 @@ export class FragmentsConnection extends Connection {
    * loads never use a reserved worker.
    */
   private setupNewThread(input: any): MessagePort {
-    this._data.usePlaceholder(input.modelId);
-    const group = this._data.getModelGroup(input.modelId);
+    this._data.usePlaceholder(input.uid);
+    const group = this._data.getModelGroup(input.uid);
 
     const cap =
       group === undefined
@@ -183,7 +218,7 @@ export class FragmentsConnection extends Connection {
     this.setupThread(newThread);
     this._data.setAmount(newThread, 1);
     this._data.setThreadGroup(newThread, group);
-    this._data.set(input.modelId, newThread);
+    this._data.set(input.uid, newThread);
     return this._data.getPort(newThread);
   }
 }

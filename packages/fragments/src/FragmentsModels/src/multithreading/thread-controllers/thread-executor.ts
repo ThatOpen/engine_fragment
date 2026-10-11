@@ -8,7 +8,7 @@ export class ThreadExecutor extends ThreadController {
   }
 
   protected async execute(input: any) {
-    const model = this.thread.getModel(input.modelId) as any;
+    const model = this.thread.getModel(input.uid) as any;
     this.safeCopyData(input);
     input.result = await model[input.function](...input.parameters);
     input.parameters = undefined;
