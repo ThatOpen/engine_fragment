@@ -8,11 +8,13 @@ import {
   VirtualCircleExtrusionManager,
 } from "../virtual-meshes";
 import {
+  ModelUid,
   ObjectClass,
   CurrentLod,
   DataBuffer,
   limitOf2Bytes,
   TileRequestClass,
+  TileStatus,
   SnappingClass,
   LodMode,
   VirtualMultithreadingConfig,
@@ -44,7 +46,7 @@ import { VirtualMemoryController } from "./virtual-memory-controller";
 type VirtualMeshes = Map<RepresentationClass, VirtualMeshManager>;
 
 export type VirtualTileData = {
-  modelId: string;
+  uid: ModelUid;
   connection: Connection;
   multithreading?: VirtualMultithreadingConfig;
   model: Model;
@@ -83,7 +85,7 @@ export class VirtualTilesController {
   private readonly _boxes: VirtualBoxController;
   private readonly _items: ItemConfigController;
   private readonly _materials: number[];
-  private readonly _modelId: string;
+  private readonly _uid: ModelUid;
 
   private readonly _lastView = {
     rotation: new THREE.Vector3(),
@@ -156,12 +158,12 @@ export class VirtualTilesController {
   private _lodMode = LodMode.DEFAULT;
 
   constructor(data: VirtualTileData) {
-    this._modelId = data.modelId;
+    this._uid = data.uid;
     this._boxes = data.boxes;
     this._items = data.items;
     this._materials = data.materials;
     this._meshConnection = new MeshConnection(
-      data.modelId,
+      data.uid,
       data.connection,
       data.multithreading,
     );
@@ -384,12 +386,13 @@ export class VirtualTilesController {
       const tile = this._tiles.get(tileId) as TileData;
       this._meshConnection.process({
         tileRequestClass: TileRequestClass.UPDATE,
-        modelId: this._modelId,
+        uid: this._uid,
         tileId,
         objectClass: tile.objectClass,
-        material: tile.materialId as number,
+        // Set for every tile, see newTile().
+        material: tile.materialId!,
         tileData: this.getTileData(tile),
-        currentLod: tile.lod as number,
+        currentLod: tile.lod!,
       });
     }
     this._tilesChanged.clear();
@@ -418,10 +421,10 @@ export class VirtualTilesController {
   }
 
   private init() {
-    const shells = new VirtualShellManager(this._modelId, this.meshes);
+    const shells = new VirtualShellManager(this._uid, this.meshes);
     const shellsRepresentation = shells.getRepresentation();
     this._virtualMeshes.set(shellsRepresentation, shells);
-    const ces = new VirtualCircleExtrusionManager(this._modelId, this.meshes);
+    const ces = new VirtualCircleExtrusionManager(this._uid, this.meshes);
     const cesRepresentation = ces.getRepresentation();
     this._virtualMeshes.set(cesRepresentation, ces);
     this.processSamplesDimension();
@@ -497,7 +500,7 @@ export class VirtualTilesController {
   private emitFinish() {
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.FINISH,
-      modelId: this._modelId,
+      uid: this._uid,
       // Stamp with the highest seq this worker has seen on incoming
       // RPCs. Because RPC handlers serialize with the update tick on
       // the worker (single-threaded JS), any RPC that finished before
@@ -708,21 +711,15 @@ export class VirtualTilesController {
   }
 
   private getTileHighlight(tile: TileData, locations: number[]) {
-    let highlightData: any = undefined as any;
-    let highlightIds: any = undefined as any;
     const highlights = tile.highlights;
-    if (!highlights) {
+    const highlightSize = highlights?.size((id) => id !== 0);
+    if (!highlights || !highlightSize) {
       return { highlightData: undefined, highlightIds: undefined };
     }
-
-    const highlightSize = highlights.size((id) => id !== 0);
-    if (highlightSize > 0) {
-      highlightIds = new Uint16Array(highlightSize);
-      const f = (id: number) => id !== 0;
-      const c = (id: number, data: number) => (highlightIds[id] = data);
-      highlightData = MultiBufferData.get(highlights, locations, f, c);
-    }
-
+    const highlightIds = new Uint16Array(highlightSize);
+    const f = (id: number) => id !== 0;
+    const c = (id: number, data: number) => (highlightIds[id] = data);
+    const highlightData = MultiBufferData.get(highlights, locations, f, c);
     return { highlightData, highlightIds };
   }
 
@@ -1176,7 +1173,7 @@ export class VirtualTilesController {
   private deleteGeometry(tileId: number) {
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.DELETE,
-      modelId: this._modelId,
+      uid: this._uid,
       tileId,
     });
   }
@@ -1427,7 +1424,7 @@ export class VirtualTilesController {
     tile.location = result;
   }
 
-  private getTileData(tile: TileData) {
+  private getTileData(tile: TileData): TileStatus {
     const locations = this.getTileLocations(tile);
     const visibilityData = this.getTileVisibility(tile, locations);
     const highlight = this.getTileHighlight(tile, locations);
@@ -1496,7 +1493,7 @@ export class VirtualTilesController {
     const faceIds = this.getFaceIds(tile);
     this._meshConnection.process({
       tileRequestClass: TileRequestClass.CREATE,
-      modelId: this._modelId,
+      uid: this._uid,
       objectClass: tile.objectClass,
       tileId,
       itemId: undefined,
@@ -1506,10 +1503,11 @@ export class VirtualTilesController {
       normals: tile.normalBuffer,
       faceIds,
       itemIds: tile.ids,
-      material: tile.materialId,
+      // Set for every tile, see newTile().
+      material: tile.materialId!,
       matrix: this._temp.matrix.clone(),
       aabb: tile.box.clone(),
-      currentLod: tile.lod,
+      currentLod: tile.lod!,
     });
     this.updateMemoryOnTileLoad(tile);
   }

@@ -34,7 +34,7 @@ export interface TileData extends TileBasicData {
   location?: THREE.Vector3;
   ids?: DataBuffer;
   indexBuffer?: DataBuffer;
-  positionBuffer?: DataBuffer;
+  positionBuffer?: Float32Array;
   faceIdBuffer?: DataBuffer;
   normalBuffer?: DataBuffer;
   visibilities?: MultiBufferData<boolean>;

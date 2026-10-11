@@ -1,6 +1,9 @@
 import {
+  ModelUid,
   MultiThreadingRequestClass,
+  HighlightDefinition,
   MaterialDefinition,
+  WorkerRequest,
 } from "../../model/model-types";
 import { Material, Meshes, Model } from "../../../../Schema";
 import { ParserHelper } from "../../utils/geometry/parser-helper";
@@ -9,8 +12,8 @@ import { MaterialUtils } from "../../utils/geometry/material-utils";
 type VirtualMaterialTransfer = (data: any, trans?: any[]) => void;
 
 export class VirtualMaterialController {
-  private readonly _modelId: string;
-  private readonly _list: MaterialDefinition[] = [];
+  private readonly _uid: ModelUid;
+  private readonly _list: HighlightDefinition[] = [];
   private readonly _idsByDefinition = new Map<string, number>();
   private readonly _onTransfer: VirtualMaterialTransfer;
   // Number of ids taken by the model's own materials. Every id at or above
@@ -18,8 +21,8 @@ export class VirtualMaterialController {
   // references it any more.
   private _modelMaterialCount = 0;
 
-  constructor(modelId: string, onTransfer: VirtualMaterialTransfer) {
-    this._modelId = modelId;
+  constructor(uid: ModelUid, onTransfer: VirtualMaterialTransfer) {
+    this._uid = uid;
     this._onTransfer = onTransfer;
   }
 
@@ -49,7 +52,7 @@ export class VirtualMaterialController {
     return this._list[materialId];
   }
 
-  transfer(materials: MaterialDefinition[]): number[] {
+  transfer(materials: HighlightDefinition[]): number[] {
     const result = this.deduplicateMaterials(materials);
     const { materialDefinitions, ids } = result;
     this.transferMaterialData(materialDefinitions);
@@ -85,9 +88,9 @@ export class VirtualMaterialController {
     return result;
   }
 
-  private deduplicateMaterials(materialDefinition: MaterialDefinition[]) {
+  private deduplicateMaterials(materialDefinition: HighlightDefinition[]) {
     const ids = [] as number[];
-    const materialDefinitions = [] as MaterialDefinition[];
+    const materialDefinitions = [] as HighlightDefinition[];
     for (const material of materialDefinition) {
       const key = MaterialUtils.getKey(material);
       let id = this._idsByDefinition.get(key);
@@ -113,16 +116,16 @@ export class VirtualMaterialController {
     return this.transfer(materialDefinitions);
   }
 
-  private transferMaterialData(materialDefinitions: MaterialDefinition[]) {
+  private transferMaterialData(materialDefinitions: HighlightDefinition[]) {
     // The new definitions are always the tail of _list, so this is the id of
     // the first one. The main thread aligns its list to it, which drops any
     // definitions reclaimed here since the previous transfer.
     const firstId = this._list.length - materialDefinitions.length;
     this._onTransfer({
       class: MultiThreadingRequestClass.CREATE_MATERIAL,
-      modelId: this._modelId,
+      uid: this._uid,
       materialDefinitions,
       firstId,
-    });
+    } satisfies WorkerRequest);
   }
 }

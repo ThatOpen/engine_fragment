@@ -1,11 +1,27 @@
 import * as THREE from "three";
 
 import {
+  CreateTileRequest,
+  ModelUid,
   MultiThreadingRequestClass,
+  TileRequest,
   TileRequestClass,
+  TileRuns,
+  UpdateTileRequest,
+  WorkerRequest,
 } from "../model/model-types";
 
 export type Thread = Worker;
+
+/** A call of a method of a model's worker-side counterpart. */
+export type ExecuteRequest = {
+  class: MultiThreadingRequestClass.EXECUTE;
+  uid: ModelUid;
+  function: string;
+  parameters: unknown[];
+  /** Set by the worker: what the method returned. */
+  result?: unknown;
+};
 
 export class MultithreadingHelper {
   static newThread(url: string, classic?: boolean) {
@@ -16,9 +32,9 @@ export class MultithreadingHelper {
     return setInterval(effect, rate);
   }
 
-  static getMeshComputeRequest(modelId: string, list: any[]) {
+  static getMeshComputeRequest(uid: ModelUid, list: TileRequest[]) {
     const className = MultiThreadingRequestClass.RECOMPUTE_MESHES;
-    return { class: className, modelId, list };
+    return { class: className, uid, list } satisfies WorkerRequest;
   }
 
   static planeSet(planes: THREE.Plane[]) {
@@ -101,13 +117,17 @@ export class MultithreadingHelper {
     return MultithreadingHelper._seq;
   }
 
-  static getExecuteRequest(modelId: string, method: string, args: any) {
+  static getExecuteRequest(
+    uid: ModelUid,
+    method: string,
+    args: any,
+  ): ExecuteRequest {
     const parameters = Array.from(args);
     const className = MultiThreadingRequestClass.EXECUTE;
     // `seq` is attached at the FragmentsConnection.fetch level so every
     // main → worker request (EXECUTE, REFRESH_VIEW, GET_BOXES, …) gets
     // tagged consistently. Tagging here would only cover EXECUTE.
-    return { class: className, modelId, function: method, parameters };
+    return { class: className, uid, function: method, parameters };
   }
 
   static plane(plane: THREE.Plane) {
@@ -117,7 +137,7 @@ export class MultithreadingHelper {
     return newPlane;
   }
 
-  static getRequestContent(input: any): any[] {
+  static getRequestContent(input: { list: TileRequest[] }): any[] {
     const content: any[] = [];
     for (const request of input.list) {
       MultithreadingHelper.setupCreateRequest(request, content);
@@ -132,8 +152,8 @@ export class MultithreadingHelper {
     return array;
   }
 
-  static cleanRequests(list: any[]) {
-    const tasks: any[] = [];
+  static cleanRequests(list: TileRequest[]) {
+    const tasks: TileRequest[] = [];
     const helper = MultithreadingHelper;
     for (const request of list) {
       const isFinish = helper.isFinishRequest(request);
@@ -191,11 +211,13 @@ export class MultithreadingHelper {
     return Math.max(capacity, 2);
   }
 
-  static isFinishRequest(request: any) {
+  static isFinishRequest<T extends { tileRequestClass: TileRequestClass }>(
+    request: T,
+  ): request is Extract<T, { tileRequestClass: TileRequestClass.FINISH }> {
     return request.tileRequestClass === TileRequestClass.FINISH;
   }
 
-  private static setupUpdateRequest(request: any, content: any[]) {
+  private static setupUpdateRequest(request: TileRequest, content: any[]) {
     if (request.tileRequestClass === TileRequestClass.UPDATE) {
       this.addAllTileData(request, content);
     }
@@ -209,35 +231,36 @@ export class MultithreadingHelper {
     return 0;
   }
 
-  private static addAllTileData(request: any, content: any[]) {
-    this.addRequestTileData(request, content, "visibilityData");
-    const extras = ["highlightIds"];
-    this.addRequestTileData(request, content, "highlightData", extras);
-  }
-
-  private static addRequestContent(id: string, request: any, content: any[]) {
-    if (!request[id]) return;
-    const buffer = request[id].buffer;
-    content.push(buffer);
-  }
-
-  private static addRequestTileData(
-    request: any,
+  private static addAllTileData(
+    request: CreateTileRequest | UpdateTileRequest,
     content: any[],
-    name: string,
-    extras: string[] = [],
   ) {
-    const data = request.tileData[name];
-    if (data) {
-      content.push(data.position.buffer);
-      content.push(data.size.buffer);
-      for (const extra of extras) {
-        content.push(request.tileData[extra].buffer);
-      }
+    const { visibilityData, highlightData, highlightIds } = request.tileData;
+    this.addRuns(visibilityData, content);
+    if (highlightData && highlightIds) {
+      this.addRuns(highlightData, content);
+      content.push(highlightIds.buffer);
     }
   }
 
-  private static setupCreateRequest(request: any, content: any[]) {
+  private static addRequestContent(
+    id: ReturnType<typeof MultithreadingHelper.getCreateRequestIds>[number],
+    request: CreateTileRequest,
+    content: any[],
+  ) {
+    const data = request[id];
+    if (!data) return;
+    content.push(data.buffer);
+  }
+
+  private static addRuns(runs: TileRuns | undefined, content: any[]) {
+    if (runs) {
+      content.push(runs.position.buffer);
+      content.push(runs.size.buffer);
+    }
+  }
+
+  private static setupCreateRequest(request: TileRequest, content: any[]) {
     if (request.tileRequestClass !== TileRequestClass.CREATE) {
       return;
     }
@@ -249,6 +272,6 @@ export class MultithreadingHelper {
   }
 
   private static getCreateRequestIds() {
-    return ["positions", "indices", "normals", "itemIds"];
+    return ["positions", "indices", "normals", "itemIds"] as const;
   }
 }

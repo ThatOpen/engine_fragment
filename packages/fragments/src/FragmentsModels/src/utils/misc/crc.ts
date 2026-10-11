@@ -29,21 +29,16 @@ export class CRC {
 
   fromMaterialData(
     data: {
-      modelId: string;
+      uid: number;
       objectClass: number;
       currentLod: number;
       templateId?: any;
     } & MaterialDefinition,
   ) {
-    const {
-      modelId,
-      objectClass,
-      currentLod,
-      templateId,
-      ...materialDefinition
-    } = data;
+    const { uid, objectClass, currentLod, templateId, ...materialDefinition } =
+      data;
     this.reset();
-    this.compute(modelId);
+    this.compute(uid);
     this.compute(objectClass);
     this.compute(MaterialUtils.getKey(materialDefinition));
     this.compute(currentLod);

@@ -18,7 +18,7 @@ export class ThreadBoxFetcher extends ThreadController {
   }
 
   private getBoxesFromLocalIds(input: any) {
-    const model = this.thread.getModel(input.modelId);
+    const model = this.thread.getModel(input.uid);
     for (const localIds of input.localIds) {
       const itemIds = model.getItemIdsByLocalIds(localIds);
       const box = model.getBBoxes(itemIds);
@@ -30,7 +30,7 @@ export class ThreadBoxFetcher extends ThreadController {
   private getAllBoxes(input: any) {
     // This assumes that items geometries are always the first items
     // and that properties are created afterwards
-    const model = this.thread.getModel(input.modelId);
+    const model = this.thread.getModel(input.uid);
     const size = model.getGeometriesLength();
     for (let i = 0; i < size; i++) {
       const box = model.getBBoxes([i]);

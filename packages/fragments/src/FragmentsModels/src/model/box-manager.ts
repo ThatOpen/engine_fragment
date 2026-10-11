@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { MultiThreadingRequestClass } from "./model-types";
+import { ModelUid, MultiThreadingRequestClass } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 
 export class BoxManager {
@@ -13,7 +13,7 @@ export class BoxManager {
   async getMergedBox(model: FragmentsModel, localIds: number[]) {
     const request = this.getBoxRequest(model, [localIds]);
     const { boxes } = await model.threads.fetch(request);
-    const [box] = boxes;
+    const [box] = boxes!;
     return this.getAbsoluteBox(box, model);
   }
 
@@ -48,10 +48,16 @@ export class BoxManager {
   private getBoxRequest(
     model: FragmentsModel,
     localIds: number[][] | undefined,
-  ) {
+  ): {
+    class: MultiThreadingRequestClass.FETCH_BOXES;
+    uid: ModelUid;
+    localIds: number[][] | undefined;
+    /** Set by the worker: one box per entry of `localIds`. */
+    boxes?: THREE.Box3[];
+  } {
     return {
       class: MultiThreadingRequestClass.FETCH_BOXES,
-      modelId: model.modelId,
+      uid: model._uid,
       localIds,
     };
   }

@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import * as path from "path";
 import { afterEach, expect, test, vi } from "vitest";
 import { SingleThreadedFragmentsModel } from ".";
-import { LoadAbortedError } from "../model";
+import { LoadAbortedError, ModelUid, TileRequestClass } from "../model";
 import { MeshConnection } from "../multithreading/mesh-connection";
 import { VirtualTilesController } from "../virtual-model/virtual-controllers";
 
@@ -158,7 +158,7 @@ test("MeshConnection without a connection starts no interval, throws nothing and
   const onUncaught = (e: unknown) => uncaught.push(e);
   process.on("uncaughtException", onUncaught);
   try {
-    const meshConnection = new MeshConnection("m", undefined);
+    const meshConnection = new MeshConnection(1 as ModelUid, undefined);
 
     // No repeating timer was started for a connection-less instance. The
     // count may drop below the baseline if an unrelated runner timer expires
@@ -172,7 +172,11 @@ test("MeshConnection without a connection starts no interval, throws nothing and
     // first refresh tick throws `Cannot read properties of undefined
     // (reading 'fetchMeshCompute')` inside the timer callback.
     for (let i = 0; i < 50; i++) {
-      meshConnection.process({ modelId: "m", tileId: i });
+      meshConnection.process({
+        tileRequestClass: TileRequestClass.DELETE,
+        uid: 1 as ModelUid,
+        tileId: i,
+      });
     }
     expect((meshConnection as any)._list).toEqual([]);
 

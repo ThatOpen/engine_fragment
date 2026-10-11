@@ -1,32 +1,51 @@
-export type ThreadHandler = (args: any) => Promise<void> | void;
+import type { Cloned } from "./cloned";
+
+export type MessageBase = {
+  requestId: number;
+  /** Set on answers, in either direction, despite the name. */
+  toMainThread?: boolean;
+  errorInfo?: string;
+};
+
+/** Handles what the other side sent, which arrives as a copy. */
+export type ThreadHandler<T extends object = object> = (
+  args: Cloned<T> & MessageBase,
+) => Promise<void> | void;
 
 export class ConnectionHandlers {
-  private readonly _list = new Map<number, ThreadHandler>();
+  private readonly _list = new Map<
+    number,
+    { port: MessagePort; handler: ThreadHandler }
+  >();
+
   private _communicationKey = 0;
 
-  setupInput(input: any) {
-    input.requestId = this._communicationKey++;
+  setupInput<T extends object>(input: T): T & MessageBase {
+    return Object.assign(input, { requestId: this._communicationKey++ });
   }
 
-  set(id: number, reject: any, resolve: any) {
-    const handler = this.newHandler(reject, resolve);
-    this._list.set(id, handler);
+  /** Waits for the answer to a request sent through `port`. */
+  set(id: number, port: MessagePort, handler: ThreadHandler) {
+    this._list.set(id, { port, handler });
   }
 
   // It resolves the awaited model.threads.fetch(...)
-  run(data: any) {
-    const handler = this._list.get(data.requestId) as ThreadHandler;
+  run(data: MessageBase) {
+    const entry = this._list.get(data.requestId);
+    if (!entry) return;
     this._list.delete(data.requestId);
-    handler(data);
+    entry.handler(data);
   }
 
-  private newHandler(reject: any, resolve: any) {
-    return (response: any) => {
-      if (response.errorInfo) {
-        reject(response.errorInfo);
-        return;
-      }
-      resolve(response);
-    };
+  /**
+   * Answers every request still waiting on `port` with an error, for when
+   * nothing will answer them anymore.
+   */
+  fail(port: MessagePort, errorInfo: string) {
+    for (const [requestId, entry] of this._list) {
+      if (entry.port !== port) continue;
+      this._list.delete(requestId);
+      entry.handler({ requestId, errorInfo });
+    }
   }
 }

@@ -2,43 +2,56 @@ import * as THREE from "three";
 import { LineMaterialParameters } from "three/examples/jsm/lines/LineMaterial.js";
 import {
   ObjectClass,
+  HighlightDefinition,
   MaterialDefinition,
   CurrentLod,
   BIMMesh,
   BIMMaterial,
   MaterialData,
+  ModelUid,
+  CreateTileRequest,
+  UpdateTileRequest,
 } from "./model-types";
 import { CRC } from "../utils";
 import { LodMaterial } from "../lod";
 import { DataMap } from "../../../Utils";
+import type { Cloned } from "../multithreading/cloned";
+
+// The tile a material is for.
+type TileRequest = Cloned<CreateTileRequest | UpdateTileRequest>;
+
+// What a tile's material depends on, besides its definition.
+type MaterialKey = Pick<TileRequest, "uid" | "objectClass" | "currentLod">;
 
 export class MaterialManager {
   readonly list = new DataMap<number, BIMMaterial>();
 
-  private readonly _modelMaterialMapping = new Map<string, Set<number>>();
-  private readonly _definitions = new Map<string, MaterialDefinition[]>();
+  private readonly _modelMaterialMapping = new Map<ModelUid, Set<number>>();
+  private readonly _definitions = new Map<ModelUid, HighlightDefinition[]>();
   private readonly _idGenerator = new CRC();
   private readonly white = 0xffffffff;
 
-  static resetColors(definitions: MaterialDefinition[]) {
-    for (const definition of definitions) {
-      if (!(definition && definition.color)) continue;
-      const { color } = definition;
-      if (color.isColor) continue;
-      const { r, g, b } = color;
-      // IFC colors are stored in sRBG color space
-      definition.color = new THREE.Color().setRGB(
-        r,
-        g,
-        b,
-        THREE.SRGBColorSpace
-      );
-    }
+  // Definitions reach the main thread as copies without their prototypes, so
+  // their color is no longer a THREE.Color, though it keeps `isColor`. Its
+  // components are already linear: the worker converted them from sRGB.
+  static restoreColor(
+    definition: Cloned<MaterialDefinition>,
+  ): MaterialDefinition;
+  static restoreColor(
+    definition: Cloned<HighlightDefinition>,
+  ): HighlightDefinition;
+  static restoreColor(
+    definition: Cloned<HighlightDefinition>,
+  ): HighlightDefinition {
+    // A highlight that keeps the item's color has none to restore.
+    if (!definition.color) return definition as HighlightDefinition;
+    const { r, g, b } = definition.color;
+    return { ...definition, color: new THREE.Color(r, g, b) };
   }
 
-  dispose(modelId: string) {
-    this._definitions.delete(modelId);
-    const ids = this._modelMaterialMapping.get(modelId);
+  dispose(uid: ModelUid) {
+    this._definitions.delete(uid);
+    const ids = this._modelMaterialMapping.get(uid);
     if (!ids) return;
     for (const id of ids) {
       const material = this.list.get(id);
@@ -46,33 +59,25 @@ export class MaterialManager {
       material.dispose();
       this.list.delete(id);
     }
-    this._modelMaterialMapping.delete(modelId);
+    this._modelMaterialMapping.delete(uid);
   }
 
-  /**
-   * Release a model's slot in the per-model definitions and mapping tables
-   * without disposing the underlying THREE materials in `list`. Used by
-   * `editor.save()` so a fresh model can register under the same modelId
-   * while the outgoing model's tiles still render normally.
-   */
-  releaseModelSlot(modelId: string) {
-    this._definitions.delete(modelId);
-    this._modelMaterialMapping.delete(modelId);
-  }
-
-  get(data: MaterialDefinition, request: any) {
-    const { modelId, objectClass, currentLod, templateId } = request;
-    if (!(modelId && objectClass !== undefined && currentLod !== undefined)) {
+  get(data: MaterialDefinition, request: MaterialKey) {
+    const { uid, objectClass, currentLod } = request;
+    if (
+      uid === undefined ||
+      objectClass === undefined ||
+      currentLod === undefined
+    ) {
       throw new Error(
         "Fragments: material definition information is missing to create the material."
       );
     }
 
     this._idGenerator.fromMaterialData({
-      modelId,
+      uid,
       objectClass,
       currentLod,
-      templateId,
       ...data,
     });
 
@@ -88,25 +93,25 @@ export class MaterialManager {
    * ones the worker has reclaimed (see #299) and are replaced.
    */
   addDefinitions(
-    modelID: string,
-    materials: MaterialDefinition[],
+    uid: ModelUid,
+    materials: HighlightDefinition[],
     firstId?: number,
   ) {
-    const definitions = this._definitions.get(modelID);
+    const definitions = this._definitions.get(uid);
     if (definitions) {
       if (firstId !== undefined && firstId < definitions.length) {
         definitions.length = firstId;
       }
       definitions.push(...materials);
     } else {
-      this._definitions.set(modelID, materials);
+      this._definitions.set(uid, materials);
     }
   }
 
-  createHighlights(mesh: BIMMesh, request: any) {
+  createHighlights(mesh: BIMMesh, request: TileRequest) {
     const {
       tileData: { highlightData, highlightIds },
-      modelId,
+      uid,
       material: index,
     } = request;
 
@@ -114,8 +119,10 @@ export class MaterialManager {
     const materials = (mesh.material as THREE.Material[]).slice(0, 2);
     const localMap = new Map<number, number>();
 
-    const materialDefinitions = this._definitions.get(modelId);
-    if (!materialDefinitions) return materials;
+    const materialDefinitions = this._definitions.get(uid);
+    if (!materialDefinitions || !highlightData || !highlightIds) {
+      return materials;
+    }
 
     for (let i = 0; i < highlightData.position.length; i++) {
       const highlightIndex = highlightIds[i];
@@ -140,11 +147,14 @@ export class MaterialManager {
   getHighlightProps(
     highlightIndex: number,
     originalIndex: number,
-    modelId: string,
+    uid: ModelUid,
   ) {
-    const materialDefinitions = this._definitions.get(modelId);
+    const materialDefinitions = this._definitions.get(uid);
     if (!materialDefinitions) return undefined;
-    const originalDefinition = materialDefinitions[originalIndex];
+    const originalDefinition = MaterialManager.modelMaterial(
+      materialDefinitions,
+      originalIndex,
+    );
     const newDefinition = materialDefinitions[highlightIndex];
     if (!newDefinition || !originalDefinition) return undefined;
     const {
@@ -165,10 +175,11 @@ export class MaterialManager {
     return combined;
   }
 
-  getFromRequest(request: any) {
-    const { material: index, modelId } = request;
-    const modelMaterials = this._definitions.get(modelId);
-    const definition = modelMaterials?.[index];
+  getFromRequest(request: TileRequest) {
+    const { material: index, uid } = request;
+    const modelMaterials = this._definitions.get(uid);
+    const definition =
+      modelMaterials && MaterialManager.modelMaterial(modelMaterials, index);
     if (!definition) {
       throw new Error(`Fragments: Missing mesh material for index ${index}`);
     }
@@ -176,7 +187,17 @@ export class MaterialManager {
     return material;
   }
 
-  private newLODMaterial(data: MaterialData, request: any) {
+  // A model's first definitions are its own materials, which tiles are drawn
+  // with, and they are complete. Only highlights, after them, may hold just
+  // some properties.
+  private static modelMaterial(
+    definitions: HighlightDefinition[],
+    index: number,
+  ) {
+    return definitions[index] as MaterialDefinition;
+  }
+
+  private newLODMaterial(data: MaterialData, request: MaterialKey) {
     const { data: definition } = data;
     const color = new THREE.Color(definition.color);
     if (request.currentLod === CurrentLod.WIRES) {
@@ -204,8 +225,8 @@ export class MaterialManager {
     return parameters;
   }
 
-  private new(data: MaterialDefinition, request: any) {
-    const { objectClass, templateId } = request;
+  private new(data: MaterialDefinition, request: MaterialKey) {
+    const { objectClass } = request;
     let material: BIMMaterial;
 
     if (objectClass === ObjectClass.SHELL) {
@@ -225,7 +246,8 @@ export class MaterialManager {
       });
     } else if (objectClass === ObjectClass.LINE) {
       material = this.newLODMaterial(
-        { data, instancing: templateId !== undefined },
+        // No worker sends a templateId, so no tile is instanced.
+        { data, instancing: false },
         request
       );
     } else {
@@ -235,25 +257,28 @@ export class MaterialManager {
     return material;
   }
 
-  private addMaterialToModel(modelId: string, id: number) {
-    let modelMaterials = this._modelMaterialMapping.get(modelId);
+  private addMaterialToModel(uid: ModelUid, id: number) {
+    let modelMaterials = this._modelMaterialMapping.get(uid);
     if (!modelMaterials) {
       modelMaterials = new Set();
-      this._modelMaterialMapping.set(modelId, modelMaterials);
+      this._modelMaterialMapping.set(uid, modelMaterials);
     }
     modelMaterials.add(id);
   }
 
   private processHighlight(
     localMap: Map<number, number>,
-    highlightIndex: any,
-    materialDefinitions: MaterialDefinition[],
-    index: any,
-    request: any,
+    highlightIndex: number,
+    materialDefinitions: HighlightDefinition[],
+    index: number,
+    request: TileRequest,
     materials: THREE.Material[]
   ) {
     if (!localMap.has(highlightIndex)) {
-      const originalDefinition = materialDefinitions[index];
+      const originalDefinition = MaterialManager.modelMaterial(
+        materialDefinitions,
+        index,
+      );
       const newDefinition = materialDefinitions[highlightIndex];
       const { preserveOriginalMaterial, _explicitProps, ...highlightDefinition } = newDefinition;
       const combinedDefinition: MaterialDefinition = { ...originalDefinition };
@@ -275,14 +300,14 @@ export class MaterialManager {
   private getUniqueMaterial(
     id: number,
     data: MaterialDefinition,
-    request: any
+    request: MaterialKey
   ) {
-    const modelId = request.modelId;
+    const uid = request.uid;
     const material = this.list.get(id);
     if (material) return material;
     const newMaterial = this.new(data, request);
     this.list.set(id, newMaterial);
-    this.addMaterialToModel(modelId, id);
+    this.addMaterialToModel(uid, id);
     return this.list.get(id)!;
   }
 }

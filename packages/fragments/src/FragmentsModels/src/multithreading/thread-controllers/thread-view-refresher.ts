@@ -8,7 +8,7 @@ export class ThreadViewRefresher extends ThreadController {
   }
 
   protected async execute(input: any) {
-    const model = this.thread.list.get(input.modelId);
+    const model = this.thread.list.get(input.uid);
     if (model) {
       this.safeCopyFrustum(input);
       this.safeCopyPosition(input);

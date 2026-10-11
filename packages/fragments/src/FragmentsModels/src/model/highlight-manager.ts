@@ -1,27 +1,22 @@
-import { MaterialDefinition } from "./model-types";
+import { HighlightDefinition, MaterialDefinition } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 import { MaterialManager } from "./material-manager";
 
 export class HighlightManager {
   async getHighlight(model: FragmentsModel, localIds?: number[]) {
-    const materials = (await model.threads.invoke(
-      model.modelId,
-      "getHighlight",
-      [localIds],
-    )) as MaterialDefinition[];
-    MaterialManager.resetColors(materials);
-    return materials;
+    const materials = await model._invoke("getHighlight", [localIds]);
+    // Items without a highlight have none to restore.
+    return materials.map(
+      (material) => material && MaterialManager.restoreColor(material),
+    );
   }
 
   async highlight(
     model: FragmentsModel,
     localIds: number[] | undefined,
-    highlightMaterial: MaterialDefinition,
+    highlightMaterial: HighlightDefinition,
   ) {
-    await model.threads.invoke(model.modelId, "highlight", [
-      localIds,
-      highlightMaterial,
-    ]);
+    await model._invoke("highlight", [localIds, highlightMaterial]);
   }
 
   async setColor(
@@ -29,11 +24,11 @@ export class HighlightManager {
     localIds: number[] | undefined,
     color: MaterialDefinition["color"],
   ) {
-    await model.threads.invoke(model.modelId, "setColor", [localIds, color]);
+    await model._invoke("setColor", [localIds, color]);
   }
 
   async resetColor(model: FragmentsModel, localIds: number[] | undefined) {
-    await model.threads.invoke(model.modelId, "resetColor", [localIds]);
+    await model._invoke("resetColor", [localIds]);
   }
 
   async setOpacity(
@@ -41,21 +36,18 @@ export class HighlightManager {
     localIds: number[] | undefined,
     opacity: number,
   ) {
-    await model.threads.invoke(model.modelId, "setOpacity", [localIds, opacity]);
+    await model._invoke("setOpacity", [localIds, opacity]);
   }
 
   async resetOpacity(model: FragmentsModel, localIds: number[] | undefined) {
-    await model.threads.invoke(model.modelId, "resetOpacity", [localIds]);
+    await model._invoke("resetOpacity", [localIds]);
   }
 
   async getHighlightItemIds(model: FragmentsModel) {
-    return model.threads.invoke(
-      model.modelId,
-      "getHighlightItemIds",
-    ) as Promise<number[]>;
+    return model._invoke("getHighlightItemIds");
   }
 
   async resetHighlight(model: FragmentsModel, localIds?: number[]) {
-    await model.threads.invoke(model.modelId, "resetHighlight", [localIds]);
+    await model._invoke("resetHighlight", [localIds]);
   }
 }

@@ -1,5 +1,8 @@
 import * as THREE from "three";
-import { MaterialDefinition } from "../../model/model-types";
+import {
+  HighlightDefinition,
+  MaterialDefinition,
+} from "../../model/model-types";
 import { VirtualFragmentsModel } from "../virtual-fragments-model";
 
 export class HighlightHelper {
@@ -44,8 +47,8 @@ export class HighlightHelper {
     model.tiles.restart();
   }
 
-  getHighlight(model: VirtualFragmentsModel, localIds: number[]) {
-    const found: MaterialDefinition[] = [];
+  getHighlight(model: VirtualFragmentsModel, localIds?: number[]) {
+    const found: (HighlightDefinition | undefined)[] = [];
     const itemIds = model.properties.getItemIdsFromLocalIds(localIds);
     const fetchEvent = this.getFetchEvent(model, found);
     model.traverse(itemIds, fetchEvent);
@@ -66,11 +69,11 @@ export class HighlightHelper {
 
   highlight(
     model: VirtualFragmentsModel,
-    items: number[],
-    material: MaterialDefinition,
+    items: number[] | undefined,
+    material: HighlightDefinition,
   ) {
     const itemIds = model.properties.getItemIdsFromLocalIds(items);
-    const materials: MaterialDefinition[] = [];
+    const materials: HighlightDefinition[] = [];
     const highlightEvent = this.getCheckEvent(model, material, materials);
     model.traverse(itemIds, highlightEvent);
     const ids = model.materials.transfer(materials);
@@ -86,13 +89,13 @@ export class HighlightHelper {
 
   private updateHighlightDefinition(
     model: VirtualFragmentsModel,
-    items: number[],
-    updateFn: (current: MaterialDefinition) => Partial<MaterialDefinition>,
+    items: number[] | undefined,
+    updateFn: (current: HighlightDefinition) => Partial<MaterialDefinition>,
   ) {
     const itemIds = model.properties.getItemIdsFromLocalIds(items);
     const itemsToUpdate: number[] = [];
     const itemsToClear: number[] = [];
-    const materials: MaterialDefinition[] = [];
+    const materials: HighlightDefinition[] = [];
 
     for (const itemId of itemIds) {
       const highlightId = model.itemConfig.getHighlight(itemId);
@@ -100,10 +103,10 @@ export class HighlightHelper {
         const currentHighlight = model.materials.fetch(highlightId);
         const updated = updateFn(currentHighlight);
         if (this.hasEffectiveProperties(updated)) {
-          const newMaterial = {
+          const newMaterial: HighlightDefinition = {
             ...updated,
             preserveOriginalMaterial: true,
-          } as MaterialDefinition;
+          };
           materials.push(newMaterial);
           itemsToUpdate.push(itemId);
         } else {
@@ -129,7 +132,7 @@ export class HighlightHelper {
 
   setColor(
     model: VirtualFragmentsModel,
-    items: number[],
+    items: number[] | undefined,
     color: MaterialDefinition["color"],
   ) {
     let normalizedColor = color;
@@ -141,15 +144,15 @@ export class HighlightHelper {
         THREE.SRGBColorSpace
       );
     }
-    const material = {
+    const material: HighlightDefinition = {
       color: normalizedColor,
       preserveOriginalMaterial: true,
       _explicitProps: ['color'],
-    } as MaterialDefinition;
+    };
     this.highlight(model, items, material);
   }
 
-  resetColor(model: VirtualFragmentsModel, items: number[]) {
+  resetColor(model: VirtualFragmentsModel, items?: number[]) {
     this.updateHighlightDefinition(model, items, (current) => {
       const { color: _, ...rest } = current;
       return rest;
@@ -158,19 +161,19 @@ export class HighlightHelper {
 
   setOpacity(
     model: VirtualFragmentsModel,
-    items: number[],
+    items: number[] | undefined,
     opacity: number,
   ) {
-    const material = {
+    const material: HighlightDefinition = {
       opacity,
       transparent: opacity < 1,
       preserveOriginalMaterial: true,
       _explicitProps: ['opacity', 'transparent'],
-    } as MaterialDefinition;
+    };
     this.highlight(model, items, material);
   }
 
-  resetOpacity(model: VirtualFragmentsModel, items: number[]) {
+  resetOpacity(model: VirtualFragmentsModel, items?: number[]) {
     this.updateHighlightDefinition(model, items, (current) => {
       const { opacity: _o, transparent: _t, ...rest } = current;
       return rest;
@@ -179,22 +182,17 @@ export class HighlightHelper {
 
   private getFetchEvent(
     model: VirtualFragmentsModel,
-    found: MaterialDefinition[],
+    found: (HighlightDefinition | undefined)[],
   ) {
     return (itemId: number) => {
       const id = model.itemConfig.getHighlight(itemId);
-      if (id) {
-        const result = model.materials.fetch(id);
-        found.push(result);
-        return;
-      }
-      found.push(undefined as any);
+      found.push(id ? model.materials.fetch(id) : undefined);
     };
   }
 
   private setHighlightProperty(
-    newHigh: MaterialDefinition,
-    pastHigh: MaterialDefinition,
+    newHigh: HighlightDefinition,
+    pastHigh: HighlightDefinition,
     key: keyof MaterialDefinition,
   ) {
     if (newHigh[key] === undefined && pastHigh[key] !== undefined) {
@@ -205,10 +203,10 @@ export class HighlightHelper {
   private getNewHighFromPast(
     model: VirtualFragmentsModel,
     past: number,
-    highlightMaterial: MaterialDefinition,
+    highlightMaterial: HighlightDefinition,
   ) {
     const pastHigh = model.materials.fetch(past);
-    const newHigh = { ...highlightMaterial } as MaterialDefinition;
+    const newHigh = { ...highlightMaterial };
 
     const pastExplicit: string[] = (pastHigh as any)._explicitProps || [];
     const newExplicit: string[] = (highlightMaterial as any)._explicitProps || [];
@@ -232,8 +230,8 @@ export class HighlightHelper {
 
   private getCheckEvent(
     model: VirtualFragmentsModel,
-    highlightMaterial: MaterialDefinition,
-    materials: MaterialDefinition[],
+    highlightMaterial: HighlightDefinition,
+    materials: HighlightDefinition[],
   ) {
     return (itemId: number) => {
       const past = model.itemConfig.getHighlight(itemId);

@@ -9,10 +9,16 @@ import {
   ItemsQueryConfig,
   ItemsQueryParams,
   LoadAbortedError,
+  ModelUid,
 } from "../model";
 import { IFragmentsModel } from "../model/fragments-model-interface";
 import { isRawBuffer } from "../utils/misc/buffer";
 import { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
+
+// Keys each model's virtual counterpart, see ModelUid. Single-threaded models
+// share this thread's mesh cache, so two of them under the same modelId must
+// still get different keys.
+let lastUid = 0;
 
 /**
  * The main class for managing a 3D model loaded from a fragments file in a single thread. It's designed for easy data querying in the backend, so all the 3D visualization logic is not present.
@@ -66,7 +72,7 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
     }
 
     this._virtualModel = new VirtualFragmentsModel(
-      modelId,
+      ++lastUid as ModelUid,
       data as any,
       undefined as any,
     );

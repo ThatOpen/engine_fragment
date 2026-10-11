@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import * as THREE from "three";
 import {
   MaterialDefinition,
+  ModelUid,
   ObjectClass,
   CurrentLod,
 } from "../../model/model-types";
@@ -9,12 +10,14 @@ import { MaterialManager } from "../../model/material-manager";
 import { HighlightHelper } from "../virtual-helpers/highlight-helper";
 import { VirtualMaterialController } from "./virtual-material-controller";
 
+const uid = 1 as ModelUid;
+
 function harness() {
   const definitions: MaterialDefinition[] = [];
   const renderer = new MaterialManager();
-  const controller = new VirtualMaterialController("model", (event) => {
+  const controller = new VirtualMaterialController(uid, (event) => {
     definitions.push(...event.materialDefinitions);
-    renderer.addDefinitions("model", event.materialDefinitions);
+    renderer.addDefinitions(uid, event.materialDefinitions);
   });
   return { controller, definitions, renderer };
 }
@@ -38,7 +41,7 @@ describe("preserved material definitions", () => {
   test("rendered materials distinguish named depth properties, independently of insertion order", () => {
     const { renderer } = harness();
     const request = {
-      modelId: "model",
+      uid,
       objectClass: ObjectClass.SHELL,
       currentLod: CurrentLod.GEOMETRY,
     };
@@ -73,8 +76,8 @@ describe("preserved material definitions", () => {
     } as MaterialDefinition;
     const [a, b] = controller.transfer([override, { ...override }]);
     expect(a).toBe(b);
-    expect(renderer.getHighlightProps(a, bases[0], "model")?.opacity).toBe(1);
-    expect(renderer.getHighlightProps(b, bases[1], "model")?.opacity).toBe(0.2);
+    expect(renderer.getHighlightProps(a, bases[0], uid)?.opacity).toBe(1);
+    expect(renderer.getHighlightProps(b, bases[1], uid)?.opacity).toBe(0.2);
   });
 
   test("does not alias different depth, transparency, custom ID or inheritance semantics", () => {
@@ -104,7 +107,7 @@ describe("preserved material definitions", () => {
 
 describe("polygon offset depth bias", () => {
   const request = {
-    modelId: "model",
+    uid,
     objectClass: ObjectClass.SHELL,
     currentLod: CurrentLod.GEOMETRY,
   };
