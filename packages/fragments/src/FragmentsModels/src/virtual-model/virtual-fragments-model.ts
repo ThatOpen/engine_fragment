@@ -606,6 +606,14 @@ export class VirtualFragmentsModel {
   }
 
   edit(requests: EditRequest[], raw = true) {
+    // Replayed requests (e.g. from getRequests() of another load of the file)
+    // carry their local ids: new ids start after them.
+    for (const request of requests) {
+      const localId = (request as { localId?: unknown }).localId;
+      if (Number.isInteger(localId)) {
+        this._nextId = Math.max(this._nextId, (localId as number) + 1);
+      }
+    }
     const ids = EditUtils.solveIds(requests, this._nextId);
     this._nextId += ids.length;
     for (const request of requests) {
