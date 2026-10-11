@@ -156,8 +156,8 @@ export class EditManager {
     return model._invoke("getRelations", [localIds]);
   }
 
-  async getGlobalTranformsIdsOfItems(model: FragmentsModel, ids: number[]) {
-    const items = await model._invoke("getGlobalTranformsIdsOfItems", [ids]);
+  async getGlobalTransformsIdsOfItems(model: FragmentsModel, ids: number[]) {
+    const items = await model._invoke("getGlobalTransformsIdsOfItems", [ids]);
     // this.applyActions(editor, model, items, "ITEM");
     return items;
   }

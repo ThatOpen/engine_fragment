@@ -67,9 +67,9 @@ type RemoteMethods = Pick<
   | "getCoordinates"
   | "getElementsData"
   | "getGeometries"
-  | "getGlobalTranformsIdsOfItems"
   | "getGlobalTransforms"
   | "getGlobalTransformsIds"
+  | "getGlobalTransformsIdsOfItems"
   | "getGrids"
   | "getGuids"
   | "getGuidsByLocalIds"
@@ -1138,8 +1138,16 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Gets the global transforms IDs of the items of the model.
    * @param ids - The local IDs of the items to get the global transforms IDs of.
    */
+  getGlobalTransformsIdsOfItems(ids: number[]) {
+    return this._editManager.getGlobalTransformsIdsOfItems(this, ids);
+  }
+
+  /**
+   * @deprecated Misspelled. Use
+   * {@link FragmentsModel.getGlobalTransformsIdsOfItems} instead.
+   */
   getGlobalTranformsIdsOfItems(ids: number[]) {
-    return this._editManager.getGlobalTranformsIdsOfItems(this, ids);
+    return this.getGlobalTransformsIdsOfItems(ids);
   }
 
   /**

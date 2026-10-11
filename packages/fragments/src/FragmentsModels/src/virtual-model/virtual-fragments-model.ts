@@ -859,8 +859,8 @@ export class VirtualFragmentsModel {
     return found;
   }
 
-  getGlobalTranformsIdsOfItems(ids: number[]) {
-    return EditUtils.getGlobalTranformsIdsOfItems(this.data, ids);
+  getGlobalTransformsIdsOfItems(ids: number[]) {
+    return EditUtils.getGlobalTransformsIdsOfItems(this.data, ids);
   }
 
   getElementsData(ids: Iterable<number>) {

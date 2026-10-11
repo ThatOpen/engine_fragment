@@ -112,7 +112,10 @@ const queries: [string, (model: Queried) => unknown][] = [
   ["getItemsIds", (m) => m.getItemsIds()],
   ["getItems", (m) => m.getItems()],
   ["getRelations", (m) => m.getRelations()],
-  ["getGlobalTranformsIdsOfItems", (m) => m.getGlobalTranformsIdsOfItems(ids)],
+  [
+    "getGlobalTransformsIdsOfItems",
+    (m) => m.getGlobalTransformsIdsOfItems(ids),
+  ],
   ["getItemsVolume", (m) => m.getItemsVolume(ids)],
   [
     "getSection",
@@ -136,6 +139,13 @@ test.each(queries)(
     expect(await query(model)).toStrictEqual(await query(local));
   },
 );
+
+test("the misspelled getGlobalTranformsIdsOfItems() still answers", async () => {
+  const expected = local.getGlobalTransformsIdsOfItems(ids);
+
+  expect(local.getGlobalTranformsIdsOfItems(ids)).toStrictEqual(expected);
+  expect(await model.getGlobalTranformsIdsOfItems(ids)).toStrictEqual(expected);
+});
 
 describe("what the copy flattens is rebuilt", () => {
   test("getItemsGeometry() returns transforms as THREE.Matrix4", async () => {
