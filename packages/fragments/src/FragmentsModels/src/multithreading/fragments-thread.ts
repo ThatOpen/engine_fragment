@@ -6,9 +6,12 @@ import { threadSeq } from "./thread-seq";
 export class FragmentsThread {
   readonly actions: { [index: number]: any } = {};
   readonly list = new Map<string, VirtualFragmentsModel>();
-  /** Set of model IDs currently being loaded (CREATE_MODEL in flight). */
-  readonly loading = new Set<string>();
-  /** Set of model IDs whose in-flight load should abort at the next yield. */
+  /**
+   * Models currently being loaded (CREATE_MODEL in flight), each with a
+   * promise that settles once its load has finished or unwound.
+   */
+  readonly loading = new Map<string, Promise<void>>();
+  /** Models whose in-flight load should abort at the next yield. */
   readonly aborting = new Set<string>();
 
   /**
