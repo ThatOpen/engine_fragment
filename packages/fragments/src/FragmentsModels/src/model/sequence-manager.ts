@@ -21,11 +21,7 @@ export class SequenceManager {
     },
   ) {
     const args = [result, fromItems, inputs];
-    const response = await model.threads.invoke(
-      model.modelId,
-      "getSequenced",
-      args,
-    );
+    const response = await model._invoke("getSequenced", args);
     return response as Promise<InformationResultType<T>>;
   }
 }

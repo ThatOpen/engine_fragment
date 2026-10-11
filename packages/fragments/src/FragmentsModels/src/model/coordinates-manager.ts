@@ -42,17 +42,12 @@ export class CoordinatesManager {
   }
 
   async getCoordinates(model: FragmentsModel) {
-    const id = model.modelId;
-    return model.threads.invoke(id, "getCoordinates") as Promise<number[]>;
+    return model._invoke("getCoordinates") as Promise<number[]>;
   }
 
   async getPositions(model: FragmentsModel, localIds?: number[]) {
     const args = [localIds];
-    const localPositions = await model.threads.invoke(
-      model.modelId,
-      "getPositions",
-      args,
-    );
+    const localPositions = await model._invoke("getPositions", args);
     return this.getAbsolutePositions(localPositions, model);
   }
 
