@@ -59,22 +59,32 @@ export class VirtualMaterialController {
   getItemsMaterialDefinition(
     model: Model,
     indices: number[],
-    localIds: number[],
+    _localIds: number[],
   ) {
+    // `indices` are meshes_items indices (from getItemIdsFromLocalIds), which
+    // are what a sample's `item` points at. They are not sample indices, and
+    // there can be more or fewer of them than localIds (an item with several
+    // geometries, or none), so walk the samples and map each one back to its
+    // own localId instead of pairing the two arrays by position.
     const result: { localIds: number[]; definition: MaterialDefinition }[] = [];
     const meshes = model.meshes();
     if (!meshes) return [];
+    const wanted = new Set(indices);
     const map = new Map<number, Set<number>>();
-    for (const [index, itemIndex] of indices.entries()) {
-      const sample = meshes.samples(itemIndex);
+    for (let i = 0; i < meshes.samplesLength(); i++) {
+      const sample = meshes.samples(i);
       if (!sample) continue;
+      const itemIndex = sample.item();
+      if (!wanted.has(itemIndex)) continue;
+      const localId = model.localIds(meshes.meshesItems(itemIndex)!);
+      if (localId === null) continue;
       const materialIndex = sample.material();
       let materialItems = map.get(materialIndex);
       if (!materialItems) {
         materialItems = new Set();
         map.set(materialIndex, materialItems);
       }
-      materialItems.add(localIds[index]);
+      materialItems.add(localId);
     }
     for (const [materialIndex, localIds] of map.entries()) {
       const material = meshes.materials(materialIndex);
