@@ -6,7 +6,8 @@ import {
   MultiThreadingRequestClass,
 } from "./src/model";
 
-// Main-thread contract of `load({ signal })` and `abort()` (issue #173).
+// Main-thread contract of `load({ signal })` and `abort()` (issue #173), and
+// of loading a model ID that is already taken.
 // The worker is replaced by a stubbed `_setup`: it settles when the test says
 // so, and rejects the way a real worker-side abort reaches the main thread —
 // as the serialized error string, not as a LoadAbortedError instance.
@@ -187,5 +188,38 @@ test("the same model ID loads normally after an aborted load", async () => {
   coordinates.resolve([0, 0, 0]);
 
   await expect(second).resolves.toBeInstanceOf(FragmentsModel);
+  expect(abortRequests()).toHaveLength(1);
+});
+
+test("loading an ID that is already loaded rejects and keeps the loaded model", async () => {
+  const first = fragments.load(buffer(), { modelId: "m" });
+  setup.resolve();
+  coordinates.resolve([0, 0, 0]);
+  const model = await first;
+
+  await expect(fragments.load(buffer(), { modelId: "m" })).rejects.toThrow(
+    /already loaded or loading/,
+  );
+  expect(FragmentsModel.prototype._setup).toHaveBeenCalledTimes(1);
+  expect(model.dispose).not.toHaveBeenCalled();
+  expect(fragments.models.list.get("m")).toBe(model);
+});
+
+test("loading an ID that is still loading rejects and leaves the in-flight load alone", async () => {
+  const controller = new AbortController();
+  const first = fragments.load(buffer(), {
+    modelId: "m",
+    signal: controller.signal,
+  });
+  await flush();
+
+  await expect(
+    fragments.load(buffer(), { modelId: "m", signal: controller.signal }),
+  ).rejects.toThrow(/already loaded or loading/);
+  expect(FragmentsModel.prototype._setup).toHaveBeenCalledTimes(1);
+
+  // Only the first load listens to the signal.
+  controller.abort();
+  await expect(first).rejects.toBeInstanceOf(LoadAbortedError);
   expect(abortRequests()).toHaveLength(1);
 });

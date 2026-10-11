@@ -230,7 +230,7 @@ export class FragmentsModels {
    * Loads a fragments model from an ArrayBuffer.
    * @param buffer - The ArrayBuffer containing the fragments data to load.
    * @param options - Configuration options for loading the model.
-   * @param options.modelId - Unique identifier for the model.
+   * @param options.modelId - Unique identifier for the model. Loading an ID that is already loaded or still loading throws; dispose the existing model first.
    * @param options.camera - Optional camera to use for model culling and LOD.
    * @param options.clippingPlanes - Optional clipping planes (world space) to cull against. The array is kept by reference and read on every view refresh; see {@link FragmentsModel.useClippingPlanes}.
    * @param options.raw - Whether the buffer is raw (uncompressed) or deflated. If omitted, it is auto-detected from the buffer (see {@link isRawBuffer}).
@@ -280,6 +280,15 @@ export class FragmentsModels {
   ) {
     if (signal?.aborted) {
       throw new LoadAbortedError(modelId);
+    }
+
+    // Both threads key all model state by ID, so a second load under the same
+    // ID would clobber the first. The model enters `models.list` before the
+    // first await, which covers in-flight loads.
+    if (this.models.list.has(modelId)) {
+      throw new Error(
+        `Fragments: model "${modelId}" is already loaded or loading. Dispose it first or use a different modelId.`,
+      );
     }
 
     // Record the model's group before we issue any worker request so the
