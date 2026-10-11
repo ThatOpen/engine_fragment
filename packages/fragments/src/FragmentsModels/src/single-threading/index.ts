@@ -511,6 +511,15 @@ export class SingleThreadedFragmentsModel implements IFragmentsModel<false> {
   }
 
   /**
+   * Get the requests added since an earlier call (see `Editor.getModelRequestsSince`).
+   * @param from - The `count` the earlier call returned.
+   * @param generation - The `generation` the earlier call returned.
+   */
+  getRequestsSince(from = 0, generation = -1) {
+    return this._virtualModel.getRequestsSince(from, generation);
+  }
+
+  /**
    * Replace the edit history with a caller-provided one. Useful for
    * restoring state from disk.
    */
