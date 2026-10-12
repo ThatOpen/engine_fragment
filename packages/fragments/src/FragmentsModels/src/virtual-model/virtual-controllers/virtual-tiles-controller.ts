@@ -64,6 +64,8 @@ export class VirtualTilesController {
   tilesUpdated = false;
 
   private static _graphicMemoryConsumed = 0;
+  /** Milliseconds of tile generation between yields to the worker's event loop. */
+  private static _yieldInterval = 16;
 
   private readonly _sampleAmount: number;
   private readonly _tileDimension: number;
@@ -229,13 +231,26 @@ export class VirtualTilesController {
     // runs instead of dozens of interleaved ones — and every visible run
     // is a separate `geometry.groups` entry, i.e. a separate draw call on
     // the main thread. Tile membership itself is unchanged.
+    // The first step always yields, so a load can still be aborted before
+    // it generates (a single-threaded model starts loading in its
+    // constructor); a first timer is not clamped.
+    let yielded = -Infinity;
     for (let i = 0; i < this._sampleAmount; i++) {
       this.generateSampleInTiles(this._samplesDimensions[i]);
       if (i % step === 0) {
         onProgress?.(i / this._sampleAmount);
         // Yield the worker thread so progress messages get dispatched
-        // and pending ABORT_MODEL messages can be processed.
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        // and pending ABORT_MODEL messages can be processed, but only
+        // after a frame's worth of work: browsers clamp nested timers to
+        // 4 ms, so yielding at every step made each load wait 60-80 ms
+        // even for a model of a few items, such as an editor delta model.
+        if (
+          performance.now() - yielded >
+          VirtualTilesController._yieldInterval
+        ) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          yielded = performance.now();
+        }
         throwIfAborted?.();
       }
     }
