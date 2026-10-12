@@ -98,9 +98,10 @@ grids.create(world);
   */
 
 // You have to copy `node_modules/@thatopen/fragments/dist/Worker/worker.mjs` to your project directory
-// and provide the relative path in `workerUrl`
+// and provide the relative path in `workerUrl`, and the same for `migrations.mjs` and `migrationsURL`
 const workerUrl = "./../../src/multithreading/fragments-thread.ts";
-const fragments = new FRAGS.FragmentsModels(workerUrl);
+const migrationsURL = "./../../../Migrations/src/core.ts";
+const fragments = new FRAGS.FragmentsModels(workerUrl, { migrationsURL });
 world.camera.controls.addEventListener("rest", () => fragments.update(true));
 
 fragments.models.list.onItemSet.add(async ({ value: model }) => {

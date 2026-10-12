@@ -618,11 +618,11 @@ export interface VirtualModelConfig {
    */
   migrate?: boolean;
   /**
-   * Absolute URLs the worker tries, in order, for the code that migrates
-   * such a file. Defaults to what FragmentsModels worked out from its worker
-   * URL and its `migrationsURL` option.
+   * Absolute URL the worker imports the code that migrates such a file
+   * from. Defaults to the one of FragmentsModels (see its `migrationsURL`
+   * option). `load()` rejects when it is to migrate and there is none.
    */
-  migrationSources?: string[];
+  migrationsURL?: string;
 }
 
 /** What loading did to a file that an older version of the package wrote. */

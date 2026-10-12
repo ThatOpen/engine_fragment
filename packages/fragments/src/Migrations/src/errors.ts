@@ -60,28 +60,25 @@ export class MigrationError extends Error {
 }
 
 /**
- * Thrown when a file cannot be read without migrating it and the code that
- * migrates could not be loaded. The worker of `load()` imports that code
- * from a URL, for a file that is behind only, and none of the ones it tried
- * answered with it.
+ * Thrown when `load()` is to migrate files and cannot get to the code that
+ * does. Its worker imports that code from a URL, which is the
+ * `migrationsURL` option of FragmentsModels unless the package located the
+ * worker itself. Either there was no URL, and the load was refused before
+ * the file went anywhere, or the worker needed the code for the file and
+ * the import failed.
  */
 export class MigrationsUnavailableError extends Error {
-  /** The revision of the file. */
-  readonly revision: string;
-  /** The URLs that were tried, in order. */
-  readonly sources: string[];
+  /** The URL the code was to be imported from, when there was one. */
+  readonly url?: string;
 
-  constructor(revision: string, sources: string[], reason?: string) {
-    const why =
-      sources.length > 0
-        ? `the code that migrates could not be loaded (${reason || sources.join(", ")})`
-        : "there is no URL to load the code that migrates from";
+  constructor(url?: string, reason?: string) {
     super(
-      `Fragments: the file is at revision ${revision} and cannot be read without migrating it, but ${why}. Serve dist/Worker/migrations.mjs of this version of the package and give its URL as the migrationsURL option of FragmentsModels.`,
+      url === undefined
+        ? "Fragments: load() migrates files an older version of the package wrote, and has no URL to import the code that does it from. Give FragmentsModels the migrationsURL option (the URL of dist/Worker/migrations.mjs of this version of the package), or turn the autoMigrate setting off."
+        : `Fragments: the file has to be migrated, and the code that does it could not be imported from ${url}, which is the migrationsURL of FragmentsModels.${reason ? ` ${reason}` : ""}`,
     );
     this.name = "MigrationsUnavailableError";
-    this.revision = revision;
-    this.sources = sources;
+    this.url = url;
   }
 }
 

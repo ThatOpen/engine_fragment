@@ -1,4 +1,7 @@
-import { setWorkerSource } from "./worker-source";
+import {
+  getWorkerMigrationsUrl,
+  setWorkerMigrationsUrl,
+} from "./worker-migrations";
 
 /**
  * Fetches a worker script and returns a blob URL with the ES module `export` stripped, so it can be used as a classic (non-module) worker.
@@ -11,6 +14,10 @@ export async function toClassicWorker(workerURL: string): Promise<string> {
   const classic = src.replace(/export\s*\{[^}]*\}\s*;?\s*/, "");
   const blob = new Blob([classic], { type: "text/javascript" });
   const classicURL = URL.createObjectURL(blob);
-  setWorkerSource(classicURL, workerURL);
+  // A worker from `getWorker()` keeps the migration code it came with.
+  const migrationsURL = getWorkerMigrationsUrl(workerURL);
+  if (migrationsURL !== undefined) {
+    setWorkerMigrationsUrl(classicURL, migrationsURL);
+  }
   return classicURL;
 }

@@ -137,7 +137,10 @@ const run = async (serialize: boolean) => {
     // prettier-ignore
     const workerUrl = "../../FragmentsModels/src/multithreading/fragments-thread.ts";
     // const workerUrl = "../../../dist/Worker/worker.mjs";
-    const fragments = new FragmentsModels(workerUrl);
+    // A worker of our own needs to be told where the migration code is.
+    const migrationsURL = "../../Migrations/src/core.ts";
+    // const migrationsURL = "../../../dist/Worker/migrations.mjs";
+    const fragments = new FragmentsModels(workerUrl, { migrationsURL });
 
     const model = await fragments.load(bytes, {
       modelId: url,

@@ -43,11 +43,7 @@ export class SetupManager {
       case "StaleFragmentsError":
         throw new StaleFragmentsError(error.revision, error.pending);
       case "MigrationsUnavailableError":
-        throw new MigrationsUnavailableError(
-          error.revision,
-          error.sources,
-          error.reason,
-        );
+        throw new MigrationsUnavailableError(error.url, error.reason);
       case "MigrationError":
         throw new MigrationError(error.migration, error.title, error.reason);
       default:

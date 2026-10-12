@@ -107,15 +107,14 @@ export class ThreadModelCreator extends ThreadController {
    *
    * The worker carries the gate, which tells whether a file is behind, and
    * none of the code that migrates. It imports that for a file that needs
-   * it, from the URLs the main thread sent along, and lends it its editor
-   * for what the edit steps ask for.
+   * it, from the URL the main thread sent along, and lends it its editor
+   * for what the edit steps ask for. It does not look anywhere else.
    *
-   * A file that cannot be read is answered with the error as data and no
+   * A file that cannot be loaded is answered with the error as data and no
    * model, because a thrown error reaches the main thread as a string: one
-   * that is newer than this package, one a migration failed on, and one
-   * whose layout changed when migrating is off or the code did not load. In
-   * those last two cases a file that is only behind on content is read as
-   * it is.
+   * that is newer than this package, one whose layout changed when
+   * migrating is off, one the code could not be imported for, and one a
+   * migration failed on.
    *
    * @returns Whether the load was refused.
    */
@@ -145,21 +144,19 @@ export class ThreadModelCreator extends ThreadController {
       return refuse({ name: "StaleFragmentsError", revision, pending });
     }
 
+    // The main thread does not send a file to be migrated without saying
+    // where the code is, so this is for whoever talks to the worker itself.
+    const url: string | undefined = input.config?.migrationsURL;
+    const unavailable = "MigrationsUnavailableError";
+    if (url === undefined) {
+      return refuse({ name: unavailable });
+    }
     notify("migrating", 0);
-    const sources: string[] = input.config?.migrationSources ?? [];
     let code: MigrationCode;
     try {
-      code = await loadMigrations(sources, latest);
+      code = await loadMigrations(url, latest);
     } catch (error: any) {
-      const reason: string = error.message;
-      if (!readable) {
-        const name = "MigrationsUnavailableError";
-        return refuse({ name, revision, sources, reason });
-      }
-      console.warn(
-        `Fragments: the file is at revision ${revision} and was read without being migrated, because the code that migrates could not be loaded (${reason || "no URL to load it from"}). See the migrationsURL option of FragmentsModels.`,
-      );
-      return false;
+      return refuse({ name: unavailable, url, reason: error.message });
     }
     throwIfAborted();
 

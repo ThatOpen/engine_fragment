@@ -87,16 +87,16 @@ const create = async (
   modelData: Uint8Array,
   {
     migrate: enabled,
-    sources = [built.url],
+    url = built.url,
     raw = isRawBuffer(modelData),
-  }: { migrate?: boolean; sources?: string[]; raw?: boolean } = {},
+  }: { migrate?: boolean; url?: string | null; raw?: boolean } = {},
   { thread, stages } = newThread(),
 ) => {
   const input: any = {
     modelId: "model",
     modelData,
     raw,
-    config: { migrate: enabled, migrationSources: sources },
+    config: { migrate: enabled, migrationsURL: url ?? undefined },
   };
   await thread.actions[MultiThreadingRequestClass.CREATE_MODEL](input);
   const model = thread.list.get("model");
@@ -157,14 +157,12 @@ describe("CREATE_MODEL on a file an older version wrote (issue #316)", () => {
     expect(Buffer.from(loaded).equals(expected.bytes)).toBe(true);
   }, 30000);
 
-  test("a file that is up to date is read without looking for the code", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+  test("a file that is up to date is read without the code", async () => {
     const { bytes } = await migrate(await contentBehind());
-    const { input, model, stages } = await create(bytes, { sources: [] });
+    const { input, model, stages } = await create(bytes, { url: nowhere() });
     expect(input.migration).toBeUndefined();
     expect(stages).not.toContain("migrating");
     expect(model).toBeDefined();
-    expect(warn).not.toHaveBeenCalled();
   }, 30000);
 
   test("an abort that lands while the code is being imported stops the load", async () => {
@@ -199,36 +197,29 @@ describe("CREATE_MODEL on a file an older version wrote (issue #316)", () => {
     });
   });
 
-  describe("when the code cannot be loaded", () => {
-    test("a file that only lags on content is read as it is, with a warning", async () => {
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-      const { input, model } = await create(await contentBehind(), {
-        sources: [nowhere()],
-      });
-      expect(input.migration).toBeUndefined();
-      expect(model!.getMetadata()).not.toHaveProperty("revision");
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(warn.mock.calls[0][0]).toContain(nowhere());
-    }, 30000);
-
-    test("a file whose layout changed is refused, naming where it looked", async () => {
-      const sources = [nowhere()];
-      const { input, model } = await create(await layoutBehind(), { sources });
+  describe("when the code cannot be imported, the file is refused", () => {
+    test.each([
+      ["whose layout changed", layoutBehind],
+      ["that only lags on content", contentBehind],
+    ])("a file %s, naming the URL", async (_, file) => {
+      const url = nowhere();
+      const { input, model } = await create(await file(), { url });
       expect(model).toBeUndefined();
       expect(input.modelData).toBeUndefined();
       expect(input.migration.error).toMatchObject({
         name: "MigrationsUnavailableError",
-        revision: "20250710102015",
-        sources,
+        url,
+        reason: expect.any(String),
       });
-      expect(input.migration.error.reason).toContain(nowhere());
     });
 
-    test("so is one given nowhere to look", async () => {
-      const { input } = await create(await layoutBehind(), { sources: [] });
-      expect(input.migration.error).toMatchObject({
+    test("and a file sent with no URL at all", async () => {
+      const { input, model } = await create(await contentBehind(), {
+        url: null,
+      });
+      expect(model).toBeUndefined();
+      expect(input.migration.error).toEqual({
         name: "MigrationsUnavailableError",
-        sources: [],
       });
     });
   });
@@ -277,7 +268,7 @@ describe("CREATE_MODEL on a file an older version wrote (issue #316)", () => {
       source.dispose();
 
       // The gate is enough to tell, so nothing is imported for it.
-      const refused = await create(newer, { migrate: enabled, sources: [] });
+      const refused = await create(newer, { migrate: enabled, url: null });
       expect(refused.model).toBeUndefined();
       expect(refused.input.modelData).toBeUndefined();
       expect(refused.input.migration.error).toMatchObject({

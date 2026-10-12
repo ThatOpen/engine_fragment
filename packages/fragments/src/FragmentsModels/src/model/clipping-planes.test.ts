@@ -44,7 +44,9 @@ const loadWith = async (options: Record<string, unknown>) => {
       this.threads = threads;
     },
   );
-  const fragments = new FragmentsModels("worker.mjs");
+  const fragments = new FragmentsModels("worker.mjs", {
+    migrationsURL: "migrations.mjs",
+  });
   fragments.settings.autoCoordinate = false;
   const model = await fragments.load(new ArrayBuffer(8), {
     modelId: "clip",

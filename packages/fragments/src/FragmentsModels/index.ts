@@ -13,8 +13,9 @@ import { ThreadHandler } from "./src/multithreading/connection-handlers";
 import { Event, FRAGMENTS_VERSION } from "../Utils";
 import { Editor } from "./src/edit";
 import { getBundledWorkerUrl } from "../bundled-worker-url";
-import { getMigrationSources } from "../Migrations/src/sources";
-import { setWorkerSource } from "../Utils/worker-source";
+import { MigrationsUnavailableError } from "../Migrations/src/errors";
+import { resolveMigrationsUrl } from "../Migrations/src/url";
+import { setWorkerMigrationsUrl } from "../Utils/worker-migrations";
 
 export * from "./src";
 
@@ -32,7 +33,7 @@ export interface FragmentsModelsOptions {
    */
   threadGroups?: Record<string, number>;
   /**
-   * URL of the code that migrates files an older version of the package wrote: `dist/Worker/migrations.mjs`, exported as `@thatopen/fragments/migrations`. The worker imports it the first time it is given such a file (see the `autoMigrate` setting). By default it is looked for next to the worker, which is where a worker from `getWorker()` finds it on unpkg, and then where the package bundles it. Set it when you serve the worker yourself and that file is not next to it.
+   * URL of the code that migrates files an older version of the package wrote: `dist/Worker/migrations.mjs`, exported as `@thatopen/fragments/migrations`. The worker imports it the first time it is given such a file. Required when you pass a worker URL of your own, unless the `autoMigrate` setting is off: `load()` rejects without it. A worker from `getWorker()`, and the bundled one you get by passing no worker URL, come with theirs.
    */
   migrationsURL?: string;
 }
@@ -67,7 +68,8 @@ export class FragmentsModels {
     if (FragmentsModels._workerPromise) return FragmentsModels._workerPromise;
 
     FragmentsModels._workerPromise = (async () => {
-      const url = `https://unpkg.com/@thatopen/fragments@${FRAGMENTS_VERSION}/dist/Worker/worker.mjs`;
+      const dist = `https://unpkg.com/@thatopen/fragments@${FRAGMENTS_VERSION}/dist/Worker`;
+      const url = `${dist}/worker.mjs`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(
@@ -77,7 +79,7 @@ export class FragmentsModels {
       const blob = await response.blob();
       const file = new File([blob], "worker.mjs", { type: "text/javascript" });
       const objectURL = URL.createObjectURL(file);
-      setWorkerSource(objectURL, url);
+      setWorkerMigrationsUrl(objectURL, `${dist}/migrations.mjs`);
       FragmentsModels._workerURL = objectURL;
       return objectURL;
     })();
@@ -178,16 +180,17 @@ export class FragmentsModels {
      * the worker, none on the main thread.
      *
      * The worker itself only knows how to tell that a file is behind. The
-     * code that migrates is a separate file, which it imports the first time
-     * it gets such a file, so an app whose files are current never downloads
-     * it (see the `migrationsURL` option for where it is looked for). If it
-     * cannot be loaded, a file that is only behind on content still loads,
-     * as it is and with a warning, and one whose layout has changed since
-     * makes `load()` reject with a `MigrationsUnavailableError`.
+     * code that migrates is a separate file, which it imports from a URL the
+     * first time it gets such a file, so an app whose files are current
+     * never downloads it. That URL is the `migrationsURL` option, and
+     * `load()` rejects with a `MigrationsUnavailableError` in two cases:
+     * right away when there is no URL, whatever the file, and when the
+     * worker needs the code for a file and cannot import it.
      *
-     * When false, the first of those two loads as it is and the second makes
-     * `load()` reject with a `StaleFragmentsError`, because it cannot be
-     * read without migrating.
+     * When false, no URL is needed. A file that is only behind on content
+     * loads as it is, and one whose layout has changed since makes `load()`
+     * reject with a `StaleFragmentsError`, because it cannot be read without
+     * migrating.
      */
     autoMigrate: true,
   };
@@ -200,8 +203,8 @@ export class FragmentsModels {
 
   private readonly _connection: FragmentsConnection;
 
-  /** Where the workers look for the migration code, most likely first. */
-  private readonly _migrationSources: string[];
+  /** Where the workers import the migration code from, when that is known. */
+  private readonly _migrationsURL?: string;
 
   private _progressCallbacks = new Map<
     string,
@@ -235,7 +238,7 @@ export class FragmentsModels {
       maxWorkers: options?.maxWorkers,
       threadGroups: options?.threadGroups,
     });
-    this._migrationSources = getMigrationSources({
+    this._migrationsURL = resolveMigrationsUrl({
       workerURL,
       migrationsURL: options?.migrationsURL,
     });
@@ -295,15 +298,25 @@ export class FragmentsModels {
       threadGroup?: string;
     },
   ) {
+    // The worker cannot go looking for the code that migrates, so a load
+    // that may need it and has no URL for it stops here, before the file is
+    // sent anywhere.
+    const migrate =
+      options.virtualModelConfig?.migrate ?? this.settings.autoMigrate;
+    const migrationsURL =
+      options.virtualModelConfig?.migrationsURL ?? this._migrationsURL;
+    if (migrate && migrationsURL === undefined) {
+      throw new MigrationsUnavailableError();
+    }
+
     // Record the model's group before we issue any worker request so the
     // pool routing in fragments-connection picks the right thread.
     this._connection.setModelThreadGroup(options.modelId, options.threadGroup);
 
     const virtualModelConfig: VirtualModelConfig = {
       ...options.virtualModelConfig,
-      migrate: options.virtualModelConfig?.migrate ?? this.settings.autoMigrate,
-      migrationSources:
-        options.virtualModelConfig?.migrationSources ?? this._migrationSources,
+      migrate,
+      migrationsURL,
       multithreading: {
         meshConnectionRate: this.settings.meshConnectionRate,
         meshConnectionThreshold: this.settings.meshConnectionThreshold,

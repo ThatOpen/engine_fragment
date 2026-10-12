@@ -21,7 +21,11 @@ import { FragmentsConnection } from "./src/multithreading/fragments-connection";
 
 // Issue #316: the worker migrates a file that is behind, on its own. What
 // load() does about it is tell the worker where the code that migrates is,
-// and pass on what the worker answers: what was done, or why it could not.
+// refuse to start when it cannot tell, and pass on what the worker answers:
+// what was done, or why it could not.
+
+/** A worker of the app's own, and the migration code the app serves with it. */
+const OWN = ["w.mjs", { migrationsURL: "https://cdn.example/m.mjs" }] as const;
 
 const realWindow = (globalThis as any).window;
 
@@ -63,11 +67,11 @@ const loadWith = (
   );
   // No worker holds the model, so there is none to tell about its disposal.
   vi.spyOn(FragmentsConnection.prototype, "delete").mockResolvedValue();
-  const fragments = new FragmentsModels(...(args.length ? args : ["w.mjs"]));
+  const fragments = new FragmentsModels(...(args.length ? args : OWN));
   fragments.settings.autoCoordinate = false;
   const migrated: any[] = [];
   fragments.onModelMigrated.add((event) => migrated.push(event));
-  const load = (config?: { migrate?: boolean; migrationSources?: string[] }) =>
+  const load = (config?: { migrate?: boolean; migrationsURL?: string }) =>
     fragments.load(new ArrayBuffer(8), {
       modelId: "model",
       raw: true,
@@ -110,26 +114,25 @@ describe("load() and migrations (issue #316)", () => {
     expect(created[2].config.migrate).toBe(true);
   });
 
-  describe("where the worker is told to look for the code", () => {
-    const bundled = getBundledMigrationsUrl();
-
-    test("next to the worker, then where the package bundles it", async () => {
-      const worker = "https://cdn.example/fragments/worker.mjs";
-      const { created, load } = loadWith({}, worker);
+  describe("the worker is told the one URL to import the code from", () => {
+    test("the migrationsURL option, and a load can say otherwise", async () => {
+      const { fragments, created, load } = loadWith();
       await load();
-      expect(created[0].config.migrationSources).toEqual([
-        "https://cdn.example/fragments/migrations.mjs",
-        bundled,
-      ]);
+      expect(created[0].config.migrationsURL).toBe(OWN[1].migrationsURL);
+      await fragments.disposeModel("model");
+
+      const migrationsURL = "https://static.example/other.mjs";
+      await load({ migrationsURL });
+      expect(created[1].config.migrationsURL).toBe(migrationsURL);
     });
 
-    test("only the bundled one for the bundled worker", async () => {
+    test("the bundled code for the bundled worker", async () => {
       const { created, load } = loadWith({}, undefined);
       await load();
-      expect(created[0].config.migrationSources).toEqual([bundled]);
+      expect(created[0].config.migrationsURL).toBe(getBundledMigrationsUrl());
     });
 
-    test("on unpkg for a worker from getWorker()", async () => {
+    test("the code on unpkg for a worker from getWorker()", async () => {
       const fetched: string[] = [];
       vi.stubGlobal("fetch", async (url: string) => {
         fetched.push(url);
@@ -142,25 +145,37 @@ describe("load() and migrations (issue #316)", () => {
 
       const { created, load } = loadWith({}, worker);
       await load();
-      expect(created[0].config.migrationSources).toEqual([
-        `${dist}/migrations.mjs`,
-        bundled,
-      ]);
+      expect(created[0].config.migrationsURL).toBe(`${dist}/migrations.mjs`);
+    });
+  });
+
+  describe("with a worker of the app's own and no migrationsURL", () => {
+    const worker = "https://cdn.example/fragments/worker.mjs";
+
+    test("load() rejects before anything is sent, whatever the file", async () => {
+      const { fragments, created, migrated, load } = loadWith({}, worker);
+      const sent = vi.mocked(FragmentsConnection.prototype.fetch);
+      const error = await load().catch((e) => e);
+      expect(error).toBeInstanceOf(MigrationsUnavailableError);
+      expect(error.url).toBeUndefined();
+      expect(error.message).toContain("migrationsURL");
+      expect(error.message).toContain("autoMigrate");
+      expect(sent).not.toHaveBeenCalled();
+      expect(created).toEqual([]);
+      expect(fragments.models.list.size).toBe(0);
+      expect(migrated).toEqual([]);
     });
 
-    test("only where the migrationsURL option says, when it is set", async () => {
-      const migrationsURL = "https://static.example/migrations-1f3a.mjs";
-      const { fragments, created, load } = loadWith({}, "w.mjs", {
-        migrationsURL,
-      });
-      await load();
-      expect(created[0].config.migrationSources).toEqual([migrationsURL]);
+    test("with migrating off there is nothing to import, and it loads", async () => {
+      const { fragments, created, load } = loadWith({}, worker);
+      await load({ migrate: false });
+      expect(created[0].config).toMatchObject({ migrate: false });
+      expect(created[0].config.migrationsURL).toBeUndefined();
       await fragments.disposeModel("model");
 
-      // And a load can say otherwise.
-      const migrationSources = ["https://static.example/other.mjs"];
-      await load({ migrationSources });
-      expect(created[1].config.migrationSources).toEqual(migrationSources);
+      fragments.settings.autoMigrate = false;
+      await load();
+      expect(created).toHaveLength(2);
     });
   });
 
@@ -195,16 +210,16 @@ describe("load() and migrations (issue #316)", () => {
       expect(error).toMatchObject({ revision: "9", latest: "2" });
     });
 
-    test("the code that migrates could not be loaded", async () => {
-      const sources = ["https://cdn.example/migrations.mjs"];
+    test("the code that migrates could not be imported", async () => {
+      const url = "https://cdn.example/migrations.mjs";
       const error = await refusedWith({
         name: "MigrationsUnavailableError",
-        revision: "1",
-        sources,
-        reason: "https://cdn.example/migrations.mjs: Failed to fetch",
+        url,
+        reason: "Failed to fetch dynamically imported module",
       });
       expect(error).toBeInstanceOf(MigrationsUnavailableError);
-      expect(error).toMatchObject({ revision: "1", sources });
+      expect(error.url).toBe(url);
+      expect(error.message).toContain(url);
       expect(error.message).toContain("migrationsURL");
       expect(error.message).toContain("Failed to fetch");
     });

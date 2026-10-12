@@ -14,16 +14,11 @@ export function getBundledWorkerUrl() {
 }
 
 /**
- * URL of the migration code that ships with the package, which the worker
- * imports for a file an older version wrote (see `Migrations/src/sources.ts`).
- * It is here, and written this way, for the reasons above. Where
- * `import.meta.url` is not a URL, as in a bundle of a format that has none,
- * there is nothing to resolve against.
+ * URL of the migration code that ships with the package, used with the
+ * worker above: it imports it for a file an older version wrote (see
+ * `Migrations/src/url.ts`). It is here, and written this way, for the same
+ * reasons.
  */
 export function getBundledMigrationsUrl() {
-  try {
-    return new URL("./Worker/migrations.mjs", import.meta.url).href;
-  } catch {
-    return undefined;
-  }
+  return new URL("./Worker/migrations.mjs", import.meta.url).href;
 }

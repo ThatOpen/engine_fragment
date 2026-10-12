@@ -47,7 +47,10 @@ async function main() {
   // prettier-ignore
   const workerUrl = "./src/multithreading/fragments-thread.ts";
   // const workerUrl = "../../dist/Worker/worker.mjs";
-  const fragments = new FragmentsModels(workerUrl);
+  // A worker of our own needs to be told where the migration code is.
+  const migrationsURL = "../Migrations/src/core.ts";
+  // const migrationsURL = "../../dist/Worker/migrations.mjs";
+  const fragments = new FragmentsModels(workerUrl, { migrationsURL });
 
   // To use classic workers
   // const classicWorkerUrl = await FragmentsModels.toClassicWorker(workerUrl);

@@ -57,7 +57,7 @@ describe("the migration code as the file the worker imports (issue #316)", () =>
   ])(
     "%s migrates a file exactly as migrate() does",
     async (_, url) => {
-      const code = await loadMigrations([url()], LATEST_REVISION);
+      const code = await loadMigrations(url(), LATEST_REVISION);
       expect(code.revision).toBe(gate.steps[gate.steps.length - 1].id);
 
       // One file is only copied, the other also needs the editor of the caller.
@@ -73,27 +73,17 @@ describe("the migration code as the file the worker imports (issue #316)", () =>
     30000,
   );
 
-  test("a URL that does not answer is passed over for the next one", async () => {
+  test("a URL that does not answer rejects, and nothing else is tried", async () => {
     const missing = new URL("./nowhere.mjs", built.url).href;
-    const code = await loadMigrations([missing, built.url], LATEST_REVISION);
-    expect(typeof code.run).toBe("function");
+    await expect(loadMigrations(missing, LATEST_REVISION)).rejects.toThrow();
+    await expect(
+      loadMigrations("not a url", LATEST_REVISION),
+    ).rejects.toThrow();
   });
 
   test("a file from another version of the package is not taken", async () => {
-    const other = loadMigrations([built.url], "20990101000000");
-    await expect(other).rejects.toThrow(
-      `${built.url} is from another version of the package (it migrates to ${LATEST_REVISION}, the worker to 20990101000000)`,
+    await expect(loadMigrations(built.url, "20990101000000")).rejects.toThrow(
+      `It is from another version of the package: it migrates to ${LATEST_REVISION}, the worker to 20990101000000.`,
     );
-  });
-
-  test("when none loads, the error says why for each", async () => {
-    const missing = new URL("./nowhere.mjs", built.url).href;
-    const error = await loadMigrations([missing, "not a url"], "1").catch(
-      (e) => e,
-    );
-    expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain(`${missing}: `);
-    expect(error.message).toContain("not a url: ");
-    await expect(loadMigrations([], "1")).rejects.toThrow();
   });
 });
