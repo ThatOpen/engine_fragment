@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import * as WEBIFC from "web-ifc";
 import { GridAxisData, GridData } from "../../../../FragmentsModels";
-import { FragmentsIfcUtils } from "../../../../Utils";
+import { FragmentsIfcUtils, ifcCategoryMap } from "../../../../Utils";
+import type { IfcLineApi } from "../../../../Utils/ifc-line-api";
 
 /** An axis a grid was read without, because its curve is not supported. */
 type UnsupportedAxis = NonNullable<GridData["unsupportedAxes"]>[number];
@@ -18,12 +19,25 @@ export type GridReadError =
   | { kind: "unreadableModel"; cause: unknown };
 
 export class GridReader {
-  private readonly _webIfc: WEBIFC.IfcAPI;
+  private readonly _webIfc: IfcLineApi;
   private readonly _modelId;
+  private readonly _coordinationMatrix?: number[];
 
-  constructor(webIfc: WEBIFC.IfcAPI, modelId: number) {
+  constructor(webIfc: WEBIFC.IfcAPI, modelId: number);
+  /**
+   * @param coordinationMatrix The model's coordination matrix, as web-ifc's
+   * `GetCoordinationMatrix` returns it. Taken as an argument so grids can be
+   * read from the parsing layer, with no web-ifc model open.
+   */
+  constructor(lines: IfcLineApi, modelId: number, coordinationMatrix: number[]);
+  constructor(
+    webIfc: WEBIFC.IfcAPI | IfcLineApi,
+    modelId: number,
+    coordinationMatrix?: number[],
+  ) {
     this._webIfc = webIfc;
     this._modelId = modelId;
+    this._coordinationMatrix = coordinationMatrix;
   }
 
   /**
@@ -36,9 +50,10 @@ export class GridReader {
     try {
       const result: GridData[] = [];
 
-      const coordMatrixValues = this._webIfc.GetCoordinationMatrix(
-        this._modelId,
-      );
+      // Without a matrix of its own the reader was given a web-ifc model.
+      const coordMatrixValues =
+        this._coordinationMatrix ??
+        (this._webIfc as WEBIFC.IfcAPI).GetCoordinationMatrix(this._modelId);
       const coordMatrix = new THREE.Matrix4();
       coordMatrix.fromArray(coordMatrixValues);
 
@@ -237,13 +252,9 @@ export class GridReader {
   }
 
   private getCurveTypeName(curve: any) {
-    try {
-      // Uppercase to match the STEP spelling used in IFC files (IFCCIRCLE...).
-      const name = this._webIfc.GetNameFromTypeCode(curve.type);
-      if (name) return name.toUpperCase();
-    } catch {
-      // Fall through to the numeric type code below.
-    }
+    // The STEP spelling used in IFC files (IFCCIRCLE...).
+    const name = ifcCategoryMap[curve.type];
+    if (name) return name;
     return `IFC type ${curve.type}`;
   }
 }
