@@ -7,6 +7,8 @@ import { IfcImporter } from "../..";
 import { GRID_CATEGORY, GridData } from "../../../../FragmentsModels";
 import * as FRAGS from "../../../../index";
 import * as TFB from "../../../../Schema";
+import { IfcResolverLineApi } from "../../../../Utils/ifc-line-api";
+import { IfcEntityResolver } from "../../../../Utils/ifc-resolver";
 import { GridReader } from "./grid-reader";
 
 const assetDir = path.resolve(
@@ -403,4 +405,45 @@ test("returns an axis it cannot represent in errors", async () => {
 
 test("is part of the package's public API", () => {
   expect(FRAGS.GridReader).toBe(GridReader);
+});
+
+test("reads the same grids from the parsing layer as from web-ifc", async () => {
+  // A reversed run of segments and an arc: what only the raw line tells
+  // apart, and each source reads the raw line its own way.
+  const model = gridModel(`#11=IFCINDEXEDPOLYCURVE(#10,(IFCLINEINDEX((3,2)),IFCLINEINDEX((2,1))),$);
+#12=IFCINDEXEDPOLYCURVE(#10,(IFCLINEINDEX((1,2)),IFCARCINDEX((2,3,1))),$);
+#16=IFCINDEXEDPOLYCURVE(#10,$,$);
+#20=IFCGRIDAXIS('1',#11,.T.);
+#21=IFCGRIDAXIS('2',#12,.T.);
+#22=IFCGRIDAXIS('A',#15,.T.);
+#23=IFCGRIDAXIS('B',#16,.T.);
+#30=IFCGRID('0g',$,'Grid',$,$,#7,$,(#20,#21),(#22,#23),$,.RECTANGULAR.);`);
+  const { webIfc } = await openModels(model);
+  const lines = new IfcResolverLineApi(await IfcEntityResolver.fromBytes(model));
+
+  const fromWebIfc = new GridReader(webIfc, 0).read();
+  const fromLines = new GridReader(
+    lines,
+    0,
+    webIfc.GetCoordinationMatrix(0),
+  ).read();
+
+  expect(fromLines).toEqual(fromWebIfc);
+  expect(fromLines.value[0].uAxes).toEqual([
+    { tag: "1", curve: [0, 10, 0, 0, 4, 0, 0, 0, 0] },
+  ]);
+  expect(fromLines.errors).toEqual([
+    {
+      kind: "unsupportedAxes",
+      gridId: 30,
+      axes: [
+        {
+          tag: "2",
+          curveType: "IFCINDEXEDPOLYCURVE with IFCARCINDEX segments",
+        },
+      ],
+    },
+  ]);
+
+  webIfc.Dispose();
 });
