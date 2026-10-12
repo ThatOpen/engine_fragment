@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import {
   FieldType,
   ScalarName,
@@ -5,6 +6,18 @@ import {
   resolveType,
 } from "../../src/Migrations/src/layout/descriptor";
 import type { SchemaChange, SchemaDiff } from "./diff";
+import { importPath } from "./import-path";
+
+const require = createRequire(import.meta.url);
+
+/**
+ * What a `types.ts` imports, resolved from here: the file spells them relative
+ * to where it is written.
+ */
+const MODULES = {
+  drop: require.resolve("../../src/Migrations/src/drop"),
+  types: require.resolve("../../src/Migrations/src/types"),
+};
 
 const ARRAYS: Record<ScalarName, string> = {
   bool: "Uint8Array",
@@ -41,11 +54,18 @@ const REASONS: Partial<Record<SchemaChange["kind"], string>> = {
  * was removed or changed type. The rest of the old file is reachable from
  * them, untyped.
  */
-export function emitTypes(
-  from: SchemaDescriptor,
-  to: SchemaDescriptor,
-  diff: SchemaDiff,
-): string {
+export function emitTypes({
+  from,
+  to,
+  diff,
+  file,
+}: {
+  from: SchemaDescriptor;
+  to: SchemaDescriptor;
+  diff: SchemaDiff;
+  /** Where the types are written, which is what their imports are relative to. */
+  file: string;
+}): string {
   const obligations = diff.changes.filter(
     (change) => change.obligation || change.kind === "field-added",
   );
@@ -183,11 +203,13 @@ export function emitTypes(
   );
   const imports: string[] = [];
   if (used.has("Drop")) {
-    imports.push(`import type { Drop } from "../../src/drop";`);
+    imports.push(
+      `import type { Drop } from "${importPath(file, MODULES.drop)}";`,
+    );
   }
   if (fromTypes.length > 0) {
     imports.push(
-      `import type { ${fromTypes.join(", ")} } from "../../src/types";`,
+      `import type { ${fromTypes.join(", ")} } from "${importPath(file, MODULES.types)}";`,
     );
   }
 
