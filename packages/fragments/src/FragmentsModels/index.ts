@@ -13,6 +13,8 @@ import { ThreadHandler } from "./src/multithreading/connection-handlers";
 import { Event, FRAGMENTS_VERSION } from "../Utils";
 import { Editor } from "./src/edit";
 import { getBundledWorkerUrl } from "../bundled-worker-url";
+import { getMigrationSources } from "../Migrations/src/sources";
+import { setWorkerSource } from "../Utils/worker-source";
 
 export * from "./src";
 
@@ -29,6 +31,10 @@ export interface FragmentsModelsOptions {
    * Reserved worker capacity per named thread group. Workers are spawned lazily (nothing is spawned until the first load targets a pool). A model loaded with `threadGroup: "x"` always lands on group "x"'s pool; default-pool loads never touch a reserved worker. The sum of group sizes must leave at least one slot for the default pool, otherwise init throws.
    */
   threadGroups?: Record<string, number>;
+  /**
+   * URL of the code that migrates files an older version of the package wrote: `dist/Worker/migrations.mjs`, exported as `@thatopen/fragments/migrations`. The worker imports it the first time it is given such a file (see the `autoMigrate` setting). By default it is looked for next to the worker, which is where a worker from `getWorker()` finds it on unpkg, and then where the package bundles it. Set it when you serve the worker yourself and that file is not next to it.
+   */
+  migrationsURL?: string;
 }
 
 /**
@@ -71,6 +77,7 @@ export class FragmentsModels {
       const blob = await response.blob();
       const file = new File([blob], "worker.mjs", { type: "text/javascript" });
       const objectURL = URL.createObjectURL(file);
+      setWorkerSource(objectURL, url);
       FragmentsModels._workerURL = objectURL;
       return objectURL;
     })();
@@ -165,21 +172,22 @@ export class FragmentsModels {
     threadUpdaterDelay: 32,
     /**
      * Whether `load()` migrates a file that an older version of the package
-     * wrote. Files record the revision of the format they are at. The worker
-     * only tells whether a file is behind; one that is comes back to the
-     * main thread, which migrates it with code it loads on demand, and
-     * {@link onModelMigrated} then tells what was done to it. An app whose
-     * files are current never downloads that code.
+     * wrote. Files record the revision of the format they are at, and the
+     * worker brings one that is behind up to date before reading it:
+     * {@link onModelMigrated} then tells what was done. All of it runs in
+     * the worker, none on the main thread.
      *
-     * The copying part of a migration runs on the main thread, once per file
-     * if the app stores the result: about 0.7 s for a file of 190 MB
-     * inflated. What a migration asks to edit is applied in the worker. To
-     * keep all of it off the main thread, call `migrate()` yourself, in a
-     * worker or a backend, before loading.
+     * The worker itself only knows how to tell that a file is behind. The
+     * code that migrates is a separate file, which it imports the first time
+     * it gets such a file, so an app whose files are current never downloads
+     * it (see the `migrationsURL` option for where it is looked for). If it
+     * cannot be loaded, a file that is only behind on content still loads,
+     * as it is and with a warning, and one whose layout has changed since
+     * makes `load()` reject with a `MigrationsUnavailableError`.
      *
-     * When false, a file that is only behind on content loads as it is, and
-     * one whose layout has changed since makes `load()` reject with a
-     * `StaleFragmentsError`, because it cannot be read without migrating.
+     * When false, the first of those two loads as it is and the second makes
+     * `load()` reject with a `StaleFragmentsError`, because it cannot be
+     * read without migrating.
      */
     autoMigrate: true,
   };
@@ -191,6 +199,9 @@ export class FragmentsModels {
   editor: Editor;
 
   private readonly _connection: FragmentsConnection;
+
+  /** Where the workers look for the migration code, most likely first. */
+  private readonly _migrationSources: string[];
 
   private _progressCallbacks = new Map<
     string,
@@ -223,6 +234,10 @@ export class FragmentsModels {
       classicWorker: options?.classicWorker,
       maxWorkers: options?.maxWorkers,
       threadGroups: options?.threadGroups,
+    });
+    this._migrationSources = getMigrationSources({
+      workerURL,
+      migrationsURL: options?.migrationsURL,
     });
     this.editor = new Editor(this, this._connection);
     this.models = new MeshManager(updateEvent);
@@ -287,6 +302,8 @@ export class FragmentsModels {
     const virtualModelConfig: VirtualModelConfig = {
       ...options.virtualModelConfig,
       migrate: options.virtualModelConfig?.migrate ?? this.settings.autoMigrate,
+      migrationSources:
+        options.virtualModelConfig?.migrationSources ?? this._migrationSources,
       multithreading: {
         meshConnectionRate: this.settings.meshConnectionRate,
         meshConnectionThreshold: this.settings.meshConnectionThreshold,

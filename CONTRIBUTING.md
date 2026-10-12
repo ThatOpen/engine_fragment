@@ -31,7 +31,7 @@ packages/fragments/src/
 │   ├── list/                 # One directory per change: migration, layout snapshot, diff
 │   ├── gate.ts               # Generated: what the worker needs to tell that a file is behind
 │   ├── registry.ts           # Generated: the steps with their layouts and migrations, loaded on demand
-│   └── src/                  # migrate(), and the copier that rewrites a file between layouts
+│   └── src/                  # migrate(), the copier that rewrites a file between layouts, and how the worker gets to them
 ├── Utils/                    # Shared helpers: edit-types, ifc-relations-map, shells, splitter
 │   └── ifc-splitter/         # Stream-split a large IFC into smaller files
 └── GeometryEngine/           # Primitive geometry (H-profiles, extrusions)
@@ -130,7 +130,12 @@ What you get depends on whether `index.fbs` changed since the newest directory:
 
 `schema.json` is the binary layout of the schema at that point. It is what lets this package read a file of a layout it no longer has generated code for, so nothing in `src/Schema/` is kept for old files. `diff.json` and `types.ts` are derived from two consecutive layouts; never edit them, run `yarn workspace @thatopen/fragments migration:sync`.
 
-Only a small gate is part of every load: the ids of the steps, whether each has work to do, and the probes below (`src/Migrations/gate.ts`, generated). The worker holds it and answers whether a file is behind. Everything else here (layouts, copier, migrations) is loaded by the main thread through a dynamic import, the first time a file needs it: the file comes back from the worker, the main thread runs the copies, and what the edit steps ask for goes back with the file for the worker to apply, since the worker has the editor. Keep it that way: nothing the worker or the entry imports statically may import `registry.ts`, `src/core.ts` or a `migration.ts`, and nothing in that lazy part may import the model classes (`src/Migrations/lazy.test.ts` checks both).
+Only a small gate is part of every load: the ids of the steps, whether each has work to do, and the probes below (`src/Migrations/gate.ts`, generated). The worker holds it and tells whether a file is behind. Everything else here (layouts, copier, migrations) is `src/Migrations/src/core.ts` and what it imports, and it is loaded the first time a file needs it. The worker migrates the file itself, with nothing going back to the main thread but the report: it imports that code as one file, `dist/Worker/migrations.mjs` (built by `vite.config-migrations.ts`), from a URL the main thread sends with the load (`src/Migrations/src/sources.ts` works out which), because a worker that runs from a blob URL cannot resolve a path of its own. `migrate()` reaches the same code through a plain dynamic import. Keep it that way:
+
+- Nothing the worker or the entry imports statically may import `registry.ts`, `src/core.ts` or a `migration.ts`.
+- That code runs in Node, in a page and in a worker, so it may use nothing that only one of them has, and it may not import the model classes, the editor or `pako`: the built file has to bring everything it needs and stay small. It gets the editor from whoever calls it (`run(bytes, { apply })`).
+
+`src/Migrations/lazy.test.ts` and `src/Migrations/src/load.test.ts` check both, the second on the file as it is built.
 
 A migration has up to two steps, which share a `ctx` created per file:
 

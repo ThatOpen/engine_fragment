@@ -1,5 +1,6 @@
 import { EditRequest, EditRequestType } from "../../Utils/edit/edit-types";
 import { registry as packageRegistry } from "../registry";
+import { LATEST_REVISION } from "../revision";
 import { MigrationError, UnknownRevisionError } from "./errors";
 import { locate } from "./gate";
 import { Copier, LayoutHandlers } from "./layout/copier";
@@ -9,14 +10,28 @@ import {
   AppliedMigration,
   FileRevision,
   MigrationRegistry,
+  MigrationResult,
   MigrationStep,
   PendingMigration,
 } from "./types";
 
 // What only a file that is behind needs: the layouts, the copier and the
 // migrations. Nothing imports this module statically, so that an app whose
-// files are current does not carry it: `load()` and `migrate()` reach it
-// through a dynamic import once the gate says a file is behind.
+// files are current does not carry it. Once the gate says a file is behind,
+// `migrate()` reaches it through a dynamic import, and the worker of
+// `load()` imports the single file built from it, `dist/Worker/migrations.mjs`,
+// from a URL (see `load.ts`).
+//
+// It has to run wherever it is loaded: Node, a page, a worker. So it uses
+// nothing of any of them, imports nothing that is not bundled into that
+// file, and takes the editor from its caller instead of importing it.
+
+/**
+ * The revision this code migrates files to. Whoever loads it from a URL
+ * compares it to its own gate: a file served from another version of the
+ * package would leave files behind, or know steps the gate does not.
+ */
+export const revision = LATEST_REVISION;
 
 const METADATA = "metadata";
 
@@ -141,8 +156,8 @@ export interface Prepared {
 /**
  * Runs the migrations a raw file is behind on, as far as it goes without the
  * editor: the layout steps, each a copy of the file, and then the edit steps,
- * which only say what to edit. Applying that is left to the caller, because
- * it takes the editor, which `load()` has in the worker and not here.
+ * which only say what to edit. Applying that takes the editor, which is not
+ * part of this code (see `run`).
  *
  * Layout steps all run before edit steps, each in order. The input is never
  * modified.
@@ -240,4 +255,35 @@ export async function prepare(
     applied.push(entry);
   }
   return { bytes: current, requests, from, to, applied };
+}
+
+/** Applies edit requests to a raw file and gives the new one (`apply.ts`). */
+export type ApplyRequests = (
+  bytes: Uint8Array,
+  requests: EditRequest[],
+) => Uint8Array | Promise<Uint8Array>;
+
+/**
+ * Brings a raw file to the newest revision: `prepare`, and then what the
+ * edit steps asked for, applied with the editor the caller hands over. The
+ * worker has the editor already and `migrate()` loads it when it is needed,
+ * so it is not bundled here a second time.
+ *
+ * This is the whole of a migration and the same call everywhere it runs.
+ * The input is never modified; when nothing had to change it is returned.
+ *
+ * @throws {UnknownRevisionError} When the file is newer than this package.
+ * @throws {MigrationError} When a migration fails on the file.
+ */
+export async function run(
+  bytes: Uint8Array,
+  { apply, registry }: { apply: ApplyRequests; registry?: MigrationRegistry },
+): Promise<MigrationResult> {
+  const prepared = await prepare(bytes, registry);
+  const { requests, from, to, applied } = prepared;
+  const migrated =
+    requests.length > 0
+      ? await apply(prepared.bytes, requests)
+      : prepared.bytes;
+  return { bytes: migrated, from, to, applied };
 }

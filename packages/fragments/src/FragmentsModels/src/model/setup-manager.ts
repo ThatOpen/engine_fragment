@@ -6,6 +6,8 @@ import {
 } from "./model-types";
 import { FragmentsModel } from "./fragments-model";
 import {
+  MigrationError,
+  MigrationsUnavailableError,
   StaleFragmentsError,
   UnknownRevisionError,
 } from "../../../Migrations/src/errors";
@@ -20,41 +22,37 @@ export class SetupManager {
   ) {
     const message = this.getCreateModelMessage(model, modelData, raw, config);
     const data = this.formatModelData(modelData);
-    let result = await model.threads.fetch(message, data);
+    // A file an older version wrote is migrated by the worker before it
+    // reads it. All that comes back is what was done.
+    const result = await model.threads.fetch(message, data);
     this.throwIfRefused(result);
-    let migration: ModelMigration | undefined;
-    if (result.migration?.pending) {
-      // The worker only tells that the file is behind. What brings it up to
-      // date is loaded here, the first time a file needs it, so an app whose
-      // files are current never downloads it.
-      const { prepare } = await import("../../../Migrations/src/core");
-      const prepared = await prepare(result.modelData);
-      const { bytes, requests, from, to, applied } = prepared;
-      if (applied.length > 0) {
-        migration = { from, to, applied };
-      }
-      // What the edit steps ask for goes back with the file: the worker has
-      // the editor, and applies it before reading the file.
-      const again = this.getCreateModelMessage(model, bytes, true, config);
-      again.migrated = true;
-      again.requests = requests;
-      result = await model.threads.fetch(again, [bytes.buffer]);
-    }
     this.updateBox(bbox, result);
-    return migration;
+    return result.migration as ModelMigration | undefined;
   }
 
-  // The worker answers a file it refused to read with the error as data,
-  // because an error it throws reaches this thread as a string.
+  /**
+   * The worker answers a file it could not read with the error as data,
+   * because an error it throws reaches this thread as a string.
+   */
   private throwIfRefused(result: any) {
     const error = result.migration?.error;
     if (!error) {
       return;
     }
-    if (error.name === "StaleFragmentsError") {
-      throw new StaleFragmentsError(error.revision, error.pending);
+    switch (error.name) {
+      case "StaleFragmentsError":
+        throw new StaleFragmentsError(error.revision, error.pending);
+      case "MigrationsUnavailableError":
+        throw new MigrationsUnavailableError(
+          error.revision,
+          error.sources,
+          error.reason,
+        );
+      case "MigrationError":
+        throw new MigrationError(error.migration, error.title, error.reason);
+      default:
+        throw new UnknownRevisionError(error.revision, error.latest);
     }
-    throw new UnknownRevisionError(error.revision, error.latest);
   }
 
   private formatModelData(modelData: ArrayBuffer | Uint8Array) {

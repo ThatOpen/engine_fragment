@@ -1,3 +1,5 @@
+import { setWorkerSource } from "./worker-source";
+
 /**
  * Fetches a worker script and returns a blob URL with the ES module `export` stripped, so it can be used as a classic (non-module) worker.
  * @param workerURL - URL of the ES module worker script.
@@ -8,5 +10,7 @@ export async function toClassicWorker(workerURL: string): Promise<string> {
   const src = await res.text();
   const classic = src.replace(/export\s*\{[^}]*\}\s*;?\s*/, "");
   const blob = new Blob([classic], { type: "text/javascript" });
-  return URL.createObjectURL(blob);
+  const classicURL = URL.createObjectURL(blob);
+  setWorkerSource(classicURL, workerURL);
+  return classicURL;
 }

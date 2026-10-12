@@ -10,12 +10,6 @@ export class FragmentsThread {
   readonly loading = new Set<string>();
   /** Set of model IDs whose in-flight load should abort at the next yield. */
   readonly aborting = new Set<string>();
-  /**
-   * Set of model IDs whose file went back to the main thread to be migrated.
-   * Their load is still in flight, with no request running here, so an abort
-   * that lands meanwhile has to be kept for when the file comes back.
-   */
-  readonly migrating = new Set<string>();
 
   /**
    * Highest `seq` this worker has seen on any incoming RPC. Each

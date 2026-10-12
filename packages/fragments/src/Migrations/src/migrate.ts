@@ -39,8 +39,9 @@ export function getRevision(
  *
  * The code that migrates is loaded the first time a file needs it, so
  * calling this on files that are current costs a look at their metadata.
- * The input is never modified: on failure nothing is returned and the file
- * is as it was.
+ * It runs where it is called, in Node, a page or a worker; `load()` does the
+ * same thing in its own worker. The input is never modified: on failure
+ * nothing is returned and the file is as it was.
  *
  * @param bytes - The file, raw or deflated.
  * @param options.raw - Whether to return the file raw or deflated. Defaults
@@ -61,19 +62,21 @@ export async function migrate(
     }
   }
 
-  const { prepare } = await import("./core");
-  const prepared = await prepare(source, registry);
-  const { from, to, applied, requests } = prepared;
+  const { run } = await import("./core");
+  const result = await run(source, {
+    registry,
+    // The editor is only loaded for a migration that asks for an edit.
+    apply: async (file, requests) => {
+      const { applyRequests } = await import("./apply");
+      return applyRequests(file, requests);
+    },
+  });
+  const { from, to, applied } = result;
   if (applied.length === 0) {
     return { bytes, from, to: from, applied };
   }
-  let current = prepared.bytes;
-  if (requests.length > 0) {
-    const { applyRequests } = await import("./apply");
-    current = applyRequests(current, requests);
-  }
   const outputIsRaw = raw ?? inputIsRaw;
-  const output = outputIsRaw ? current : pako.deflate(current);
+  const output = outputIsRaw ? result.bytes : pako.deflate(result.bytes);
   return { bytes: output, from, to, applied };
 }
 

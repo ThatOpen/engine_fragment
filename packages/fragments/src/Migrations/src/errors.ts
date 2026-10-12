@@ -46,13 +46,42 @@ export class UnknownRevisionError extends Error {
 export class MigrationError extends Error {
   /** The id of the migration that failed. */
   readonly migration: string;
+  /** Its title. */
+  readonly title: string;
 
   constructor(migration: string, title: string, cause: unknown) {
     const reason = cause instanceof Error ? cause.message : String(cause);
     super(`Fragments: migration ${migration} (${title}) failed. ${reason}`);
     this.name = "MigrationError";
     this.migration = migration;
+    this.title = title;
     this.cause = cause;
+  }
+}
+
+/**
+ * Thrown when a file cannot be read without migrating it and the code that
+ * migrates could not be loaded. The worker of `load()` imports that code
+ * from a URL, for a file that is behind only, and none of the ones it tried
+ * answered with it.
+ */
+export class MigrationsUnavailableError extends Error {
+  /** The revision of the file. */
+  readonly revision: string;
+  /** The URLs that were tried, in order. */
+  readonly sources: string[];
+
+  constructor(revision: string, sources: string[], reason?: string) {
+    const why =
+      sources.length > 0
+        ? `the code that migrates could not be loaded (${reason || sources.join(", ")})`
+        : "there is no URL to load the code that migrates from";
+    super(
+      `Fragments: the file is at revision ${revision} and cannot be read without migrating it, but ${why}. Serve dist/Worker/migrations.mjs of this version of the package and give its URL as the migrationsURL option of FragmentsModels.`,
+    );
+    this.name = "MigrationsUnavailableError";
+    this.revision = revision;
+    this.sources = sources;
   }
 }
 

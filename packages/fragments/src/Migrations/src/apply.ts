@@ -10,8 +10,9 @@ import { solveIds } from "../../Utils/edit/id-solver";
  * then moves past them.
  *
  * It is apart from the rest of the migration code because it is the one part
- * that needs the editor. The worker has it, so `load()` leaves this to the
- * worker and the main thread never loads the editor for a migration.
+ * that needs the editor. The worker has the editor already, and `migrate()`
+ * loads it when a migration asks for an edit, so that code takes this from
+ * its caller (see `run`) instead of bundling the editor a second time.
  */
 export function applyRequests(bytes: Uint8Array, requests: EditRequest[]) {
   const file = getModelFromBuffer(bytes, true);

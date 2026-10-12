@@ -8,6 +8,7 @@ import { VirtualFragmentsModel } from "../../virtual-model";
 import { gate } from "../../../../Migrations/gate";
 import { applyRequests } from "../../../../Migrations/src/apply";
 import { check } from "../../../../Migrations/src/gate";
+import { MigrationCode, loadMigrations } from "../../../../Migrations/src/load";
 
 export class ThreadModelCreator extends ThreadController {
   protected getId() {
@@ -23,14 +24,15 @@ export class ThreadModelCreator extends ThreadController {
       }
     };
 
-    this.thread.migrating.delete(modelId);
     this.thread.loading.add(modelId);
     try {
       this.inflate(input);
       notify("decompressing", 1);
       throwIfAborted();
 
-      if (this.isBehind(input, notify)) {
+      const refused = await this.migrate(input, notify, throwIfAborted);
+      throwIfAborted();
+      if (refused) {
         return;
       }
 
@@ -99,54 +101,87 @@ export class ThreadModelCreator extends ThreadController {
   }
 
   /**
-   * Tells whether the file was written by an older version of the package
-   * and has something to catch up on. That is all the worker knows about
-   * migrations: the code that does them is loaded by the main thread, and
-   * only for a file that is behind. Such a file is answered with no model
-   * and handed back, inflated, to be migrated and sent again.
+   * Brings a file an older version of the package wrote up to date before it
+   * is read, all of it here: the main thread only gets to know what was
+   * done, on `input.migration`.
    *
-   * With migrating turned off, a file that is only behind on content is
-   * read as it is, and one that cannot be read (its layout changed, or it is
-   * newer than this package) is refused. The refusal is answered as data: a
-   * thrown error reaches the main thread as a string.
+   * The worker carries the gate, which tells whether a file is behind, and
+   * none of the code that migrates. It imports that for a file that needs
+   * it, from the URLs the main thread sent along, and lends it its editor
+   * for what the edit steps ask for.
    *
-   * @returns Whether the load ends here.
+   * A file that cannot be read is answered with the error as data and no
+   * model, because a thrown error reaches the main thread as a string: one
+   * that is newer than this package, one a migration failed on, and one
+   * whose layout changed when migrating is off or the code did not load. In
+   * those last two cases a file that is only behind on content is read as
+   * it is.
+   *
+   * @returns Whether the load was refused.
    */
-  private isBehind(
+  private async migrate(
     input: any,
     notify: (stage: string, progress: number) => void,
+    throwIfAborted: () => void,
   ) {
     const data: ArrayBuffer | Uint8Array = input.modelData;
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-    if (input.migrated) {
-      // The file is back from the main thread, which ran the migrations as
-      // far as it could without the editor. What they ask to edit is applied
-      // here, where the editor is.
-      if (input.requests?.length > 0) {
-        input.modelData = applyRequests(bytes, input.requests);
-        notify("migrating", 1);
-      }
-      return false;
-    }
     const { known, pending, readable, revision, latest } = check(bytes, gate);
     if (known && pending.length === 0) {
       return false;
+    }
+    const refuse = (error: Record<string, unknown>) => {
+      input.migration = { error };
+      input.modelData = undefined;
+      return true;
+    };
+    if (!known) {
+      return refuse({ name: "UnknownRevisionError", revision, latest });
     }
     if (input.config?.migrate === false) {
       if (readable) {
         return false;
       }
-      const name = known ? "StaleFragmentsError" : "UnknownRevisionError";
-      input.migration = { error: { name, revision, latest, pending } };
-      input.modelData = undefined;
-      return true;
+      return refuse({ name: "StaleFragmentsError", revision, pending });
     }
+
     notify("migrating", 0);
-    this.thread.migrating.add(input.modelId);
-    input.migration = { pending: true };
-    input.modelData = bytes;
-    input.transferBack = [bytes.buffer];
-    return true;
+    const sources: string[] = input.config?.migrationSources ?? [];
+    let code: MigrationCode;
+    try {
+      code = await loadMigrations(sources, latest);
+    } catch (error: any) {
+      const reason: string = error.message;
+      if (!readable) {
+        const name = "MigrationsUnavailableError";
+        return refuse({ name, revision, sources, reason });
+      }
+      console.warn(
+        `Fragments: the file is at revision ${revision} and was read without being migrated, because the code that migrates could not be loaded (${reason || "no URL to load it from"}). See the migrationsURL option of FragmentsModels.`,
+      );
+      return false;
+    }
+    throwIfAborted();
+
+    try {
+      const result = await code.run(bytes, { apply: applyRequests });
+      if (result.applied.length > 0) {
+        const { from, to, applied } = result;
+        input.modelData = result.bytes;
+        input.migration = { from, to, applied };
+      }
+    } catch (error: any) {
+      // The class of the error is the one of the imported code, not the one
+      // this worker was built with, so it is told by name.
+      if (error?.name !== "MigrationError") {
+        throw error;
+      }
+      const { name, migration, title, cause } = error;
+      const reason = cause instanceof Error ? cause.message : String(cause);
+      return refuse({ name, migration, title, reason });
+    }
+    notify("migrating", 1);
+    return false;
   }
 
   private inflate(input: any) {

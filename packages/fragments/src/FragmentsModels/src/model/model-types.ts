@@ -617,6 +617,12 @@ export interface VirtualModelConfig {
    * it. Defaults to the `autoMigrate` setting of FragmentsModels.
    */
   migrate?: boolean;
+  /**
+   * Absolute URLs the worker tries, in order, for the code that migrates
+   * such a file. Defaults to what FragmentsModels worked out from its worker
+   * URL and its `migrationsURL` option.
+   */
+  migrationSources?: string[];
 }
 
 /** What loading did to a file that an older version of the package wrote. */

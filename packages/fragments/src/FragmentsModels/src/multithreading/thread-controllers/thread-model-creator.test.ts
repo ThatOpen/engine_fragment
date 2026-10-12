@@ -1,10 +1,18 @@
 import { readFile } from "fs/promises";
 import * as path from "path";
-import { afterEach, describe, expect, test } from "vitest";
-import { getRevision, migrate } from "../../../../Migrations";
+import pako from "pako";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  test,
+  vi,
+} from "vitest";
+import { buildMigrations } from "../../../../../vitest.migrations";
+import { migrate } from "../../../../Migrations";
 import { registry } from "../../../../Migrations/registry";
-import { prepare } from "../../../../Migrations/src/core";
-import type { EditRequest } from "../../../../Utils/edit/edit-types";
 import { EditRequestType } from "../../../../Utils/edit/edit-types";
 import { MultiThreadingRequestClass } from "../../model/model-types";
 import { SingleThreadedFragmentsModel } from "../../single-threading";
@@ -13,8 +21,9 @@ import { VirtualFragmentsModel } from "../../virtual-model";
 import type { FragmentsThread } from "../fragments-thread";
 import { ThreadModelCreator } from "./thread-model-creator";
 
-// Issue #316: the worker tells whether a file is behind, and nothing more.
-// One that is goes back to the main thread, which has the code to migrate it.
+// Issue #316: the worker migrates a file an older version wrote before it
+// reads it, all of it on its own. It carries the gate and imports the code
+// that migrates from a URL, for a file that is behind only.
 
 const repoRoot = path.resolve(import.meta.dirname, "../../../../../../..");
 const LATEST = registry.steps[registry.steps.length - 1].id;
@@ -37,10 +46,19 @@ const withAlignments = () =>
 // Current layout, but written before files named their generator.
 const contentBehind = () => read("resources/frags/small_test.frag");
 
+/** The code as the package ships it: one file, bundled apart from the worker. */
+let built: Awaited<ReturnType<typeof buildMigrations>>;
 const models: VirtualFragmentsModel[] = [];
+
+beforeAll(async () => {
+  built = await buildMigrations();
+}, 60000);
+
+afterAll(() => built?.remove());
 
 afterEach(() => {
   for (const model of models.splice(0)) model.dispose();
+  vi.restoreAllMocks();
 });
 
 const newThread = () => {
@@ -50,7 +68,6 @@ const newThread = () => {
     list: new Map<string, VirtualFragmentsModel>(),
     loading: new Set<string>(),
     aborting: new Set<string>(),
-    migrating: new Set<string>(),
     controllerManager: { updater: { setUpdateDelay() {}, start() {} } },
     connection: {
       fetch: async (request: any) => {
@@ -68,20 +85,18 @@ const newThread = () => {
 /** Runs CREATE_MODEL the way the worker does, on a thread with no worker. */
 const create = async (
   modelData: Uint8Array,
-  options: {
-    migrate?: boolean;
-    migrated?: boolean;
-    requests?: EditRequest[];
-  } = {},
+  {
+    migrate: enabled,
+    sources = [built.url],
+    raw = isRawBuffer(modelData),
+  }: { migrate?: boolean; sources?: string[]; raw?: boolean } = {},
   { thread, stages } = newThread(),
 ) => {
   const input: any = {
     modelId: "model",
     modelData,
-    raw: isRawBuffer(modelData),
-    config: { migrate: options.migrate },
-    migrated: options.migrated,
-    requests: options.requests,
+    raw,
+    config: { migrate: enabled, migrationSources: sources },
   };
   await thread.actions[MultiThreadingRequestClass.CREATE_MODEL](input);
   const model = thread.list.get("model");
@@ -89,120 +104,187 @@ const create = async (
   return { input, model, stages, thread };
 };
 
+const nowhere = () => new URL("./nowhere.mjs", built.url).href;
+
 describe("CREATE_MODEL on a file an older version wrote (issue #316)", () => {
-  test.each([
-    ["whose layout changed", layoutBehind],
-    ["that only lags on content", contentBehind],
-  ])("a file %s is handed back, inflated, to be migrated", async (_, file) => {
-    const { input, model, stages, thread } = await create(await file());
-    expect(model).toBeUndefined();
-    expect(input.migration).toEqual({ pending: true });
-    expect(stages).toContain("migrating");
-    // The answer moves the bytes back instead of copying them.
-    expect(isRawBuffer(input.modelData)).toBe(true);
-    expect(input.transferBack).toEqual([input.modelData.buffer]);
-    expect(getRevision(input.modelData).pending.length).toBeGreaterThan(0);
-    // The load is still in flight, so an abort has to find it.
-    expect(thread.migrating.has("model")).toBe(true);
-  });
+  test("a file whose layout changed is migrated here, and then read", async () => {
+    const { input, model, stages } = await create(await layoutBehind());
+    expect(model!.getMetadata().revision).toBe(LATEST);
+    expect(model!.getCategories()).toContain("IFCWALL");
+    expect(input.boundingBox).toBeDefined();
+    expect(stages.filter((stage) => stage === "migrating")).toHaveLength(2);
 
-  test("the migrated file comes back and is read without being asked again", async () => {
-    const first = await create(await layoutBehind());
-    // What the main thread does with it.
-    const { bytes, requests } = await prepare(first.input.modelData);
-    expect(requests).toEqual([]);
-    const second = await create(bytes, { migrated: true, requests }, first);
-    expect(second.input.migration).toBeUndefined();
-    expect(second.thread.migrating.has("model")).toBe(false);
-    expect(second.model!.getMetadata().revision).toBe(LATEST);
-    expect(second.model!.getCategories()).toContain("IFCWALL");
-    expect(second.input.boundingBox).toBeDefined();
-  }, 30000);
-
-  test("what the migrations ask to edit is applied here, where the editor is", async () => {
-    const first = await create(await withAlignments());
-    const { bytes, requests } = await prepare(first.input.modelData);
-    // Two items to create, and the revision, which the file gets with them.
-    expect(requests.map((request) => request.type)).toEqual([
-      EditRequestType.CREATE_ITEM,
-      EditRequestType.CREATE_ITEM,
-      EditRequestType.UPDATE_METADATA,
+    // All the main thread gets is what was done: no file goes back to it.
+    expect(input.modelData).toBeUndefined();
+    expect(input.migration).toMatchObject({
+      from: "20250710102015",
+      to: LATEST,
+    });
+    expect(input.migration.applied.map((step: any) => step.id)).toEqual([
+      "20251023113211",
+      "20261011053212",
     ]);
-
-    const second = await create(bytes, { migrated: true, requests }, first);
-    expect(second.model!.getAlignments()).toHaveLength(2);
-    expect(second.model!.getMetadata().revision).toBe(LATEST);
-    expect(second.stages.filter((stage) => stage === "migrating")).toHaveLength(
-      2,
-    );
+    expect(input.migration.applied[0].report).toMatchObject({ assignedIds: 5 });
+    // And it has to survive the way there.
+    expect(structuredClone(input.migration)).toEqual(input.migration);
   }, 30000);
 
-  test("an abort that lands while the file is being migrated stops the load when it comes back", async () => {
-    const first = await create(await contentBehind());
-    // What ABORT_MODEL does for a load that is in flight.
-    expect(first.thread.migrating.has("model")).toBe(true);
-    first.thread.aborting.add("model");
-    const { bytes } = await migrate(first.input.modelData, { raw: true });
-    const second = create(bytes, { migrated: true }, first);
-    await expect(second).rejects.toThrow(/was aborted/);
-    expect(first.thread.list.has("model")).toBe(false);
-    expect(first.thread.aborting.has("model")).toBe(false);
-  });
+  test("a file that only lags on content is migrated the same way", async () => {
+    const { input, model } = await create(await contentBehind());
+    expect(model!.getMetadata()).toMatchObject({
+      revision: LATEST,
+      generator: "unknown",
+    });
+    expect(input.migration.applied.map((step: any) => step.id)).toEqual([
+      "20261011053212",
+    ]);
+  }, 30000);
 
-  test("a file that is up to date is read as it is", async () => {
+  test("what the migrations ask to edit is applied with the editor of the worker", async () => {
+    const { input, model } = await create(await withAlignments());
+    expect(model!.getAlignments()).toHaveLength(2);
+    expect(model!.getMetadata().revision).toBe(LATEST);
+    expect(input.migration.applied[0].report).toMatchObject({
+      convertedAlignments: 2,
+    });
+  }, 30000);
+
+  test("the result is the file migrate() gives", async () => {
+    const source = await withAlignments();
+    const expected = await migrate(source.slice(), { raw: true });
+    const { model } = await create(source);
+    const loaded = model!.getBuffer(true);
+    expect(Buffer.from(loaded).equals(expected.bytes)).toBe(true);
+  }, 30000);
+
+  test("a file that is up to date is read without looking for the code", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { bytes } = await migrate(await contentBehind());
-    const { input, model, stages } = await create(bytes);
+    const { input, model, stages } = await create(bytes, { sources: [] });
     expect(input.migration).toBeUndefined();
     expect(stages).not.toContain("migrating");
     expect(model).toBeDefined();
+    expect(warn).not.toHaveBeenCalled();
   }, 30000);
 
-  test("with migrating off, a file that only lags on content is read as it is", async () => {
-    const { input, model } = await create(await contentBehind(), {
-      migrate: false,
-    });
-    expect(input.migration).toBeUndefined();
-    expect(model!.getMetadata()).not.toHaveProperty("revision");
-  }, 30000);
+  test("an abort that lands while the code is being imported stops the load", async () => {
+    const { thread, stages } = newThread();
+    const { fetch } = thread.connection;
+    thread.connection.fetch = async (request: any) => {
+      await fetch(request);
+      // What ABORT_MODEL does for a load that is in flight.
+      if (request.stage === "migrating" && thread.loading.has("model")) {
+        thread.aborting.add("model");
+      }
+    };
+    const aborted = create(await layoutBehind(), {}, { thread, stages });
+    await expect(aborted).rejects.toThrow(/was aborted/);
+    expect(thread.list.has("model")).toBe(false);
+    expect(thread.aborting.has("model")).toBe(false);
+    expect(thread.loading.has("model")).toBe(false);
+  });
 
-  test("with migrating off, a file whose layout changed is refused", async () => {
-    const { input, model } = await create(await layoutBehind(), {
-      migrate: false,
-    });
+  test("a migration that fails on the file is answered as the error", async () => {
+    // The root table says what the file is, the rest of it is gone.
+    const whole = pako.inflate(await layoutBehind());
+    const broken = whole.slice(0, Math.floor(whole.length / 2));
+    const { input, model } = await create(broken, { raw: true });
     expect(model).toBeUndefined();
     expect(input.modelData).toBeUndefined();
     expect(input.migration.error).toMatchObject({
-      name: "StaleFragmentsError",
-      revision: "20250710102015",
-    });
-    expect(input.migration.error.pending[0]).toMatchObject({
-      id: "20251023113211",
-      rewrite: true,
+      name: "MigrationError",
+      migration: "20251023113211",
+      title: expect.any(String),
+      reason: expect.any(String),
     });
   });
 
-  test("a file from a newer version of the package is not read", async () => {
-    const source = new SingleThreadedFragmentsModel("m", await contentBehind());
-    const data = { ...source.getMetadata(), revision: "99990101000000" };
-    source.edit([{ type: EditRequestType.UPDATE_METADATA, localId: 0, data }]);
-    const newer = source.save();
-    source.dispose();
+  describe("when the code cannot be loaded", () => {
+    test("a file that only lags on content is read as it is, with a warning", async () => {
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const { input, model } = await create(await contentBehind(), {
+        sources: [nowhere()],
+      });
+      expect(input.migration).toBeUndefined();
+      expect(model!.getMetadata()).not.toHaveProperty("revision");
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toContain(nowhere());
+    }, 30000);
 
-    // Migrating is what says so, with the error itself.
-    const handedBack = await create(newer);
-    expect(handedBack.model).toBeUndefined();
-    expect(handedBack.input.migration).toEqual({ pending: true });
-    await expect(migrate(handedBack.input.modelData)).rejects.toThrow(
-      /newer than this version/,
-    );
+    test("a file whose layout changed is refused, naming where it looked", async () => {
+      const sources = [nowhere()];
+      const { input, model } = await create(await layoutBehind(), { sources });
+      expect(model).toBeUndefined();
+      expect(input.modelData).toBeUndefined();
+      expect(input.migration.error).toMatchObject({
+        name: "MigrationsUnavailableError",
+        revision: "20250710102015",
+        sources,
+      });
+      expect(input.migration.error.reason).toContain(nowhere());
+    });
 
-    // With migrating off the worker has to refuse it on its own.
-    const refused = await create(newer, { migrate: false });
-    expect(refused.model).toBeUndefined();
-    expect(refused.input.migration.error).toMatchObject({
-      name: "UnknownRevisionError",
-      revision: "99990101000000",
-      latest: LATEST,
+    test("so is one given nowhere to look", async () => {
+      const { input } = await create(await layoutBehind(), { sources: [] });
+      expect(input.migration.error).toMatchObject({
+        name: "MigrationsUnavailableError",
+        sources: [],
+      });
     });
   });
+
+  describe("with migrating off", () => {
+    test("a file that only lags on content is read as it is", async () => {
+      const { input, model } = await create(await contentBehind(), {
+        migrate: false,
+      });
+      expect(input.migration).toBeUndefined();
+      expect(model!.getMetadata()).not.toHaveProperty("revision");
+    }, 30000);
+
+    test("a file whose layout changed is refused", async () => {
+      const { input, model } = await create(await layoutBehind(), {
+        migrate: false,
+      });
+      expect(model).toBeUndefined();
+      expect(input.modelData).toBeUndefined();
+      expect(input.migration.error).toMatchObject({
+        name: "StaleFragmentsError",
+        revision: "20250710102015",
+      });
+      expect(input.migration.error.pending[0]).toMatchObject({
+        id: "20251023113211",
+        rewrite: true,
+      });
+    });
+  });
+
+  test.each([
+    ["on", undefined],
+    ["off", false],
+  ])(
+    "a file from a newer version of the package is not read, migrating %s",
+    async (_, enabled) => {
+      const source = new SingleThreadedFragmentsModel(
+        "m",
+        await contentBehind(),
+      );
+      const data = { ...source.getMetadata(), revision: "99990101000000" };
+      source.edit([
+        { type: EditRequestType.UPDATE_METADATA, localId: 0, data },
+      ]);
+      const newer = source.save();
+      source.dispose();
+
+      // The gate is enough to tell, so nothing is imported for it.
+      const refused = await create(newer, { migrate: enabled, sources: [] });
+      expect(refused.model).toBeUndefined();
+      expect(refused.input.modelData).toBeUndefined();
+      expect(refused.input.migration.error).toMatchObject({
+        name: "UnknownRevisionError",
+        revision: "99990101000000",
+        latest: LATEST,
+      });
+    },
+  );
 });
