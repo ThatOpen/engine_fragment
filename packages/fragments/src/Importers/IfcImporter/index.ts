@@ -164,6 +164,25 @@ export class IfcImporter {
   includeMaterialProperties = false;
 
   /**
+   * Whether to import the MEP connectivity graph: the ports of distribution
+   * elements (`IfcDistributionPort`) and the relations between them and their
+   * elements.
+   * @remarks Off by default because it grows every model's relation graph for
+   * something most don't need. When enabled, the ports are imported as data and
+   * these relations are kept, each with its two inverse names:
+   * - `IfcRelConnectsPorts`, port to port: `ConnectedTo` on the relating port and
+   *   `ConnectedFrom` on the related one.
+   * - `IfcRelNests`, IFC4's port to element: `IsNestedBy` on the element and
+   *   `Nests` on the port (kept by default already).
+   * - `IfcRelConnectsPortToElement`, IFC2X3's port to element: `ContainedIn` on
+   *   the port and `HasPorts` on the element.
+   * So a viewer can walk element -> its ports -> the ports they connect to ->
+   * their elements, and select a whole connected network. See
+   * platform_services#27.
+   */
+  includeMepConnectivity = false;
+
+  /**
    * If set, ignores the items that are further away to the origin than this value.
    * Keep in mind that if your IFC is correctly georreferenced, this value should never
    * be too high. If it's too high, it's either because your file uses absolute coordinates,
@@ -207,6 +226,26 @@ export class IfcImporter {
       for (const materialPropertyClass of ifcClasses.materialProperties) {
         this.classes.abstract.add(materialPropertyClass);
       }
+    }
+
+    // Opt-in MEP connectivity (platform_services#27): the ports, and the
+    // relations that tie them to each other and to their elements.
+    if (this.includeMepConnectivity) {
+      for (const portClass of ifcClasses.ports) {
+        this.classes.abstract.add(portClass);
+      }
+      this.relations.set(WEBIFC.IFCRELCONNECTSPORTS, {
+        forRelated: "ConnectedFrom",
+        forRelating: "ConnectedTo",
+      });
+      this.relations.set(WEBIFC.IFCRELNESTS, {
+        forRelated: "Nests",
+        forRelating: "IsNestedBy",
+      });
+      this.relations.set(WEBIFC.IFCRELCONNECTSPORTTOELEMENT, {
+        forRelated: "HasPorts",
+        forRelating: "ContainedIn",
+      });
     }
 
     // Get geometry
