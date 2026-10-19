@@ -79,9 +79,12 @@ export class FragmentsModel implements IFragmentsModel<true> {
   readonly onViewUpdated = new Event<FragmentsModel>();
 
   /**
-   * A set of item IDs that are currently visible (i.e. have at least
-   * one tile rendered on screen). Updated automatically as tiles are
-   * created and deleted by the mesh manager.
+   * The localIds of the items held by at least one live tile of this
+   * model. Updated automatically as tiles are created and deleted by
+   * the mesh manager; an item held by several tiles stays until the
+   * last of them is deleted. Tiles live while they are loaded, so this
+   * is not a per-frame frustum test: an item hidden with `setVisible`
+   * or out of view stays here until its tiles are deleted.
    */
   readonly visibleItems = new Set<number>();
 

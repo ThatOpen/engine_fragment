@@ -84,6 +84,7 @@ export class VirtualTilesController {
   private readonly _items: ItemConfigController;
   private readonly _materials: number[];
   private readonly _modelId: string;
+  private readonly _model: Model;
 
   private readonly _lastView = {
     rotation: new THREE.Vector3(),
@@ -157,6 +158,7 @@ export class VirtualTilesController {
 
   constructor(data: VirtualTileData) {
     this._modelId = data.modelId;
+    this._model = data.model;
     this._boxes = data.boxes;
     this._items = data.items;
     this._materials = data.materials;
@@ -781,9 +783,9 @@ export class VirtualTilesController {
       // dominates first-snap latency on big models (~1 s on superbig).
       //
       // Consumers that want the user-facing localId translate via the
-      // `meshes_items[itemId] → localIds[..]` path. Fragments exposes
-      // a flat lookup table on the main thread (`itemIdToLocalIdMap`)
-      // so this stays synchronous.
+      // `meshes_items[itemId] → localIds[..]` path
+      // (`getLocalIdsFromItemIds`). The CREATE request also carries the
+      // tile's localIds (see `getTileLocalIds`).
       //
       // Encoding: `itemId + 1` so the decoded `0` byte stays reserved
       // as the "no item under cursor" void sentinel — itemId 0 is a
@@ -1506,12 +1508,35 @@ export class VirtualTilesController {
       normals: tile.normalBuffer,
       faceIds,
       itemIds: tile.ids,
+      localIds: this.getTileLocalIds(tile),
       material: tile.materialId,
       matrix: this._temp.matrix.clone(),
       aabb: tile.box.clone(),
       currentLod: tile.lod,
     });
     this.updateMemoryOnTileLoad(tile);
+  }
+
+  /**
+   * The localIds of the items a tile holds, each once. Sent with the
+   * tile's CREATE so the main thread can keep `FragmentsModel.visibleItems`
+   * without decoding the `id` attribute, which holds internal itemIds.
+   */
+  private getTileLocalIds(tile: TileData) {
+    const localIds = new Set<number>();
+    // Consecutive samples usually belong to the same item.
+    let lastItemId = -1;
+    for (const [sample] of tile.sampleLocation) {
+      const itemId = this.itemId(sample);
+      if (itemId === lastItemId) continue;
+      lastItemId = itemId;
+      const localIdIndex = this.meshes.meshesItems(itemId);
+      if (localIdIndex === null) continue;
+      const localId = this._model.localIds(localIdIndex);
+      if (localId === null) continue;
+      localIds.add(localId);
+    }
+    return Uint32Array.from(localIds);
   }
 
   private getFaceIds(tile: TileData) {

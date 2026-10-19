@@ -56,6 +56,15 @@ export class MeshManager {
   private readonly updateThreshold = 4;
 
   /**
+   * Per model, how many live tiles hold each item of `visibleItems`.
+   * Weak so a disposed model takes its counts with it.
+   */
+  private readonly _itemTileCounts = new WeakMap<
+    FragmentsModel,
+    Map<number, number>
+  >();
+
+  /**
    * Pending fence resolvers from `forceUpdateFinish` callers.
    * Each entry holds the refreshes that were unanswered at call time;
    * once every one of them has its FINISH, we drain the queue to
@@ -249,15 +258,14 @@ export class MeshManager {
       if (request.objectClass === undefined) return;
       const tile = this.create(request);
       this.setTileData(tile, request);
-      const uniqueIds = this.extractUniqueItemIds(request.itemIds);
-      tile.userData.itemIds = uniqueIds;
-      this.trackVisibleItems(model, uniqueIds, true);
+      // A CREATE for a tile id still on main replaces that tile.
+      this.untrackTileItems(model, model.tiles.get(tileId));
+      const localIds = this.toLocalIds(request.localIds);
+      tile.userData.itemIds = localIds;
+      this.trackVisibleItems(model, localIds, true);
       model.tiles.set(tile.userData.tileId, tile);
     } else if (tileRequestClass === TileRequestClass.DELETE) {
-      const tile = model.tiles.get(tileId);
-      if (tile?.userData.itemIds) {
-        this.trackVisibleItems(model, tile.userData.itemIds, false);
-      }
+      this.untrackTileItems(model, model.tiles.get(tileId));
       model.tiles.delete(tileId);
     } else if (tileRequestClass === TileRequestClass.UPDATE) {
       const tileObject = model.tiles.get(tileId);
@@ -267,25 +275,46 @@ export class MeshManager {
     }
   }
 
-  private extractUniqueItemIds(itemIds: any): Set<number> {
-    const unique = new Set<number>();
-    if (!itemIds) return unique;
-    for (let i = 0; i < itemIds.length; i++) {
-      unique.add(itemIds[i]);
-    }
-    return unique;
+  private toLocalIds(localIds: ArrayLike<number> | undefined) {
+    if (!localIds) return new Uint32Array(0);
+    if (localIds instanceof Uint32Array) return localIds;
+    return Uint32Array.from(localIds);
   }
 
+  private untrackTileItems(model: FragmentsModel, tile?: BIMMesh) {
+    const localIds = tile?.userData.itemIds;
+    if (!localIds) return;
+    tile.userData.itemIds = undefined;
+    this.trackVisibleItems(model, localIds, false);
+  }
+
+  /**
+   * Keeps `model.visibleItems` as the set of items held by at least one
+   * live tile. An item can be in several tiles, so each one counts the
+   * tiles that hold it and leaves the set when the last of them goes.
+   */
   private trackVisibleItems(
     model: FragmentsModel,
-    itemIds: Set<number>,
+    localIds: ArrayLike<number>,
     added: boolean,
   ) {
-    for (const itemId of itemIds) {
+    let counts = this._itemTileCounts.get(model);
+    if (!counts || model.visibleItems.size === 0) {
+      // Also covers a model whose set was cleared by its dispose.
+      counts = new Map();
+      this._itemTileCounts.set(model, counts);
+    }
+    for (let i = 0; i < localIds.length; i++) {
+      const localId = localIds[i];
+      const count = counts.get(localId) ?? 0;
       if (added) {
-        model.visibleItems.add(itemId);
-      } else {
-        model.visibleItems.delete(itemId);
+        counts.set(localId, count + 1);
+        if (count === 0) model.visibleItems.add(localId);
+      } else if (count > 1) {
+        counts.set(localId, count - 1);
+      } else if (count === 1) {
+        counts.delete(localId);
+        model.visibleItems.delete(localId);
       }
     }
   }
