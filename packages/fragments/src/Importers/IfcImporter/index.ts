@@ -172,6 +172,17 @@ export class IfcImporter {
    */
   distanceThreshold: number | null = 100000;
 
+  /**
+   * Whether to read geometry and properties from a single parse of the file.
+   * @remarks Off by default, which parses the file twice: once for geometry,
+   * and once more in a new web-ifc instance for properties. Enabling it keeps
+   * the geometry step's web-ifc instance open for the properties, which skips
+   * the second parse (and the second pass over `readCallback`) and avoids
+   * holding two parsed copies of the file in memory. The output is the same
+   * either way.
+   */
+  parseOnce = false;
+
   private get builder() {
     if (!this._builder) {
       throw new Error("Fragments: Builder not initialized");
@@ -203,15 +214,18 @@ export class IfcImporter {
     const geometryProcessor = new IfcGeometryProcessor(this);
     geometryProcessor.wasm = this.wasm;
     geometryProcessor.webIfcSettings = this.webIfcSettings;
+    geometryProcessor.keepModelOpen = this.parseOnce;
     const geomData = { ...data, builder: this.builder };
     const geoms = await geometryProcessor.process(geomData);
-    const { modelMesh, maxLocalID, localIDs, alignments, grids } = geoms;
+    const { modelMesh, maxLocalID, localIDs, alignments, grids, ifcAPI } =
+      geoms;
 
     // Get properties
 
     const properties = new IfcPropertyProcessor(this, this.builder);
     properties.wasm = this.wasm;
     properties.webIfcSettings = this.webIfcSettings;
+    if (ifcAPI) properties.useOpenModel(ifcAPI);
     const propsArgs = {
       ...data,
       geometryProcessedLocalIDs: localIDs,

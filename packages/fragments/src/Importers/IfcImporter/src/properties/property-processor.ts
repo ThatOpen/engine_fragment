@@ -40,6 +40,7 @@ export class IfcPropertyProcessor {
   private _maxLocalID = 0;
 
   private _ifcApi: WEBIFC.IfcAPI | null = null;
+  private _modelOpen = false;
   wasm = {
     path: "/node_modules/web-ifc/",
     absolute: false,
@@ -60,6 +61,17 @@ export class IfcPropertyProcessor {
       this._ifcApi = ifcApi;
     }
     return this._ifcApi;
+  }
+
+  /**
+   * Reads properties from an already open web-ifc model instead of the file.
+   * @remarks The model must have ID 0. The processor disposes the instance
+   * when it finishes.
+   */
+  useOpenModel(ifcApi: WEBIFC.IfcAPI) {
+    ifcApi.SetLogLevel(WEBIFC.LogLevel.LOG_LEVEL_OFF);
+    this._ifcApi = ifcApi;
+    this._modelOpen = true;
   }
 
   private async getSchema(modelId = 0) {
@@ -100,7 +112,9 @@ export class IfcPropertyProcessor {
     const ifcApi = await this.getIfcApi();
     this._maxLocalID = data.maxLocalID + 1;
 
-    if (data.readFromCallback && data.readCallback) {
+    if (this._modelOpen) {
+      // The geometry step left the model open (IfcImporter.parseOnce).
+    } else if (data.readFromCallback && data.readCallback) {
       ifcApi.OpenModelFromCallback(data.readCallback, this.webIfcSettings);
     } else if (data.bytes) {
       await ifcApi.OpenModel(data.bytes, this.webIfcSettings);
@@ -926,6 +940,7 @@ export class IfcPropertyProcessor {
   clean() {
     this._ifcApi?.Dispose();
     this._ifcApi = null;
+    this._modelOpen = false;
     this._guids = [];
     this._guidsItems = [];
     this._attributesOffsets = [];

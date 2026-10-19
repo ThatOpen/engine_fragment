@@ -133,7 +133,27 @@ export class IfcFileReader {
 
   isolatedMeshes: Set<number> | null = null;
 
+  /**
+   * Whether to keep the web-ifc model open after {@link load}.
+   * @remarks Instead of being disposed, the instance is handed over through
+   * {@link takeIfcAPI}, so the model can be read again without a second parse.
+   */
+  keepModelOpen = false;
+
+  private _openIfcAPI: WEBIFC.IfcAPI | null = null;
+
   constructor(private _serializer: IfcImporter) {}
+
+  /**
+   * Returns the web-ifc instance kept by {@link keepModelOpen}, or null.
+   * @remarks Its model has ID 0. The caller becomes responsible for disposing
+   * the instance.
+   */
+  takeIfcAPI() {
+    const ifcAPI = this._openIfcAPI;
+    this._openIfcAPI = null;
+    return ifcAPI;
+  }
 
   onElementLoaded: (data: {
     element: IfcElement;
@@ -358,11 +378,12 @@ export class IfcFileReader {
 
     this.onNextIdFound(this._nextId);
 
-    this._ifcAPI.Dispose();
+    if (this.keepModelOpen) {
+      this._openIfcAPI = this._ifcAPI;
+    } else {
+      this._ifcAPI.Dispose();
+    }
     this._ifcAPI = null;
-    this._ifcAPI = new WEBIFC.IfcAPI();
-    this._ifcAPI.SetWasmPath(this.wasm.path, this.wasm.absolute);
-    await this._ifcAPI.Init();
 
     this._previousGeometries.clear();
     this._previousGeometriesIDs.clear();

@@ -27,6 +27,9 @@ export class IfcGeometryProcessor {
 
   webIfcSettings: WEBIFC.LoaderSettings = {};
 
+  /** Whether to keep the model open for the property step. */
+  keepModelOpen = false;
+
   private _serializer: IfcImporter;
 
   constructor(_serializer: IfcImporter) {
@@ -71,6 +74,7 @@ export class IfcGeometryProcessor {
     const reader = new IfcFileReader(this._serializer);
     reader.wasm = this.wasm;
     reader.webIfcSettings = this.webIfcSettings;
+    reader.keepModelOpen = this.keepModelOpen;
 
     // reader.isolatedMeshes = new Set([22835]);
 
@@ -596,6 +600,7 @@ export class IfcGeometryProcessor {
       maxLocalID: nextId,
       alignments,
       grids,
+      ifcAPI: reader.takeIfcAPI(),
     };
   }
 }
