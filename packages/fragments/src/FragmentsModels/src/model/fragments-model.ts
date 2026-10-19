@@ -22,7 +22,9 @@ import {
   VirtualModelConfig,
 } from "./model-types";
 
+import { Cloned } from "../multithreading/cloned";
 import { FragmentsConnection } from "../multithreading/fragments-connection";
+import type { VirtualFragmentsModel } from "../virtual-model/virtual-fragments-model";
 import { MiscHelper } from "../utils";
 import { MeshManager } from "./mesh-manager";
 
@@ -37,12 +39,105 @@ import { IFragmentsModel } from "./fragments-model-interface";
 import { GridsConfig, GridsManager } from "./grids-manager";
 import { HighlightManager } from "./highlight-manager";
 import { ItemsManager } from "./items-manager";
+import { MaterialManager } from "./material-manager";
 import { RaycastManager } from "./raycast-manager";
 import { SectionManager } from "./section-manager";
 import { SequenceManager } from "./sequence-manager";
 import { SetupManager } from "./setup-manager";
 import { ViewManager } from "./view-manager";
 import { VisibilityManager } from "./visibility-manager";
+
+/**
+ * The methods of a model's worker-side counterpart that the main thread
+ * calls, see {@link FragmentsModel._invoke}. Their arguments and results are
+ * copied between threads, so they must hold data only: no functions, and
+ * class instances arrive as plain objects.
+ */
+type RemoteMethods = Pick<
+  VirtualFragmentsModel,
+  | "edit"
+  | "getAlignments"
+  | "getAttributeNames"
+  | "getAttributeTypes"
+  | "getAttributeValues"
+  | "getAttributesUniqueValues"
+  | "getBuffer"
+  | "getCRS"
+  | "getCategories"
+  | "getCoordinates"
+  | "getElementsData"
+  | "getGeometries"
+  | "getGlobalTransforms"
+  | "getGlobalTransformsIds"
+  | "getGlobalTransformsIdsOfItems"
+  | "getGrids"
+  | "getGuids"
+  | "getGuidsByLocalIds"
+  | "getHighlight"
+  | "getHighlightItemIds"
+  | "getIndexEntry"
+  | "getIndexInfo"
+  | "getIndexKey"
+  | "getIndexKeys"
+  | "getIndexNames"
+  | "getIndexValues"
+  | "getInverseIndexEntry"
+  | "getItemAttributes"
+  | "getItemCategory"
+  | "getItemDrawChunks"
+  | "getItemRelations"
+  | "getItemSnapData"
+  | "getItems"
+  | "getItemsByQuery"
+  | "getItemsByVisibility"
+  | "getItemsChildren"
+  | "getItemsData"
+  | "getItemsGeometry"
+  | "getItemsIds"
+  | "getItemsMaterialDefinition"
+  | "getItemsOfCategories"
+  | "getItemsVolume"
+  | "getItemsWithGeometry"
+  | "getItemsWithGeometryCategories"
+  | "getLocalIds"
+  | "getLocalIdsByGuids"
+  | "getLocalIdsFromItemIds"
+  | "getLocalTransforms"
+  | "getLocalTransformsIds"
+  | "getMaterials"
+  | "getMaterialsIds"
+  | "getMaxLocalId"
+  | "getMetadata"
+  | "getPositions"
+  | "getRelationNames"
+  | "getRelations"
+  | "getRepresentations"
+  | "getRepresentationsIds"
+  | "getRequests"
+  | "getRequestsSince"
+  | "getSamples"
+  | "getSamplesIds"
+  | "getSection"
+  | "getSequenced"
+  | "getSpatialStructure"
+  | "getSubsetBuffer"
+  | "getVisible"
+  | "hasIndexEntry"
+  | "highlight"
+  | "reset"
+  | "resetColor"
+  | "resetHighlight"
+  | "resetOpacity"
+  | "resetVisible"
+  | "save"
+  | "selectRequest"
+  | "setColor"
+  | "setLodMode"
+  | "setOpacity"
+  | "setRequests"
+  | "setVisible"
+  | "toggleVisible"
+>;
 
 /**
  * The main class for managing a 3D model loaded from a fragments file. Handles geometry, materials, visibility, highlighting, sections, and more. This class orchestrates multiple specialized managers to handle different aspects of the model like mesh management, item data, raycasting, etc. It maintains the overall state and provides the main interface for interacting with the model. The model data is loaded and processed asynchronously across multiple threads.
@@ -463,7 +558,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
   }
 
   async getGuids() {
-    const guids = (await this._invoke("getGuids", [])) as string[];
+    const guids = await this._invoke("getGuids", []);
     return guids;
   }
 
@@ -471,7 +566,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Get all the local IDs of the model.
    */
   async getLocalIds() {
-    const localIds = (await this._invoke("getLocalIds", [])) as number[];
+    const localIds = await this._invoke("getLocalIds", []);
     return localIds;
   }
 
@@ -488,10 +583,11 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   // TODO: Fix, this is wrong
   async getItemsMaterialDefinition(localIds: number[]) {
-    const result = (await this._invoke("getItemsMaterialDefinition", [
+    const result = await this._invoke("getItemsMaterialDefinition", [localIds]);
+    return result.map(({ definition, localIds }) => ({
+      definition: MaterialManager.restoreColor(definition),
       localIds,
-    ])) as { definition: MaterialDefinition; localIds: number[] }[];
-    return result;
+    }));
   }
 
   /**
@@ -518,7 +614,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to the total volume of the specified items.
    */
   async getItemsVolume(localIds: number[]) {
-    const volume = (await this._invoke("getItemsVolume", [localIds])) as number;
+    const volume = await this._invoke("getItemsVolume", [localIds]);
     return volume;
   }
 
@@ -528,7 +624,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of an attribute.
    */
   async getAttributeNames() {
-    const names = (await this._invoke("getAttributeNames", [])) as string[];
+    const names = await this._invoke("getAttributeNames", []);
     return names;
   }
 
@@ -538,15 +634,14 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute values.
    */
   async getAttributeValues() {
-    const values = (await this._invoke("getAttributeValues", [])) as any[];
+    const values = await this._invoke("getAttributeValues", []);
     return values;
   }
 
-  async getAttributesUniqueValues(params: AttributesUniqueValuesParams[]) {
-    const values = (await this._invoke("getAttributesUniqueValues", [
-      params,
-    ])) as Record<string, { value: any; localIds: number[] }[]>;
-    return values;
+  async getAttributesUniqueValues(
+    params: AttributesUniqueValuesParams[],
+  ): Promise<Record<string, { value: any; localIds: number[] }[]>> {
+    return this._invoke("getAttributesUniqueValues", [params]);
   }
 
   /**
@@ -555,7 +650,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of attribute types.
    */
   async getAttributeTypes() {
-    const types = (await this._invoke("getAttributeTypes", [])) as string[];
+    const types = await this._invoke("getAttributeTypes", []);
     return types;
   }
 
@@ -565,7 +660,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @returns A promise that resolves to an array of strings, where each string is the name of a relation.
    */
   async getRelationNames() {
-    const names = (await this._invoke("getRelationNames", [])) as string[];
+    const names = await this._invoke("getRelationNames", []);
     return names;
   }
 
@@ -818,8 +913,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param visible - Whether the items should be visible.
    */
   async setVisible(localIds: number[] | undefined, visible: boolean) {
-    const args = [localIds, visible];
-    await this._invoke("setVisible", args);
+    await this._invoke("setVisible", [localIds, visible]);
   }
 
   /**
@@ -827,8 +921,7 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * @param localIds - The local IDs of the items to toggle the visibility of.
    */
   async toggleVisible(localIds?: number[]) {
-    const args = [localIds];
-    await this._invoke("toggleVisible", args);
+    await this._invoke("toggleVisible", [localIds]);
   }
 
   /**
@@ -1049,8 +1142,16 @@ export class FragmentsModel implements IFragmentsModel<true> {
    * Gets the global transforms IDs of the items of the model.
    * @param ids - The local IDs of the items to get the global transforms IDs of.
    */
+  getGlobalTransformsIdsOfItems(ids: number[]) {
+    return this._editManager.getGlobalTransformsIdsOfItems(this, ids);
+  }
+
+  /**
+   * @deprecated Misspelled. Use
+   * {@link FragmentsModel.getGlobalTransformsIdsOfItems} instead.
+   */
   getGlobalTranformsIdsOfItems(ids: number[]) {
-    return this._editManager.getGlobalTranformsIdsOfItems(this, ids);
+    return this.getGlobalTransformsIdsOfItems(ids);
   }
 
   /**
@@ -1086,10 +1187,24 @@ export class FragmentsModel implements IFragmentsModel<true> {
 
   /**
    * Internal method to call a method of the model on its worker. Don't use
-   * this directly.
+   * this directly. The arguments and the result are copied between threads,
+   * so class instances in the result arrive as plain objects, see
+   * {@link Cloned}.
+   * @param method - The name of the method.
+   * @param args - The arguments of the method. Optional only when every
+   * parameter of the method is.
    */
-  _invoke(method: string, args?: any[]) {
-    return this.threads.invoke(this.modelId, method, args);
+  _invoke<K extends keyof RemoteMethods>(
+    method: K,
+    ...[args]: [] extends Parameters<RemoteMethods[K]>
+      ? [args?: Parameters<RemoteMethods[K]>]
+      : [args: Parameters<RemoteMethods[K]>]
+  ): Promise<Cloned<Awaited<ReturnType<RemoteMethods[K]>>>> {
+    return this.threads.invoke<Awaited<ReturnType<RemoteMethods[K]>>>(
+      this.modelId,
+      method,
+      args,
+    );
   }
 
   /**

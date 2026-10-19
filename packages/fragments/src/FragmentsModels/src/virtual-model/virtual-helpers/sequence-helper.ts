@@ -57,7 +57,9 @@ export class SequenceHelper {
   > = {
     attributes: (ids: number[]) =>
       ids.map((id) => this._model.getItemAttributes(id)),
-    mergedBoxes: (_) => this._model.getBBoxes(_),
+    /** The items are selected by local id, the boxes are kept by item id. */
+    mergedBoxes: (ids: number[]) =>
+      this._model.getBBoxes(this._model.getItemIdsByLocalIds(ids)),
     category: (ids: number[]) => this._model.getItemsCategories(ids),
     children: (_) => this._model.getItemsChildren(_),
     data: (ids: number[], ...args) => this._model.getItemsData(ids, args[0]),

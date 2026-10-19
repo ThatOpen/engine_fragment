@@ -11,6 +11,8 @@
  * as its first line.
  * The canvas mock and the web-worker shim both patch browser globals,
  * so they follow that opt-in rather than being installed over a node environment.
+ *
+ * The worker to give `FragmentsModels` under that shim is ./vitest.worker.ts.
  */
 if (typeof window !== "undefined") {
   await import("vitest-canvas-mock");

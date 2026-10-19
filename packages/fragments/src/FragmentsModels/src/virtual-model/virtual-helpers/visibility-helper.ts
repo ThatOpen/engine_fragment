@@ -29,7 +29,7 @@ export class VisibilityHelper {
     return filtered;
   }
 
-  toggleVisible(model: VirtualFragmentsModel, localIds: number[]) {
+  toggleVisible(model: VirtualFragmentsModel, localIds?: number[]) {
     const itemIds = model.properties.getItemIdsFromLocalIds(localIds);
     const filtered = this.filterHiddenForEdit(itemIds);
     const toggleEvent = this.getToggleEvent(model);
@@ -39,7 +39,7 @@ export class VisibilityHelper {
 
   setVisible(
     model: VirtualFragmentsModel,
-    localIds: number[],
+    localIds: number[] | undefined,
     visible: boolean,
   ): void {
     const itemIds = model.properties.getItemIdsFromLocalIds(localIds);

@@ -94,6 +94,11 @@ export interface IRawModelData<Async extends boolean> {
   getItemsIds(): Promisify<number[], Async>;
   getItems(ids?: Iterable<number>): Promisify<Map<number, RawItemData>, Async>;
   getRelations(ids?: number[]): Promisify<Map<number, RawRelationData>, Async>;
+  getGlobalTransformsIdsOfItems(ids: number[]): Promisify<number[], Async>;
+  /**
+   * @deprecated Misspelled. Use
+   * {@link IRawModelData.getGlobalTransformsIdsOfItems} instead.
+   */
   getGlobalTranformsIdsOfItems(ids: number[]): Promisify<number[], Async>;
 }
 

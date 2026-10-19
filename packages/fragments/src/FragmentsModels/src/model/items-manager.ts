@@ -11,11 +11,11 @@ export class ItemsManager {
     model: FragmentsModel,
     ids: Identifier[],
     config?: Partial<ItemsDataConfig>,
-  ) {
-    return model._invoke("getItemsData", [ids, config]) as Promise<ItemData[]>;
+  ): Promise<ItemData[]> {
+    return model._invoke("getItemsData", [ids, config]);
   }
 
   async getItemsChildren(model: FragmentsModel, ids: Identifier[]) {
-    return model._invoke("getItemsChildren", [ids]) as Promise<number[]>;
+    return model._invoke("getItemsChildren", [ids]);
   }
 }

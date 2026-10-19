@@ -34,7 +34,12 @@ export class EditUtils {
   static getSamples = FF.getSamples;
   static getItemsIds = FF.getItemsIds;
   static getItems = FF.getItems;
-  static getGlobalTranformsIdsOfItems = FF.getGlobalTranformsIdsOfItems;
+  static getGlobalTransformsIdsOfItems = FF.getGlobalTransformsIdsOfItems;
+  /**
+   * @deprecated Misspelled. Use
+   * {@link EditUtils.getGlobalTransformsIdsOfItems} instead.
+   */
+  static getGlobalTranformsIdsOfItems = FF.getGlobalTransformsIdsOfItems;
   static getElementsData = FF.getElementsData;
   static getItemSnapData = FF.getItemSnapData;
   static getGeometryIndicesFromRepresentations =

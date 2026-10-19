@@ -499,7 +499,7 @@ export function getItems(model: TFB.Model, itemIds?: Iterable<number>) {
   return items;
 }
 
-export function getGlobalTranformsIdsOfItems(model: TFB.Model, ids: number[]) {
+export function getGlobalTransformsIdsOfItems(model: TFB.Model, ids: number[]) {
   const meshes = model.meshes()!;
   const source = new Set(ids);
   const globalIds = new Set<number>();
