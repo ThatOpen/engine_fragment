@@ -8,6 +8,13 @@ function model() {
   return { _finishProcessing() {} } as FragmentsModel;
 }
 
+// What ViewManager.refreshView does for every model on update(true).
+function refresh(meshes: MeshManager, modelId: string) {
+  const seq = MultithreadingHelper.nextSeq();
+  meshes.viewDispatched(modelId, seq);
+  return seq;
+}
+
 describe("update fences when models are removed", () => {
   test("an empty manager does not await a FINISH for previous requests", async () => {
     const meshes = new MeshManager(() => {});
@@ -20,9 +27,9 @@ describe("update fences when models are removed", () => {
     async (operation) => {
       const meshes = new MeshManager(() => {});
       meshes.list.set("a", model());
-      MultithreadingHelper.nextSeq();
+      refresh(meshes, "a");
       const first = meshes.forceUpdateFinish();
-      MultithreadingHelper.nextSeq();
+      refresh(meshes, "a");
       const second = meshes.forceUpdateFinish();
       if (operation === "delete") meshes.list.delete("a");
       else meshes.list.clear();
@@ -35,7 +42,8 @@ describe("update fences when models are removed", () => {
     const meshes = new MeshManager(() => {});
     meshes.list.set("a", model());
     meshes.list.set("b", model());
-    const seq = MultithreadingHelper.nextSeq();
+    refresh(meshes, "a");
+    const seq = refresh(meshes, "b");
     let finished = false;
     const pending = meshes.forceUpdateFinish().then(() => {
       finished = true;
@@ -55,7 +63,7 @@ describe("update fences when models are removed", () => {
     MultithreadingHelper.nextSeq();
     await meshes.forceUpdateFinish();
     meshes.list.set("new", model());
-    const seq = MultithreadingHelper.nextSeq();
+    const seq = refresh(meshes, "new");
     let finished = false;
     const pending = meshes.forceUpdateFinish().then(() => {
       finished = true;

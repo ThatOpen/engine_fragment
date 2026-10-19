@@ -89,8 +89,8 @@ export class MultithreadingHelper {
   private static _seq = 0;
 
   /**
-   * Last seq dispatched. Snapshot at `forceUpdateFinish` call time
-   * to know which seq must settle before we can resolve.
+   * Last seq dispatched, by any FragmentsModels instance. Not a fence
+   * target: most requests are never answered by a FINISH (#341).
    */
   static get lastDispatchedSeq() {
     return MultithreadingHelper._seq;

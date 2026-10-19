@@ -466,9 +466,9 @@ export class FragmentsModels {
     await Promise.all(modelUpdates);
 
     if (force) {
-      // Sequence-fence based: resolves precisely when every RPC
-      // dispatched up to this call has had its effects flushed to
-      // main and applied. No polling, no buffer.
+      // Sequence-fence based: resolves precisely when every refresh
+      // dispatched above has been answered by its FINISH and its
+      // effects flushed to main and applied. No polling, no buffer.
       await this.models.forceUpdateFinish();
     } else {
       this.models.update();

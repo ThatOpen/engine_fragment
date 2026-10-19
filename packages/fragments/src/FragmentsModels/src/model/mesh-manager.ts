@@ -11,7 +11,6 @@ import { DataMap } from "../../../Utils";
 import { RequestsManager } from "./requests-manager";
 import { LODManager } from "./lod-manager";
 import { LODMesh } from "../lod";
-import { MultithreadingHelper } from "../multithreading/multithreading-helper";
 
 /**
  * Since three r185, `updateWorldMatrix()` only recomputes an object whose
@@ -37,8 +36,6 @@ function updateTileWorldMatrix(
 }
 
 type FenceWaiter = {
-  /** Last seq dispatched to any worker when the fence was requested. */
-  targetSeq: number;
   /** Per model, the seq of the refresh whose FINISH is still missing. */
   views: Map<string, number>;
   resolve: () => void;
@@ -59,29 +56,28 @@ export class MeshManager {
   private readonly updateThreshold = 4;
 
   /**
-   * Highest seq stamped on any FINISH the worker has emitted to us
-   * so far. Updated by `requests.onFinish`. Monotonically increases.
-   * `forceUpdateFinish` waiters resolve once this catches up to their
-   * snapshotted target seq.
-   */
-  private _lastSettledSeq = 0;
-
-  /**
    * Pending fence resolvers from `forceUpdateFinish` callers.
-   * Each entry's `targetSeq` is what the caller snapshotted at call
-   * time; once `_lastSettledSeq >= targetSeq`, we drain the queue
-   * to completion and resolve. Sorted insertion order isn't needed
+   * Each entry holds the refreshes that were unanswered at call time;
+   * once every one of them has its FINISH, we drain the queue to
+   * completion and resolve. Sorted insertion order isn't needed
    * — we walk the whole list on each FINISH.
    */
   private _fenceWaiters: FenceWaiter[] = [];
 
   /**
    * Per model, the seq of the last REFRESH_VIEW sent and the highest seq
-   * stamped on one of its FINISHes. The global seq above is not enough
+   * stamped on one of its FINISHes. A single global seq is not enough
    * with several models: the stamp is the worker's latest seq, so the
    * FINISH of a model with a short pass carries the seq of the refresh
    * sent to the next model and released the fence while that one was
    * still sweeping.
+   *
+   * Only refreshes are tracked because they are the only requests the
+   * worker is bound to answer with a FINISH. Waiting for the last seq
+   * dispatched instead hung `update(true)` whenever any other request
+   * (a pick, a data query, a request of another FragmentsModels
+   * instance, which shares the seq counter) went out after the refresh:
+   * no FINISH this instance receives ever carries that seq (#341).
    */
   private readonly _viewSeq = new Map<string, number>();
   private readonly _finishSeq = new Map<string, number>();
@@ -114,34 +110,34 @@ export class MeshManager {
   }
 
   /**
-   * Wait until every main → worker request issued before this call
-   * has been processed by the worker AND its resulting tile updates
-   * have been applied on main. Replaces the old polling-based
-   * implementation:
+   * Wait until every view refresh sent before this call has been
+   * answered by its model's FINISH AND the resulting tile updates
+   * have been applied on main. A worker handles its messages in
+   * order, so whatever was sent to a model before its refresh is
+   * reflected too. Replaces the old polling-based implementation:
    *
    *   - **Old**: `setInterval` re-running `update()` every `rate` ms
    *     until a FINISH arrived, plus a `buffer` setTimeout guarding
    *     against false-positive FINISHes from prior batches. Floor of
    *     ~rate + buffer ms even when the worker had nothing to do.
-   *   - **New**: snapshot the next dispatched seq, register a fence
-   *     waiter, resolve the moment a FINISH stamped with `seq >=
-   *     snapshot` lands and the request queue has been drained.
-   *     Zero polling; precise per-call settlement.
+   *   - **New**: snapshot, per model, the seq of the refresh still
+   *     unanswered, register a fence waiter, resolve the moment each
+   *     of those models has a FINISH stamped with `seq >= snapshot`
+   *     and the request queue has been drained. Zero polling; precise
+   *     per-call settlement.
    *
    * Called from `FragmentsModels.update(true)`.
    */
   async forceUpdateFinish() {
-    const targetSeq = MultithreadingHelper.lastDispatchedSeq;
     // Models whose last view has not been answered yet. Models with no
     // refresh in flight have nothing to finish and are not waited on.
     const views = new Map<string, number>();
     for (const [modelId, seq] of this._viewSeq) {
       if ((this._finishSeq.get(modelId) ?? 0) < seq) views.set(modelId, seq);
     }
-    const waiter: FenceWaiter = { targetSeq, views, resolve: () => {} };
-    // No outbound RPCs have been issued yet, or everything we've sent
-    // has already settled — nothing to wait for. Drain whatever's in
-    // the queue (may be empty) and return.
+    const waiter: FenceWaiter = { views, resolve: () => {} };
+    // No refresh is waiting for its FINISH: nothing to wait for. Drain
+    // whatever's in the queue (may be empty) and return.
     if (this.list.size === 0 || this.isSettled(waiter)) {
       this.drainAll();
       return;
@@ -153,7 +149,6 @@ export class MeshManager {
   }
 
   private isSettled(waiter: FenceWaiter) {
-    if (waiter.targetSeq > this._lastSettledSeq) return false;
     for (const [modelId, seq] of waiter.views) {
       if (!this.list.has(modelId)) continue;
       if ((this._finishSeq.get(modelId) ?? 0) < seq) return false;
@@ -163,9 +158,8 @@ export class MeshManager {
 
   private finishEmptyScene() {
     if (this.list.size !== 0) return;
-    // Removed models cannot produce further visible tile updates. Do not
-    // advance the settled sequence: subsequently loaded models still need
-    // their own worker FINISH.
+    // Removed models cannot produce further visible tile updates.
+    // Subsequently loaded models still need their own worker FINISH.
     this.drainAll();
     const waiters = this._fenceWaiters;
     this._fenceWaiters = [];
@@ -183,9 +177,6 @@ export class MeshManager {
    * effects are on screen by the time the awaiter wakes up.
    */
   private handleFinish(seq: number | undefined, modelId?: string) {
-    if (typeof seq === "number" && seq > this._lastSettledSeq) {
-      this._lastSettledSeq = seq;
-    }
     if (typeof seq === "number" && modelId !== undefined) {
       if (seq > (this._finishSeq.get(modelId) ?? 0)) {
         this._finishSeq.set(modelId, seq);
