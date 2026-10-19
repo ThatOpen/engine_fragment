@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import * as WEBIFC from "web-ifc";
+import type { IfcLineApi } from "./ifc-line-api";
 
 export class FragmentsIfcUtils {
   /**
@@ -9,7 +10,7 @@ export class FragmentsIfcUtils {
    * @param modelId - The web-ifc model `item` belongs to.
    */
   static getAbsolutePlacement(
-    webIfc: WEBIFC.IfcAPI,
+    webIfc: IfcLineApi,
     item: any,
     unitsFactor?: number,
     modelId = 0
@@ -48,7 +49,7 @@ export class FragmentsIfcUtils {
    * The factor that converts the model's length unit to metres.
    * @param modelId - The web-ifc model to read the units of.
    */
-  static getUnitsFactor(ifcApi: WEBIFC.IfcAPI, modelId = 0) {
+  static getUnitsFactor(ifcApi: IfcLineApi, modelId = 0) {
     const unitAssignmentIds = ifcApi.GetLineIDsWithType(
       modelId,
       WEBIFC.IFCUNITASSIGNMENT
@@ -89,7 +90,7 @@ export class FragmentsIfcUtils {
   }
 
   private static getAbsolutePlacementRecursively(
-    webIfc: WEBIFC.IfcAPI,
+    webIfc: IfcLineApi,
     modelId: number,
     placement: any,
     result: THREE.Matrix4,

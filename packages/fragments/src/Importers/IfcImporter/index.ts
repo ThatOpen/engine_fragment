@@ -16,6 +16,23 @@ import {
   ifcRelationsMap,
   geometryTypes,
 } from "../../Utils";
+import {
+  IfcBlobSource,
+  IfcBytesSource,
+  IfcChunkedBytesSource,
+} from "../../Utils/ifc-byte-source";
+import { IfcEntityResolver } from "../../Utils/ifc-resolver";
+import { IfcResolverLineApi } from "../../Utils/ifc-line-api";
+import {
+  BatchExecutor,
+  BatchRunnerOptions,
+  LocalBatchExecutor,
+  WorkerBatchExecutor,
+} from "./src/geometry/geometry-batch";
+import type {
+  ProjectedReadOptions,
+  ProjectedReadStats,
+} from "./src/geometry/ifc-projected-reader";
 
 /**
  * An objet to convert IFC files into fragments.
@@ -172,6 +189,15 @@ export class IfcImporter {
    */
   distanceThreshold: number | null = 100000;
 
+  /**
+   * Largest `file` (in bytes) the parsing layer reads into memory rather than
+   * a page at a time through the file reader. See {@link ProcessData.file}.
+   */
+  residentBudget = 1024 * 1024 * 1024;
+
+  /** Numbers about the last {@link process} call. */
+  stats: { projected: ProjectedReadStats | null } = { projected: null };
+
   private get builder() {
     if (!this._builder) {
       throw new Error("Fragments: Builder not initialized");
@@ -187,7 +213,12 @@ export class IfcImporter {
    * @param data.readFromCallback Whether to read data from a callback function. Useful for node.js.
    * @param data.readCallback Callback function to read IFC data. Useful for node.js.
    */
-  async process(data: ProcessData) {
+  async process(input: ProcessData) {
+    // A `file` is read in place; everything downstream sees its reader.
+    const data: ProcessData = input.file
+      ? { ...input, source: input.source ?? new IfcBlobSource(input.file) }
+      : input;
+
     this._builder = new fb.Builder(1024);
 
     // Opt-in material property sets (issue #249). Added here rather than in the
@@ -200,26 +231,89 @@ export class IfcImporter {
 
     // Get geometry
 
+    // Geometry batches read the file through the parsing layer, so it is
+    // indexed first; the property pass then reuses the same index.
+    let lineApi: IfcResolverLineApi | undefined;
+    let projected: ProjectedReadOptions | undefined;
+    let executors: BatchExecutor[] = [];
+    const batches = data.geometryBatches;
+    if (batches) {
+      lineApi = await this.index(data, 0, 0.1);
+      const runnerOptions: BatchRunnerOptions = {
+        wasm: this.wasm,
+        loaderSettings: this.webIfcSettings,
+        extractor: {
+          geometryProcessSettings: this.geometryProcessSettings,
+          distanceThreshold: this.distanceThreshold,
+        },
+      };
+      const workers =
+        batches.workers ??
+        Math.max(1, (globalThis.navigator?.hardwareConcurrency ?? 4) - 1);
+      executors = batches.createWorker
+        ? Array.from(
+            { length: workers },
+            () => new WorkerBatchExecutor(batches.createWorker!(), runnerOptions),
+          )
+        : [new LocalBatchExecutor(runnerOptions)];
+      projected = {
+        resolver: lineApi.resolver,
+        lines: lineApi,
+        executors,
+        batchBytes: batches.batchBytes ?? 32 * 1024 * 1024,
+        batchElements: batches.batchElements ?? 2000,
+        probeElements: batches.probeElements ?? 32,
+        targetBatchMs: batches.targetBatchMs ?? 1000,
+        coordinateToOrigin: this.webIfcSettings.COORDINATE_TO_ORIGIN === true,
+      };
+    }
+
     const geometryProcessor = new IfcGeometryProcessor(this);
     geometryProcessor.wasm = this.wasm;
     geometryProcessor.webIfcSettings = this.webIfcSettings;
-    const geomData = { ...data, builder: this.builder };
-    const geoms = await geometryProcessor.process(geomData);
-    const { modelMesh, maxLocalID, localIDs, alignments, grids } = geoms;
-
-    // Get properties
+    const geomData = { ...data, builder: this.builder, projected };
 
     const properties = new IfcPropertyProcessor(this, this.builder);
     properties.wasm = this.wasm;
     properties.webIfcSettings = this.webIfcSettings;
-    const propsArgs = {
+
+    let geoms: Awaited<ReturnType<IfcGeometryProcessor["process"]>>;
+    try {
+      if (projected) {
+        // Properties need nothing from geometry until they are laid out, so
+        // with the geometry in workers they are read here meanwhile, handing
+        // the thread back often enough to keep the workers fed.
+        [geoms] = await Promise.all([
+          geometryProcessor.process(geomData),
+          properties.prepare({
+            ...data,
+            lineApi,
+            yieldEvery: 8,
+            progressCallback: undefined,
+          }),
+        ]);
+      } else {
+        geoms = await geometryProcessor.process(geomData);
+        // With a reader, properties come from the parsing layer: the file is
+        // indexed once, now that web-ifc and its copy of the file are gone,
+        // and entities are parsed from it on demand. Without one, the pass
+        // opens the file in a second web-ifc instance, as it always has.
+        if (!lineApi && data.source) lineApi = await this.index(data, 0.5, 0.6);
+        await properties.prepare({ ...data, lineApi });
+      }
+    } finally {
+      for (const executor of executors) executor.dispose();
+    }
+    this.stats = { projected: geometryProcessor.projectedStats };
+    const { modelMesh, maxLocalID, localIDs, alignments, grids } = geoms;
+
+    const propsData = await properties.finish({
       ...data,
       geometryProcessedLocalIDs: localIDs,
       alignments,
       grids,
       maxLocalID,
-    };
-    const propsData = await properties.process(propsArgs);
+    });
     const {
       relIndicesVector,
       relsVector,
@@ -288,6 +382,34 @@ export class IfcImporter {
    */
   addAllRelations() {
     this.relations = new Map(ifcRelationsMap);
+  }
+
+  /**
+   * Index the file for the parsing layer, reporting progress from `from` to
+   * `to`.
+   *
+   * The index is read from randomly — the property pass visits entities class
+   * by class, and batches follow references — so a `file` that fits
+   * {@link residentBudget} is read into memory once rather than a page at a
+   * time.
+   */
+  private async index(data: ProcessData, from: number, to: number) {
+    data.progressCallback?.(from, { process: "indexing", state: "start" });
+    let source = data.source ?? (data.bytes && new IfcBytesSource(data.bytes));
+    if (!source) throw new Error("Fragments: No data provided");
+    if (data.file && data.file.size <= this.residentBudget) {
+      source = await IfcChunkedBytesSource.read(data.file);
+    }
+    const resolver = await IfcEntityResolver.fromSource(source, {
+      stream: source === data.source ? data.file?.stream() : undefined,
+      onProgress: (scanned) =>
+        data.progressCallback?.(from + ((to - from) * scanned) / source.size, {
+          process: "indexing",
+          state: "inProgress",
+        }),
+    });
+    data.progressCallback?.(to, { process: "indexing", state: "finish" });
+    return new IfcResolverLineApi(resolver);
   }
 
   private clean() {

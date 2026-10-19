@@ -370,3 +370,76 @@ export function parseStepArguments(line: string): StepArgument[] {
   if (end < start) return [];
   return parseList(line, start + 1, end).items;
 }
+
+// ---------------------------------------------------------------------------
+// Entity construction — raw statement text to a web-ifc entity
+// ---------------------------------------------------------------------------
+
+/** Builds a web-ifc entity from the raw argument tape of one statement. */
+export type RawFactory = (args: StepArgument[]) => webIfc.IfcLineObject;
+
+/**
+ * The `FromRawLineData` registry for `schemaName`, or `null` if web-ifc does
+ * not know it.
+ */
+export function entityFactories(
+  schemaName: string,
+): Record<number, RawFactory> | null {
+  const schemaIndex = webIfc.SchemaNames.findIndex((names) =>
+    names?.includes(schemaName),
+  );
+  if (schemaIndex === -1) return null;
+  return (webIfc.FromRawLineData as Record<number, Record<number, RawFactory>>)[
+    schemaIndex
+  ];
+}
+
+/**
+ * The schema identifier of a `FILE_SCHEMA(('IFC4'))` statement.
+ *
+ * Part 21 allows a list, but only the first entry is read: that is all
+ * web-ifc reads, and it rejects a file whose first schema it does not know.
+ */
+export function parseFileSchema(raw: string): string | null {
+  try {
+    const [names] = parseStepArguments(raw);
+    const first = Array.isArray(names) ? names[0] : null;
+    return first && !Array.isArray(first) && typeof first.value === "string"
+      ? first.value
+      : null;
+  } catch {
+    // a malformed FILE_SCHEMA is reported later, as "schema not found"
+    return null;
+  }
+}
+
+/**
+ * The factory `factories` holds for the entity type named `type`, or
+ * `undefined` for a type outside web-ifc or outside that schema.
+ */
+export function entityFactory(
+  type: string,
+  factories: Record<number, RawFactory>,
+): RawFactory | undefined {
+  const typeCode = (webIfc as Record<string, unknown>)[type];
+  return typeof typeCode === "number" ? factories[typeCode] : undefined;
+}
+
+/**
+ * Turn one statement into a web-ifc entity, matching `IfcAPI.GetLine`'s shape.
+ *
+ * @throws if the arguments are malformed.
+ */
+export function buildEntity({
+  raw,
+  id,
+  factory,
+}: {
+  raw: string;
+  id: number;
+  factory: RawFactory;
+}): webIfc.IfcLineObject {
+  const entity = factory(parseStepArguments(raw));
+  entity.expressID = id;
+  return entity;
+}
