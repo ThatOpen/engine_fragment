@@ -16,16 +16,27 @@ import { streamAsyncIterator } from "../ifc-stream";
 // Exported interfaces
 // ---------------------------------------------------------------------------
 
+/**
+ * Options of an {@link IfcSplitter}. Every field is optional and falls back to
+ * the exported default, so a config only needs what it changes.
+ */
 export interface IfcSplitterConfig {
   /**
+   * Upper-case IFC types treated as splittable building elements. Only these
+   * are distributed across groups by `split` and accepted by `extract`.
    * @default {@link ELEMENT_TYPES}
    */
   elementTypes?: string[];
   /**
+   * Upper-case IFC types of the spatial structure, written to every output
+   * file.
    * @default {@link SPATIAL_TYPES}
    */
   spatialTypes?: string[];
   /**
+   * Given an upper-case IFC relationship type, the index of the argument that
+   * holds its list of related objects. Return `undefined` for types without
+   * one.
    * @see {@link listIdxByType}
    * @returns the index of the argument to parse as a ref list
    */
@@ -47,8 +58,15 @@ interface IfcSplitterResolvedConfig {
   listArgIndex: (ifcType: string) => number | undefined;
 }
 
+/**
+ * The file access an {@link IfcSplitter} reads its input and writes its output
+ * through. It replaces the Node.js `fs` and `path` dependencies of earlier
+ * versions, so the splitter runs in any environment that can provide these
+ * two streams for a path.
+ */
 export interface IfcSplitterIO {
   /**
+   * Opens an IFC file for reading.
    * @param path
    * @throws if {@link path} doesn't exist
    * @returns a {@link ReadableStream} streaming ifc lines
@@ -56,12 +74,15 @@ export interface IfcSplitterIO {
   readableStream(path: string): Promise<ReadableStream<string>>;
 
   /**
+   * Opens an output file for writing. The splitter writes each output path
+   * once, so implementations should create the file or replace it.
    * @param path
    * @returns a {@link WritableStream} able to write ifc lines
    */
   writableStream(path: string): Promise<WritableStream<string>>;
 }
 
+/** A stage of `split` or `extract`, reported through {@link IfcSplitter.onProgress}. */
 export type IfcSplitterStage =
   | "parse"
   | "spatial"
@@ -76,13 +97,19 @@ export type IfcSplitterStage =
   | "build-index"
   | "write";
 
+/** Payload of {@link IfcSplitter.onProgress}, fired when a stage finishes. */
 export interface IfcSplitterProgressEvent {
+  /** The stage that just finished. */
   stage: IfcSplitterStage;
+  /** How long the stage took, in milliseconds. */
   timeElapsed: number;
 }
 
+/** Payload of {@link IfcSplitter.onExtractWarning}, fired for each skipped id. */
 export interface IfcSplitterWarningEvent {
+  /** Human readable reason the id was skipped. */
   message: string;
+  /** The skipped id and, if it exists in the file, its IFC type. */
   context: { id: number; type?: string };
 }
 
@@ -123,6 +150,10 @@ export interface GroupData {
   filePath: string;
 }
 
+/**
+ * Payload of {@link IfcSplitter.onSplitsResolved}, fired once `split` knows
+ * what goes into each output file and before any file is written.
+ */
 export interface IfcSplitterGroupsEvent {
   /**
    * One entry per **non-empty** group, ascending by {@link GroupData.groupId}.
@@ -950,11 +981,29 @@ async function abortWriters(
   await Promise.allSettled(writers.map(async (writer) => writer.abort(reason)));
 }
 
+/**
+ * Splits large IFC files into smaller valid IFC files, or extracts a set of
+ * building elements into a new one, streaming the input so the whole file
+ * never has to be held as text in memory.
+ *
+ * Each output file is a valid IFC containing its share of elements plus all
+ * shared infrastructure (spatial structure, geometry, materials, properties).
+ * Coupled elements (wall + opening + door, roof + slabs) are kept together.
+ *
+ * File access goes through an {@link IfcSplitterIO}, so the same class works in
+ * Node.js, in the browser or against any other storage.
+ */
 export class IfcSplitter {
   protected readonly io: IfcSplitterIO;
   protected readonly config: IfcSplitterResolvedConfig;
   protected readonly eventTarget: EventTarget;
 
+  /**
+   * @param ifcSplitterIO - How to read the input file and write the output
+   * files.
+   * @param config - Which IFC types to treat as elements and spatial structure,
+   * and how to read relationship lists. Defaults apply to anything left out.
+   */
   constructor(ifcSplitterIO: IfcSplitterIO, config: IfcSplitterConfig = {}) {
     this.io = ifcSplitterIO;
     this.config = {
@@ -965,8 +1014,16 @@ export class IfcSplitter {
     this.eventTarget = new EventTarget();
   }
 
+  /**
+   * Fires from `split` and `extract` each time a stage finishes, with the time
+   * it took.
+   */
   readonly onProgress = new Event<IfcSplitterProgressEvent>();
 
+  /**
+   * Fires from `split` once the content of every output file is resolved, just
+   * before the files are written.
+   */
   readonly onSplitsResolved = new Event<IfcSplitterGroupsEvent>();
 
   /**
@@ -976,12 +1033,18 @@ export class IfcSplitter {
 
   /**
    * Split an IFC file into N roughly equal groups of building elements.
+   *
+   * Each output file is a valid IFC containing its share of elements plus all
+   * shared infrastructure (spatial structure, geometry, materials, properties).
+   * Coupled elements (wall + opening + door, roof + slabs) are kept together.
+   *
    * @param inputPath - Absolute or relative path to the source IFC file.
    * @param numGroups - Number of output files to produce. Not capped by the
    * splitter, but note that the write pass holds one open writer per non-empty
    * group, so the practical ceiling is the process' file descriptor limit.
    * @param outputPath - Given `groupId` returns output file path.
-   * @returns a map keyed by {@link GroupData.groupId}.
+   * @returns a map keyed by {@link GroupData.groupId} with the path of each
+   * written file and the IFC ids it contains. Empty groups have no entry.
    * @throws {RangeError} if `numGroups` is not a positive integer.
    */
   async split(
@@ -1191,9 +1254,17 @@ export class IfcSplitter {
 
   /**
    * Extract specific building elements from an IFC file into a new IFC file.
+   *
+   * Produces a single valid IFC containing only the requested elements and all
+   * of their dependencies (geometry, materials, styles, property sets).
+   * Void/fill coupling (wall + opening + door/window) and aggregation
+   * (roof + slabs, stair + flights) are automatically expanded so the output
+   * stays structurally consistent.
+   *
    * @param inputPath  - Absolute or relative path to the source IFC file.
    * @param elementIds - Array of IFC entity IDs (`#id`) for the building elements to extract. Non-element or missing IDs are skipped, each reported through {@link onExtractWarning}.
    * @param outputPath - Path for the output IFC file.
+   * @returns the IFC ids written to the output file.
    * @throws {Error} if none of `elementIds` resolves to a building element. No
    * output file is produced in that case.
    */
@@ -1378,6 +1449,12 @@ export class IfcSplitter {
     return fileIds;
   }
 
+  /**
+   * Reads an IFC file into its header lines, footer lines and an index of
+   * every data line by id. This is the first stage of `split` and `extract`.
+   * @param filePath - Path of the IFC file, read through the
+   * {@link IfcSplitterIO}.
+   */
   async parseIfc(filePath: string): Promise<ParseResult> {
     const header: string[] = [];
     const footer: string[] = [];
@@ -1432,6 +1509,8 @@ export class IfcSplitter {
 
   /**
    * Chunked file reader — replaces readline (3-5x faster)
+   * @param filePath - Path of the file, read through the {@link IfcSplitterIO}.
+   * @param callback - Called with each line, awaited before the next one.
    */
   async forEachLine(
     filePath: string,
