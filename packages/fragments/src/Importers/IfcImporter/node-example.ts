@@ -42,7 +42,7 @@ async function createFragsModelFromIfc(url: string) {
   fs.writeFileSync(`${baseDir}/${fileName}.frag`, exported);
 }
 
-createFragsModelFromIfc("../../resources/ifc/medium_test.ifc");
+createFragsModelFromIfc("../../resources/ifc/school_str.ifc");
 
 // async function processIfcFolder(folderPath: string) {
 //   try {
