@@ -17,6 +17,44 @@ import {
   setCapturePixels,
 } from "./capture-emission";
 import { targetAwareMRT } from "./target-aware-mrt";
+import { installGhostEmission, setGhost, GhostUniforms } from "./ghost-emission";
+
+/**
+ * Per-model ghost (x-ray) state. The key set is internal ITEM ids (dense),
+ * keyed DIRECTLY into an R8 texture (1 byte per itemId: 255 = in the set).
+ * `invert` flips membership so the SAME small table means "ghost these" or
+ * "ghost everything but these". Sized to max(keySet itemId)+1, so it stays
+ * small whether you ghost a handful or all but a handful. See
+ * ghost-emission.ts: the shader reads (itemId+1) from the `id` attribute.
+ *
+ * A record exists only once the model has used the ghost; until then no
+ * material of the model carries the ghost injection.
+ */
+interface GhostRecord {
+  texture: THREE.DataTexture | null;
+  width: number;
+  /** Addressable item count (max keySet itemId + 1). */
+  count: number;
+  /**
+   * Number of texture bytes currently flagged (255). For non-invert this is
+   * the ghosted-item count; for invert it is the size of the EXCLUDED (kept)
+   * set. Tracked so unsetGhostItems can toggle ghost on/off without scanning
+   * the whole texture each call.
+   */
+  setCount: number;
+  invert: boolean;
+  enabled: boolean;
+  materials: Set<THREE.MeshLambertMaterial>;
+  uniforms: Set<GhostUniforms>;
+  /**
+   * LOD line materials (consolidated, no per-item id): ghosted UNIFORMLY via
+   * the GHOST_LOD define, and only in x-ray (invert) mode, the context being
+   * faded.
+   */
+  lodMaterials: Set<LodMaterial>;
+}
+
+const GHOST_TEX_WIDTH = 2048;
 
 /**
  * Whether `three` resolves to three.webgpu on this page (the app aliases
@@ -38,6 +76,8 @@ export class MaterialManager {
    * turned on.
    */
   private _captureEmission = false;
+
+  private readonly _ghost = new Map<string, GhostRecord>();
 
   private readonly _modelMaterialMapping = new Map<string, Set<number>>();
   private readonly _definitions = new Map<string, MaterialDefinition[]>();
@@ -100,8 +140,228 @@ export class MaterialManager {
     setCapturePixels(width, height);
   }
 
+  // Ghost / x-ray
+
+  /**
+   * The ghost record of a model, created on first use. Creating it links every
+   * live material of the model (installing the inert ghost injection on its
+   * SHELL materials); materials created afterwards are linked in `new`.
+   */
+  private ghostRecord(modelId: string): GhostRecord {
+    let rec = this._ghost.get(modelId);
+    if (!rec) {
+      rec = {
+        texture: null,
+        width: 1,
+        count: 0,
+        setCount: 0,
+        invert: false,
+        enabled: false,
+        materials: new Set(),
+        uniforms: new Set(),
+        lodMaterials: new Set(),
+      };
+      this._ghost.set(modelId, rec);
+      const ids = this._modelMaterialMapping.get(modelId);
+      if (ids) {
+        for (const id of ids) {
+          const material = this.list.get(id);
+          if (material) this.linkGhost(rec, material);
+        }
+      }
+    }
+    return rec;
+  }
+
+  /** Links one material of a model to that model's ghost state. */
+  private linkGhost(rec: GhostRecord, material: BIMMaterial) {
+    if (material instanceof THREE.MeshLambertMaterial) {
+      if (rec.materials.has(material)) return;
+      installGhostEmission(material, false);
+      const uniforms = material.userData.ghostUniforms as
+        | GhostUniforms
+        | undefined;
+      if (!uniforms) return;
+      rec.materials.add(material);
+      rec.uniforms.add(uniforms);
+      this.applyGhostUniforms(rec, uniforms);
+      if (rec.enabled) setGhost(material, true);
+    } else if ((material as any).isLodMaterial) {
+      // LOD is ghosted uniformly (no per-item id), so it only fades in
+      // x-ray (invert) mode.
+      const lod = material as unknown as LodMaterial;
+      rec.lodMaterials.add(lod);
+      this.setLodGhost(lod, rec.enabled && rec.invert);
+    }
+  }
+
+  private applyGhostUniforms(rec: GhostRecord, u: GhostUniforms) {
+    u.uGhostState.value = rec.texture;
+    u.uGhostStateWidth.value = rec.width;
+    u.uGhostCount.value = rec.count;
+    u.uGhostInvert.value = rec.invert;
+  }
+
+  /**
+   * Flips a LOD material's GHOST_LOD define (a plain define swap, like the LOD
+   * capture-emission toggle: the GLSL is always present, gated on the define).
+   * The TSL twin swaps its output node instead.
+   */
+  private setLodGhost(material: LodMaterial, enabled: boolean) {
+    if ((material as any).isLodNodeMaterial) {
+      (material as unknown as LodNodeMaterial).setGhost(enabled);
+      return;
+    }
+    const defines = (material.defines ??= {});
+    const enabledNow = defines.GHOST_LOD !== undefined;
+    if (enabledNow === enabled) return;
+    if (enabled) defines.GHOST_LOD = "";
+    else delete defines.GHOST_LOD;
+    material.needsUpdate = true;
+  }
+
+  private newGhostTexture(data: Uint8Array, width: number, height: number) {
+    const texture = new THREE.DataTexture(
+      data,
+      width,
+      height,
+      THREE.RedFormat,
+      THREE.UnsignedByteType,
+    );
+    // NEAREST and no mips: this is a lookup table, not an image.
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    texture.generateMipmaps = false;
+    texture.needsUpdate = true;
+    return texture;
+  }
+
+  /**
+   * Ghost (x-ray) a key set of INTERNAL ITEM ids (dense), keyed directly into
+   * an R8 texture. `invert=false` ghosts the items in `itemIds`; `invert=true`
+   * ghosts everything EXCEPT them. Replaces the previous ghost set of the
+   * model. The caller (FragmentsModel.setGhostItems) converts localId to
+   * itemId first.
+   */
+  setGhostItems(modelId: string, itemIds: Iterable<number>, invert = false) {
+    const rec = this.ghostRecord(modelId);
+
+    let max = -1;
+    const ids: number[] = [];
+    for (const id of itemIds) {
+      if (id >= 0) {
+        ids.push(id);
+        if (id > max) max = id;
+      }
+    }
+    const count = max + 1;
+    const width = Math.min(Math.max(count, 1), GHOST_TEX_WIDTH);
+    const height = Math.max(1, Math.ceil(count / width));
+    const data = new Uint8Array(width * height);
+    for (const id of ids) if (id < data.length) data[id] = 255;
+
+    rec.texture?.dispose();
+    rec.texture = this.newGhostTexture(data, width, height);
+    rec.width = width;
+    rec.count = count;
+    rec.setCount = ids.length;
+    rec.invert = invert;
+    rec.enabled = invert || ids.length > 0;
+
+    for (const u of rec.uniforms) this.applyGhostUniforms(rec, u);
+    for (const m of rec.materials) setGhost(m, rec.enabled);
+    const lodOn = rec.enabled && rec.invert;
+    for (const m of rec.lodMaterials) this.setLodGhost(m, lodOn);
+  }
+
+  /**
+   * Un-ghost a key set of INTERNAL ITEM ids in place, leaving the rest of the
+   * ghost state intact. Mutates the existing state texture, so it scales.
+   * Mode-aware: non-invert clears the item's flag (drop from the ghosted set);
+   * invert SETS it (add to the kept set so it stops being faded). If nothing
+   * remains ghosted the overlay disables itself. The caller
+   * (FragmentsModel.unsetGhostItems) converts localId to itemId first.
+   */
+  unsetGhostItems(modelId: string, itemIds: Iterable<number>) {
+    const rec = this._ghost.get(modelId);
+    if (!rec || !rec.texture) return;
+
+    const list: number[] = [];
+    let maxId = -1;
+    for (const id of itemIds) {
+      if (id < 0) continue;
+      list.push(id);
+      if (id > maxId) maxId = id;
+    }
+    if (list.length === 0) return;
+
+    // In invert mode everything NOT flagged is ghosted, including the items
+    // past the end of the table, so to mark those KEPT the table must grow to
+    // address them. Otherwise showing the rest of the model after an
+    // isolation leaves most of it ghosted (the table was sized to the small
+    // selection). Non-invert never needs this: an item past the table is
+    // already not ghosted.
+    const curData = rec.texture.image.data as Uint8Array | null;
+    if (rec.invert && curData && maxId >= curData.length) {
+      const count = maxId + 1;
+      const width = Math.min(Math.max(count, 1), GHOST_TEX_WIDTH);
+      const height = Math.max(1, Math.ceil(count / width));
+      const grown = new Uint8Array(width * height);
+      // Item ids index the table linearly, so the old bytes keep their place.
+      grown.set(curData);
+      rec.texture.dispose();
+      rec.texture = this.newGhostTexture(grown, width, height);
+      rec.width = width;
+      rec.count = count;
+      for (const u of rec.uniforms) this.applyGhostUniforms(rec, u);
+    }
+
+    const data = rec.texture.image.data as Uint8Array;
+    // The byte value that means "this item is NOT ghosted" in the current mode.
+    const notGhosted = rec.invert ? 255 : 0;
+    let changed = false;
+    for (const id of list) {
+      if (id >= data.length) continue;
+      if (data[id] === notGhosted) continue;
+      data[id] = notGhosted;
+      // setCount tracks flagged (255) bytes either way.
+      rec.setCount += rec.invert ? 1 : -1;
+      changed = true;
+    }
+    if (!changed) return;
+    rec.setCount = Math.max(0, rec.setCount);
+    rec.texture.needsUpdate = true;
+
+    // Invert mode ghosts the complement, so it stays enabled while active;
+    // plain mode disables once its ghosted set empties.
+    const enabled = rec.invert || rec.setCount > 0;
+    if (enabled !== rec.enabled) {
+      rec.enabled = enabled;
+      for (const m of rec.materials) setGhost(m, enabled);
+      const lodOn = enabled && rec.invert;
+      for (const m of rec.lodMaterials) this.setLodGhost(m, lodOn);
+    }
+  }
+
+  /** Clears the ghost overlay of `modelId`, restoring the full material. */
+  clearGhost(modelId: string) {
+    const rec = this._ghost.get(modelId);
+    if (!rec) return;
+    rec.enabled = false;
+    rec.invert = false;
+    rec.setCount = 0;
+    for (const u of rec.uniforms) u.uGhostInvert.value = false;
+    for (const m of rec.materials) setGhost(m, false);
+    for (const m of rec.lodMaterials) this.setLodGhost(m, false);
+  }
+
   dispose(modelId: string) {
     this._definitions.delete(modelId);
+    const ghost = this._ghost.get(modelId);
+    if (ghost) {
+      ghost.texture?.dispose();
+      this._ghost.delete(modelId);
+    }
     const ids = this._modelMaterialMapping.get(modelId);
     if (!ids) return;
     for (const id of ids) {
@@ -355,6 +615,12 @@ export class MaterialManager {
     } else {
       throw new Error("Fragments: Unsupported object class");
     }
+
+    // A material created for a model that has used the ghost (a tile loaded
+    // while ghosting, a highlight material) joins its ghost state. Models
+    // that never ghost get nothing installed.
+    const ghost = this._ghost.get(request.modelId);
+    if (ghost) this.linkGhost(ghost, material);
 
     return material;
   }

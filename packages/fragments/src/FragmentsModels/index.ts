@@ -12,6 +12,10 @@ import { ThreadHandler } from "./src/multithreading/connection-handlers";
 import { Event, FRAGMENTS_VERSION } from "../Utils";
 import { Editor } from "./src/edit";
 import { getBundledWorkerUrl } from "../bundled-worker-url";
+import {
+  CLASSIC_GHOST_OPACITY,
+  setClassicGhostOpacity,
+} from "./src/model/ghost-opacity";
 
 export * from "./src";
 
@@ -218,6 +222,37 @@ export class FragmentsModels {
    */
   get threadGroups(): Record<string, number> {
     return this._connection.threadGroups;
+  }
+
+  private _ghostOpacity: number | null = null;
+
+  /**
+   * How visible a ghosted element is (see {@link FragmentsModel.setGhostItems}),
+   * 0 (gone) to 1 (as drawn): the fraction of its pixels kept, 0.28 by
+   * default. One value for every model, changed at any time; what is ghosted
+   * now is drawn again with it. A renderer that draws on demand needs its next
+   * frame asked for.
+   * @param alpha - The fraction of a ghosted surface's pixels kept, 0 to 1.
+   */
+  setGhostOpacity(alpha: number) {
+    const value = Math.min(1, Math.max(0, Number(alpha)));
+    if (!Number.isFinite(value)) return;
+    this._ghostOpacity = value;
+    setClassicGhostOpacity(value);
+  }
+
+  /**
+   * Goes back to the default ghost opacity (0.28); {@link ghostOpacity} reads
+   * null again.
+   */
+  resetGhostOpacity() {
+    this._ghostOpacity = null;
+    setClassicGhostOpacity(CLASSIC_GHOST_OPACITY);
+  }
+
+  /** The value last given to {@link setGhostOpacity}, or null while the default stands. */
+  get ghostOpacity(): number | null {
+    return this._ghostOpacity;
   }
 
   /**

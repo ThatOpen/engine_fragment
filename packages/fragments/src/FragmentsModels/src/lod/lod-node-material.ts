@@ -1,5 +1,9 @@
 import * as THREE from "three";
 import { LineMaterialParameters } from "three/examples/jsm/lines/LineMaterial.js";
+import {
+  classicGhostOpacity,
+  trackGhostOpacity,
+} from "../model/ghost-opacity";
 
 /**
  * The LOD ribbon material for pages where `three` resolves to three.webgpu:
@@ -47,6 +51,7 @@ export class LodNodeMaterial extends NodeMaterialBase {
     lodOpacity: { value: number };
     highlightColor: { value: THREE.Color };
     highlightOpacity: { value: number };
+    uLodGhostOpacity: { value: number };
   };
 
   get lodSize(): THREE.Vector2 {
@@ -89,6 +94,31 @@ export class LodNodeMaterial extends NodeMaterialBase {
     this.uniforms.highlightOpacity.value = value;
   }
 
+  /** The output without the ghost: the one every ribbon draws with by default. */
+  private _plainOutput: any = null;
+
+  /** The output with the ghost, built the first time the ghost is turned on. */
+  private _ghostOutput: any = null;
+
+  private _buildGhostOutput: (() => any) | null = null;
+
+  /**
+   * The GHOST_LOD twin: the ghosted ribbon is faded with the same 4x4 Bayer
+   * screen-door and desaturated. Swaps the output node (and recompiles once
+   * per state) instead of carrying a uniform branch, so a ribbon that is never
+   * ghosted compiles no discard and keeps early depth testing.
+   */
+  setGhost(enabled: boolean) {
+    const self = this as any;
+    if (enabled && !this._ghostOutput && this._buildGhostOutput) {
+      this._ghostOutput = this._buildGhostOutput();
+    }
+    const next = enabled ? this._ghostOutput : this._plainOutput;
+    if (!next || self.outputNode === next) return;
+    self.outputNode = next;
+    self.needsUpdate = true;
+  }
+
   constructor(parameters: LineMaterialParameters) {
     super();
 
@@ -120,6 +150,8 @@ export class LodNodeMaterial extends NodeMaterialBase {
       lodOpacity: uniform(opacity ?? 1),
       highlightColor: uniform(new THREE.Color(1, 1, 1)),
       highlightOpacity: uniform(1),
+      // Only read by the ghost output (see setGhost).
+      uLodGhostOpacity: trackGhostOpacity(uniform(classicGhostOpacity())),
     };
     (this as any).uniforms = uniforms;
 
@@ -228,5 +260,44 @@ export class LodNodeMaterial extends NodeMaterialBase {
       );
       return vec4(base, alpha);
     })();
+    this._plainOutput = (this as any).outputNode;
+
+    // The ghost twin of LodShaders.fragment's GHOST_LOD branch, built only
+    // when a ghost first reaches this ribbon (see setGhost).
+    const ghostOpacity = uniforms.uLodGhostOpacity;
+    this._buildGhostOutput = () => {
+      const { vec3, dot, screenCoordinate, Discard } = T;
+      // 4x4 Bayer threshold in [0,1), the same order as the GLSL table.
+      const bayer = Fn(() => {
+        const where = screenCoordinate.xy;
+        const index = where.y
+          .mod(4)
+          .toInt()
+          .mul(4)
+          .add(where.x.mod(4).toInt());
+        const order = float(0).toVar();
+        const table = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+        for (let slot = 0; slot < table.length; slot++) {
+          order.assign(select(index.equal(slot), float(table[slot]), order));
+        }
+        return order.add(0.5).div(16);
+      });
+      return Fn(() => {
+        Discard(bayer().greaterThanEqual(ghostOpacity));
+        const base = mix(
+          uniforms.lodColor,
+          vHighlightColor,
+          vHighlight,
+        ).toVar();
+        const luma = dot(base, vec3(0.299, 0.587, 0.114));
+        base.assign(mix(base, vec3(luma, luma, luma), 0.7).mul(0.9));
+        const alpha = mix(
+          uniforms.lodOpacity,
+          uniforms.highlightOpacity,
+          vHighlight,
+        );
+        return vec4(base, alpha);
+      })();
+    };
   }
 }

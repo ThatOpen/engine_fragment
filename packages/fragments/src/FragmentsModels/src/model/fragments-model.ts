@@ -901,6 +901,63 @@ export class FragmentsModel implements IFragmentsModel<true> {
   }
 
   /**
+   * Ghosts (x-rays) items through a per-model GPU state texture, with no
+   * per-item recolor, so it scales to millions of elements. Ghosted surfaces
+   * are desaturated and drawn with a screen-door (see
+   * `FragmentsModels.setGhostOpacity`). Replaces the previous ghost set. It is
+   * renderer state only: highlights, visibility, picking and the worker are
+   * not touched.
+   * @param localIds - The key set. With `invert=false`, these items are
+   *   ghosted; with `invert=true`, everything EXCEPT these is ghosted. Pass the
+   *   SMALL side (e.g. the selection); the table is sized by it.
+   * @param invert - Ghost the complement of `localIds` instead.
+   */
+  async setGhostItems(localIds: number[], invert = false) {
+    // The shader keys on the INTERNAL item id (the value baked into the `id`
+    // attribute), not the localId, so convert first.
+    let itemIds: number[] = [];
+    if (localIds.length > 0) {
+      itemIds = await this.ghostItemIds(localIds);
+    }
+    this._meshManager.materials.setGhostItems(this.modelId, itemIds, invert);
+  }
+
+  /**
+   * Un-ghosts the given items in place (makes them NOT ghosted), leaving the
+   * rest of the ghost state intact. Pair with visibility: showing an item
+   * should also clear its ghost. No-op if no ghost is active.
+   * @param localIds - The items to un-ghost.
+   */
+  async unsetGhostItems(localIds: number[]) {
+    if (localIds.length === 0) return;
+    const itemIds = await this.ghostItemIds(localIds);
+    this._meshManager.materials.unsetGhostItems(this.modelId, itemIds);
+  }
+
+  /** Clears the ghost (x-ray) of this model, restoring the full material. */
+  clearGhost() {
+    this._meshManager.materials.clearGhost(this.modelId);
+  }
+
+  /**
+   * The internal item ids of the given localIds (a worker round-trip). These
+   * are the ids the geometry carries per vertex, which GPU lookups such as the
+   * ghost key on. LocalIds with no item are left out.
+   * @param localIds - The local IDs to convert.
+   */
+  async getItemIdsByLocalIds(localIds: number[]) {
+    return this.threads.invoke(this.modelId, "getItemIdsByLocalIds", [
+      localIds,
+    ]) as Promise<(number | null)[]>;
+  }
+
+  private async ghostItemIds(localIds: number[]) {
+    return (await this.getItemIdsByLocalIds(localIds)).filter(
+      (id): id is number => id !== null && id !== undefined,
+    );
+  }
+
+  /**
    * Gets the highlight of the specified items.
    * @param localIds - The local IDs of the items to get the highlight of. If undefined, it will return the highlight of all items.
    */

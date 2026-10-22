@@ -111,12 +111,40 @@ export class LodShaders {
               layout(location = 2) out vec4 gCaptureFaceId;
             #endif
 
+            // Ghost (x-ray): when active, the LOD line is the de-emphasized
+            // CONTEXT representation, so it is faded (4x4 Bayer screen-door
+            // discard) and desaturated, consistent with the SHELL ghost (see
+            // ghost-emission.ts). Gated by GHOST_LOD so ordinary line rendering
+            // is unchanged when off; the discard runs before the capture writes
+            // so dropped LOD pixels never reach the deferred contour either.
+            #ifdef GHOST_LOD
+              uniform float uLodGhostOpacity;
+              float lodGhostBayer(vec2 fc) {
+                int x = int(mod(fc.x, 4.0));
+                int y = int(mod(fc.y, 4.0));
+                int i = y * 4 + x;
+                int m =
+                  i == 0  ? 0  : i == 1  ? 8  : i == 2  ? 2  : i == 3  ? 10 :
+                  i == 4  ? 12 : i == 5  ? 4  : i == 6  ? 14 : i == 7  ? 6  :
+                  i == 8  ? 3  : i == 9  ? 11 : i == 10 ? 1  : i == 11 ? 9  :
+                  i == 12 ? 15 : i == 13 ? 7  : i == 14 ? 13 : 5;
+                return (float(m) + 0.5) / 16.0;
+              }
+            #endif
+
             void main() {
                 #include <clipping_planes_fragment>
+                #ifdef GHOST_LOD
+                  if (lodGhostBayer(gl_FragCoord.xy) >= uLodGhostOpacity) discard;
+                #endif
                 // Per-instance highlight color (carried via the itemHighlightColor
                 // instanced attribute) so that, at LOD/WIRES distance, each item keeps
                 // its own color instead of all collapsing to a single uniform. See #230.
                 vec3 color = mix(lodColor, vHighlightColor, vHighlight);
+                #ifdef GHOST_LOD
+                  float lodGhostLuma = dot(color, vec3(0.299, 0.587, 0.114));
+                  color = mix(color, vec3(lodGhostLuma), 0.7) * 0.9;
+                #endif
                 float alpha = mix(lodOpacity, highlightOpacity, vHighlight);
                 gl_FragColor = vec4(color, alpha);
                 #include <colorspace_fragment>

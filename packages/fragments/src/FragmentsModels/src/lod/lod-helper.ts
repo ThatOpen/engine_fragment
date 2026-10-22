@@ -3,6 +3,7 @@ import { LineMaterialParameters } from "three/examples/jsm/Addons.js";
 import { LODGeometry } from "./lod-geometry";
 import { LodShaders } from "./lod-shaders";
 import { LODMesh } from "./lod-mesh";
+import { classicGhostOpacity, trackGhostOpacity } from "../model/ghost-opacity";
 
 export class LodHelper {
   static tempVec = new THREE.Vector3();
@@ -66,12 +67,18 @@ export class LodHelper {
       lodOpacity: { value: parameters.opacity ?? 1 },
       highlightColor: { value: new THREE.Color(1, 1, 1) },
       highlightOpacity: { value: 1 },
+      // Ghost (x-ray) screen-door keep-fraction for LOD lines; only read when
+      // the GHOST_LOD define is set (see lod-shaders / material-manager).
+      uLodGhostOpacity: { value: classicGhostOpacity() },
     };
 
     const uniforms = THREE.UniformsUtils.merge([
       THREE.UniformsLib.common,
       customUniforms,
     ]);
+    // The merge clones the uniforms: the material's own copy is the one
+    // recorded (see ghost-opacity.ts).
+    trackGhostOpacity(uniforms.uLodGhostOpacity);
     const transparent = parameters.transparent ?? false;
 
     // No explicit glslVersion: three already compiles every non-raw

@@ -147,6 +147,14 @@ const FRAGMENT_INJECT = /* glsl */ `
   // the deferred ambient occlusion can leave them out: a flagged surface neither
   // receives occlusion nor casts it onto opaque neighbours.
   float captureRole = opacity < 1.0 ? 1.0 : 0.0;
+  #ifdef GHOST
+    // Ghost (x-ray) fades through a Bayer SCREEN-DOOR discard at full opacity
+    // (see ghost-emission.ts), so the KEPT pixels of a ghosted surface would
+    // otherwise read as opaque and cast/receive AO, blotching the isolated
+    // element. Flag them translucent so the deferred AO leaves them out, as it
+    // does glass. Gated by GHOST + vGhostFlag, so solid rendering is untouched.
+    if (vGhostFlag > 0.5) captureRole = 1.0;
+  #endif
   gCaptureFaceId = vec4(vCaptureFaceId, captureRole);
 #endif
 `;
