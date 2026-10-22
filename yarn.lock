@@ -1053,44 +1053,48 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/components-front@npm:~3.4.0":
-  version: 3.4.3
-  resolution: "@thatopen/components-front@npm:3.4.3"
+"@thatopen/components-front@npm:~3.5.0":
+  version: 3.5.0
+  resolution: "@thatopen/components-front@npm:3.5.0"
   dependencies:
-    "@thatopen/components": ~3.4.0
     earcut: ^3.0.1
   peerDependencies:
-    "@thatopen/fragments": ~3.4.0
+    "@thatopen/components": ^3.5.0
+    "@thatopen/fragments": ~3.5.0
+    potree-core: ^2.0.15
     three: ">=0.182.0"
     web-ifc: ">=0.0.77"
-  checksum: bcd8edcdfe670f28d4dc883e4a52c794b1efffb8372c98ed26882992ca2711490955bdd689806e09b4aa547a329cc25ce6d942d6d7a7b2e2f4669e1998a13771
+  peerDependenciesMeta:
+    potree-core:
+      optional: true
+  checksum: fca44b57762609e5ab0e5da52113f8ca812d7c4e69658551c064ae5e10f05008a96ca2a9bcef231219fbf56794e9328083f0d301ad09e91de82b114e30af909b
   languageName: node
   linkType: hard
 
-"@thatopen/components@npm:~3.4.0":
-  version: 3.4.6
-  resolution: "@thatopen/components@npm:3.4.6"
+"@thatopen/components@npm:~3.5.0":
+  version: 3.5.0
+  resolution: "@thatopen/components@npm:3.5.0"
   dependencies:
     fast-xml-parser: 5.7.2
     jszip: 3.10.1
     three-mesh-bvh: 0.9.9
   peerDependencies:
-    "@thatopen/fragments": ~3.4.0
+    "@thatopen/fragments": ~3.5.0
     camera-controls: ">=3.1.2"
     three: ">=0.182.0"
     web-ifc: ">=0.0.77"
-  checksum: 55dcf003f694eb97f878aa6b41b9939309ff5a9f20f756ed4e25aa80aac977ee18e7558b89cd7efc752abbd49038688fb9d8641b8524473424b1e5528fd9ed38
+  checksum: 269ec599926b53dcb5507c09d3196f14c0b01207f7e973d8effaaf70c3a9023b8559f1ad01e8aa4840c8400c4a3f287c6c7488af0c3782832a269c2326a5ea1e
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.4.0":
+"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.5.0":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
     "@andypf/json-viewer": ^2.1.10
-    "@thatopen/components": ~3.4.0
-    "@thatopen/components-front": ~3.4.0
-    "@thatopen/fragments": ~3.4.0
+    "@thatopen/components": ~3.5.0
+    "@thatopen/components-front": ~3.5.0
+    "@thatopen/fragments": ~3.5.0
     "@types/earcut": ^3.0.0
     "@types/node": ^26.1.1
     "@types/pako": 2.0.3
