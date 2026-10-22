@@ -9,13 +9,22 @@ import {
   MaterialData,
 } from "./model-types";
 import { CRC } from "../utils";
-import { LodMaterial } from "../lod";
+import { LodMaterial, LodNodeMaterial } from "../lod";
 import { DataMap } from "../../../Utils";
 import {
   installCaptureEmission,
   setCaptureEmission,
   setCapturePixels,
 } from "./capture-emission";
+import { targetAwareMRT } from "./target-aware-mrt";
+
+/**
+ * Whether `three` resolves to three.webgpu on this page (the app aliases
+ * `three` to `three/webgpu`). Detected on the namespace, never by importing
+ * `three/webgpu` or `three/tsl`, so WebGL pages do not load the WebGPU graph.
+ */
+const isWebGPUBuild = () =>
+  typeof (THREE as any).WebGPURenderer === "function";
 
 export class MaterialManager {
   readonly list = new DataMap<number, BIMMaterial>();
@@ -243,7 +252,12 @@ export class MaterialManager {
       ...this.getParameters(definition),
     };
 
-    const material = new LodMaterial(parameters);
+    // Under three.webgpu the GLSL LodMaterial cannot even construct its
+    // parameters (UniformsUtils / UniformsLib do not exist there); its TSL twin
+    // takes over with the same mutable surface. See lod-node-material.ts.
+    const material = isWebGPUBuild()
+      ? (new LodNodeMaterial(parameters) as unknown as LodMaterial)
+      : new LodMaterial(parameters);
     material.userData = { customId: definition.customId };
     // Match the current session: if capture is already on, a LOD material
     // created afterwards (a tile loaded later) must emit too.
@@ -258,6 +272,9 @@ export class MaterialManager {
    * owns its shader source, so the toggle is a plain define swap.
    */
   private setLodCaptureEmission(material: LodMaterial, enabled: boolean) {
+    // The capture MRT belongs to the WebGL deferred renderer; the TSL twin has
+    // none (under WebGPU a postproduction's pass MRT applies instead).
+    if ((material as any).isLodNodeMaterial) return;
     // The flag a deferred renderer reads to know which materials emit. Set
     // the first time capture reaches this material, like the SHELL install.
     if (enabled) material.userData.hasCaptureEmission = true;
@@ -270,6 +287,28 @@ export class MaterialManager {
       delete defines.CAPTURE_EMISSION;
     }
     material.needsUpdate = true;
+  }
+
+  /**
+   * Under three.webgpu, hands the faceId to a WebGPU postproduction through
+   * the material's MRT. The 24-bit faceId already rides the geometry's `color`
+   * attribute (it is what the WebGL capture reads). A WebGPU scene pass that
+   * declares a `face` channel gets it from here, because three merges a
+   * material's `mrtNode` over the pass MRT; WebGL ignores the property.
+   *
+   * `targetAwareMRT` only writes the channels the current target has, so the
+   * same material still compiles in targets with no `face` texture (a plain
+   * render target, a shadow pass). Alpha 0: a translucent shell blends the id
+   * by it and leaves the id of the surface behind in place, as the WebGL
+   * capture does for its translucent phase; an opaque shell writes it as is.
+   */
+  private setupFaceMrt(material: THREE.MeshLambertMaterial) {
+    const tsl = (THREE as any).TSL;
+    if (!tsl?.output || !(THREE as any).MRTNode) return;
+    (material as any).mrtNode = targetAwareMRT({
+      output: tsl.output,
+      face: tsl.vec4(tsl.attribute("color", "vec3"), 0),
+    });
   }
 
   private getParameters(data: MaterialDefinition) {
@@ -306,6 +345,7 @@ export class MaterialManager {
       // loaded mid-session) must emit too. Otherwise nothing is installed:
       // setCaptureEmission(true) installs it on the live materials.
       if (this._captureEmission) installCaptureEmission(lambert, true);
+      if (isWebGPUBuild()) this.setupFaceMrt(lambert);
       material = lambert;
     } else if (objectClass === ObjectClass.LINE) {
       material = this.newLODMaterial(

@@ -98,6 +98,7 @@ export default defineConfig({
         "./src/**/test-indexes.ts",
         "./src/**/*.test.ts",
         "./src/**/*.spec.ts",
+        "./src/**/*.wgputest.ts",
       ],
       // afterBuild: generateTSNamespace,
     }),
