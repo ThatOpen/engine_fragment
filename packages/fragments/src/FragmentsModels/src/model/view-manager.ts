@@ -234,7 +234,10 @@ export class ViewManager {
 
   private getPlanes() {
     const planes: THREE.Plane[] = [];
-    const originalPlanes = this.getClippingPlanesEvent();
+    // A USER callback: tolerate undefined/null instead of killing the whole
+    // view refresh with "undefined is not iterable" (an app that hands back
+    // `renderer.clippingPlanes` on WebGPURenderer, which has no such array).
+    const originalPlanes = this.getClippingPlanesEvent() ?? [];
     for (const plane of originalPlanes) {
       const cloned = plane.clone();
       cloned.applyMatrix4(this._tempMatrix);

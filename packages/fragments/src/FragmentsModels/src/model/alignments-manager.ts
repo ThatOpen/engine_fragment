@@ -32,48 +32,62 @@ export class AlignmentsManager {
   private _horizontalAlignments = new THREE.Group();
   private _verticalAlignments = new THREE.Group();
 
-  private _alignmentMaterials = new Map<AlignmentCurveType, LineMaterial>([
-    [
-      AlignmentCurveType.NONE,
-      new LineMaterial({
-        color: 0xffffff,
-        linewidth: 5,
-        depthTest: false,
-      }),
-    ],
-    [
-      AlignmentCurveType.LINES,
-      new LineMaterial({
-        color: 0xff00ff,
-        linewidth: 5,
-        depthTest: false,
-      }),
-    ],
-    [
-      AlignmentCurveType.CLOTHOID,
-      new LineMaterial({
-        color: 0xff0000,
-        linewidth: 5,
-        depthTest: false,
-      }),
-    ],
-    [
-      AlignmentCurveType.ELLIPSE_ARC,
-      new LineMaterial({
-        color: 0x00ffff,
-        linewidth: 5,
-        depthTest: false,
-      }),
-    ],
-    [
-      AlignmentCurveType.PARABOLA,
-      new LineMaterial({
-        color: 0x0000ff,
-        linewidth: 5,
-        depthTest: false,
-      }),
-    ],
-  ]);
+  // LAZY, and it matters beyond tidiness: `LineMaterial` is a WebGL-only
+  // addon (it builds on ShaderLib / UniformsUtils, which three.webgpu does not
+  // export), and these used to be constructed for EVERY model at construction,
+  // so with `three` resolved to three/webgpu no model could load at all, even
+  // with no alignment in it. Built on first use instead; on WebGL the same
+  // materials are created, only later.
+  private _alignmentMaterialsLazy: Map<AlignmentCurveType, LineMaterial> | null =
+    null;
+
+  private get _alignmentMaterials(): Map<AlignmentCurveType, LineMaterial> {
+    if (!this._alignmentMaterialsLazy) {
+      this._alignmentMaterialsLazy = new Map<AlignmentCurveType, LineMaterial>([
+        [
+          AlignmentCurveType.NONE,
+          new LineMaterial({
+            color: 0xffffff,
+            linewidth: 5,
+            depthTest: false,
+          }),
+        ],
+        [
+          AlignmentCurveType.LINES,
+          new LineMaterial({
+            color: 0xff00ff,
+            linewidth: 5,
+            depthTest: false,
+          }),
+        ],
+        [
+          AlignmentCurveType.CLOTHOID,
+          new LineMaterial({
+            color: 0xff0000,
+            linewidth: 5,
+            depthTest: false,
+          }),
+        ],
+        [
+          AlignmentCurveType.ELLIPSE_ARC,
+          new LineMaterial({
+            color: 0x00ffff,
+            linewidth: 5,
+            depthTest: false,
+          }),
+        ],
+        [
+          AlignmentCurveType.PARABOLA,
+          new LineMaterial({
+            color: 0x0000ff,
+            linewidth: 5,
+            depthTest: false,
+          }),
+        ],
+      ]);
+    }
+    return this._alignmentMaterialsLazy;
+  }
 
   constructor(model: FragmentsModel) {
     this.model = model;
@@ -204,10 +218,15 @@ export class AlignmentsManager {
 
     // _alignmentMaterials is a Map, so Object.values on it returned nothing and
     // its materials were never disposed. The endpoint materials leaked too.
-    for (const material of this._alignmentMaterials.values()) {
-      material.dispose();
+    // Through the lazy holder, not the getter: disposing a model that never
+    // touched alignments must not construct five materials to destroy them.
+    if (this._alignmentMaterialsLazy) {
+      for (const material of this._alignmentMaterialsLazy.values()) {
+        material.dispose();
+      }
+      this._alignmentMaterialsLazy.clear();
+      this._alignmentMaterialsLazy = null;
     }
-    this._alignmentMaterials.clear();
     for (const material of Object.values(this._endpointsMaterials)) {
       material.dispose();
     }
