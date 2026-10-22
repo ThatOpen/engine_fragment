@@ -18,6 +18,12 @@ import {
 import { VirtualFragmentsModel } from "..";
 import { EditRequestType, RawRelationData } from "../../../../Utils";
 
+// Relation names that older importers wrote with a different spelling.
+const legacyRelationNames: Record<string, string> = {
+  DefinesOcurrence: "DefinesOccurrence",
+  DefinesOccurrence: "DefinesOcurrence",
+};
+
 // TODO: Create private _items on demand and not always from the start
 export class VirtualPropertiesController {
   private readonly _model: Model;
@@ -627,20 +633,28 @@ export class VirtualPropertiesController {
     let { attributes, relations } = this._itemDataConfig.relationsDefault;
 
     const { parentName, rel } = config;
+    // Files converted before the importer fixed its spelling store
+    // "DefinesOcurrence": a config for either spelling applies to both.
+    const configKey = (name?: string) => {
+      if (!name) return undefined;
+      if (name in relationsConfig) return name;
+      const alias = legacyRelationNames[name];
+      return alias && alias in relationsConfig ? alias : undefined;
+    };
+    const relKey = configKey(rel);
+    const parentKey = configKey(parentName);
     if (!parentName && !rel) {
       attributes = true;
       relations = true;
     } else {
-      const hasRelConfig = rel && rel in relationsConfig;
-      const hasParentConfig = parentName && parentName in relationsConfig;
-      if (hasRelConfig) {
-        const toProcess = relationsConfig[rel];
+      if (relKey) {
+        const toProcess = relationsConfig[relKey];
         if (toProcess) {
           attributes = toProcess.attributes;
           relations = toProcess.relations;
         }
-      } else if (hasParentConfig) {
-        const toProcess = relationsConfig[parentName];
+      } else if (parentKey) {
+        const toProcess = relationsConfig[parentKey];
         if (toProcess) {
           attributes = toProcess.attributes;
           relations = toProcess.relations;
