@@ -22,6 +22,13 @@
 * `split` now throws a `RangeError` unless `numGroups` is a positive integer. The previous 32-group ceiling is gone: group membership is no longer stored as a `1 << g` bitmask, so any number of splits is supported (bounded in practice by the process' open file descriptor limit, one per group).
 * `@thatopen/fragments` now requires node `>=20.11.0` (`fs.openAsBlob`, global web streams)
 
+## [3.6.0](https://github.com/ThatOpen/engine_fragment/compare/v3.5.1...v3.6.0) (2026-10-22)
+
+
+### Features
+
+* **fragments:** ghost (x-ray) items, from the beta ([27489ea](https://github.com/ThatOpen/engine_fragment/commit/27489ea3a3d5c2358a72b38298208e5d61070ba4))
+
 ## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
 
 
