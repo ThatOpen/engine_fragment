@@ -1,0 +1,1 @@
+var R=(E=>(E[E.NONE=0]="NONE",E[E.WIRE=1]="WIRE",E[E.WIRE_SET=2]="WIRE_SET",E[E.CIRCLE_CURVE=3]="CIRCLE_CURVE",E))(R||{});export{R as A};
