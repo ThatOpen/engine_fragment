@@ -34050,7 +34050,7 @@ function getIdsDelta(model, requests) {
   };
 }
 const FRAGMENTS_GENERATOR = "@thatopen/fragments";
-const FRAGMENTS_VERSION = "3.5.1";
+const FRAGMENTS_VERSION = "3.6.0";
 function getProvenanceMetadata() {
   return {
     generator: FRAGMENTS_GENERATOR,
