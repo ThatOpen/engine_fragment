@@ -11,9 +11,24 @@ import {
 import { CRC } from "../utils";
 import { LodMaterial } from "../lod";
 import { DataMap } from "../../../Utils";
+import {
+  installCaptureEmission,
+  setCaptureEmission,
+  setCapturePixels,
+} from "./capture-emission";
 
 export class MaterialManager {
   readonly list = new DataMap<number, BIMMaterial>();
+
+  /**
+   * When true, SHELL surfaces and LOD lines emit their view normal + faceId to
+   * extra MRT attachments alongside their shaded colour (see capture-emission.ts
+   * and LodShaders.fragment), so a deferred renderer can capture colour and
+   * geometry in a single scene pass. Off by default; ordinary rendering is
+   * unaffected, and nothing is installed on any material until it is first
+   * turned on.
+   */
+  private _captureEmission = false;
 
   private readonly _modelMaterialMapping = new Map<string, Set<number>>();
   private readonly _definitions = new Map<string, MaterialDefinition[]>();
@@ -34,6 +49,46 @@ export class MaterialManager {
         THREE.SRGBColorSpace
       );
     }
+  }
+
+  /** Whether SHELL / LOD materials are currently emitting capture attachments. */
+  get captureEmission() {
+    return this._captureEmission;
+  }
+
+  /**
+   * Turns single-pass capture emission on/off for every live SHELL surface and
+   * LOD line material, and for any created afterwards. A deferred renderer
+   * enables this before its capture pass so colour + view normal + faceId land
+   * in one scene draw.
+   *
+   * The first time it is turned on, the capture injection is installed on the
+   * live SHELL materials (inert again once turned off); until then no material
+   * carries it, so an app that never uses a deferred renderer compiles exactly
+   * the same programs as before.
+   */
+  setCaptureEmission(enabled: boolean) {
+    if (this._captureEmission === enabled) return;
+    this._captureEmission = enabled;
+    for (const material of this.list.values()) {
+      if (material instanceof THREE.MeshLambertMaterial) {
+        if (enabled) installCaptureEmission(material, true);
+        else if (material.userData.hasCaptureEmission) {
+          setCaptureEmission(material, false);
+        }
+      } else if (material instanceof LodMaterial) {
+        this.setLodCaptureEmission(material, enabled);
+      }
+    }
+  }
+
+  /**
+   * The size in pixels of the target the next capture draws into, so no
+   * surface can come out thinner than a pixel in it (see `setCapturePixels` in
+   * capture-emission.ts). `(0, 0)` turns that off.
+   */
+  setCapturePixels(width: number, height: number) {
+    setCapturePixels(width, height);
   }
 
   dispose(modelId: string) {
@@ -190,7 +245,31 @@ export class MaterialManager {
 
     const material = new LodMaterial(parameters);
     material.userData = { customId: definition.customId };
+    // Match the current session: if capture is already on, a LOD material
+    // created afterwards (a tile loaded later) must emit too.
+    if (this._captureEmission) this.setLodCaptureEmission(material, true);
     return material;
+  }
+
+  /**
+   * Flips a LOD line material's capture-emission define. The GLSL is always
+   * present but inert (LodShaders.fragment, gated on CAPTURE_EMISSION); the
+   * define decides whether the extra MRT outputs are written. A LOD material
+   * owns its shader source, so the toggle is a plain define swap.
+   */
+  private setLodCaptureEmission(material: LodMaterial, enabled: boolean) {
+    // The flag a deferred renderer reads to know which materials emit. Set
+    // the first time capture reaches this material, like the SHELL install.
+    if (enabled) material.userData.hasCaptureEmission = true;
+    const defines = (material.defines ??= {});
+    const enabledNow = defines.CAPTURE_EMISSION !== undefined;
+    if (enabledNow === enabled) return;
+    if (enabled) {
+      defines.CAPTURE_EMISSION = "";
+    } else {
+      delete defines.CAPTURE_EMISSION;
+    }
+    material.needsUpdate = true;
   }
 
   private getParameters(data: MaterialDefinition) {
@@ -209,7 +288,7 @@ export class MaterialManager {
     let material: BIMMaterial;
 
     if (objectClass === ObjectClass.SHELL) {
-      material = new THREE.MeshLambertMaterial({
+      const lambert = new THREE.MeshLambertMaterial({
         color: data.color,
         transparent: data.opacity < 1,
         opacity: data.opacity,
@@ -223,6 +302,11 @@ export class MaterialManager {
         polygonOffsetUnits: data.polygonOffsetUnits ?? 0,
         side: data.renderedFaces === 1 ? THREE.DoubleSide : THREE.FrontSide,
       });
+      // A material created while a deferred renderer is capturing (a tile
+      // loaded mid-session) must emit too. Otherwise nothing is installed:
+      // setCaptureEmission(true) installs it on the live materials.
+      if (this._captureEmission) installCaptureEmission(lambert, true);
+      material = lambert;
     } else if (objectClass === ObjectClass.LINE) {
       material = this.newLODMaterial(
         { data, instancing: templateId !== undefined },

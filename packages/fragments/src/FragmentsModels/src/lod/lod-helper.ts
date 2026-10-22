@@ -74,6 +74,11 @@ export class LodHelper {
     ]);
     const transparent = parameters.transparent ?? false;
 
+    // No explicit glslVersion: three already compiles every non-raw
+    // ShaderMaterial as "#version 300 es", which is what lets the fragment
+    // shader declare the extra MRT outputs of the deferred capture (see
+    // LodShaders.fragment / CAPTURE_EMISSION), while keeping three's
+    // location-0 gl_FragColor shim. Setting GLSL3 here would strip that shim.
     return {
       uniforms,
       transparent,

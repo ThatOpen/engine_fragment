@@ -100,6 +100,17 @@ export class LodShaders {
             varying float vHighlight;
             varying vec3 vHighlightColor;
 
+            // Deferred capture: alongside its line colour (location 0), a LOD line
+            // can emit the same auxiliary geometry attachments the SHELL surfaces do
+            // (see capture-emission.ts), so a single-pass deferred renderer captures
+            // it into the same G-buffer and contours / occludes it like the thin
+            // surface it stands in for. Gated by CAPTURE_EMISSION so ordinary line
+            // rendering is unchanged.
+            #ifdef CAPTURE_EMISSION
+              layout(location = 1) out vec2 gCaptureNormal;
+              layout(location = 2) out vec4 gCaptureFaceId;
+            #endif
+
             void main() {
                 #include <clipping_planes_fragment>
                 // Per-instance highlight color (carried via the itemHighlightColor
@@ -109,6 +120,15 @@ export class LodShaders {
                 float alpha = mix(lodOpacity, highlightOpacity, vHighlight);
                 gl_FragColor = vec4(color, alpha);
                 #include <colorspace_fragment>
+                #ifdef CAPTURE_EMISSION
+                  // A line has no surface normal; emit a camera-facing one (octahedral
+                  // encode of +Z is (0,0)) so the normal buffer stays well formed.
+                  gCaptureNormal = vec2(0.0);
+                  // A reserved faceId, one below the capture's empty-space sentinel
+                  // (0xFFFFFF), so every LOD pixel differs from the void and gets
+                  // outlined. Role byte 1 keeps ambient occlusion off the line.
+                  gCaptureFaceId = vec4(1.0, 1.0, 254.0 / 255.0, 1.0);
+                #endif
             }
     `;
 }
