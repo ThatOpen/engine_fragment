@@ -798,7 +798,7 @@ const updateHistoryMenu = async () => {
         ${requestButton}
         <div>
           <bim-label class="history-request-title">${FRAGS.EditRequestTypeNames[request.type]}</bim-label>
-          <bim-label class="history-request-subtitle">ID: ${request.localId}</bim-label>
+          <bim-label class="history-request-subtitle">ID: ${"localId" in request ? request.localId : "-"}</bim-label>
         </div>
       </div>
       `;
