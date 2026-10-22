@@ -1094,14 +1094,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.5.0":
+"@thatopen/fragments@workspace:packages/fragments, @thatopen/fragments@~3.6.0":
   version: 0.0.0-use.local
   resolution: "@thatopen/fragments@workspace:packages/fragments"
   dependencies:
     "@andypf/json-viewer": ^2.1.10
     "@thatopen/components": ~3.5.0
     "@thatopen/components-front": ~3.5.0
-    "@thatopen/fragments": ~3.5.0
+    "@thatopen/fragments": ~3.6.0
     "@types/earcut": ^3.0.0
     "@types/node": ^26.1.1
     "@types/pako": 2.0.3
