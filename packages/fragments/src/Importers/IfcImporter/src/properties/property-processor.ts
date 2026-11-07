@@ -738,12 +738,37 @@ export class IfcPropertyProcessor {
 
     const crs = this.extractCRS(ifcApi);
 
+    const importSettings = this._serializer.includeImportSettings
+      ? {
+          version: 1,
+          sourceCounts: Object.fromEntries(
+            ifcApi
+              .GetAllTypesOfModel(0)
+              .map(({ typeID }) => [
+                ifcApi.GetNameFromTypeCode(typeID).toUpperCase(),
+                ifcApi.GetLineIDsWithType(0, typeID).size(),
+              ]),
+          ),
+          retainedCounts: this.classes.reduce<Record<string, number>>(
+            (counts, category) => {
+              counts[category] = (counts[category] ?? 0) + 1;
+              return counts;
+            },
+            {},
+          ),
+          excludedAttributes: [...this._serializer.attributesToExclude].sort(),
+          relations: Object.fromEntries(this._serializer.relations),
+          materialProperties: this._serializer.includeMaterialProperties,
+        }
+      : undefined;
+
     const metadata = {
       schema,
       names,
       descriptions,
       crs,
       ...getProvenanceMetadata(),
+      ...(importSettings ? { importSettings } : {}),
     } as any;
 
     const metadataOffset = this._builder.createString(JSON.stringify(metadata));

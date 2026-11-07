@@ -36,6 +36,13 @@ export class IfcImporter {
     COORDINATE_TO_ORIGIN: true,
   };
 
+  /**
+   * Include source/retained entity counts and import settings in the model
+   * metadata. Consumers can distinguish missing IFC data from information
+   * deliberately omitted during conversion. Disabled by default.
+   */
+  includeImportSettings = false;
+
   /** A set of attribute names to exclude from serialization.
    */
   attributesToExclude = new Set([
@@ -94,12 +101,12 @@ export class IfcImporter {
     // (issue #743).
     [
       WEBIFC.IFCRELREFERENCEDINSPATIALSTRUCTURE,
-      { forRelated: "ReferencedInStructures", forRelating: "ReferencesElements" },
+      {
+        forRelated: "ReferencedInStructures",
+        forRelating: "ReferencesElements",
+      },
     ],
-    [
-      WEBIFC.IFCRELNESTS,
-      { forRelated: "Nests", forRelating: "IsNestedBy" },
-    ],
+    [WEBIFC.IFCRELNESTS, { forRelated: "Nests", forRelating: "IsNestedBy" }],
   ]);
 
   /**
