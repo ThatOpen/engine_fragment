@@ -1,7 +1,7 @@
 {
   "name": "@thatopen/fragments",
   "description": "Simple geometric system built on top of Three.js to display 3D BIM data efficiently.",
-  "version": "3.6.0",
+  "version": "3.6.1",
   "author": "That Open Company",
   "contributors": [
     "Antonio Gonzalez Viegas (https://github.com/agviegas)",
@@ -18,7 +18,8 @@
   "types": "dist/index.d.ts",
   "sideEffects": [
     "./dist/Worker/*",
-    "./src/FragmentsModels/src/multithreading/fragments-thread.ts"
+    "./src/FragmentsModels/src/multithreading/fragments-thread.ts",
+    "./dist/inline.mjs"
   ],
   "exports": {
     ".": {
@@ -29,6 +30,10 @@
     "./worker": {
       "import": "./dist/Worker/worker.mjs",
       "default": "./dist/Worker/worker.mjs"
+    },
+    "./inline": {
+      "import": "./dist/inline.mjs",
+      "default": "./dist/inline.mjs"
     }
   },
   "files": [
@@ -44,7 +49,7 @@
     "dev": "vite --host",
     "test": "vitest --run",
     "test-webgpu": "vitest --run --config vitest.config-webgpu.ts",
-    "build": "tsc --p ./tsconfig-build.json && vite build && vite build --config vite.config-worker.ts && yarn copy-worker",
+    "build": "tsc --p ./tsconfig-build.json && vite build && vite build --config vite.config-worker.ts && yarn copy-worker && vite build --config vite.config-worker-inline.ts && node scripts/generate-inline-worker.mjs",
     "prepublishOnly": "yarn build",
     "publish-repo": "npm publish",
     "copy-worker": "node ../../resources/worker-solver.js",

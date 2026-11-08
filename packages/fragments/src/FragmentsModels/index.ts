@@ -40,9 +40,21 @@ export interface FragmentsModelsOptions {
 export class FragmentsModels {
   private static _workerURL: string | null = null;
   private static _workerPromise: Promise<string> | null = null;
+  private static _inlineWorkerB64: string | null = null;
 
   /**
-   * Fetches the fragments worker from unpkg for the exact version of this
+   * Registers the worker source (base64) so {@link getWorker} builds it as a blob URL: no network and no
+   * `import.meta`. Called by the opt-in side-effect module `@thatopen/fragments/inline`. Apps bundled as IIFE or
+   * running in sandboxed iframes import it once (`import "@thatopen/fragments/inline"`); apps that do not keep their
+   * bundle size and get the worker from unpkg as before.
+   */
+  static registerInlineWorker(base64: string): void {
+    FragmentsModels._inlineWorkerB64 = base64;
+  }
+
+  /**
+   * The worker registered by `@thatopen/fragments/inline` when that module was imported, as a blob URL; else
+   * fetched from unpkg for the exact version of this
    * `@thatopen/fragments` package and returns a blob URL you can pass to the
    * `FragmentsModels` constructor. The result is cached, so calling this
    * method more than once is cheap.
@@ -62,6 +74,15 @@ export class FragmentsModels {
   static async getWorker(): Promise<string> {
     if (FragmentsModels._workerURL) return FragmentsModels._workerURL;
     if (FragmentsModels._workerPromise) return FragmentsModels._workerPromise;
+
+    // Registered by `@thatopen/fragments/inline`: the worker made from the bytes the bundle carries.
+    if (FragmentsModels._inlineWorkerB64) {
+      const binary = atob(FragmentsModels._inlineWorkerB64);
+      const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "text/javascript" });
+      FragmentsModels._workerURL = URL.createObjectURL(blob);
+      return FragmentsModels._workerURL;
+    }
 
     FragmentsModels._workerPromise = (async () => {
       const url = `https://unpkg.com/@thatopen/fragments@${FRAGMENTS_VERSION}/dist/Worker/worker.mjs`;
