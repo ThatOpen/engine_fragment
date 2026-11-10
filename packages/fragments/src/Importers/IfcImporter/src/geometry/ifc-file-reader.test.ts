@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises";
 import * as path from "path";
+import * as THREE from "three";
 import { expect, test } from "vitest";
 import { IfcImporter } from "../../..";
 import { SingleThreadedFragmentsModel } from "../../../../FragmentsModels";
@@ -62,4 +63,55 @@ test("geometries differing only in interior detail are not deduplicated", { time
     -200, -132, -108, 108, 132, 200,
   ]);
   expect(xPositions(plateB.positions!)).toEqual([-200, -52, -28, 28, 52, 200]);
+});
+
+/**
+ * A 10 m box whose placement is rotated 10 degrees about Z. The x direction of
+ * its transform used to be rounded to 3 decimals while the y direction kept 5,
+ * which skewed the basis and moved the far end of the box by about 2 mm.
+ */
+test("rotated placements keep sub-millimetre precision", { timeout: 30000 }, async () => {
+  const importer = new IfcImporter();
+  importer.wasm = { path: webIfcDir + path.sep, absolute: true };
+  const bytes = await readFile(
+    path.resolve(assetDir, "resources/ifc/rotated-placement.ifc"),
+  );
+  const model = new SingleThreadedFragmentsModel(
+    "rotated_placement",
+    await importer.process({ bytes }),
+  );
+
+  const localIds = model.getLocalIdsByGuids([
+    "0RotBoxAAAAAAAAAAAAAA0",
+  ]) as number[];
+  const [[mesh]] = model.getItemsGeometry(localIds);
+  const [cx, cy, cz] = model.getCoordinates();
+
+  // The box spans x 0..10, y -0.1..0.1, z 0..0.2 in its placement, which is
+  // rotated 10 degrees about the IFC Z axis. Three.js axes are (x, z, -y).
+  const angle = (10 * Math.PI) / 180;
+  const corners: THREE.Vector3[] = [];
+  for (const x of [0, 10]) {
+    for (const y of [-0.1, 0.1]) {
+      for (const z of [0, 0.2]) {
+        const wx = Math.cos(angle) * x - Math.sin(angle) * y;
+        const wy = Math.sin(angle) * x + Math.cos(angle) * y;
+        corners.push(new THREE.Vector3(wx, z, -wy));
+      }
+    }
+  }
+
+  const positions = mesh.positions!;
+  const vertex = new THREE.Vector3();
+  let maxError = 0;
+  for (let i = 0; i < positions.length; i += 3) {
+    vertex
+      .set(positions[i], positions[i + 1], positions[i + 2])
+      .applyMatrix4(mesh.transform)
+      .sub(new THREE.Vector3(cx, cy, cz));
+    const error = Math.min(...corners.map((c) => c.distanceTo(vertex)));
+    maxError = Math.max(maxError, error);
+  }
+
+  expect(maxError).toBeLessThan(1e-4);
 });
