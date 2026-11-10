@@ -211,11 +211,12 @@ export class SpaceBoundaryReader {
 
   private decompose(transform: THREE.Matrix4) {
     const e = transform.elements;
-    const p = 1000;
+    // Every direction component keeps the same precision: rounding x coarser
+    // than y skews the basis and misplaces rotated elements (~mm per metre).
     const ap = 100000;
-    const dxx = GeomsFbUtils.round(e[0], p);
-    const dxy = GeomsFbUtils.round(e[1], p);
-    const dxz = GeomsFbUtils.round(e[2], p);
+    const dxx = GeomsFbUtils.round(e[0], ap);
+    const dxy = GeomsFbUtils.round(e[1], ap);
+    const dxz = GeomsFbUtils.round(e[2], ap);
     const dyx = GeomsFbUtils.round(e[4], ap);
     const dyy = GeomsFbUtils.round(e[5], ap);
     const dyz = GeomsFbUtils.round(e[6], ap);
