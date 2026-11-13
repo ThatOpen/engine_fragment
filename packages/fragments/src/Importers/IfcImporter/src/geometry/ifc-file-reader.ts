@@ -581,6 +581,7 @@ export class IfcFileReader {
       // console.log(`Fragments: Zero length geometry: ${geometryData.id}`);
       element.geometries.pop();
       this._problematicGeometries.add(geometryData.id);
+      geometry.delete();
       return;
     }
 
@@ -1182,13 +1183,17 @@ export class IfcFileReader {
     mesh: any,
     geometryIndex: number,
   ): boolean {
+    // GetGeometry returns a copy that lives in the WASM heap until it is
+    // deleted. This check runs for every geometry of every rebar, so a model
+    // with many bars exhausts the heap unless each copy is released.
+    let geometry: WEBIFC.IfcGeometry | undefined;
     try {
       if (!this._ifcAPI) return false;
 
       const geometryRef = mesh.geometries.get(geometryIndex);
       if (!geometryRef) return false;
 
-      const geometry = this._ifcAPI.GetGeometry(
+      geometry = this._ifcAPI.GetGeometry(
         modelID,
         geometryRef.geometryExpressID,
       );
@@ -1200,6 +1205,8 @@ export class IfcFileReader {
       return !!swept?.axis && swept.axis.size() > 0;
     } catch {
       return false;
+    } finally {
+      geometry?.delete();
     }
   }
 }
