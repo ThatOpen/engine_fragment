@@ -46,7 +46,7 @@ export class Connection {
     connectionPort.postMessage(input, content as any);
   }
 
-  private async manageOutput(input: any) {
+  protected async manageOutput(input: any) {
     const connection = await this.fetchConnection(input);
     input.toMainThread = true;
     connection.postMessage(input);
