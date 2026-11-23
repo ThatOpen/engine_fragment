@@ -47,6 +47,11 @@ export const ifcClasses = {
     WEBIFC.IFCMATERIALPROPERTIES,
     WEBIFC.IFCEXTENDEDMATERIALPROPERTIES,
   ]),
+  // Opt-in via IfcImporter.includeMepConnectivity (platform_services#27): the
+  // ports of distribution elements, imported as data so the connectivity
+  // relations have both ends in the model. IFCPORT is abstract in both schemas;
+  // it is listed for files that write it anyway.
+  ports: new Set([WEBIFC.IFCDISTRIBUTIONPORT, WEBIFC.IFCPORT]),
   properties: new Set([
     WEBIFC.IFCPROPERTYSET,
     WEBIFC.IFCPROPERTYSINGLEVALUE,
