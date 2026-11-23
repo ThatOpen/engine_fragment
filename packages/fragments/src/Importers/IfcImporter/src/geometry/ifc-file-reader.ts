@@ -224,13 +224,7 @@ export class IfcFileReader {
         throw new Error("Fragments: IfcAPI not initialized");
       }
 
-      if (!this._coordinatesInitialized) {
-        const coordinates = this._ifcAPI.GetCoordinationMatrix(modelID);
-        this._tempMatrix1.fromArray(coordinates);
-        const coordinatesData = this.decompose(this._tempMatrix1);
-        this.onCoordinatesLoaded(coordinatesData);
-        this._coordinatesInitialized = true;
-      }
+      this.loadCoordinates(modelID);
 
       const properties = this._ifcAPI.GetLine(0, mesh.expressID);
 
@@ -358,6 +352,11 @@ export class IfcFileReader {
 
     const alignments = this._civilReader.read(this._ifcAPI);
     this.onAlignmentsLoaded(alignments);
+
+    // A model without meshes (e.g. one that only holds grids) never reaches
+    // the mesh callback, but GridReader still applies the coordination matrix
+    // to every grid, so the model must record it as its coordinates too.
+    this.loadCoordinates(modelID);
 
     const grids = new GridReader(this._ifcAPI, modelID).read();
     grids.errors.forEach(logGridReadError);
@@ -930,6 +929,22 @@ export class IfcFileReader {
     );
 
     return { units, transformWithoutScale };
+  }
+
+  /**
+   * Reports the model's coordination matrix through {@link onCoordinatesLoaded},
+   * unless it was already reported.
+   */
+  private loadCoordinates(modelID: number) {
+    if (this._coordinatesInitialized) return;
+    if (this._ifcAPI === null) {
+      throw new Error("Fragments: IfcAPI not initialized");
+    }
+    const coordinates = this._ifcAPI.GetCoordinationMatrix(modelID);
+    this._tempMatrix1.fromArray(coordinates);
+    const coordinatesData = this.decompose(this._tempMatrix1);
+    this.onCoordinatesLoaded(coordinatesData);
+    this._coordinatesInitialized = true;
   }
 
   private decompose(transform: THREE.Matrix4) {

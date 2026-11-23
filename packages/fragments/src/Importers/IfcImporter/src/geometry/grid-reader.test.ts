@@ -404,3 +404,49 @@ test("returns an axis it cannot represent in errors", async () => {
 test("is part of the package's public API", () => {
   expect(FRAGS.GridReader).toBe(GridReader);
 });
+
+test(
+  "a model with only grids records the shift applied to its grids as its coordinates",
+  async () => {
+    // The site sits at (500 km, 200 km, 12 m) and the grid 10 m, 20 m and 3 m
+    // further, so the grid origin is at (500010, 200020, 15) m in IFC axes.
+    const bytes = new Uint8Array(
+      await readFile(
+        path.resolve(
+          assetDir,
+          "resources",
+          "ifc",
+          "grids-only-georeferenced.ifc",
+        ),
+      ),
+    );
+    const importer = new IfcImporter();
+    importer.wasm = { path: webIfcDir + path.sep, absolute: true };
+    const fragBytes = await importer.process({ bytes, raw: true });
+
+    const model = TFB.Model.getRootAsModel(new ByteBuffer(fragBytes));
+    const position = model.meshes()!.coordinates()!.position()!;
+    const coordinates = [position.x(), position.y(), position.z()];
+    expect(coordinates).not.toEqual([0, 0, 0]);
+
+    let grid: GridData | undefined;
+    for (let i = 0; i < model.categoriesLength(); i++) {
+      if (model.categories(i) !== GRID_CATEGORY) continue;
+      const attr = model.attributes(i)!;
+      for (let j = 0; j < attr.dataLength(); j++) {
+        const [name, value] = JSON.parse(attr.data(j) as string);
+        if (name === "data") grid = JSON.parse(value);
+      }
+    }
+    expect(grid).toBeDefined();
+
+    // world = position - coordinates, in three.js axes (x, z, -y).
+    const origin = grid!.transform.slice(12, 15);
+    const world = origin.map((value, i) => value - coordinates[i]);
+    const expected = [500010, 15, -200020];
+    for (let i = 0; i < 3; i++) {
+      expect(world[i]).toBeCloseTo(expected[i], 6);
+    }
+  },
+  CONVERSION_TIMEOUT,
+);
