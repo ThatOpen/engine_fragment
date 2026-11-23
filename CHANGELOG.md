@@ -22,6 +22,14 @@
 * `split` now throws a `RangeError` unless `numGroups` is a positive integer. The previous 32-group ceiling is gone: group membership is no longer stored as a `1 << g` bitmask, so any number of splits is supported (bounded in practice by the process' open file descriptor limit, one per group).
 * `@thatopen/fragments` now requires node `>=20.11.0` (`fs.openAsBlob`, global web streams)
 
+## [3.7.0](https://github.com/ThatOpen/engine_fragment/compare/v3.6.0...v3.7.0) (2026-11-23)
+
+
+### Features
+
+* **fragments:** opt-in inline worker (@thatopen/fragments/inline, FragmentsModels.registerInlineWorker), from the beta; 3.6.1 ([#354](https://github.com/ThatOpen/engine_fragment/issues/354)) ([bc3f688](https://github.com/ThatOpen/engine_fragment/commit/bc3f6880d3698154349174954bc391e5345c3d19))
+* **IfcImporter:** opt-in MEP connectivity behind includeMepConnectivity ([#368](https://github.com/ThatOpen/engine_fragment/issues/368)) ([643d24e](https://github.com/ThatOpen/engine_fragment/commit/643d24e17d0842765744fe8f66b459a2ba734dbc))
+
 ## [3.4.0](https://github.com/ThatOpen/engine_fragment/compare/v3.3.2...v3.4.0) (2026-04-09)
 
 
