@@ -933,11 +933,12 @@ export class IfcFileReader {
   }
 
   private decompose(transform: THREE.Matrix4) {
-    const p = 1000;
+    // Every direction component keeps the same precision: rounding x coarser
+    // than y skews the basis and misplaces rotated elements (~mm per metre).
     const ap = 100000;
-    const dxx = GeomsFbUtils.round(transform.elements[0], p);
-    const dxy = GeomsFbUtils.round(transform.elements[1], p);
-    const dxz = GeomsFbUtils.round(transform.elements[2], p);
+    const dxx = GeomsFbUtils.round(transform.elements[0], ap);
+    const dxy = GeomsFbUtils.round(transform.elements[1], ap);
+    const dxz = GeomsFbUtils.round(transform.elements[2], ap);
     const dyx = GeomsFbUtils.round(transform.elements[4], ap);
     const dyy = GeomsFbUtils.round(transform.elements[5], ap);
     const dyz = GeomsFbUtils.round(transform.elements[6], ap);
