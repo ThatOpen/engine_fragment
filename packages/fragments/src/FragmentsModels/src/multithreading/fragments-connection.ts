@@ -132,6 +132,15 @@ export class FragmentsConnection extends Connection {
     return super.fetch(input, content);
   }
 
+  // A worker's request can arrive after its model was disposed and the worker
+  // terminated. fetchConnection would start a new worker only to deliver the
+  // reply; that worker throws on a request id it never sent and is never
+  // terminated. Nobody waits for the reply, so drop it.
+  protected override async manageOutput(input: any) {
+    if (!this._data.getThread(input.modelId)) return;
+    await super.manageOutput(input);
+  }
+
   protected override async fetchConnection(input: any): Promise<MessagePort> {
     const thread = this._data.getAndCheckThread(input.modelId);
     if (thread) {
